@@ -1,0 +1,9 @@
+{
+  "watch": ["./src/**/*.ts", "./locales/**/*.ftl"],
+  "exec": "ts-node src/index.ts",
+  "ext": "ts,js,json,ftl",
+  "env": {
+    "NODE_ENV": "development",
+    "NODE_OPTIONS": "--no-deprecation"
+  }
+}

@@ -1,0 +1,10 @@
+.vscode
+.idea
+.fleet
+
+.env
+
+dist
+sessions
+node_modules
+*.db
