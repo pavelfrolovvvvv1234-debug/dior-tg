@@ -1,6 +1,8 @@
 import {
   Bot,
+  BotError,
   Context,
+  GrammyError,
   InlineKeyboard,
   LazySessionFlavor,
   MemorySessionStorage,
@@ -22,6 +24,7 @@ import {
 } from "./helpers/promote-permissions";
 import { controlUser, controlUsers } from "./helpers/users-control";
 import express from "express";
+import { run as grammyRun } from "@grammyjs/runner";
 dotenv.config({});
 
 export type MyAppContext = Context &
@@ -344,31 +347,33 @@ async function index() {
     });
   });
 
-  bot.catch((err) => {
-    if (process.env["NODE_ENV"] == "development") {
-      console.error(err);
-    }
-  });
-
   const run = async () => {
     console.info("[DripHosting Bot]: Starting");
     if (process.env.IS_WEBHOOK && process.env.PORT_WEBHOOK) {
       const app = express();
 
       app.use(express.json());
-      app.use(webhookCallback(bot, "express"));
+      app.use(
+        webhookCallback(bot, "express", {
+          onTimeout: "return",
+        })
+      );
+
       await bot.api.setWebhook(process.env.IS_WEBHOOK);
+
       app.listen(process.env.PORT_WEBHOOK, () => {});
     } else {
       // Delete webhook anyway in this way :)
       await bot.api.deleteWebhook();
 
-      bot
-        .start()
-        .then()
-        .catch((_) => {
-          console.info("[DripHosting Bot]: happend error when started");
-        });
+      bot.catch((err) => {
+        if (process.env["NODE_ENV"] == "development") {
+          console.error(err.name, err.message, err.stack);
+        }
+      });
+
+      grammyRun(bot);
+      console.info("[DripHosting Bot]: Started");
     }
   };
 

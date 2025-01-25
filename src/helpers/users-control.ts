@@ -123,10 +123,15 @@ export const controlUsers = new Menu<MyAppContext>("control-users", {})
       range.text(
         (ctx) => ctx.t("pagination-left"),
         async (ctx) => {
-          if (session.other.controlUsersPage.page > 0) {
-            session.other.controlUsersPage.page--;
-            ctx.menu.update();
+          session.other.controlUsersPage.page--;
+
+          if (session.other.controlUsersPage.page < 0) {
+            session.other.controlUsersPage.page = maxPages;
           }
+
+          await ctx.menu.update({
+            immediate: true,
+          });
         }
       );
       range.text(
@@ -135,10 +140,15 @@ export const controlUsers = new Menu<MyAppContext>("control-users", {})
       range.text(
         (ctx) => ctx.t("pagination-right"),
         async (ctx) => {
-          if (session.other.controlUsersPage.page < maxPages) {
-            session.other.controlUsersPage.page++;
-            ctx.menu.update();
+          session.other.controlUsersPage.page++;
+
+          if (session.other.controlUsersPage.page > maxPages) {
+            session.other.controlUsersPage.page = 0;
           }
+
+          await ctx.menu.update({
+            immediate: true,
+          });
         }
       );
     }
@@ -158,8 +168,13 @@ export const controlUser = new Menu<MyAppContext>("control-user", {}).dynamic(
 
     if (!user) return;
 
-    range.text((ctx) =>
-      user.isBanned ? ctx.t("unblock-user") : ctx.t("block-user")
+    range.text(
+      (ctx) => (user.isBanned ? ctx.t("unblock-user") : ctx.t("block-user")),
+      async (ctx) => {
+        user.isBanned = !user.isBanned;
+        await ctx.appDataSource.manager.save(user);
+        ctx.menu.update();
+      }
     );
   }
 );

@@ -7,6 +7,7 @@ const AppDataSource = new DataSource({
   database: "data.db",
   synchronize: true,
   entities: [User, TempLink],
+  enableWAL: true,
 });
 
 export async function getAppDataSource() {
