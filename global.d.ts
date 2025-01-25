@@ -6,6 +6,8 @@ declare global {
       WEBSITE_URL: string;
       SUPPORT_USERNAME_TG: string;
       BOT_USERNAME: string;
+      IS_WEBHOOK?: string;
+      PORT_WEBHOOK?: string;
     }
   }
 }

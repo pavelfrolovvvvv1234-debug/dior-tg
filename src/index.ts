@@ -5,6 +5,7 @@ import {
   LazySessionFlavor,
   MemorySessionStorage,
   session,
+  webhookCallback,
 } from "grammy";
 import dotenv from "dotenv";
 import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
@@ -20,7 +21,7 @@ import {
   promotePermissions,
 } from "./helpers/promote-permissions";
 import { controlUser, controlUsers } from "./helpers/users-control";
-
+import express from "express";
 dotenv.config({});
 
 export type MyAppContext = Context &
@@ -170,6 +171,7 @@ export interface SessionData {
       id: number;
       balance: number;
       role: Role;
+      isBanned: boolean;
     };
   };
   other: {
@@ -187,7 +189,7 @@ export interface SessionData {
 async function index() {
   const { fluent, availableLocales } = await initFluent();
 
-  const bot = new Bot<MyAppContext>(process.env.BOT_TOKEN);
+  const bot = new Bot<MyAppContext>(process.env.BOT_TOKEN, {});
 
   bot.use(
     session({
@@ -209,6 +211,7 @@ async function index() {
             balance: 0,
             id: 0,
             role: Role.User,
+            isBanned: false,
           },
         }),
         storage: new FileAdapter({
@@ -247,14 +250,10 @@ async function index() {
         user = await ctx.appDataSource.manager.save(newUser);
       }
 
-      if (user.isBanned) {
-        await ctx.deleteMessage();
-        return;
-      }
-
       session.main.user.balance = user.balance;
       session.main.user.id = user.id;
       session.main.user.role = user.role;
+      session.main.user.isBanned = user.isBanned;
     }
     return next();
   });
@@ -268,6 +267,18 @@ async function index() {
       },
     })
   );
+
+  bot.use(async (ctx, next) => {
+    const session = await ctx.session;
+
+    if (session.main.user.isBanned) {
+      await ctx.reply(ctx.t("message-about-block"));
+      await ctx.deleteMessage();
+      return;
+    }
+
+    return next();
+  });
 
   bot.use(promotePermissions());
   bot.use(mainMenu);
@@ -339,14 +350,29 @@ async function index() {
     }
   });
 
-  console.info("[DripHosting Bot]: started");
+  const run = async () => {
+    console.info("[DripHosting Bot]: Starting");
+    if (process.env.IS_WEBHOOK && process.env.PORT_WEBHOOK) {
+      const app = express();
 
-  bot
-    .start()
-    .then()
-    .catch((_) => {
-      console.info("[DripHosting Bot]: happend error when started");
-    });
+      app.use(express.json());
+      app.use(webhookCallback(bot, "express"));
+      await bot.api.setWebhook(process.env.IS_WEBHOOK);
+      app.listen(process.env.PORT_WEBHOOK, () => {});
+    } else {
+      // Delete webhook anyway in this way :)
+      await bot.api.deleteWebhook();
+
+      bot
+        .start()
+        .then()
+        .catch((_) => {
+          console.info("[DripHosting Bot]: happend error when started");
+        });
+    }
+  };
+
+  await run();
 }
 
 index()

@@ -19,6 +19,21 @@ SUPPORT_USERNAME_TG="drip_sup"
 BOT_USERNAME="dridevdrivbot"
 ```
 
+### Webhooks
+
+Вы можете также включить режим Webhook, чтобы телеграм отправлял информацию о каком либо обновлении а не клиент бесконечно запрашивал информацию.
+
+[Подробнее об этом написанно здесь](https://grammy.dev/guide/deployment-types#comparison)
+
+> Важно убедитесь, что ваш web-сервер настроенн с подключённым SSL сертификатом.
+
+Просто добавьте это в .env файл
+
+```
+IS_WEBHOOK="https://<url>/"
+PORT_WEBHOOK="3002"
+```
+
 ## Сборка проекта и запуск
 
 ```console

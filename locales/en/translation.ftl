@@ -48,6 +48,7 @@ promote-link = The link has been created. It will be active for 6 hours.
 admin-help = Available commands for Administrator:
  1. /promote_link - Create a link to raise user rights
  <blockquote>This link will allow you to get moderator rights, after its creation it will be active for 6 hours.</blockquote>
+ 2. /users - Get a list of users and control them
 
 link-expired = The link has expired
 link-used = The link already has been used
