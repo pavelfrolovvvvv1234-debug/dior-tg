@@ -6,6 +6,9 @@
     "esModuleInterop": true,
     "alwaysStrict": true,
     "moduleResolution": "nodenext",
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
     "rootDir": "src",
     "baseUrl": "./",
     "paths": {

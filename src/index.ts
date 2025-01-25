@@ -334,10 +334,19 @@ async function index() {
   });
 
   bot.catch((err) => {
-    console.error(err);
+    if (process.env["NODE_ENV"] == "development") {
+      console.error(err);
+    }
   });
 
-  await bot.start();
+  console.info("[DripHosting Bot]: started");
+
+  bot
+    .start()
+    .then()
+    .catch((_) => {
+      console.info("[DripHosting Bot]: happend error when started");
+    });
 }
 
 index()
