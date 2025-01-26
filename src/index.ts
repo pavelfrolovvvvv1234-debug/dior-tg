@@ -1,8 +1,6 @@
 import {
   Bot,
-  BotError,
   Context,
-  GrammyError,
   InlineKeyboard,
   LazySessionFlavor,
   MemorySessionStorage,
@@ -25,6 +23,7 @@ import {
 import { controlUser, controlUsers } from "./helpers/users-control";
 import express from "express";
 import { run as grammyRun } from "@grammyjs/runner";
+import { servicesMenu } from "./helpers/services-menu";
 dotenv.config({});
 
 export type MyAppContext = Context &
@@ -59,7 +58,7 @@ const mainMenu = new Menu<MyAppContext>("main-menu")
   )
   .submenu((ctx) => ctx.t("button-change-locale"), "change-locale-menu")
   .row()
-  .text((ctx) => ctx.t("button-purchase"))
+  .submenu((ctx) => ctx.t("button-purchase"), "services-menu")
   .text((ctx) => ctx.t("button-manage-services"))
   .row()
   .submenu(
@@ -290,6 +289,7 @@ async function index() {
   mainMenu.register(aboutUsMenu, "main-menu");
   mainMenu.register(supportMenu, "main-menu");
   mainMenu.register(profileMenu, "main-menu");
+  mainMenu.register(servicesMenu, "main-menu");
 
   bot.use(controlUser);
   bot.use(controlUsers);
@@ -337,7 +337,7 @@ async function index() {
   });
 
   bot.command("users", async (ctx) => {
-    ctx.deleteMessage();
+    await ctx.deleteMessage();
     const session = await ctx.session;
     if (session.main.user.role == Role.User) return;
 

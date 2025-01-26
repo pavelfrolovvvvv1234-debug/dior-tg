@@ -9,7 +9,7 @@ welcome = Привет! Я — бот хостинга DripHosting.
  <blockquote>Ваш баланс: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
 
 
-about-us = Мы предоставляем надежные и высокопроизводительные услуги VDS выделенных серверов и хостинга.
+about-us = Мы предоставляем надежные и высокопроизводительные услуги, VDS выделенных серверов.
 
  Наша инфраструктура обеспечивает анонимность, безопасность данных и стабильную работу со скоростью до <strong>1 GBit/s</strong>.
  
@@ -32,6 +32,8 @@ button-change-locale = 🇷🇺 Сменить язык
 button-ask-question = Задать вопрос
 button-deposit = 📤 Пополнить баланс
 button-promocode = 🎁 Промокод
+button-contact-with-client = Связаться с клиентом
+button-domains = 🌐 Домены
 
 button-back = 🔙 Назад
 button-close = ❌ Закрыть
@@ -61,11 +63,12 @@ admin-notification-about-promotion = Пользователь <a href="tg://user
 
 -users-list = Список пользователей
 -users-list-empty = Список пользователей пуст
--user-info = Панель управления пользователем
+-user-info = <strong>Панель управления пользователем</strong>
 
 control-panel-users = {-users-list}
 
 control-panel-about-user = {-user-info}
+
  ID: {$username} ({$id})
  <blockquote>Баланс пользователя: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
  Дата создания аккаунта: {DATETIME($createdAt, dateStyle: "long", timeStyle: "short")}

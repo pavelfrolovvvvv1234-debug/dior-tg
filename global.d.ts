@@ -8,6 +8,7 @@ declare global {
       BOT_USERNAME: string;
       IS_WEBHOOK?: string;
       PORT_WEBHOOK?: string;
+      DOMAINR_TOKEN?: string;
     }
   }
 }

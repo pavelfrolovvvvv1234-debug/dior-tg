@@ -176,5 +176,15 @@ export const controlUser = new Menu<MyAppContext>("control-user", {}).dynamic(
         ctx.menu.update();
       }
     );
+
+    range.text((ctx) => ctx.t("button-manage-services"));
+    range.row();
+    range.text((ctx) => ctx.t("button-contact-with-client"));
+    range.text(
+      (ctx) => ctx.t("button-close"),
+      (ctx) => {
+        ctx.menu.close();
+      }
+    );
   }
 );

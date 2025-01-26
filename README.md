@@ -17,6 +17,7 @@ BOT_TOKEN="<token>"
 WEBSITE_URL="https://driphosting.com/"
 SUPPORT_USERNAME_TG="drip_sup"
 BOT_USERNAME="dridevdrivbot"
+DOMAINR_TOKEN="<domainr_token>"
 ```
 
 ### Webhooks

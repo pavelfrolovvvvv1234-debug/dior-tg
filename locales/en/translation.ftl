@@ -31,6 +31,8 @@ button-change-locale = 🇺🇸 Change language
 button-ask-question = Ask question
 button-deposit = 📤 Top up
 button-promocode = 🎁 Promocode
+button-contact-with-client = Contact with client
+button-domains = 🌐 Domains
 
 button-back = 🔙 Back
 button-close = ❌ Close
