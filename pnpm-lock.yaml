@@ -17,6 +17,9 @@ importers:
       '@grammyjs/runner':
         specifier: ^2.0.3
         version: 2.0.3(grammy@1.34.0(encoding@0.1.13))
+      '@grammyjs/stateless-question':
+        specifier: '3'
+        version: 3.0.1(grammy@1.34.0(encoding@0.1.13))
       '@grammyjs/storage-file':
         specifier: ^2.4.2
         version: 2.4.2
@@ -115,8 +118,17 @@ packages:
     peerDependencies:
       grammy: ^1.13.1
 
+  '@grammyjs/stateless-question@3.0.1':
+    resolution: {integrity: sha512-9S/ff+yPxEEFpFsjiu7UjsOhETt9jruAUNcfzfTJ9FTuyIEjcMpTLT8ncpWyNE2w8tWRTLmOpXHSswPohntH7w==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      grammy: ^1.2.0
+
   '@grammyjs/storage-file@2.4.2':
     resolution: {integrity: sha512-LWMvy5yCAxnYuKgCASRDCq8VSQ1SXn3t8ZzkG3ftcJD6+HQkDhe4GETCxWGbPOqVH7jFMOIt7PnoP9DuoR4T6g==}
+
+  '@grammyjs/types@2.12.1':
+    resolution: {integrity: sha512-1hO6esfdo42mSvyArPHrlgSY/fgerTuVNAbSD5ZKHS/w5ZyrkA4pRp3VHK2XE3fm9/uMBT/39i8pPvx0+Kbxjg==}
 
   '@grammyjs/types@3.18.0':
     resolution: {integrity: sha512-/VpQcT6Z0+Lw6H6jv2JvnDmqB1/9rjbFdDBlPBPUW3kQ1bWfjzfaiVk2+J2eiid3o3sLaPp3ZK0XjEI1gWNc3g==}
@@ -1347,6 +1359,10 @@ packages:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
     engines: {node: '>=10'}
 
+  telegram-format@2.1.0:
+    resolution: {integrity: sha512-V2thkhKzcNVL26h/ANeat/Z+AXBaDGoizs4cab6Kpq/w+d+Ai6M/AFFkuBwvCkZXqb+7UW2vt3Dko5+kKcOIHg==}
+    engines: {node: '>=12'}
+
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
     engines: {node: '>=0.8'}
@@ -1580,7 +1596,15 @@ snapshots:
       abort-controller: 3.0.0
       grammy: 1.34.0(encoding@0.1.13)
 
+  '@grammyjs/stateless-question@3.0.1(grammy@1.34.0(encoding@0.1.13))':
+    dependencies:
+      '@grammyjs/types': 2.12.1
+      grammy: 1.34.0(encoding@0.1.13)
+      telegram-format: 2.1.0
+
   '@grammyjs/storage-file@2.4.2': {}
+
+  '@grammyjs/types@2.12.1': {}
 
   '@grammyjs/types@3.18.0': {}
 
@@ -2937,6 +2961,8 @@ snapshots:
       mkdirp: 1.0.4
       yallist: 4.0.0
     optional: true
+
+  telegram-format@2.1.0: {}
 
   thenify-all@1.6.0:
     dependencies:

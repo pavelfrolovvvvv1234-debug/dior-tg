@@ -1,34 +1,23 @@
 // Reference: https://domainr.com/
 // Documentaion here: https://domainr.com/docs/api
 import axios from "axios";
+import prices from "@helpers/prices";
+import { AxiosError } from "axios";
 
 type DomainStatus = "Available" | "Unavailable";
 
 interface DomainStatusAPI {
   domain: string;
   zone: string;
-  status: DomainStatusResponseAPI;
+  status: string;
   // deprecated in v2 (Do Not Use)
   summary: string;
 }
 
-const AvailableDomainsZones = [
-  ".com",
-  ".org",
-  ".net",
-  ".biz",
-  ".club",
-  ".pro",
-  ".uk",
-  ".cc",
-  ".io",
-  ".us",
-  ".at",
-  ".ca",
-  ".guru",
-  ".link",
-  ".info",
-];
+export const AvailableDomainsZones = async () => {
+  const _ = await prices();
+  return Object.keys(_.domains);
+};
 
 // https://domainr.com/docs/api/v2/status
 type DomainStatusResponseAPI =
@@ -53,13 +42,14 @@ type DomainStatusResponseAPI =
   | "zone"
   | "tld";
 
-class DomainChecker {
+export default class DomainChecker {
   private api: axios.AxiosInstance;
 
   constructor() {
     this.api = axios.create({
-      baseURL: "https://api.domainr.com/v2",
-      params: {
+      // Free Non-Commercial endpoint :)
+      baseURL: "https://domainr.p.rapidapi.com/v2",
+      headers: {
         "mashape-key": process.env.DOMAINR_TOKEN,
       },
       httpAgent: "node-fetch",
@@ -67,25 +57,43 @@ class DomainChecker {
   }
 
   async getStatus(domain: string): Promise<DomainStatus> {
-    const response = await this.api.get<{ status: DomainStatusAPI[] }>(
-      "/status",
-      {
-        params: {
-          domain,
-        },
-      }
-    );
+    try {
+      const response = await this.api.get<{ status: DomainStatusAPI[] }>(
+        "/status",
+        {
+          params: {
+            domain,
+          },
+        }
+      );
 
-    console.log(response.data);
+      console.log(response.data);
+
+      const status = response.data.status[0].status.split(
+        " "
+      ) as DomainStatusResponseAPI[];
+
+      if (status.includes("inactive")) {
+        return "Available";
+      }
+
+      return "Unavailable";
+    } catch (err) {
+      if (err instanceof AxiosError) {
+        console.log(err.response?.data);
+      }
+    }
 
     return "Unavailable";
   }
 
-  domainIsValid(domain: string) {
-    return domain.match(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i);
+  domainIsValid(domain: string): boolean {
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain);
   }
 
-  domainIsAvailable(domain: string) {
-    return AvailableDomainsZones.some((zone) => domain.endsWith(zone));
+  async domainIsAvailable(domain: string) {
+    return (await AvailableDomainsZones()).some((zone) =>
+      domain.endsWith(zone)
+    );
   }
 }

@@ -88,3 +88,9 @@ block-user = 🚫 Block
 unblock-user = ✅ Unblock
 
 message-about-block = Unfortunately you are blocked. Contact support for clarification of the reasons for blocking.
+
+button-buy = ✅ Make order
+
+domain-question = Write the domain you would like to purchase please do not specify <i>{$zoneName}</i>
+
+domain-invalid = The entered domain is incorrect <i>{$domain}</i>

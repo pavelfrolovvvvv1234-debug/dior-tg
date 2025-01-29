@@ -1,0 +1,50 @@
+{
+  "virtual_vds": {},
+  "domains": {
+    ".com": {
+      "price": 70
+    },
+    ".org": {
+      "price": 70
+    },
+    ".net": {
+      "price": 70
+    },
+    ".biz": {
+      "price": 70
+    },
+    ".club": {
+      "price": 70
+    },
+    ".pro": {
+      "price": 70
+    },
+    ".uk": {
+      "price": 70
+    },
+    ".cc": {
+      "price": 70
+    },
+    ".io": {
+      "price": 70
+    },
+    ".us": {
+      "price": 70
+    },
+    ".at": {
+      "price": 70
+    },
+    ".ca": {
+      "price": 70
+    },
+    ".guru": {
+      "price": 70
+    },
+    ".link": {
+      "price": 70
+    },
+    ".info": {
+      "price": 70
+    }
+  }
+}

@@ -13,17 +13,22 @@ import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource } from "typeorm";
-import { getAppDataSource } from "./database";
+import { getAppDataSource } from "@/database";
 import User, { Role } from "@entities/User";
 import { createLink } from "@entities/TempLink";
 import {
   PREFIX_PROMOTE,
   promotePermissions,
 } from "./helpers/promote-permissions";
-import { controlUser, controlUsers } from "./helpers/users-control";
+import { controlUser, controlUsers } from "@helpers/users-control";
 import express from "express";
 import { run as grammyRun } from "@grammyjs/runner";
-import { servicesMenu } from "./helpers/services-menu";
+import {
+  domainOrderMenu,
+  domainQuestion,
+  domainsMenu,
+  servicesMenu,
+} from "@helpers/services-menu";
 dotenv.config({});
 
 export type MyAppContext = Context &
@@ -185,6 +190,9 @@ export interface SessionData {
         id: number;
       };
     };
+    domains: {
+      lastPickDomain: string;
+    };
   };
 }
 
@@ -203,6 +211,9 @@ async function index() {
             orderBy: "id",
             sortBy: "ASC",
             page: 0,
+          },
+          domains: {
+            lastPickDomain: "",
           },
         }),
       },
@@ -283,13 +294,17 @@ async function index() {
   });
 
   bot.use(promotePermissions());
+
+  bot.use(domainQuestion.middleware());
   bot.use(mainMenu);
+  bot.use(domainOrderMenu);
 
   mainMenu.register(changeLocaleMenu, "main-menu");
   mainMenu.register(aboutUsMenu, "main-menu");
   mainMenu.register(supportMenu, "main-menu");
   mainMenu.register(profileMenu, "main-menu");
   mainMenu.register(servicesMenu, "main-menu");
+  servicesMenu.register(domainsMenu, "services-menu");
 
   bot.use(controlUser);
   bot.use(controlUsers);
