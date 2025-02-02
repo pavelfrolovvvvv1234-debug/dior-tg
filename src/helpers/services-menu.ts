@@ -17,12 +17,11 @@ export const servicesMenu = new Menu<MyAppContext>("services-menu")
     }
   )
   .row()
-  .back(
-    (ctx) => ctx.t("button-back"),
-    (ctx) => {
-      ctx.editMessageText(ctx.t("menu-main"));
-    }
-  );
+  .text((ctx) => ctx.t("button-dedicated-server"))
+  .row()
+  .text((ctx) => ctx.t("button-vds"))
+  .row()
+  .back((ctx) => ctx.t("button-back"));
 
 export const domainsMenu = new Menu<MyAppContext>("domains-menu")
   .dynamic(async (_, range) => {
@@ -53,7 +52,19 @@ export const domainsMenu = new Menu<MyAppContext>("domains-menu")
       range.row();
     }
   })
-  .back((ctx) => ctx.t("button-back"));
+  .back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      const session = await ctx.session;
+
+      ctx.editMessageText(
+        ctx.t("welcome", { balance: session.main.user.balance }),
+        {
+          parse_mode: "HTML",
+        }
+      );
+    }
+  );
 
 export const domainQuestion = new StatelessQuestion<MyAppContext>(
   "domain-pick",
@@ -112,6 +123,7 @@ export const domainQuestion = new StatelessQuestion<MyAppContext>(
   }
 );
 
+// Domain Order Stage
 export const domainOrderMenu = new Menu<MyAppContext>(
   "domain-order-menu"
 ).dynamic((ctx, range) => {});

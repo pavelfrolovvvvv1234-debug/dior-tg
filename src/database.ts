@@ -1,12 +1,13 @@
 import { DataSource } from "typeorm";
 import User from "@entities/User";
 import TempLink from "@entities/TempLink";
+import DomainService from "@entities/DomainService";
 
 const AppDataSource = new DataSource({
   type: "better-sqlite3",
   database: "data.db",
   synchronize: true,
-  entities: [User, TempLink],
+  entities: [User, TempLink, DomainService],
   enableWAL: true,
 });
 

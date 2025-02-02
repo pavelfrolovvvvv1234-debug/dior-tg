@@ -29,6 +29,7 @@ import {
   domainsMenu,
   servicesMenu,
 } from "@helpers/services-menu";
+import { depositMenu } from "./helpers/deposit-money";
 dotenv.config({});
 
 export type MyAppContext = Context &
@@ -129,7 +130,7 @@ const supportMenu = new Menu<MyAppContext>("support-menu", {
   );
 
 const profileMenu = new Menu<MyAppContext>("profile-menu", {})
-  .text((ctx) => ctx.t("button-deposit"))
+  .submenu((ctx) => ctx.t("button-deposit"), "deposit-menu")
   .text((ctx) => ctx.t("button-promocode"))
   .row()
   .back(
@@ -305,6 +306,7 @@ async function index() {
   mainMenu.register(profileMenu, "main-menu");
   mainMenu.register(servicesMenu, "main-menu");
   servicesMenu.register(domainsMenu, "services-menu");
+  profileMenu.register(depositMenu, "profile-menu");
 
   bot.use(controlUser);
   bot.use(controlUsers);

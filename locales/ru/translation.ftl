@@ -1,12 +1,15 @@
 -language-icon = 🇷🇺
 -language-name = Русский
 
+quoted-balance = <blockquote>Ваш баланс: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</strong>
+
 welcome = Привет! Я — бот хостинга DripHosting.
  Со мной ты легко можешь заказать услуги прямо здесь. 
 
  Мы — тот самый абузоустойчивый хостинг, где твои проекты будут работать стабильно 24/7. Если возникнут вопросы, наша поддержка всегда на связи: @drip_sup.
  
- <blockquote>Ваш баланс: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ {quoted-balance}
 
 
 about-us = Мы предоставляем надежные и высокопроизводительные услуги, VDS выделенных серверов.
@@ -20,7 +23,7 @@ support = У вас есть вопросы? Смело задавайте их 
 support-message-template = Здравствуйте!
  У меня есть вопрос.
 
-profile = Ваш баланс: <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</strong>
+profile = Ваш баланс: {strong-balance}
  Ваш ID: {$id} ({$name})
 
 button-purchase = 💳 Приобрести услугу
@@ -34,6 +37,8 @@ button-deposit = 📤 Пополнить баланс
 button-promocode = 🎁 Промокод
 button-contact-with-client = Связаться с клиентом
 button-domains = 🌐 Домены
+button-vds = 🖥 Виртуальный выделенный сервер (VDS)
+button-dedicated-server = 🖥 Выделенный сервер
 
 button-back = 🔙 Назад
 button-close = ❌ Закрыть
@@ -45,6 +50,9 @@ button-go-to-site = Перейти на сайт
 button-user-agreement = Пользовательское соглашение
 
 button-send-promote-link = 📤 Отправить ссылку
+
+button-any-sum = Любая сумма
+
 promote-link = Ссылка была создана. Она будет активна в течение 6 часов.
 
 admin-help = Доступные команды для Администратора:
@@ -70,7 +78,7 @@ control-panel-users = {-users-list}
 control-panel-about-user = {-user-info}
 
  ID: {$username} ({$id})
- <blockquote>Баланс пользователя: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ {quoted-balance}
  Дата создания аккаунта: {DATETIME($createdAt, dateStyle: "long", timeStyle: "short")}
  
 -balance = Баланс
@@ -93,8 +101,7 @@ message-about-block = К сожалению вы заблокированы. О�
 button-buy = ✅ Приобрести 
 
 domain-question = Напишите домен который вы хотели бы приобрести пожалуйста не указывайте <i>{$zoneName}</i>
-
 domain-invalid = Введенный домен некорректен <i>{$domain}</i>
-
-# domain-picked = Домен <i>{$domain}</i> 
+domain-not-available = 🚫 Домен <i>{$domain}</i>, уже занят. Попробуйте подобрать другой.
+# domain-picked = Домен <i>{$domain}</i>
 

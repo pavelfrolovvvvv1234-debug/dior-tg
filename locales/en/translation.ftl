@@ -1,12 +1,15 @@
 -language-icon = 🇺🇸
 -language-name = English
 
+quoted-balance = <blockquote>Your balance: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</strong>
+
 welcome = Hi! I'm a DripHosting bot.
  With me, you can easily order services right here. 
 
  We're the one bulletproof hosting where your projects will work stably 24/7. If you have any questions, our support is always on call: @drip_sup.
  
- <blockquote>Your balance: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ {quoted-balance}
 
 about-us = We provide reliable and high-performance VDS dedicated servers and hosting services.
 
@@ -19,7 +22,7 @@ support = Do you have any questions? Feel free to ask us! We will try to solve t
 support-message-template = Hello!
  I have a question.
 
-profile = Your balance: <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</strong>
+profile = Your balance: {strong-balance}
  Your ID: {$id} ({$name})
 
 button-purchase = 💳 Purchase service
@@ -33,6 +36,8 @@ button-deposit = 📤 Top up
 button-promocode = 🎁 Promocode
 button-contact-with-client = Contact with client
 button-domains = 🌐 Domains
+button-vds = 🖥 Virtual Dedicated Server (VDS)
+button-dedicated-server = 🖥 Dedicated server
 
 button-back = 🔙 Back
 button-close = ❌ Close
@@ -44,6 +49,8 @@ button-go-to-site = Go to website
 button-user-agreement = User agreement
 
 button-send-promote-link = 📤 Send link
+
+button-any-sum = Any amount
 
 promote-link = The link has been created. It will be active for 6 hours.
 
@@ -69,7 +76,7 @@ control-panel-users = {-users-list}
 
 control-panel-about-user = {-user-info}
  ID: {$username} ({$id})
- <blockquote>Balance of user: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ {quoted-balance}
  Account created at: {DATETIME($createdAt, dateStyle: "long", timeStyle: "short")}
  
 -balance = Balance
@@ -92,5 +99,5 @@ message-about-block = Unfortunately you are blocked. Contact support for clarifi
 button-buy = ✅ Make order
 
 domain-question = Write the domain you would like to purchase please do not specify <i>{$zoneName}</i>
-
 domain-invalid = The entered domain is incorrect <i>{$domain}</i>
+domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
