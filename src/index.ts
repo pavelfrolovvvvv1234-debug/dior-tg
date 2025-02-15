@@ -29,16 +29,26 @@ import {
   domainsMenu,
   servicesMenu,
 } from "@helpers/services-menu";
-import { depositMenu } from "./helpers/deposit-money";
+import { depositMenu, depositMoneyConversation } from "./helpers/deposit-money";
+import {
+  type Conversation,
+  type ConversationFlavor,
+  conversations,
+  createConversation,
+} from "@grammyjs/conversations";
 dotenv.config({});
 
-export type MyAppContext = Context &
-  FluentContextFlavor &
-  LazySessionFlavor<SessionData> &
-  MenuFlavor & {
-    availableLanguages: string[];
-    appDataSource: DataSource;
-  };
+export type MyAppContext = ConversationFlavor<
+  Context &
+    FluentContextFlavor &
+    LazySessionFlavor<SessionData> &
+    MenuFlavor & {
+      availableLanguages: string[];
+      appDataSource: DataSource;
+    }
+>;
+
+export type MyConversation = Conversation<MyAppContext>;
 
 const mainMenu = new Menu<MyAppContext>("main-menu")
   .submenu(
@@ -181,6 +191,7 @@ export interface SessionData {
       role: Role;
       isBanned: boolean;
     };
+    lastSumDepositsEntered: number;
   };
   other: {
     controlUsersPage: {
@@ -227,6 +238,7 @@ async function index() {
             role: Role.User,
             isBanned: false,
           },
+          lastSumDepositsEntered: 0,
         }),
         storage: new FileAdapter({
           dirName: "sessions",
@@ -294,8 +306,12 @@ async function index() {
     return next();
   });
 
-  bot.use(promotePermissions());
+  bot.use(conversations());
+  bot.use(
+    createConversation(depositMoneyConversation, "depositMoneyConversation")
+  );
 
+  bot.use(promotePermissions());
   bot.use(domainQuestion.middleware());
   bot.use(mainMenu);
   bot.use(domainOrderMenu);

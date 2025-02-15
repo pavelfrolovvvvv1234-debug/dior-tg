@@ -101,3 +101,10 @@ button-buy = ✅ Make order
 domain-question = Write the domain you would like to purchase please do not specify <i>{$zoneName}</i>
 domain-invalid = The entered domain is incorrect <i>{$domain}</i>
 domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
+
+deposit-money-enter-sum = Write the amount you want to replenish (integer dollar amount)
+deposit-money-incorrect-sum = The entered amount is incorrect
+
+deposit-success-sum = ✅ Great, now all that's left to do is <u>pay</u> and we'll credit your balance.
+ 
+ <blockquote>Top-up amount: {NUMBER($sum, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>

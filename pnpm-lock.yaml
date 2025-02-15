@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@grammyjs/conversations':
+        specifier: ^2.0.1
+        version: 2.0.1(grammy@1.34.0(encoding@0.1.13))
       '@grammyjs/fluent':
         specifier: ^1.0.3
         version: 1.0.3(@moebius/fluent@1.1.0)(grammy@1.34.0(encoding@0.1.13))
@@ -98,6 +101,12 @@ packages:
 
   '@gar/promisify@1.1.3':
     resolution: {integrity: sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==}
+
+  '@grammyjs/conversations@2.0.1':
+    resolution: {integrity: sha512-wpOXa4do03JeTVbv42CqsiWRczycey/58mccQekprhNZzJb/GL+/xSx0CSIDoaHm7x2MeGgtmBbpu9tGZQkqng==}
+    engines: {node: ^12.20.0 || >=14.13.1}
+    peerDependencies:
+      grammy: ^1.20.1
 
   '@grammyjs/fluent@1.0.3':
     resolution: {integrity: sha512-vM/58mhX/wlZWeCL5I/0449EnJM3KB1o+HkD2dZ6eBrbWxQyVxbLffx0ur3BxOtb7BFsUHb7PctxhI0/JN/K2w==}
@@ -1581,6 +1590,10 @@ snapshots:
 
   '@gar/promisify@1.1.3':
     optional: true
+
+  '@grammyjs/conversations@2.0.1(grammy@1.34.0(encoding@0.1.13))':
+    dependencies:
+      grammy: 1.34.0(encoding@0.1.13)
 
   '@grammyjs/fluent@1.0.3(@moebius/fluent@1.1.0)(grammy@1.34.0(encoding@0.1.13))':
     dependencies:

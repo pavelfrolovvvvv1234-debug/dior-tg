@@ -18,6 +18,16 @@ WEBSITE_URL="https://driphosting.com/"
 SUPPORT_USERNAME_TG="drip_sup"
 BOT_USERNAME="dridevdrivbot"
 DOMAINR_TOKEN="<domainr_token>"
+
+# AAIO
+PAYMENT_AAIO_ID="<id>"
+PAYMENT_AAIO_SECRET_ONE="<sec1>"
+PAYMENT_AAIO_SECRET_TWO="<sec2>"
+
+# CrystalPay
+PAYMENT_CRYSTALPAY_ID="<id>"
+PAYMENT_CRYSTALPAY_SECRET_ONE="<sec1>"
+PAYMENT_CRYSTALPAY_SECRET_TWO="<sec2>"
 ```
 
 ### Webhooks
