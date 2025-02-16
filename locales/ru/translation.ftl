@@ -109,4 +109,8 @@ deposit-money-enter-sum = Напишите сумму которую вы хот
 deposit-money-incorrect-sum = Введенная сумма некорректна
 deposit-success-sum = ✅ Отлично, теперь осталось только <u>оплатить</u> и мы начислим средства на ваш баланс.
  
- <blockquote>Сумма пополнения: {NUMBER($sum, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ <blockquote>Сумма пополнения: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ 
+ <strong>Выберите способ оплаты</strong>
+
+payment-next-url-label = Перейти к оплате

@@ -107,4 +107,8 @@ deposit-money-incorrect-sum = The entered amount is incorrect
 
 deposit-success-sum = ✅ Great, now all that's left to do is <u>pay</u> and we'll credit your balance.
  
- <blockquote>Top-up amount: {NUMBER($sum, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ <blockquote>Top-up amount: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+
+ <strong>Select a payment method</strong>
+
+payment-next-url-label = Proceed to payment

@@ -29,6 +29,9 @@ importers:
       '@moebius/fluent':
         specifier: ^1.1.0
         version: 1.1.0
+      aaio.js:
+        specifier: ^1.2.0
+        version: 1.2.0
       axios:
         specifier: ^1.7.9
         version: 1.7.9
@@ -317,6 +320,9 @@ packages:
   '@types/serve-static@1.15.7':
     resolution: {integrity: sha512-W8Ym+h8nhuRwaKPaDw34QUkwsGi6Rc4yYqvKFo5rm2FUEhCFbzVWrxXUxuKK8TASjWsysJY0nsmNCGhCOIsrOw==}
 
+  aaio.js@1.2.0:
+    resolution: {integrity: sha512-i9M/Q2q2/V8kLm7j/DcAo41ks6dEvTayzCl8yZShrATszLPMER2Q2J2g+nAhXH6pkLD5icgQ2U7N7q0tuaiJCg==}
+
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
 
@@ -532,6 +538,9 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  crypto-js@4.2.0:
+    resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
 
   dayjs@1.11.13:
     resolution: {integrity: sha512-oaMBel6gjolK862uaPQOVTA7q3TZhuSvuMQAAglQDOWYO9A91IrAOUJEyKVlqJlHE0vq5p5UXxzdPfMH/x6xNg==}
@@ -1792,6 +1801,10 @@ snapshots:
       '@types/node': 22.10.7
       '@types/send': 0.17.4
 
+  aaio.js@1.2.0:
+    dependencies:
+      crypto-js: 4.2.0
+
   abbrev@1.1.1:
     optional: true
 
@@ -2052,6 +2065,8 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  crypto-js@4.2.0: {}
 
   dayjs@1.11.13: {}
 

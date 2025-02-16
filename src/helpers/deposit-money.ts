@@ -1,6 +1,7 @@
 import { Menu } from "@grammyjs/menu";
 import { MyAppContext, MyConversation } from "..";
-import { Context } from "grammy";
+import { Context, InlineKeyboard } from "grammy";
+import { PaymentBuilder } from "@/api/payment";
 
 const depositValuesOptions = [
   "10$",
@@ -20,6 +21,18 @@ export const depositMenu = new Menu<MyAppContext>("deposit-menu").dynamic(
         session.main.lastSumDepositsEntered = Number.parseInt(
           depositValuesOptions[i]
         );
+
+        await ctx.reply(
+          ctx.t("deposit-success-sum", {
+            amount: session.main.lastSumDepositsEntered,
+          }),
+          {
+            reply_markup: depositPaymentSystemChoose,
+            parse_mode: "HTML",
+          }
+        );
+
+        ctx.menu.back();
       });
 
       if (i % 2 === 0) {
@@ -31,6 +44,8 @@ export const depositMenu = new Menu<MyAppContext>("deposit-menu").dynamic(
       (ctx) => ctx.t("button-any-sum"),
       async (ctx) => {
         await ctx.conversation.enter("depositMoneyConversation");
+        const session = await ctx.session;
+        ctx.menu.back();
       }
     );
   }
@@ -38,9 +53,25 @@ export const depositMenu = new Menu<MyAppContext>("deposit-menu").dynamic(
 
 export const depositPaymentSystemChoose = new Menu<MyAppContext>(
   "deposit-menu-payment-choose"
-)
-  .text("AAIO")
-  .text("CrystalPay");
+).text("💸 AAIO", async (ctx) => {
+  const session = await ctx.session;
+
+  const { id: targetUser } = session.main.user;
+  const { lastSumDepositsEntered } = session.main;
+
+  const builder = new PaymentBuilder();
+  const result = await builder.createAAIOPayment(
+    lastSumDepositsEntered,
+    targetUser
+  );
+
+  await ctx.editMessageReplyMarkup({
+    reply_markup: new InlineKeyboard().url(
+      ctx.t("payment-next-url-label"),
+      `${result.url}`
+    ),
+  });
+});
 
 // Choose any sum for create deposit
 export async function depositMoneyConversation(
@@ -74,10 +105,23 @@ export async function depositMoneyConversation(
     return;
   }
 
-  await conversation.external(async (ctx) => {
+  const session = await conversation.external(async (ctx) => {
     const session = await ctx.session;
     session.main.lastSumDepositsEntered = sumToDeposit;
+    return session;
   });
+
+  await conversation.external((ctx) =>
+    ctx.reply(
+      ctx.t("deposit-success-sum", {
+        amount: session.main.lastSumDepositsEntered,
+      }),
+      {
+        reply_markup: depositPaymentSystemChoose,
+        parse_mode: "HTML",
+      }
+    )
+  );
 }
 
 // Return NaN if text is not a number

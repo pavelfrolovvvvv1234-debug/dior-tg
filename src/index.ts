@@ -29,7 +29,11 @@ import {
   domainsMenu,
   servicesMenu,
 } from "@helpers/services-menu";
-import { depositMenu, depositMoneyConversation } from "./helpers/deposit-money";
+import {
+  depositMenu,
+  depositMoneyConversation,
+  depositPaymentSystemChoose,
+} from "./helpers/deposit-money";
 import {
   type Conversation,
   type ConversationFlavor,
@@ -305,6 +309,8 @@ async function index() {
 
     return next();
   });
+
+  bot.use(depositPaymentSystemChoose);
 
   bot.use(conversations());
   bot.use(
