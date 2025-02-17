@@ -53,25 +53,48 @@ export const depositMenu = new Menu<MyAppContext>("deposit-menu").dynamic(
 
 export const depositPaymentSystemChoose = new Menu<MyAppContext>(
   "deposit-menu-payment-choose"
-).text("💸 AAIO", async (ctx) => {
-  const session = await ctx.session;
+)
+  .text("💸 AAIO", async (ctx) => {
+    const session = await ctx.session;
 
-  const { id: targetUser } = session.main.user;
-  const { lastSumDepositsEntered } = session.main;
+    const { id: targetUser } = session.main.user;
+    const { lastSumDepositsEntered } = session.main;
 
-  const builder = new PaymentBuilder();
-  const result = await builder.createAAIOPayment(
-    lastSumDepositsEntered,
-    targetUser
-  );
+    await ctx.editMessageText(ctx.t("payment-information"), {
+      reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
+    });
 
-  await ctx.editMessageReplyMarkup({
-    reply_markup: new InlineKeyboard().url(
-      ctx.t("payment-next-url-label"),
-      `${result.url}`
-    ),
+    const builder = new PaymentBuilder(lastSumDepositsEntered, targetUser);
+    const result = await builder.createAAIOPayment();
+
+    await ctx.editMessageReplyMarkup({
+      reply_markup: new InlineKeyboard().url(
+        ctx.t("payment-next-url-label"),
+        `${result.url}`
+      ),
+    });
+  })
+  .row()
+  .text("💎 CrystalPay", async (ctx) => {
+    const session = await ctx.session;
+
+    const { id: targetUser } = session.main.user;
+    const { lastSumDepositsEntered } = session.main;
+
+    await ctx.editMessageText(ctx.t("payment-information"), {
+      reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
+    });
+
+    const builder = new PaymentBuilder(lastSumDepositsEntered, targetUser);
+    const result = await builder.createCrystalPayment();
+
+    await ctx.editMessageReplyMarkup({
+      reply_markup: new InlineKeyboard().url(
+        ctx.t("payment-next-url-label"),
+        `${result.url}`
+      ),
+    });
   });
-});
 
 // Choose any sum for create deposit
 export async function depositMoneyConversation(
@@ -94,7 +117,7 @@ export async function depositMoneyConversation(
     return ctx.t("deposit-money-incorrect-sum");
   });
 
-  if (isNaN(sumToDeposit)) {
+  if (isNaN(sumToDeposit) || sumToDeposit <= 0 || sumToDeposit > 1_500_000) {
     ctx.reply(incorrectMessage);
 
     // Indicate

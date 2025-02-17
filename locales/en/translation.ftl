@@ -101,6 +101,7 @@ button-buy = ✅ Make order
 domain-question = Write the domain you would like to purchase please do not specify <i>{$zoneName}</i>
 domain-invalid = The entered domain is incorrect <i>{$domain}</i>
 domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
+domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
 
 deposit-money-enter-sum = Write the amount you want to replenish (integer dollar amount)
 deposit-money-incorrect-sum = The entered amount is incorrect
@@ -111,4 +112,8 @@ deposit-success-sum = ✅ Great, now all that's left to do is <u>pay</u> and we'
 
  <strong>Select a payment method</strong>
 
+payment-information = After payment wait a little, the system will automatically confirm the payment and the funds will be automatically credited to your account, if this did not happen please contact support.
 payment-next-url-label = Proceed to payment
+payment-await = Please wait...
+
+deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $

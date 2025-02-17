@@ -40,6 +40,7 @@ import {
   conversations,
   createConversation,
 } from "@grammyjs/conversations";
+import { startCheckTopUpStatus } from "./api/payment";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -104,8 +105,6 @@ const aboutUsMenu = new Menu<MyAppContext>("about-us-menu", {
   autoAnswer: false,
 })
   .url((ctx) => ctx.t("button-go-to-site"), process.env.WEBSITE_URL)
-  .row()
-  .text((ctx) => ctx.t("button-user-agreement"))
   .row()
   .back(
     (ctx) => ctx.t("button-back"),
@@ -415,6 +414,8 @@ async function index() {
       console.info("[DripHosting Bot]: Started");
     }
   };
+
+  startCheckTopUpStatus(bot);
 
   await run();
 }

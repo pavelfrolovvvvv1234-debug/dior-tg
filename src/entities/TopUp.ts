@@ -6,9 +6,10 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-enum TopUpStatus {
+export enum TopUpStatus {
   Created = "created",
   Completed = "completed",
+  Expired = "expired",
 }
 
 @Entity()
@@ -27,6 +28,9 @@ export default class TopUp {
 
   @Column({ nullable: true, type: "varchar" })
   orderId!: string;
+
+  @Column({ nullable: false })
+  paymentSystem!: "aaio" | "crystalpay";
 
   @Column({ nullable: false })
   target_user_id!: number;
