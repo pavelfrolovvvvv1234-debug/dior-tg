@@ -16,6 +16,9 @@ declare global {
       PAYMENT_CRYSTALPAY_ID: string;
       PAYMENT_CRYSTALPAY_SECRET_ONE: string;
       PAYMENT_CRYSTALPAY_SECRET_TWO: string;
+      VMM_EMAIL: string;
+      VMM_PASSWORD: string;
+      VMM_ENDPOINT_URL: string;
     }
   }
 }

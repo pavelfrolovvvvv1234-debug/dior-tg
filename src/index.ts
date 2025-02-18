@@ -41,6 +41,13 @@ import {
   createConversation,
 } from "@grammyjs/conversations";
 import { startCheckTopUpStatus } from "./api/payment";
+import { VMManager } from "./api/vmmanager";
+import {
+  domainManageServicesMenu,
+  manageSerivcesMenu,
+} from "./helpers/manage-services";
+import prices from "./helpers/prices";
+import DomainRequest, { DomainRequestStatus } from "./entities/DomainRequest";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -80,7 +87,7 @@ const mainMenu = new Menu<MyAppContext>("main-menu")
   .submenu((ctx) => ctx.t("button-change-locale"), "change-locale-menu")
   .row()
   .submenu((ctx) => ctx.t("button-purchase"), "services-menu")
-  .text((ctx) => ctx.t("button-manage-services"))
+  .submenu((ctx) => ctx.t("button-manage-services"), "manage-services-menu")
   .row()
   .submenu(
     (ctx) => ctx.t("button-support"),
@@ -207,6 +214,7 @@ export interface SessionData {
     };
     domains: {
       lastPickDomain: string;
+      page: number;
     };
   };
 }
@@ -229,6 +237,7 @@ async function index() {
           },
           domains: {
             lastPickDomain: "",
+            page: 0,
           },
         }),
       },
@@ -315,6 +324,9 @@ async function index() {
   bot.use(
     createConversation(depositMoneyConversation, "depositMoneyConversation")
   );
+  // bot.use(
+  //   createConversation(confirmDomainRegistration, "confirmDomainRegistration")
+  // );
 
   bot.use(promotePermissions());
   bot.use(domainQuestion.middleware());
@@ -326,11 +338,116 @@ async function index() {
   mainMenu.register(supportMenu, "main-menu");
   mainMenu.register(profileMenu, "main-menu");
   mainMenu.register(servicesMenu, "main-menu");
+  mainMenu.register(manageSerivcesMenu, "main-menu");
+
+  manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
   servicesMenu.register(domainsMenu, "services-menu");
   profileMenu.register(depositMenu, "profile-menu");
 
   bot.use(controlUser);
   bot.use(controlUsers);
+
+  bot.on("callback_query:data", async (ctx) => {
+    if (ctx.callbackQuery.data.startsWith("agree-buy-domain:")) {
+      const session = await ctx.session;
+
+      const domain = ctx.callbackQuery.data.split(":")[1];
+
+      const pricesList = await prices();
+
+      const domainExtension = domain.split(
+        "."
+      )[1] as keyof typeof pricesList.domains;
+
+      // @ts-ignore
+      const price = pricesList.domains[`.${domainExtension}`].price;
+
+      if (session.main.user.balance < price) {
+        await ctx.answerCallbackQuery(
+          ctx.t("money-not-enough", {
+            amount: price - session.main.user.balance,
+          })
+        );
+        return;
+      }
+
+      const usersRepo = ctx.appDataSource.getRepository(User);
+      const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+      const isDomain = await domainRequestRepo.findOneBy({
+        domainName: domain.split(".")[0],
+        zone: `.${domainExtension}`,
+      });
+
+      if (isDomain) {
+        if (
+          isDomain.status == DomainRequestStatus.Completed ||
+          isDomain.status == DomainRequestStatus.InProgress
+        ) {
+          ctx.answerCallbackQuery(ctx.t("domain-already-pending-registration"));
+          return;
+        }
+      }
+
+      const user = await usersRepo.findOne({
+        where: {
+          id: session.main.user.id,
+        },
+      });
+
+      if (!user) {
+        return;
+      }
+
+      user.balance -= price;
+
+      await usersRepo.save(user);
+
+      const domainRequest = new DomainRequest();
+
+      domainRequest.domainName = domain.split(".")[0];
+      domainRequest.zone = `.${domainExtension}`;
+      domainRequest.target_user_id = user.id;
+      domainRequest.price = price;
+
+      await domainRequestRepo.save(domainRequest);
+
+      ctx.reply(
+        ctx.t("domain-registration-in-progress", {
+          domain,
+        }),
+        {
+          parse_mode: "HTML",
+        }
+      );
+
+      const mods = usersRepo.find({
+        where: [
+          {
+            role: Role.Admin,
+          },
+          {
+            role: Role.Moderator,
+          },
+        ],
+      });
+
+      const countRequests = await domainRequestRepo.count({
+        where: {
+          status: DomainRequestStatus.InProgress,
+        },
+      });
+
+      (await mods).forEach((user) => {
+        ctx.api.sendMessage(
+          user.telegramId,
+          ctx.t("domain-request-notification", {
+            count: countRequests,
+          })
+        );
+      });
+    }
+  });
 
   bot.command("start", async (ctx) => {
     await ctx.deleteMessage();
@@ -346,6 +463,47 @@ async function index() {
         parse_mode: "HTML",
       }
     );
+  });
+
+  bot.command("domainrequests", async (ctx) => {
+    const session = await ctx.session;
+    if (
+      session.main.user.role != Role.Admin &&
+      session.main.user.role != Role.Moderator
+    )
+      return;
+
+    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+    const requests = await domainRequestRepo.find({
+      where: {
+        status: DomainRequestStatus.InProgress,
+      },
+    });
+
+    if (requests.length > 0) {
+      ctx.reply(
+        `${ctx.t("domain-request-list-header")}\n${requests
+          .map((request) =>
+            ctx.t("domain-request", {
+              id: request.id,
+              targetId: request.target_user_id,
+              domain: `${request.domainName}${request.zone}`,
+            })
+          )
+          .join("\n")}\n\n${ctx.t("domain-request-list-info")}`,
+        {
+          parse_mode: "HTML",
+        }
+      );
+    } else {
+      ctx.reply(
+        `${ctx.t("domain-request-list-header")}\n${ctx.t("list-empty")}`,
+        {
+          parse_mode: "HTML",
+        }
+      );
+    }
   });
 
   bot.command("help", async (ctx) => {
@@ -409,6 +567,11 @@ async function index() {
           console.error(err.name, err.message, err.stack);
         }
       });
+
+      // const vmmanager = new VMManager(
+      //   process.env["VMM_EMAIL"],
+      //   process.env["VMM_PASSWORD"]
+      // );
 
       grammyRun(bot);
       console.info("[DripHosting Bot]: Started");

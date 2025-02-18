@@ -38,6 +38,7 @@ button-contact-with-client = Contact with client
 button-domains = 🌐 Domains
 button-vds = 🖥 Virtual Dedicated Server (VDS)
 button-dedicated-server = 🖥 Dedicated server
+button-agree = ✅ Agree
 
 button-back = 🔙 Back
 button-close = ❌ Close
@@ -58,6 +59,7 @@ admin-help = Available commands for Administrator:
  1. /promote_link - Create a link to raise user rights
  <blockquote>This link will allow you to get moderator rights, after its creation it will be active for 6 hours.</blockquote>
  2. /users - Get a list of users and control them
+ 3. /domainrequests - Get a list of domain registration requests
 
 link-expired = The link has expired
 link-used = The link already has been used
@@ -102,6 +104,19 @@ domain-question = Write the domain you would like to purchase please do not spec
 domain-invalid = The entered domain is incorrect <i>{$domain}</i>
 domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
 domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
+domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$domain}</i> (Your balance has been debited) You can follow the status in the service management menu
+
+list-empty = The list is empty
+
+domain-request = {$id}. <code>{$domain}</code> from user ({$targetId}).
+domain-request-list-info = (/approve_domain &lt;id&gt; - approve, /reject_domain &lt;id&gt; - reject)
+domain-request-list-header = <strong>List of domain registration requests:</strong>
+
+domains-manage = <strong>Manage domains</strong>
+domain-already-pending-registration = Domain already in pending await
+domain-request-notification = New request /domainrequests (In progress: {$count})
+
+domain-cannot-manage-while-in-progress = Domain is pending registration wait until it becomes available.
 
 deposit-money-enter-sum = Write the amount you want to replenish (integer dollar amount)
 deposit-money-incorrect-sum = The entered amount is incorrect
@@ -117,3 +132,5 @@ payment-next-url-label = Proceed to payment
 payment-await = Please wait...
 
 deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+
+money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ short)

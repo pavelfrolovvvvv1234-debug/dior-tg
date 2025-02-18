@@ -32,6 +32,12 @@ export default class DomainService {
   @Column()
   zone!: string;
 
+  @Column()
+  nameservers!: string;
+
+  @Column({ nullable: false })
+  target_user_id!: number;
+
   @Column({ nullable: false })
   expire_at!: Date;
 

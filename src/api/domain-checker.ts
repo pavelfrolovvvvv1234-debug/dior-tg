@@ -67,8 +67,6 @@ export default class DomainChecker {
         }
       );
 
-      console.log(response.data);
-
       const status = response.data.status[0].status.split(
         " "
       ) as DomainStatusResponseAPI[];

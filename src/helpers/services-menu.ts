@@ -1,10 +1,11 @@
 import { Menu } from "@grammyjs/menu";
-import { MyAppContext } from "..";
+import { MyAppContext, MyConversation } from "..";
 import prices from "@helpers/prices";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 
 import DomainChecker from "@api/domain-checker";
 import { escapeUserInput } from "@helpers/formatting";
+import { InlineKeyboard } from "grammy";
 
 export const servicesMenu = new Menu<MyAppContext>("services-menu")
   .submenu(
@@ -32,6 +33,20 @@ export const domainsMenu = new Menu<MyAppContext>("domains-menu")
       range.text(
         `${zone} - ${domainZones[zone as keyof typeof domainZones].price} $`,
         async (ctx) => {
+          const session = await ctx.session;
+          if (
+            session.main.user.balance <
+            domainZones[zone as keyof typeof domainZones].price
+          ) {
+            await ctx.reply(
+              ctx.t("money-not-enough", {
+                amount:
+                  domainZones[zone as keyof typeof domainZones].price -
+                  session.main.user.balance,
+              })
+            );
+            return;
+          }
           await domainQuestion.replyWithHTML(
             ctx,
             ctx.t("domain-question", {
@@ -98,6 +113,20 @@ export const domainQuestion = new StatelessQuestion<MyAppContext>(
     const status = await domainChecker.getStatus(domain);
 
     if (status === "Available") {
+      session.other.domains.lastPickDomain = domain;
+
+      ctx.reply(
+        ctx.t("domain-available", {
+          domain: `${escapeUserInput(domain)}`,
+        }),
+        {
+          parse_mode: "HTML",
+          reply_markup: new InlineKeyboard().text(
+            ctx.t("button-agree"),
+            "agree-buy-domain:" + domain
+          ),
+        }
+      );
     } else {
       ctx.reply(
         ctx.t("domain-not-available", {
@@ -108,18 +137,6 @@ export const domainQuestion = new StatelessQuestion<MyAppContext>(
         }
       );
     }
-
-    // if (isAvailable) {
-    //   ctx.reply(
-    //     ctx.t("domain-available", {
-    //       domain: `${escapeUserInput(ctx.message.text)}${zone}`,
-    //     }),
-    //     {
-    //       parse_mode: "HTML",
-    //     }
-    //   );
-    //   return;
-    // }
   }
 );
 
