@@ -127,7 +127,9 @@ export const domainManageServicesMenu = new Menu<MyAppContext>(
       const session = await ctx.session;
 
       ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
+        ctx.t("manage-services-header", {
+          balance: session.main.user.balance,
+        }),
         {
           parse_mode: "HTML",
         }

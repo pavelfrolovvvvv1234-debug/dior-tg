@@ -60,6 +60,8 @@ admin-help = Available commands for Administrator:
  <blockquote>This link will allow you to get moderator rights, after its creation it will be active for 6 hours.</blockquote>
  2. /users - Get a list of users and control them
  3. /domainrequests - Get a list of domain registration requests
+ 4. /create_promo (name) (sum) (uses count) - Creation a promocode
+ 5. /remove_promo (id) - Remove promocode
 
 link-expired = The link has expired
 link-used = The link already has been used
@@ -134,3 +136,20 @@ payment-await = Please wait...
 deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
 
 money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ short)
+
+invalid-arguments = Invalid arguments
+
+new-promo-created = New promo are added /promo_codes - for see
+
+promocode-already-exist = promocode with this name already exists
+
+promocode = {$id} <strong>{$name}</strong> (Uses: {$use}/{$maxUses}) : {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+promocode-deleted = Promocode <strong>{$name}</strong> successfully deleted
+
+promocode-not-found = Promocode was not found
+promocode-input-question = Enter the promocode
+promocode-used = The promo code was successfully used and you are credited on your balance {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+
+manage-services-header = 🛠 Manage services
+
+ {quoted-balance}
