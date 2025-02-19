@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@grammyjs/conversations':
+        specifier: ^2.0.1
+        version: 2.0.1(grammy@1.34.0(encoding@0.1.13))
       '@grammyjs/fluent':
         specifier: ^1.0.3
         version: 1.0.3(@moebius/fluent@1.1.0)(grammy@1.34.0(encoding@0.1.13))
@@ -17,12 +20,18 @@ importers:
       '@grammyjs/runner':
         specifier: ^2.0.3
         version: 2.0.3(grammy@1.34.0(encoding@0.1.13))
+      '@grammyjs/stateless-question':
+        specifier: '3'
+        version: 3.0.1(grammy@1.34.0(encoding@0.1.13))
       '@grammyjs/storage-file':
         specifier: ^2.4.2
         version: 2.4.2
       '@moebius/fluent':
         specifier: ^1.1.0
         version: 1.1.0
+      aaio.js:
+        specifier: ^1.2.0
+        version: 1.2.0
       axios:
         specifier: ^1.7.9
         version: 1.7.9
@@ -96,6 +105,12 @@ packages:
   '@gar/promisify@1.1.3':
     resolution: {integrity: sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==}
 
+  '@grammyjs/conversations@2.0.1':
+    resolution: {integrity: sha512-wpOXa4do03JeTVbv42CqsiWRczycey/58mccQekprhNZzJb/GL+/xSx0CSIDoaHm7x2MeGgtmBbpu9tGZQkqng==}
+    engines: {node: ^12.20.0 || >=14.13.1}
+    peerDependencies:
+      grammy: ^1.20.1
+
   '@grammyjs/fluent@1.0.3':
     resolution: {integrity: sha512-vM/58mhX/wlZWeCL5I/0449EnJM3KB1o+HkD2dZ6eBrbWxQyVxbLffx0ur3BxOtb7BFsUHb7PctxhI0/JN/K2w==}
     engines: {node: '>=12'}
@@ -115,8 +130,17 @@ packages:
     peerDependencies:
       grammy: ^1.13.1
 
+  '@grammyjs/stateless-question@3.0.1':
+    resolution: {integrity: sha512-9S/ff+yPxEEFpFsjiu7UjsOhETt9jruAUNcfzfTJ9FTuyIEjcMpTLT8ncpWyNE2w8tWRTLmOpXHSswPohntH7w==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      grammy: ^1.2.0
+
   '@grammyjs/storage-file@2.4.2':
     resolution: {integrity: sha512-LWMvy5yCAxnYuKgCASRDCq8VSQ1SXn3t8ZzkG3ftcJD6+HQkDhe4GETCxWGbPOqVH7jFMOIt7PnoP9DuoR4T6g==}
+
+  '@grammyjs/types@2.12.1':
+    resolution: {integrity: sha512-1hO6esfdo42mSvyArPHrlgSY/fgerTuVNAbSD5ZKHS/w5ZyrkA4pRp3VHK2XE3fm9/uMBT/39i8pPvx0+Kbxjg==}
 
   '@grammyjs/types@3.18.0':
     resolution: {integrity: sha512-/VpQcT6Z0+Lw6H6jv2JvnDmqB1/9rjbFdDBlPBPUW3kQ1bWfjzfaiVk2+J2eiid3o3sLaPp3ZK0XjEI1gWNc3g==}
@@ -295,6 +319,9 @@ packages:
 
   '@types/serve-static@1.15.7':
     resolution: {integrity: sha512-W8Ym+h8nhuRwaKPaDw34QUkwsGi6Rc4yYqvKFo5rm2FUEhCFbzVWrxXUxuKK8TASjWsysJY0nsmNCGhCOIsrOw==}
+
+  aaio.js@1.2.0:
+    resolution: {integrity: sha512-i9M/Q2q2/V8kLm7j/DcAo41ks6dEvTayzCl8yZShrATszLPMER2Q2J2g+nAhXH6pkLD5icgQ2U7N7q0tuaiJCg==}
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -511,6 +538,9 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  crypto-js@4.2.0:
+    resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
 
   dayjs@1.11.13:
     resolution: {integrity: sha512-oaMBel6gjolK862uaPQOVTA7q3TZhuSvuMQAAglQDOWYO9A91IrAOUJEyKVlqJlHE0vq5p5UXxzdPfMH/x6xNg==}
@@ -1347,6 +1377,10 @@ packages:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
     engines: {node: '>=10'}
 
+  telegram-format@2.1.0:
+    resolution: {integrity: sha512-V2thkhKzcNVL26h/ANeat/Z+AXBaDGoizs4cab6Kpq/w+d+Ai6M/AFFkuBwvCkZXqb+7UW2vt3Dko5+kKcOIHg==}
+    engines: {node: '>=12'}
+
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
     engines: {node: '>=0.8'}
@@ -1566,6 +1600,10 @@ snapshots:
   '@gar/promisify@1.1.3':
     optional: true
 
+  '@grammyjs/conversations@2.0.1(grammy@1.34.0(encoding@0.1.13))':
+    dependencies:
+      grammy: 1.34.0(encoding@0.1.13)
+
   '@grammyjs/fluent@1.0.3(@moebius/fluent@1.1.0)(grammy@1.34.0(encoding@0.1.13))':
     dependencies:
       '@moebius/fluent': 1.1.0
@@ -1580,7 +1618,15 @@ snapshots:
       abort-controller: 3.0.0
       grammy: 1.34.0(encoding@0.1.13)
 
+  '@grammyjs/stateless-question@3.0.1(grammy@1.34.0(encoding@0.1.13))':
+    dependencies:
+      '@grammyjs/types': 2.12.1
+      grammy: 1.34.0(encoding@0.1.13)
+      telegram-format: 2.1.0
+
   '@grammyjs/storage-file@2.4.2': {}
+
+  '@grammyjs/types@2.12.1': {}
 
   '@grammyjs/types@3.18.0': {}
 
@@ -1754,6 +1800,10 @@ snapshots:
       '@types/http-errors': 2.0.4
       '@types/node': 22.10.7
       '@types/send': 0.17.4
+
+  aaio.js@1.2.0:
+    dependencies:
+      crypto-js: 4.2.0
 
   abbrev@1.1.1:
     optional: true
@@ -2015,6 +2065,8 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  crypto-js@4.2.0: {}
 
   dayjs@1.11.13: {}
 
@@ -2937,6 +2989,8 @@ snapshots:
       mkdirp: 1.0.4
       yallist: 4.0.0
     optional: true
+
+  telegram-format@2.1.0: {}
 
   thenify-all@1.6.0:
     dependencies:

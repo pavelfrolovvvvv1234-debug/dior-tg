@@ -13,26 +13,55 @@ import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource } from "typeorm";
-import { getAppDataSource } from "./database";
+import { getAppDataSource } from "@/database";
 import User, { Role } from "@entities/User";
 import { createLink } from "@entities/TempLink";
 import {
   PREFIX_PROMOTE,
   promotePermissions,
 } from "./helpers/promote-permissions";
-import { controlUser, controlUsers } from "./helpers/users-control";
+import { controlUser, controlUsers } from "@helpers/users-control";
 import express from "express";
 import { run as grammyRun } from "@grammyjs/runner";
-import { servicesMenu } from "./helpers/services-menu";
+import {
+  domainOrderMenu,
+  domainQuestion,
+  domainsMenu,
+  servicesMenu,
+} from "@helpers/services-menu";
+import {
+  depositMenu,
+  depositMoneyConversation,
+  depositPaymentSystemChoose,
+} from "@helpers/deposit-money";
+import {
+  type Conversation,
+  type ConversationFlavor,
+  conversations,
+  createConversation,
+} from "@grammyjs/conversations";
+import { startCheckTopUpStatus } from "@api/payment";
+import {
+  domainManageServicesMenu,
+  manageSerivcesMenu,
+} from "@helpers/manage-services";
+import prices from "@helpers/prices";
+import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
+import Promo from "@entities/Promo";
+import { promocodeQuestion } from "@helpers/promocode-input";
 dotenv.config({});
 
-export type MyAppContext = Context &
-  FluentContextFlavor &
-  LazySessionFlavor<SessionData> &
-  MenuFlavor & {
-    availableLanguages: string[];
-    appDataSource: DataSource;
-  };
+export type MyAppContext = ConversationFlavor<
+  Context &
+    FluentContextFlavor &
+    LazySessionFlavor<SessionData> &
+    MenuFlavor & {
+      availableLanguages: string[];
+      appDataSource: DataSource;
+    }
+>;
+
+export type MyConversation = Conversation<MyAppContext>;
 
 const mainMenu = new Menu<MyAppContext>("main-menu")
   .submenu(
@@ -59,7 +88,22 @@ const mainMenu = new Menu<MyAppContext>("main-menu")
   .submenu((ctx) => ctx.t("button-change-locale"), "change-locale-menu")
   .row()
   .submenu((ctx) => ctx.t("button-purchase"), "services-menu")
-  .text((ctx) => ctx.t("button-manage-services"))
+  .submenu(
+    (ctx) => ctx.t("button-manage-services"),
+    "manage-services-menu",
+    async (ctx) => {
+      const session = await ctx.session;
+
+      ctx.editMessageText(
+        ctx.t("manage-services-header", {
+          balance: session.main.user.balance,
+        }),
+        {
+          parse_mode: "HTML",
+        }
+      );
+    }
+  )
   .row()
   .submenu(
     (ctx) => ctx.t("button-support"),
@@ -84,8 +128,6 @@ const aboutUsMenu = new Menu<MyAppContext>("about-us-menu", {
   autoAnswer: false,
 })
   .url((ctx) => ctx.t("button-go-to-site"), process.env.WEBSITE_URL)
-  .row()
-  .text((ctx) => ctx.t("button-user-agreement"))
   .row()
   .back(
     (ctx) => ctx.t("button-back"),
@@ -124,8 +166,16 @@ const supportMenu = new Menu<MyAppContext>("support-menu", {
   );
 
 const profileMenu = new Menu<MyAppContext>("profile-menu", {})
-  .text((ctx) => ctx.t("button-deposit"))
-  .text((ctx) => ctx.t("button-promocode"))
+  .submenu((ctx) => ctx.t("button-deposit"), "deposit-menu")
+  .text(
+    (ctx) => ctx.t("button-promocode"),
+    async (ctx) => {
+      await promocodeQuestion.replyWithHTML(
+        ctx,
+        ctx.t("promocode-input-question")
+      );
+    }
+  )
   .row()
   .back(
     (ctx) => ctx.t("button-back"),
@@ -175,6 +225,7 @@ export interface SessionData {
       role: Role;
       isBanned: boolean;
     };
+    lastSumDepositsEntered: number;
   };
   other: {
     controlUsersPage: {
@@ -184,6 +235,10 @@ export interface SessionData {
       pickedUserData?: {
         id: number;
       };
+    };
+    domains: {
+      lastPickDomain: string;
+      page: number;
     };
   };
 }
@@ -204,6 +259,10 @@ async function index() {
             sortBy: "ASC",
             page: 0,
           },
+          domains: {
+            lastPickDomain: "",
+            page: 0,
+          },
         }),
       },
       main: {
@@ -215,6 +274,7 @@ async function index() {
             role: Role.User,
             isBanned: false,
           },
+          lastSumDepositsEntered: 0,
         }),
         storage: new FileAdapter({
           dirName: "sessions",
@@ -282,17 +342,137 @@ async function index() {
     return next();
   });
 
+  bot.use(depositPaymentSystemChoose);
+
+  bot.use(conversations());
+  bot.use(
+    createConversation(depositMoneyConversation, "depositMoneyConversation")
+  );
+  // bot.use(
+  //   createConversation(confirmDomainRegistration, "confirmDomainRegistration")
+  // );
+
   bot.use(promotePermissions());
+  bot.use(domainQuestion.middleware());
+  bot.use(promocodeQuestion.middleware());
   bot.use(mainMenu);
+  bot.use(domainOrderMenu);
 
   mainMenu.register(changeLocaleMenu, "main-menu");
   mainMenu.register(aboutUsMenu, "main-menu");
   mainMenu.register(supportMenu, "main-menu");
   mainMenu.register(profileMenu, "main-menu");
   mainMenu.register(servicesMenu, "main-menu");
+  mainMenu.register(manageSerivcesMenu, "main-menu");
+
+  manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
+  servicesMenu.register(domainsMenu, "services-menu");
+  profileMenu.register(depositMenu, "profile-menu");
 
   bot.use(controlUser);
   bot.use(controlUsers);
+
+  bot.on("callback_query:data", async (ctx) => {
+    if (ctx.callbackQuery.data.startsWith("agree-buy-domain:")) {
+      const session = await ctx.session;
+
+      const domain = ctx.callbackQuery.data.split(":")[1];
+
+      const pricesList = await prices();
+
+      const domainExtension = domain.split(
+        "."
+      )[1] as keyof typeof pricesList.domains;
+
+      // @ts-ignore
+      const price = pricesList.domains[`.${domainExtension}`].price;
+
+      if (session.main.user.balance < price) {
+        await ctx.answerCallbackQuery(
+          ctx.t("money-not-enough", {
+            amount: price - session.main.user.balance,
+          })
+        );
+        return;
+      }
+
+      const usersRepo = ctx.appDataSource.getRepository(User);
+      const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+      const isDomain = await domainRequestRepo.findOneBy({
+        domainName: domain.split(".")[0],
+        zone: `.${domainExtension}`,
+      });
+
+      if (isDomain) {
+        if (
+          isDomain.status == DomainRequestStatus.Completed ||
+          isDomain.status == DomainRequestStatus.InProgress
+        ) {
+          ctx.answerCallbackQuery(ctx.t("domain-already-pending-registration"));
+          return;
+        }
+      }
+
+      const user = await usersRepo.findOne({
+        where: {
+          id: session.main.user.id,
+        },
+      });
+
+      if (!user) {
+        return;
+      }
+
+      user.balance -= price;
+
+      await usersRepo.save(user);
+
+      const domainRequest = new DomainRequest();
+
+      domainRequest.domainName = domain.split(".")[0];
+      domainRequest.zone = `.${domainExtension}`;
+      domainRequest.target_user_id = user.id;
+      domainRequest.price = price;
+
+      await domainRequestRepo.save(domainRequest);
+
+      ctx.reply(
+        ctx.t("domain-registration-in-progress", {
+          domain,
+        }),
+        {
+          parse_mode: "HTML",
+        }
+      );
+
+      const mods = usersRepo.find({
+        where: [
+          {
+            role: Role.Admin,
+          },
+          {
+            role: Role.Moderator,
+          },
+        ],
+      });
+
+      const countRequests = await domainRequestRepo.count({
+        where: {
+          status: DomainRequestStatus.InProgress,
+        },
+      });
+
+      (await mods).forEach((user) => {
+        ctx.api.sendMessage(
+          user.telegramId,
+          ctx.t("domain-request-notification", {
+            count: countRequests,
+          })
+        );
+      });
+    }
+  });
 
   bot.command("start", async (ctx) => {
     await ctx.deleteMessage();
@@ -308,6 +488,47 @@ async function index() {
         parse_mode: "HTML",
       }
     );
+  });
+
+  bot.command("domainrequests", async (ctx) => {
+    const session = await ctx.session;
+    if (
+      session.main.user.role != Role.Admin &&
+      session.main.user.role != Role.Moderator
+    )
+      return;
+
+    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+    const requests = await domainRequestRepo.find({
+      where: {
+        status: DomainRequestStatus.InProgress,
+      },
+    });
+
+    if (requests.length > 0) {
+      ctx.reply(
+        `${ctx.t("domain-request-list-header")}\n${requests
+          .map((request) =>
+            ctx.t("domain-request", {
+              id: request.id,
+              targetId: request.target_user_id,
+              domain: `${request.domainName}${request.zone}`,
+            })
+          )
+          .join("\n")}\n\n${ctx.t("domain-request-list-info")}`,
+        {
+          parse_mode: "HTML",
+        }
+      );
+    } else {
+      ctx.reply(
+        `${ctx.t("domain-request-list-header")}\n${ctx.t("list-empty")}`,
+        {
+          parse_mode: "HTML",
+        }
+      );
+    }
   });
 
   bot.command("help", async (ctx) => {
@@ -334,6 +555,127 @@ async function index() {
         `tg://msg_url?url=https://t.me/${ctx.me.username}?start=${PREFIX_PROMOTE}${createdLink.code}`
       ),
     });
+  });
+
+  // create_promo <name> <sum> <max_uses>
+  bot.command("create_promo", async (ctx) => {
+    const session = await ctx.session;
+
+    if (session.main.user.role != Role.Admin) return;
+
+    const args = ctx.match.split(" ").map((s) => s.trim());
+
+    if (!args || args.length !== 3) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const [name, sum, maxUses] = args;
+
+    if (!name || isNaN(Number(sum)) || isNaN(Number(maxUses))) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const promoRepo = ctx.appDataSource.getRepository(Promo);
+
+    const promo = await promoRepo.findOneBy({
+      code: name.toLowerCase(),
+    });
+
+    if (promo) {
+      await ctx.reply(ctx.t("promocode-already-exist"));
+      return;
+    }
+
+    const newPromo = new Promo();
+
+    newPromo.code = name.toLowerCase();
+    newPromo.maxUses = Number(maxUses);
+    newPromo.sum = Number(sum);
+
+    await promoRepo.save(newPromo);
+
+    await ctx.reply(ctx.t("new-promo-created"), {
+      parse_mode: "HTML",
+    });
+  });
+
+  // promo_codes
+  bot.command("promo_codes", async (ctx) => {
+    const session = await ctx.session;
+
+    if (session.main.user.role != Role.Admin) return;
+
+    const promoRepo = ctx.appDataSource.getRepository(Promo);
+
+    const promos = await promoRepo.find({});
+    let promocodeList;
+    if (promos.length == 0) {
+      promocodeList = ctx.t("list-empty");
+    } else {
+      // name use maxUses
+      promocodeList = promos
+        .map((promo) =>
+          ctx.t("promocode", {
+            id: promo.id,
+            name: promo.code.toLowerCase(),
+            use: promo.uses,
+            maxUses: promo.maxUses,
+            amount: promo.sum,
+          })
+        )
+        .join("\n");
+    }
+
+    await ctx.reply(promocodeList, {
+      parse_mode: "HTML",
+    });
+  });
+
+  // remove_promo <id>
+  bot.command("remove_promo", async (ctx) => {
+    const session = await ctx.session;
+
+    if (session.main.user.role != Role.Admin) return;
+
+    const promoRepo = ctx.appDataSource.getRepository(Promo);
+
+    const args = ctx.match.split(" ").map((s) => s.trim());
+
+    if (!args || args.length !== 1) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const [id] = args;
+
+    if (!id || isNaN(Number(id))) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const promo = await promoRepo.findOneBy({
+      id: Number(id),
+    });
+
+    if (!promo) {
+      await ctx.reply(ctx.t("promocode-not-found"));
+      return;
+    }
+
+    await promoRepo.delete({
+      id: Number(id),
+    });
+
+    await ctx.reply(
+      ctx.t("promocode-deleted", {
+        name: promo.code,
+      }),
+      {
+        parse_mode: "HTML",
+      }
+    );
   });
 
   bot.command("users", async (ctx) => {
@@ -372,10 +714,17 @@ async function index() {
         }
       });
 
+      // const vmmanager = new VMManager(
+      //   process.env["VMM_EMAIL"],
+      //   process.env["VMM_PASSWORD"]
+      // );
+
       grammyRun(bot);
       console.info("[DripHosting Bot]: Started");
     }
   };
+
+  startCheckTopUpStatus(bot);
 
   await run();
 }

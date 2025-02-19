@@ -2,19 +2,22 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "NodeNext",
+    "moduleResolution": "nodenext",
     "strict": true,
     "esModuleInterop": true,
     "alwaysStrict": true,
-    "moduleResolution": "nodenext",
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "resolvePackageJsonImports": true,
     "rootDir": "src",
     "baseUrl": "./",
+    "lib": ["ESNext"],
     "paths": {
       "@/*": ["src/*"],
       "@entities/*": ["src/entities/*"],
-      "@helpers/*": ["src/helpers/*"]
+      "@helpers/*": ["src/helpers/*"],
+      "@api/*": ["src/api/*"]
     },
     "experimentalDecorators": true,
     "outDir": "dist",

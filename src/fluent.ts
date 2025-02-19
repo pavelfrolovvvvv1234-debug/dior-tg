@@ -1,6 +1,10 @@
 import { Fluent } from "@moebius/fluent";
 import { join } from "node:path";
 
+function pathToFtl(lang: string, name: string) {
+  return join(process.cwd(), "locales", lang, name);
+}
+
 export async function initFluent(): Promise<{
   fluent: Fluent;
   availableLocales: string[];
@@ -9,7 +13,10 @@ export async function initFluent(): Promise<{
 
   await fluent.addTranslation({
     locales: "en",
-    filePath: [join(process.cwd(), "locales", "en", "translation.ftl")],
+    filePath: [
+      pathToFtl("en", "translation.ftl"),
+      pathToFtl("en", "services.ftl"),
+    ],
     isDefault: true,
     bundleOptions: {
       useIsolating: false,
@@ -18,7 +25,10 @@ export async function initFluent(): Promise<{
 
   await fluent.addTranslation({
     locales: "ru",
-    filePath: [join(process.cwd(), "locales", "ru", "translation.ftl")],
+    filePath: [
+      pathToFtl("ru", "translation.ftl"),
+      pathToFtl("ru", "services.ftl"),
+    ],
     isDefault: false,
     bundleOptions: {
       useIsolating: false,
