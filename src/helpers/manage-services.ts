@@ -1,6 +1,8 @@
 import { Menu } from "@grammyjs/menu";
 import { MyAppContext } from "..";
 import DomainRequest, { DomainRequestStatus } from "@/entities/DomainRequest";
+import { getAppDataSource } from "@/database";
+import { InlineKeyboard } from "grammy";
 
 export const manageSerivcesMenu = new Menu<MyAppContext>("manage-services-menu")
   .submenu(
@@ -53,10 +55,16 @@ export const domainManageServicesMenu = new Menu<MyAppContext>(
     const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
 
     const [domainRequests, total] = await domainRequestRepo.findAndCount({
-      where: {
-        target_user_id: session.main.user.id,
-        status: DomainRequestStatus.InProgress,
-      },
+      where: [
+        {
+          target_user_id: session.main.user.id,
+          status: DomainRequestStatus.InProgress,
+        },
+        {
+          target_user_id: session.main.user.id,
+          status: DomainRequestStatus.Completed,
+        },
+      ],
       take: LIMIT_ON_PAGE,
       skip: session.other.domains.page * LIMIT_ON_PAGE,
     });
@@ -76,14 +84,39 @@ export const domainManageServicesMenu = new Menu<MyAppContext>(
               );
               return;
             }
-            // await ctx.reply(
-            //   ctx.t("domain-request-info", {
-            //     domainName: domainRequest.domainName,
-            //     zone: domainRequest.zone,
-            //     price: domainRequest.price,
-            //     status: ctx.t(`domain-request-status-${domainRequest.status}`),
-            //   })
-            // );
+
+            const domainsRepo = (await getAppDataSource()).getRepository(
+              DomainRequest
+            );
+
+            const domain = await domainsRepo.findOne({
+              where: {
+                id: domainRequest.id,
+              },
+            });
+
+            if (!domain) {
+              await ctx.answerCallbackQuery(ctx.t("domain-was-not-found"));
+              return;
+            }
+
+            await ctx.reply(
+              await ctx.t("domain-information", {
+                domain: `${domain.domainName}${domain.zone}`,
+                price: domain.price,
+                paydayAt: domain.payday_at,
+                expireAt: domain.expireAt,
+              }),
+              {
+                parse_mode: "HTML",
+                reply_markup: new InlineKeyboard().url(
+                  ctx.t("button-support"),
+                  `tg://resolve?domain=${
+                    process.env.SUPPORT_USERNAME_TG
+                  }&text=${ctx.t("support-message-template")}`
+                ),
+              }
+            );
           }
         )
         .row();

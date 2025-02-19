@@ -10,6 +10,7 @@ export enum DomainRequestStatus {
   InProgress = "in_progress",
   Failed = "failed",
   Completed = "completed",
+  Expired = "expired",
 }
 
 @Entity()

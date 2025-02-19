@@ -115,6 +115,21 @@ domains-manage = <strong>Управление доменами</strong>
 empty = Пусто
 list-empty = Список пуст
 
+domain-request-approved = Вы одобрили домен
+domain-request-reject = Домен отклонён
+
+domain-request-not-found = Запрос на создание не найден
+
+domain-was-not-found = Домен не найден
+
+domain-information = Домен <i>{$domain}</i>
+
+ Дата истечения: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+ Продление домена: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
+ Стоимость продления: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)}
+
+ Для изменения NS или IP привязки обратитесь в тех-поддержку.
+
 # Domain Registration Requests
 domain-request = {$id}. <code>{$domain}</code> от пользователя ({$targetId}).
  <strong>Информация от пользователя:</strong>

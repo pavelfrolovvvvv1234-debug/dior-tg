@@ -29,7 +29,7 @@ button-purchase = 💳 Purchase service
 button-manage-services = 🛠 Manage services
 button-personal-profile = 🧑‍💼 Profile
 button-support = 🤝 Support
-button-about-us = 📖 About us 📖
+button-about-us = 📖 About us
 button-change-locale = 🇺🇸 Change language
 button-ask-question = Ask question
 button-deposit = 📤 Top up
@@ -111,6 +111,11 @@ domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$
 empty = Empty
 list-empty = The list is empty
 
+domain-request-approved = Domain has been approved
+domain-request-reject = Domain has been reject
+
+domain-request-not-found = Domain request was not found
+
 domain-request = {$id}. <code>{$domain}</code> from user ({$targetId}).
  <strong>Additional information:</strong>
  <blockquote>{$info}</blockquote>
@@ -128,6 +133,16 @@ domain-cannot-manage-while-in-progress = Domain is pending registration wait unt
 
 deposit-money-enter-sum = Write the amount you want to replenish (integer dollar amount)
 deposit-money-incorrect-sum = The entered amount is incorrect
+
+domain-was-not-found = Domain was not found
+
+domain-information = Домен <i>{$domain}</i>
+
+ Expiration date: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+ Renewal date: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
+ Price renewal: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)}
+
+ To change the NS or IP binding, contact tech support.
 
 deposit-success-sum = ✅ Great, now all that's left to do is <u>pay</u> and we'll credit your balance.
  

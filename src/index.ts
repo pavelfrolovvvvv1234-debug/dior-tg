@@ -50,6 +50,7 @@ import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
 import Promo from "@entities/Promo";
 import { promocodeQuestion } from "@helpers/promocode-input";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
+import ms from "./lib/multims";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -589,9 +590,49 @@ async function index() {
       session.main.user.role != Role.Moderator
     )
       return;
+
+    const args = ctx.match.split(" ").map((s) => s.trim());
+
+    if (!args || args.length !== 2) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const [id, expireAt] = args;
+
+    const expireAtN = ms(expireAt);
+
+    if (!id || isNaN(Number(id)) || !expireAt || expireAtN == undefined) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+    const request = await domainRequestRepo.findOneBy({
+      id: Number(id),
+      status: DomainRequestStatus.InProgress,
+    });
+
+    if (!request) {
+      await ctx.reply(ctx.t("domain-request-not-found"));
+      return;
+    }
+
+    request.status = DomainRequestStatus.Completed;
+    request.expireAt = new Date(Date.now() + expireAtN);
+    request.payday_at = new Date(
+      request.expireAt.getTime() - 7 * 24 * 60 * 60 * 1000
+    );
+
+    await domainRequestRepo.save(request);
+
+    await ctx.reply(ctx.t("domain-request-approved", {}), {
+      parse_mode: "HTML",
+    });
   });
 
-  // reject_domain <id> <expire_at>
+  // reject_domain <id>
   bot.command("reject_domain", async (ctx) => {
     const session = await ctx.session;
 
@@ -600,6 +641,40 @@ async function index() {
       session.main.user.role != Role.Moderator
     )
       return;
+
+    const args = ctx.match.split(" ").map((s) => s.trim());
+
+    if (!args || args.length !== 1) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const [id] = args;
+
+    if (!id || isNaN(Number(id))) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+    const request = await domainRequestRepo.findOneBy({
+      id: Number(id),
+      status: DomainRequestStatus.InProgress,
+    });
+
+    if (!request) {
+      await ctx.reply(ctx.t("domain-request-not-found"));
+      return;
+    }
+
+    request.status = DomainRequestStatus.Failed;
+
+    await domainRequestRepo.save(request);
+
+    await ctx.reply(ctx.t("domain-request-reject", {}), {
+      parse_mode: "HTML",
+    });
   });
 
   bot.command("users", async (ctx) => {
