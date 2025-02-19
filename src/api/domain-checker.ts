@@ -3,6 +3,7 @@
 import axios from "axios";
 import prices from "@helpers/prices";
 import { AxiosError } from "axios";
+import { parse } from "tldts";
 
 type DomainStatus = "Available" | "Unavailable";
 
@@ -86,7 +87,10 @@ export default class DomainChecker {
   }
 
   domainIsValid(domain: string): boolean {
-    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain);
+    const parsed = parse(domain);
+    // If domain have more dots than one it fail cuz we register two-level domains
+    if (domain.split("").filter((v) => v == ".").length > 1) return false;
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain) && !!parsed.isIcann;
   }
 
   async domainIsAvailable(domain: string) {

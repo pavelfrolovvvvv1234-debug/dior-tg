@@ -17,7 +17,8 @@
       "@/*": ["src/*"],
       "@entities/*": ["src/entities/*"],
       "@helpers/*": ["src/helpers/*"],
-      "@api/*": ["src/api/*"]
+      "@api/*": ["src/api/*"],
+      "@lib/*": ["src/lib/*"]
     },
     "experimentalDecorators": true,
     "outDir": "dist",

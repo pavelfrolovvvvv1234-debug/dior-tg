@@ -49,6 +49,7 @@ import prices from "@helpers/prices";
 import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
 import Promo from "@entities/Promo";
 import { promocodeQuestion } from "@helpers/promocode-input";
+import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -372,107 +373,7 @@ async function index() {
   bot.use(controlUser);
   bot.use(controlUsers);
 
-  bot.on("callback_query:data", async (ctx) => {
-    if (ctx.callbackQuery.data.startsWith("agree-buy-domain:")) {
-      const session = await ctx.session;
-
-      const domain = ctx.callbackQuery.data.split(":")[1];
-
-      const pricesList = await prices();
-
-      const domainExtension = domain.split(
-        "."
-      )[1] as keyof typeof pricesList.domains;
-
-      // @ts-ignore
-      const price = pricesList.domains[`.${domainExtension}`].price;
-
-      if (session.main.user.balance < price) {
-        await ctx.answerCallbackQuery(
-          ctx.t("money-not-enough", {
-            amount: price - session.main.user.balance,
-          })
-        );
-        return;
-      }
-
-      const usersRepo = ctx.appDataSource.getRepository(User);
-      const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
-
-      const isDomain = await domainRequestRepo.findOneBy({
-        domainName: domain.split(".")[0],
-        zone: `.${domainExtension}`,
-      });
-
-      if (isDomain) {
-        if (
-          isDomain.status == DomainRequestStatus.Completed ||
-          isDomain.status == DomainRequestStatus.InProgress
-        ) {
-          ctx.answerCallbackQuery(ctx.t("domain-already-pending-registration"));
-          return;
-        }
-      }
-
-      const user = await usersRepo.findOne({
-        where: {
-          id: session.main.user.id,
-        },
-      });
-
-      if (!user) {
-        return;
-      }
-
-      user.balance -= price;
-
-      await usersRepo.save(user);
-
-      const domainRequest = new DomainRequest();
-
-      domainRequest.domainName = domain.split(".")[0];
-      domainRequest.zone = `.${domainExtension}`;
-      domainRequest.target_user_id = user.id;
-      domainRequest.price = price;
-
-      await domainRequestRepo.save(domainRequest);
-
-      ctx.reply(
-        ctx.t("domain-registration-in-progress", {
-          domain,
-        }),
-        {
-          parse_mode: "HTML",
-        }
-      );
-
-      const mods = usersRepo.find({
-        where: [
-          {
-            role: Role.Admin,
-          },
-          {
-            role: Role.Moderator,
-          },
-        ],
-      });
-
-      const countRequests = await domainRequestRepo.count({
-        where: {
-          status: DomainRequestStatus.InProgress,
-        },
-      });
-
-      (await mods).forEach((user) => {
-        ctx.api.sendMessage(
-          user.telegramId,
-          ctx.t("domain-request-notification", {
-            count: countRequests,
-          })
-        );
-      });
-    }
-  });
+  registerDomainRegistrationMiddleware(bot);
 
   bot.command("start", async (ctx) => {
     await ctx.deleteMessage();
@@ -514,6 +415,7 @@ async function index() {
               id: request.id,
               targetId: request.target_user_id,
               domain: `${request.domainName}${request.zone}`,
+              info: request.additionalInformation || ctx.t("empty"),
             })
           )
           .join("\n")}\n\n${ctx.t("domain-request-list-info")}`,
@@ -735,11 +637,6 @@ async function index() {
           console.error(err.name, err.message, err.stack);
         }
       });
-
-      // const vmmanager = new VMManager(
-      //   process.env["VMM_EMAIL"],
-      //   process.env["VMM_PASSWORD"]
-      // );
 
       grammyRun(bot);
       console.info("[DripHosting Bot]: Started");

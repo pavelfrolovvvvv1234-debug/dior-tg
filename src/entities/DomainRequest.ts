@@ -34,7 +34,7 @@ export default class DomainRequest {
   target_user_id!: number;
 
   @Column({ nullable: true })
-  nameservers!: string;
+  additionalInformation!: string;
 
   @Column({ nullable: true })
   mod_id!: number;
@@ -43,7 +43,7 @@ export default class DomainRequest {
   price!: number;
 
   @Column({ nullable: true })
-  expire_at!: Date;
+  expireAt!: Date;
 
   @CreateDateColumn()
   createdAt!: Date;

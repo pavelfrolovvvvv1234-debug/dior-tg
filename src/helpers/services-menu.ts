@@ -95,13 +95,12 @@ export const domainQuestion = new StatelessQuestion<MyAppContext>(
     const isValid = domainChecker.domainIsValid(domain);
 
     if (!isValid) {
-      ctx.reply(
+      await domainQuestion.replyWithHTML(
+        ctx,
         ctx.t("domain-invalid", {
           domain: `${escapeUserInput(ctx.message.text)}${zone}`,
         }),
-        {
-          parse_mode: "HTML",
-        }
+        zone
       );
       return;
     }

@@ -103,16 +103,22 @@ message-about-block = Unfortunately you are blocked. Contact support for clarifi
 button-buy = ✅ Make order
 
 domain-question = Write the domain you would like to purchase please do not specify <i>{$zoneName}</i>
-domain-invalid = The entered domain is incorrect <i>{$domain}</i>
+domain-invalid = The entered domain is incorrect <i>{$domain}</i> try again
 domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
 domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
 domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$domain}</i> (Your balance has been debited) You can follow the status in the service management menu
 
+empty = Empty
 list-empty = The list is empty
 
 domain-request = {$id}. <code>{$domain}</code> from user ({$targetId}).
-domain-request-list-info = (/approve_domain &lt;id&gt; - approve, /reject_domain &lt;id&gt; - reject)
+ <strong>Additional information:</strong>
+ <blockquote>{$info}</blockquote>
+
+domain-request-list-info = (/approve_domain &lt;id&gt; &lt;expire_at: 1year or 1y&gt; - approve, /reject_domain &lt;id&gt; - reject)
 domain-request-list-header = <strong>List of domain registration requests:</strong>
+domain-registration-complete = ❗️ To finalize the domain purchase, please send information about the IP address to which it should be bound, or specify two NS servers separated by a space ❗️
+domain-registration-complete-fail-message-length  = The information is too long try making the text smaller
 
 domains-manage = <strong>Manage domains</strong>
 domain-already-pending-registration = Domain already in pending await

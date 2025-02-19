@@ -1,6 +1,5 @@
 import { Menu } from "@grammyjs/menu";
 import { MyAppContext } from "..";
-import DomainService from "@/entities/DomainService";
 import DomainRequest, { DomainRequestStatus } from "@/entities/DomainRequest";
 
 export const manageSerivcesMenu = new Menu<MyAppContext>("manage-services-menu")
