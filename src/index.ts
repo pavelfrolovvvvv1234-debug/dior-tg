@@ -678,6 +678,28 @@ async function index() {
     );
   });
 
+  // approve_domain <id> <expire_at>
+  bot.command("approve_domain", async (ctx) => {
+    const session = await ctx.session;
+
+    if (
+      session.main.user.role != Role.Admin &&
+      session.main.user.role != Role.Moderator
+    )
+      return;
+  });
+
+  // reject_domain <id> <expire_at>
+  bot.command("reject_domain", async (ctx) => {
+    const session = await ctx.session;
+
+    if (
+      session.main.user.role != Role.Admin &&
+      session.main.user.role != Role.Moderator
+    )
+      return;
+  });
+
   bot.command("users", async (ctx) => {
     await ctx.deleteMessage();
     const session = await ctx.session;

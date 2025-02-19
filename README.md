@@ -23,16 +23,23 @@ DOMAINR_TOKEN="<domainr_token>"
 PAYMENT_AAIO_ID="<id>"
 PAYMENT_AAIO_SECRET_ONE="<sec1>"
 PAYMENT_AAIO_SECRET_TWO="<sec2>"
+PAYMENT_AAIO_TOKEN="<token>"
+
 
 # CrystalPay
 PAYMENT_CRYSTALPAY_ID="<id>"
 PAYMENT_CRYSTALPAY_SECRET_ONE="<sec1>"
 PAYMENT_CRYSTALPAY_SECRET_TWO="<sec2>"
+
+# VMManager
+VMM_EMAIL="example@example.com"
+VMM_PASSWORD="<pass>"
+VMM_ENDPOINT_URL="https://vm.driphosting.com/"
 ```
 
 ### Webhooks
 
-> Работает не стабильно
+> Работает не стабильно (Вообще не использовать)
 
 Вы можете также включить режим Webhook, чтобы телеграм отправлял информацию о каком либо обновлении а не клиент бесконечно запрашивал информацию.
 

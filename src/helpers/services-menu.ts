@@ -128,14 +128,22 @@ export const domainQuestion = new StatelessQuestion<MyAppContext>(
         }
       );
     } else {
-      ctx.reply(
+      // Ask user again
+      await domainQuestion.replyWithHTML(
+        ctx,
         ctx.t("domain-not-available", {
           domain: `${escapeUserInput(ctx.message.text)}${zone}`,
         }),
-        {
-          parse_mode: "HTML",
-        }
+        zone
       );
+      // ctx.reply(
+      //   ctx.t("domain-not-available", {
+      //     domain: `${escapeUserInput(ctx.message.text)}${zone}`,
+      //   }),
+      //   {
+      //     parse_mode: "HTML",
+      //   }
+      // );
     }
   }
 );
