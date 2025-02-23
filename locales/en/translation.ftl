@@ -63,6 +63,8 @@ admin-help = Available commands for Administrator:
  3. /domainrequests - Get a list of domain registration requests
  4. /create_promo (name) (sum) (uses count) - Creation a promocode
  5. /remove_promo (id) - Remove promocode
+ 6. /showvds (userId) - Show list of VDS
+ 7. /removevds (vdsId) - Remove vds from VMManager and user
 
 link-expired = The link has expired
 link-used = The link already has been used
@@ -250,3 +252,13 @@ vds-new-password = New Password: <tg-spoiler>{$password}</tg-spoiler>
 vds-reinstall-started = Reinstallation is running, please wait. You can monitor the status in > Manage services
 
 dedicated-servers = This section will be available soon, but in the meantime you can familiarize yourself with the allocated machines on the site https://driphosting.com/en/abuse/dedicated/. You can place your order through the support.
+
+vds-expiration = Your VDS Expires. Refill your balance by {$amount} $
+
+no-vds-found = User don't have VDS
+
+vds-info-admin = {$id}. {$ip} {$expireAt} - Renewal price {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+
+vds-removed = VDS removed
+
+vds-remove-failed = Remove VDS with ID {$vdsId} failed

@@ -29,6 +29,9 @@ export default class User {
   @Column({ default: Role.User, type: "varchar", nullable: false })
   role!: Role;
 
+  @Column({ nullable: true })
+  lang!: "ru" | "en";
+
   @CreateDateColumn()
   createdAt!: Date;
 

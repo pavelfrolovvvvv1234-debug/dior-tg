@@ -38,6 +38,9 @@ export default class VirtualDedicatedServer {
   @Column()
   isBulletproof!: boolean;
 
+  @Column({ nullable: true })
+  payDayAt!: Date;
+
   // Gb
   @Column()
   ramSize!: number;

@@ -60,6 +60,7 @@ import { registerDomainRegistrationMiddleware } from "@helpers/domain-registrato
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "@api/vmmanager";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
+import { Fluent } from "@moebius/fluent";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -222,6 +223,17 @@ const changeLocaleMenu = new Menu<MyAppContext>("change-locale-menu", {
         range
           .text(ctx.t(`button-change-locale-${lang}`), async (ctx) => {
             session.main.locale = lang;
+            const usersRepo = ctx.appDataSource.getRepository(User);
+
+            const user = await usersRepo.findOneBy({
+              id: session.main.user.id,
+            });
+
+            if (user) {
+              user.lang = lang as "ru" | "en";
+              await usersRepo.save(user);
+            }
+
             ctx.fluent.useLocale(lang);
             await ctx.editMessageText(
               ctx.t("welcome", { balance: session.main.user.balance }),
@@ -325,7 +337,7 @@ async function index() {
     process.env["VMM_PASSWORD"]
   );
 
-  startExpirationCheck(bot, vmmanager);
+  startExpirationCheck(bot, vmmanager, fluent);
 
   bot.use(async (ctx, next) => {
     ctx.vmmanager = vmmanager;
@@ -344,7 +356,18 @@ async function index() {
     const session = await ctx.session;
 
     if (session.main.locale == "0") {
+      const usersRepo = ctx.appDataSource.getRepository(User);
+
+      const user = await usersRepo.findOneBy({
+        id: session.main.user.id,
+      });
+
       session.main.locale = ctx.from?.language_code == "ru" ? "ru" : "en";
+
+      if (user) {
+        user.lang = session.main.locale as "ru" | "en";
+        await usersRepo.save(user);
+      }
     }
 
     return next();
@@ -695,6 +718,118 @@ async function index() {
     });
   });
 
+  // showvds <userId>
+  bot.command("showvds", async (ctx) => {
+    const session = await ctx.session;
+
+    if (
+      session.main.user.role != Role.Admin &&
+      session.main.user.role != Role.Moderator
+    )
+      return;
+
+    const args = ctx.match.split(" ").map((s) => s.trim());
+
+    if (!args || args.length !== 1) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const [userId] = args;
+
+    if (!userId || isNaN(Number(userId))) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+
+    const vdsList = await vdsRepo.find({
+      where: {
+        targetUserId: Number(userId),
+      },
+    });
+
+    if (vdsList.length === 0) {
+      await ctx.reply(ctx.t("no-vds-found"));
+      return;
+    }
+
+    const vdsInfo = vdsList
+      .map((vds) =>
+        ctx.t("vds-info-admin", {
+          id: vds.id,
+          ip: vds.ipv4Addr,
+          expireAt: vds.expireAt.toISOString(),
+          renewalPrice: vds.renewalPrice,
+        })
+      )
+      .join("\n");
+
+    await ctx.reply(vdsInfo, {
+      parse_mode: "HTML",
+    });
+  });
+
+  // removevds <idVds>
+  bot.command("removevds", async (ctx) => {
+    const session = await ctx.session;
+
+    if (
+      session.main.user.role != Role.Admin &&
+      session.main.user.role != Role.Moderator
+    )
+      return;
+
+    const args = ctx.match.split(" ").map((s) => s.trim());
+
+    if (!args || args.length !== 1) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const [idVds] = args;
+
+    if (!idVds || isNaN(Number(idVds))) {
+      await ctx.reply(ctx.t("invalid-arguments"));
+      return;
+    }
+
+    const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+
+    const vds = await vdsRepo.findOneBy({
+      id: Number(idVds),
+    });
+
+    if (!vds) {
+      await ctx.reply(ctx.t("vds-not-found"));
+      return;
+    }
+
+    let result;
+    let attempts = 0;
+
+    while (result == undefined && attempts < 3) {
+      result = await ctx.vmmanager.deleteVM(vds.vdsId);
+      attempts++;
+    }
+
+    if (result == undefined) {
+      await ctx.reply(ctx.t("vds-remove-failed", { id: idVds }), {
+        parse_mode: "HTML",
+      });
+      return;
+    }
+
+    await vdsRepo.delete({
+      id: Number(idVds),
+    });
+
+    await ctx.reply(ctx.t("vds-removed", { id: idVds }), {
+      parse_mode: "HTML",
+    });
+  });
+
   // reject_domain <id>
   bot.command("reject_domain", async (ctx) => {
     const session = await ctx.session;
@@ -786,6 +921,7 @@ async function index() {
       });
 
       grammyRun(bot);
+
       console.info("[DripHosting Bot]: Started");
     }
   };
@@ -804,10 +940,12 @@ index()
 
 async function startExpirationCheck(
   bot: Bot<MyAppContext, Api<RawApi>>,
-  vmManager: VMManager
+  vmManager: VMManager,
+  fluent: Fluent
 ) {
+  const appDataSource = await getAppDataSource();
+
   setInterval(async () => {
-    const appDataSource = await getAppDataSource();
     const vdsRepo = appDataSource.getRepository(VirtualDedicatedServer);
     const usersRepo = appDataSource.getRepository(User);
     const domainsRepo = appDataSource.getRepository(DomainRequest);
@@ -835,17 +973,34 @@ async function startExpirationCheck(
       }
 
       if (user.balance < vds.renewalPrice) {
-        let deleted;
+        if (!vds.payDayAt) {
+          vds.payDayAt = new Date(Date.now() + ms("3d"));
+          vdsRepo.save(vds);
 
-        while (deleted == undefined) {
-          deleted = await vmManager.deleteVM(vds.vdsId);
+          await bot.api.sendMessage(
+            user.telegramId,
+            fluent.translate(user.lang || "en", "vds-expiration", {
+              amount: vds.renewalPrice,
+            })
+          );
+
+          return;
         }
 
-        await vdsRepo.delete(vds);
+        if (new Date(vds.payDayAt).getTime() > Date.now()) {
+          let deleted;
+          while (deleted == undefined) {
+            deleted = await vmManager.deleteVM(vds.vdsId);
+          }
+
+          await vdsRepo.delete(vds);
+        }
       } else {
         user.balance -= vds.renewalPrice;
 
         vds.expireAt = new Date(Date.now() + ms("30d"));
+        // @ts-ignore
+        vds.payDayAt = null;
 
         await usersRepo.save(user);
         await vdsRepo.save(vds);

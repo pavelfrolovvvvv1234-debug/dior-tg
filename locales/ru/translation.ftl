@@ -64,6 +64,8 @@ admin-help = Доступные команды для Администратор
  3. /domainrequests - Получить список запросов на регистрацию доменов
  4. /create_promo (название) (сумма) (кол-во использований) - Создание промокода
  5. /remove_promo (id) - Удаление промокода
+ 6. /showvds (userId) - Список VDS пользователя
+ 7. /removevds (vdsId) - Полное удаление VDS
 
 link-expired = Срок действия ссылки истек
 link-used = Ссылка уже была использована
@@ -250,3 +252,13 @@ vds-new-password = Новый пароль: <tg-spoiler>{$password}</tg-spoiler>
 vds-reinstall-started = Переустановка запущена, пожалуйста подождите. За статусом можете следить в > Управление услугами
 
 dedicated-servers = Этот раздел скоро будет доступен, а пока вы можете ознакомится с выделенными машинами на сайте https://driphosting.com/ru/abuse/dedicated/. Сделать заказ вы можете через ТП.
+
+vds-expiration = Ваша VDS Истекает. Пополните баланс на {$amount} $
+
+no-vds-found = У пользовтеля нет купленных VDS
+
+vds-info-admin = {$id}. {$ip} {$expireAt} - Цена продления {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+
+vds-removed = VDS удалена
+
+vds-remove-failed = Удаление VDS с ID {$vdsId} не удалось
