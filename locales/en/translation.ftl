@@ -32,6 +32,7 @@ button-support = 🤝 Support
 button-about-us = 📖 About us
 button-change-locale = 🇺🇸 Change language
 button-ask-question = Ask question
+button-tp = Support
 button-deposit = 📤 Top up
 button-promocode = 🎁 Promocode
 button-contact-with-client = Contact with client
@@ -247,3 +248,5 @@ vds-button-copy-password = ⤵️ Copy Password
 vds-new-password = New Password: <tg-spoiler>{$password}</tg-spoiler>
 
 vds-reinstall-started = Reinstallation is running, please wait. You can monitor the status in > Manage services
+
+dedicated-servers = This section will be available soon, but in the meantime you can familiarize yourself with the allocated machines on the site https://driphosting.com/en/abuse/dedicated/. You can place your order through the support.

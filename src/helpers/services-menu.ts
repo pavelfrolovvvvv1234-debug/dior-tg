@@ -25,7 +25,17 @@ export const servicesMenu = new Menu<MyAppContext>("services-menu")
     }
   )
   .row()
-  .text((ctx) => ctx.t("button-dedicated-server"))
+  .text(
+    (ctx) => ctx.t("button-dedicated-server"),
+    (ctx) => {
+      ctx.reply(ctx.t("dedicated-servers"), {
+        reply_markup: new InlineKeyboard().url(
+          ctx.t("button-tp"),
+          `tg://resolve?domain=${process.env.SUPPORT_USERNAME_TG}`
+        ),
+      });
+    }
+  )
   .row()
   .submenu(
     (ctx) => ctx.t("button-vds"),

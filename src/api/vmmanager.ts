@@ -326,6 +326,36 @@ export class VMManager {
     }
   }
 
+  async deleteVM(id: number) {
+    try {
+      const { status, data } = await axios.delete<{
+        id: number;
+        task: number;
+      }>(`${process.env.VMM_ENDPOINT_URL}vm/v3/host/${id}`, {
+        params: {
+          force: false,
+        },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "x-xsrf-token": this.token,
+        },
+      });
+
+      if (status === 200) {
+        return data;
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Error Create VM in VMManager:", error.response?.data);
+
+        if (error.response?.data.error.code == 1000) {
+          await this.login();
+        }
+      }
+    }
+  }
+
   async reinstallOS(id: number, osId: number) {
     try {
       const vdsRepo = (await getAppDataSource()).getRepository(

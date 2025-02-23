@@ -1,9 +1,11 @@
 import {
+  Api,
   Bot,
   Context,
   InlineKeyboard,
   LazySessionFlavor,
   MemorySessionStorage,
+  RawApi,
   session,
   webhookCallback,
 } from "grammy";
@@ -12,7 +14,7 @@ import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
-import { DataSource } from "typeorm";
+import { DataSource, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 import { getAppDataSource } from "@/database";
 import User, { Role } from "@entities/User";
 import { createLink } from "@entities/TempLink";
@@ -57,6 +59,7 @@ import { promocodeQuestion } from "@helpers/promocode-input";
 import { registerDomainRegistrationMiddleware } from "@helpers/domain-registraton";
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "@api/vmmanager";
+import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -321,6 +324,8 @@ async function index() {
     process.env["VMM_EMAIL"],
     process.env["VMM_PASSWORD"]
   );
+
+  startExpirationCheck(bot, vmmanager);
 
   bot.use(async (ctx, next) => {
     ctx.vmmanager = vmmanager;
@@ -796,3 +801,78 @@ index()
     console.error(err);
     process.exit(1);
   });
+
+async function startExpirationCheck(
+  bot: Bot<MyAppContext, Api<RawApi>>,
+  vmManager: VMManager
+) {
+  setInterval(async () => {
+    const appDataSource = await getAppDataSource();
+    const vdsRepo = appDataSource.getRepository(VirtualDedicatedServer);
+    const usersRepo = appDataSource.getRepository(User);
+    const domainsRepo = appDataSource.getRepository(DomainRequest);
+
+    const domains = await domainsRepo.find({
+      where: {
+        payday_at: LessThanOrEqual(new Date()),
+        status: DomainRequestStatus.Completed,
+      },
+    });
+
+    const vdsList = await vdsRepo.find({
+      where: {
+        expireAt: LessThanOrEqual(new Date()),
+      },
+    });
+
+    vdsList.forEach(async (vds) => {
+      const user = await usersRepo.findOneBy({
+        id: vds.targetUserId,
+      });
+
+      if (!user) {
+        return;
+      }
+
+      if (user.balance < vds.renewalPrice) {
+        let deleted;
+
+        while (deleted == undefined) {
+          deleted = await vmManager.deleteVM(vds.vdsId);
+        }
+
+        await vdsRepo.delete(vds);
+      } else {
+        user.balance -= vds.renewalPrice;
+
+        vds.expireAt = new Date(Date.now() + ms("30d"));
+
+        await usersRepo.save(user);
+        await vdsRepo.save(vds);
+      }
+    });
+
+    domains.forEach(async (domain) => {
+      const user = await usersRepo.findOneBy({
+        id: domain.target_user_id,
+      });
+
+      if (!user) {
+        return;
+      }
+
+      if (user.balance < domain.price) {
+        domain.status = DomainRequestStatus.Expired;
+        domainsRepo.save(domain);
+      } else {
+        user.balance -= domain.price;
+        const now = Date.now();
+        domain.expireAt = new Date(now + ms("1y"));
+        domain.payday_at = new Date(now + ms("360d"));
+
+        usersRepo.save(user);
+        domainsRepo.save(domain);
+      }
+    });
+  }, ms("1d"));
+}
