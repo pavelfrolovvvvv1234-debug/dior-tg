@@ -1,11 +1,18 @@
 import { Menu } from "@grammyjs/menu";
-import { MyAppContext, MyConversation } from "..";
+import { mainMenu, MyAppContext, MyConversation } from "..";
 import prices from "@helpers/prices";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 
 import DomainChecker from "@api/domain-checker";
 import { escapeUserInput } from "@helpers/formatting";
 import { InlineKeyboard } from "grammy";
+import { getAppDataSource } from "@/database";
+import User from "@/entities/User";
+import VirtualDedicatedServer, {
+  generatePassword,
+  generateRandomName,
+} from "@/entities/VirtualDedicatedServer";
+import ms from "@/lib/multims";
 
 export const servicesMenu = new Menu<MyAppContext>("services-menu")
   .submenu(
@@ -20,9 +27,430 @@ export const servicesMenu = new Menu<MyAppContext>("services-menu")
   .row()
   .text((ctx) => ctx.t("button-dedicated-server"))
   .row()
-  .text((ctx) => ctx.t("button-vds"))
+  .submenu(
+    (ctx) => ctx.t("button-vds"),
+    "vds-menu",
+    (ctx) => {
+      ctx.editMessageText(ctx.t("vds-service"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
   .row()
-  .back((ctx) => ctx.t("button-back"));
+  .back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      const session = await ctx.session;
+
+      ctx.editMessageText(
+        ctx.t("welcome", { balance: session.main.user.balance }),
+        {
+          parse_mode: "HTML",
+        }
+      );
+    }
+  );
+
+async function createAndBuyVDS(
+  ctx: MyAppContext,
+  osId: number,
+  rateId: number,
+  userId: number,
+  bulletproof: boolean
+) {
+  const pricesList = await prices();
+
+  const rate = pricesList.virtual_vds[rateId];
+
+  if (!rate) {
+    await ctx.reply(ctx.t("bad-error"));
+    return;
+  }
+
+  const appDataSource = await getAppDataSource();
+
+  const usersRepo = appDataSource.getRepository(User);
+  const vdsRepo = appDataSource.getRepository(VirtualDedicatedServer);
+
+  const user = await usersRepo.findOneBy({
+    id: userId,
+  });
+
+  if (!user) {
+    await ctx.reply(ctx.t("bad-error"));
+    return;
+  }
+
+  const ratePrice = () =>
+    bulletproof ? rate.price.bulletproof : rate.price.default;
+
+  // Remember this thing
+  const generatedPassword = generatePassword(12);
+
+  if (user.balance - ratePrice() < 0) {
+    await ctx.reply(
+      ctx.t("money-not-enough", {
+        amount: ratePrice() - user.balance,
+      })
+    );
+    return;
+  }
+
+  const newVds = new VirtualDedicatedServer();
+
+  let result;
+
+  while (result == undefined) {
+    result = await ctx.vmmanager.createVM(
+      generateRandomName(13),
+      generatedPassword,
+      rate.cpu,
+      rate.ram,
+      osId,
+      `UserID:${userId},${rate.name}`,
+      rate.ssd,
+      1,
+      rate.network,
+      rate.network
+    );
+  }
+
+  let info;
+
+  while (info == undefined) {
+    info = await ctx.vmmanager.getInfoVM(result.id);
+  }
+
+  newVds.vdsId = result.id;
+  newVds.cpuCount = rate.cpu;
+  newVds.diskSize = rate.ssd;
+  newVds.rateName = rate.name;
+  newVds.expireAt = new Date(Date.now() + ms("30d"));
+  newVds.ramSize = rate.ram;
+  newVds.lastOsId = osId;
+  newVds.password = generatedPassword;
+  newVds.networkSpeed = rate.network;
+  newVds.targetUserId = userId;
+  newVds.isBulletproof = bulletproof;
+
+  let ipv4Addrs;
+
+  while (ipv4Addrs == undefined) {
+    ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(result.id);
+  }
+
+  newVds.ipv4Addr = ipv4Addrs.list[0].ip_addr;
+  newVds.renewalPrice = ratePrice();
+
+  await vdsRepo.save(newVds);
+
+  user.balance -= ratePrice();
+
+  await usersRepo.save(user);
+
+  ctx.reply(ctx.t("vds-created"), {
+    reply_markup: mainMenu,
+  });
+}
+
+export const vdsRateOs = new Menu<MyAppContext>("vds-select-os").dynamic(
+  async (ctx, range) => {
+    const session = await ctx.session;
+
+    const osList = ctx.osList;
+
+    if (!osList) {
+      ctx.reply(ctx.t("bad-error"));
+      return;
+    }
+
+    let count = 0;
+    osList.list
+      .filter((os) => !os.adminonly && os.name != "NoOS")
+      .forEach((os) => {
+        range.text(os.name, async (ctx) => {
+          const session = await ctx.session;
+
+          // Run function for create VM and buy it
+          await createAndBuyVDS(
+            ctx,
+            os.id,
+            session.other.vdsRate.selectedRateId,
+            session.main.user.id,
+            session.other.vdsRate.bulletproof
+          );
+        });
+
+        count++;
+        if (count % 2 === 0) {
+          range.row();
+        }
+      });
+
+    if (count % 2 !== 0) {
+      range.row();
+    }
+
+    range.back(
+      {
+        text: (ctx) => ctx.t("button-back"),
+        payload: session.other.vdsRate.selectedRateId.toString(),
+      },
+      async (ctx) => {
+        if (ctx.match == "-1") {
+          await ctx.deleteMessage();
+
+          const session = await ctx.session;
+
+          ctx.reply(
+            ctx.t("welcome", {
+              balance: session.main.user.balance,
+            }),
+            {
+              reply_markup: mainMenu,
+              parse_mode: "HTML",
+            }
+          );
+          return;
+        }
+        await editMessageVdsRate(ctx, Number(ctx.match));
+      }
+    );
+  }
+);
+
+export const vdsRateChoose = new Menu<MyAppContext>("vds-selected-rate", {
+  onMenuOutdated: (ctx) => {
+    ctx.deleteMessage().then();
+  },
+})
+  .dynamic(async (ctx, range) => {
+    const session = await ctx.session;
+
+    if (session.other.vdsRate.bulletproof) {
+      range.text(
+        {
+          text: ctx.t("vds-bulletproof-mode-button-off"),
+          payload: session.other.vdsRate.selectedRateId.toString(),
+        },
+        async (ctx) => {
+          const session = await ctx.session;
+
+          if (ctx.match == "-1") {
+            ctx.menu.nav("vds-menu");
+            return;
+          }
+
+          session.other.vdsRate.bulletproof = false;
+
+          await editMessageVdsRate(ctx, Number(ctx.match));
+          // await ctx.menu.update();
+        }
+      );
+    } else {
+      range.text(
+        {
+          text: ctx.t("vds-bulletproof-mode-button-on"),
+          payload: session.other.vdsRate.selectedRateId.toString(),
+        },
+        async (ctx) => {
+          const session = await ctx.session;
+
+          if (ctx.match == "-1") {
+            ctx.menu.nav("vds-menu");
+            return;
+          }
+
+          session.other.vdsRate.bulletproof = true;
+
+          await editMessageVdsRate(ctx, Number(ctx.match));
+          // await ctx.menu.update();
+        }
+      );
+    }
+  })
+  .row()
+  .dynamic(async (ctx, range) => {
+    const session = await ctx.session;
+
+    range.submenu(
+      {
+        text: ctx.t("button-buy"),
+        payload: session.other.vdsRate.selectedRateId.toString(),
+      },
+      "vds-select-os",
+      async (ctx) => {
+        if (ctx.match == "-1") {
+          await ctx.deleteMessage();
+
+          const session = await ctx.session;
+
+          ctx.reply(
+            ctx.t("welcome", {
+              balance: session.main.user.balance,
+            }),
+            {
+              reply_markup: mainMenu,
+              parse_mode: "HTML",
+            }
+          );
+          return;
+        }
+
+        const session = await ctx.session;
+        const pricesList = await prices();
+
+        const rate = pricesList.virtual_vds[Number(ctx.match)];
+
+        if (rate) {
+          if (
+            session.main.user.balance <
+            (session.other.vdsRate.bulletproof
+              ? rate.price.bulletproof
+              : rate.price.default)
+          ) {
+            ctx.reply(
+              ctx.t("money-not-enough", {
+                amount:
+                  (session.other.vdsRate.bulletproof
+                    ? rate.price.bulletproof
+                    : rate.price.default) - session.main.user.balance,
+              })
+            );
+            // await ctx.deleteMessage();
+            await ctx.menu.close();
+            await ctx.reply(
+              ctx.t("welcome", {
+                balance: session.main.user.balance,
+              }),
+              {
+                reply_markup: mainMenu,
+                parse_mode: "HTML",
+              }
+            );
+
+            return;
+          }
+        } else {
+          ctx.menu.close();
+          return;
+        }
+
+        session.other.vdsRate.selectedRateId = Number(ctx.match);
+
+        ctx.editMessageText(ctx.t("vds-os-select"), {
+          parse_mode: "HTML",
+        });
+      }
+    );
+  })
+  .back(
+    (ctx) => ctx.t("button-back"),
+    (ctx) => {
+      ctx.editMessageText(ctx.t("vds-service"), {
+        parse_mode: "HTML",
+      });
+    }
+  );
+
+const editMessageVdsRate = async (ctx: MyAppContext, rateId: number) => {
+  const pricesList = await prices();
+  const session = await ctx.session;
+  const rate = pricesList.virtual_vds[rateId];
+
+  await ctx.editMessageText(
+    ctx.t("vds-rate-full-view", {
+      rateName: rate.name,
+      price:
+        session.other.vdsRate.bulletproof == true
+          ? rate.price.bulletproof
+          : rate.price.default,
+      ram: rate.ram,
+      disk: rate.ssd,
+      cpu: rate.cpu,
+      network: rate.network,
+      abuse:
+        session.other.vdsRate.bulletproof == true
+          ? ctx.t("bulletproof-on")
+          : ctx.t("bulletproof-off"),
+    }),
+    {
+      parse_mode: "HTML",
+    }
+  );
+};
+
+export const vdsMenu = new Menu<MyAppContext>("vds-menu")
+  .dynamic(async (ctx, range) => {
+    const pricesList = await prices();
+    const session = await ctx.session;
+
+    pricesList.virtual_vds.forEach((rate, id) => {
+      range
+        .submenu(
+          {
+            text: ctx.t("vds-rate", {
+              rateName: rate.name,
+              price:
+                session.other.vdsRate.bulletproof == true
+                  ? rate.price.bulletproof
+                  : rate.price.default,
+              ram: rate.ram,
+              disk: rate.ssd,
+              cpu: rate.cpu,
+            }),
+            payload: id.toString(),
+          },
+          "vds-selected-rate",
+          async (ctx) => {
+            session.other.vdsRate.selectedRateId = Number(ctx.match);
+
+            await editMessageVdsRate(ctx, id);
+          }
+        )
+        .row();
+    });
+
+    if (session.other.vdsRate.bulletproof) {
+      range.text(
+        {
+          text: ctx.t("vds-bulletproof-mode-button-off"),
+          payload: session.other.vdsRate.selectedRateId.toString(),
+        },
+        async (ctx) => {
+          const session = await ctx.session;
+
+          session.other.vdsRate.bulletproof = false;
+
+          // await editMessageVdsRate(ctx, Number(ctx.match));
+          await ctx.menu.update();
+        }
+      );
+    } else {
+      range.text(
+        {
+          text: ctx.t("vds-bulletproof-mode-button-on"),
+          payload: session.other.vdsRate.selectedRateId.toString(),
+        },
+        async (ctx) => {
+          const session = await ctx.session;
+
+          session.other.vdsRate.bulletproof = true;
+
+          // await editMessageVdsRate(ctx, Number(ctx.match));
+          await ctx.menu.update();
+        }
+      );
+    }
+  })
+  .back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+        parse_mode: "HTML",
+      });
+    }
+  );
 
 export const domainsMenu = new Menu<MyAppContext>("domains-menu")
   .dynamic(async (_, range) => {
@@ -70,14 +498,9 @@ export const domainsMenu = new Menu<MyAppContext>("domains-menu")
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      const session = await ctx.session;
-
-      ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        {
-          parse_mode: "HTML",
-        }
-      );
+      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+        parse_mode: "HTML",
+      });
     }
   );
 

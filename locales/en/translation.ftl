@@ -100,7 +100,7 @@ unblock-user = ✅ Unblock
 
 message-about-block = Unfortunately you are blocked. Contact support for clarification of the reasons for blocking.
 
-button-buy = ✅ Make order
+button-buy = 💸 Make order
 
 domain-question = Write the domain you would like to purchase please do not specify <i>{$zoneName}</i>
 domain-invalid = The entered domain is incorrect <i>{$domain}</i> try again
@@ -136,11 +136,13 @@ deposit-money-incorrect-sum = The entered amount is incorrect
 
 domain-was-not-found = Domain was not found
 
-domain-information = Домен <i>{$domain}</i>
+domain-information = Domain <i>{$domain}</i>
 
- Expiration date: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
- Renewal date: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
- Price renewal: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)}
+ <strong>Expiration date</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+ <strong>Renewal date</strong>: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
+ <strong>Price renewal</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+
+ <i>📌 Renewal is automatic, please top up your balance in advance</i>
 
  To change the NS or IP binding, contact tech support.
 
@@ -171,6 +173,77 @@ promocode-not-found = Promocode was not found
 promocode-input-question = Enter the promocode
 promocode-used = The promo code was successfully used and you are credited on your balance {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
 
+menu-service-for-buy-choose = 📃 <strong>Select the category of services to purchase</strong>
+
 manage-services-header = 🛠 Manage services
 
  {quoted-balance}
+
+
+vds-menu-rate-select = test
+
+vds-bulletproof-mode-button-on = Bulletproof: ON
+vds-bulletproof-mode-button-off = Bulletproof: OFF
+
+vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $, {$cpu} cores, {$ram} gb ram, {$disk} gb disk
+
+bulletproof-on = ✅ Bulletproof rate
+bulletproof-off = ⚠️ Isn't bulletproof rate
+
+vds-rate-full-view = <strong>«{$rateName}»</strong>
+ 
+ {$abuse}
+
+ <strong>🖥 CPU (Cores): </strong> {$cpu}
+ <strong>💾 RAM: </strong> {$ram} Gb
+ <strong>💽 Disk (SSD/NVME): </strong> {$disk} Gb
+ <strong>🚀 Network Speed: </strong> {$network} Mbit/s
+ <strong>🛜 Bandwidth: </strong> Unlimited
+
+ <strong>OS: </strong> Windows/Linux
+
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ / month
+
+vds-os-select = <strong>Select the OS to be installed</strong>
+
+bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
+
+vds-created = The status can be monitored in the main menu. > Manage services
+
+vds-manage-title = Manage VDS
+vds-manage-list-item = «{$rateName}» - {$ip} 🖥
+
+vds-stopped = Machine is DISABLED ⛔️
+vds-work = Machine is ENABLED ✳️
+vds-creating = Machine is CREATING ⚠️
+
+vds-current-info = <strong>Manage VDS</strong>
+
+ <strong>Expiration date</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+ <strong>Renewal Price</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ 
+ {$abuse}
+ 
+ <strong>«{$rateName}»</strong>
+ <strong>🖥 CPU (cores): </strong> {$cpu}
+ <strong>💾 RAM: </strong> {$ram} Гб
+ <strong>💽 DISK (SSD/NVME): </strong> {$disk} Гб
+
+ <strong>IP: </strong> {$ip}
+ <strong>OS: </strong> {$osName}
+
+ {$status}
+
+ <i>📌 Renewal is automatic, please top up your balance in advance</i>
+
+ ❗️ We recommend changing the password on the machine itself and saving it in a safe place
+
+vds-button-reinstall-os = 💿 Reinstall OS
+vds-button-stop-machine = ⛔️ Disable
+vds-button-start-machine  = ✳️ Enable
+vds-button-regenerate-password = 🔁 Change Password
+vds-button-copy-password = ⤵️ Copy Password
+
+vds-new-password = New Password: <tg-spoiler>{$password}</tg-spoiler>
+
+vds-reinstall-started = Reinstallation is running, please wait. You can monitor the status in > Manage services

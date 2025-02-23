@@ -28,6 +28,9 @@ import {
   domainQuestion,
   domainsMenu,
   servicesMenu,
+  vdsMenu,
+  vdsRateChoose,
+  vdsRateOs,
 } from "@helpers/services-menu";
 import {
   depositMenu,
@@ -44,13 +47,16 @@ import { startCheckTopUpStatus } from "@api/payment";
 import {
   domainManageServicesMenu,
   manageSerivcesMenu,
+  vdsManageServiceMenu,
+  vdsManageSpecific,
+  vdsReinstallOs,
 } from "@helpers/manage-services";
-import prices from "@helpers/prices";
 import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
 import Promo from "@entities/Promo";
 import { promocodeQuestion } from "@helpers/promocode-input";
-import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
+import { registerDomainRegistrationMiddleware } from "@helpers/domain-registraton";
 import ms from "./lib/multims";
+import { GetOsListResponse, VMManager } from "@api/vmmanager";
 dotenv.config({});
 
 export type MyAppContext = ConversationFlavor<
@@ -60,12 +66,14 @@ export type MyAppContext = ConversationFlavor<
     MenuFlavor & {
       availableLanguages: string[];
       appDataSource: DataSource;
+      vmmanager: VMManager;
+      osList: GetOsListResponse | null;
     }
 >;
 
 export type MyConversation = Conversation<MyAppContext>;
 
-const mainMenu = new Menu<MyAppContext>("main-menu")
+export const mainMenu = new Menu<MyAppContext>("main-menu")
   .submenu(
     (ctx) => ctx.t("button-personal-profile"),
     "profile-menu",
@@ -89,7 +97,15 @@ const mainMenu = new Menu<MyAppContext>("main-menu")
   )
   .submenu((ctx) => ctx.t("button-change-locale"), "change-locale-menu")
   .row()
-  .submenu((ctx) => ctx.t("button-purchase"), "services-menu")
+  .submenu(
+    (ctx) => ctx.t("button-purchase"),
+    "services-menu",
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
   .submenu(
     (ctx) => ctx.t("button-manage-services"),
     "manage-services-menu",
@@ -238,6 +254,14 @@ export interface SessionData {
         id: number;
       };
     };
+    vdsRate: {
+      bulletproof: boolean;
+      selectedRateId: number;
+    };
+    manageVds: {
+      page: number;
+      lastPickedId: number;
+    };
     domains: {
       lastPickDomain: string;
       page: number;
@@ -259,6 +283,14 @@ async function index() {
           controlUsersPage: {
             orderBy: "id",
             sortBy: "ASC",
+            page: 0,
+          },
+          vdsRate: {
+            bulletproof: true,
+            selectedRateId: -1,
+          },
+          manageVds: {
+            lastPickedId: -1,
             page: 0,
           },
           domains: {
@@ -284,6 +316,24 @@ async function index() {
       },
     })
   );
+
+  const vmmanager = new VMManager(
+    process.env["VMM_EMAIL"],
+    process.env["VMM_PASSWORD"]
+  );
+
+  bot.use(async (ctx, next) => {
+    ctx.vmmanager = vmmanager;
+
+    if (ctx.osList == null) {
+      const list = await vmmanager.getOsList();
+      if (list) {
+        ctx.osList = list;
+      }
+    }
+
+    return next();
+  });
 
   bot.use(async (ctx, next) => {
     const session = await ctx.session;
@@ -357,6 +407,10 @@ async function index() {
   bot.use(promotePermissions());
   bot.use(domainQuestion.middleware());
   bot.use(promocodeQuestion.middleware());
+  bot.use(vdsManageSpecific);
+
+  vdsManageSpecific.register(vdsReinstallOs);
+
   bot.use(mainMenu);
   bot.use(domainOrderMenu);
 
@@ -368,7 +422,11 @@ async function index() {
   mainMenu.register(manageSerivcesMenu, "main-menu");
 
   manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
+  manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");
   servicesMenu.register(domainsMenu, "services-menu");
+  servicesMenu.register(vdsMenu, "services-menu");
+  vdsMenu.register(vdsRateChoose, "vds-menu");
+  vdsRateChoose.register(vdsRateOs, "vds-selected-rate");
   profileMenu.register(depositMenu, "profile-menu");
 
   bot.use(controlUser);
@@ -657,6 +715,7 @@ async function index() {
     }
 
     const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+    const userRequestRepo = ctx.appDataSource.getRepository(User);
 
     const request = await domainRequestRepo.findOneBy({
       id: Number(id),
@@ -670,8 +729,16 @@ async function index() {
 
     request.status = DomainRequestStatus.Failed;
 
-    await domainRequestRepo.save(request);
+    const user = await userRequestRepo.findOneBy({
+      id: session.main.user.id,
+    });
 
+    if (user) {
+      user.balance += request.price;
+      await userRequestRepo.save(user);
+    }
+
+    await domainRequestRepo.save(request);
     await ctx.reply(ctx.t("domain-request-reject", {}), {
       parse_mode: "HTML",
     });

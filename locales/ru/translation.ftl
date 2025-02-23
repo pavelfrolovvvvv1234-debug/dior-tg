@@ -102,7 +102,7 @@ unblock-user = ✅ Разблокировать
 
 message-about-block = К сожалению вы заблокированы. Обратитесь в поддержку для уточнения причин блокировки.
 
-button-buy = ✅ Приобрести 
+button-buy = 💸 Приобрести 
 
 domain-question = Напишите домен который вы хотели бы приобрести пожалуйста не указывайте <i>{$zoneName}</i>
 domain-invalid = Введенный домен некорректен <i>{$domain}</i> попробуйте ещё раз
@@ -124,9 +124,11 @@ domain-was-not-found = Домен не найден
 
 domain-information = Домен <i>{$domain}</i>
 
- Дата истечения: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
- Продление домена: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
- Стоимость продления: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)}
+ <strong>Дата истечения</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+ <strong>Продление домена</strong>: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
+ <strong>Стоимость продления</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ 
+ <i>📌 Продление осуществляется в автоматическом режиме, пожалуйста пополняйте баланс заранее</i>
 
  Для изменения NS или IP привязки обратитесь в тех-поддержку.
 
@@ -170,6 +172,78 @@ promocode-not-found = Промокод не найден
 promocode-input-question = Введите промокод
 promocode-used = Промокод успешно использован вам на баланс начисленно {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
 
+menu-service-for-buy-choose = 📃 <strong>Выберите категорию услуг для приобретения</strong>
+
 manage-services-header = 🛠 Управление услугами
 
  {quoted-balance}
+
+vds-menu-select = Выберете интересующий вас тариф
+
+vds-bulletproof-mode-button-on = Абузоустойчивые: ВКЛ
+vds-bulletproof-mode-button-off = Абузоустойчивые: ВЫКЛ
+
+vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $, {$cpu} ядер, {$ram} gb озу, {$disk} gb диск
+
+bulletproof-on = ✅ Абузоустойчивый тариф
+bulletproof-off = ⚠️ Это не абузоустойчивый тариф
+
+
+vds-rate-full-view = <strong>«{$rateName}»</strong>
+ 
+ {$abuse}
+
+ <strong>🖥 Процессор (Ядра): </strong> {$cpu}
+ <strong>💾 Оперативная память: </strong> {$ram} Гб
+ <strong>💽 Диск (SSD/NVME): </strong> {$disk} Гб
+ <strong>🚀 Скорость интернета: </strong> {$network} Мегабит/с
+ <strong>🛜 Пропускная способность: </strong> Безлимитный
+
+ <strong>ОС: </strong> Windows/Linux
+
+ <strong>💰 Цена: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ / месяц
+
+vds-os-select = <strong>Выберете ОС которая будет установлена</strong>
+
+
+bad-error = Извините, это была ошибка с нашей стороны, сейчас мы ее исправляем.
+
+vds-created = Машина создана за статусом можете следить в главном меню. > Управление услугами
+
+vds-manage-title = Управление VDS
+vds-manage-list-item = «{$rateName}» - {$ip} 🖥
+
+vds-stopped = Машина выключена ⛔️
+vds-work = Машина работает ✳️
+vds-creating = Машина создаётся ⚠️
+
+vds-current-info = <strong>Управление VDS</strong>
+
+ <strong>Дата истечения</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+ <strong>Стоимость продления</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ 
+ {$abuse}
+ 
+ <strong>«{$rateName}»</strong>
+ <strong>🖥 Процессор (Ядра): </strong> {$cpu}
+ <strong>💾 Оперативная память: </strong> {$ram} Гб
+ <strong>💽 Диск (SSD/NVME): </strong> {$disk} Гб
+
+ <strong>IP: </strong> {$ip}
+ <strong>OS: </strong> {$osName}
+
+ {$status}
+
+ <i>📌 Продление осуществляется в автоматическом режиме, пожалуйста пополняйте баланс заранее</i>
+
+ ❗️ Рекомендуем сменить пароль на самой машине и сохранить его в надёжном месте
+
+vds-button-reinstall-os = 💿 Переустановить OS
+vds-button-stop-machine = ⛔️ Выключить
+vds-button-start-machine = ✳️ Включить
+vds-button-regenerate-password = 🔁 Сменить пароль
+vds-button-copy-password = ⤵️ Скопировать пароль
+
+vds-new-password = Новый пароль: <tg-spoiler>{$password}</tg-spoiler>
+
+vds-reinstall-started = Переустановка запущена, пожалуйста подождите. За статусом можете следить в > Управление услугами

@@ -4,12 +4,20 @@ import TempLink from "@entities/TempLink";
 import TopUp from "@entities/TopUp";
 import DomainRequest from "@entities/DomainRequest";
 import Promo from "@entities/Promo";
+import VirtualDedicatedServer from "@entities/VirtualDedicatedServer";
 
 const AppDataSource = new DataSource({
   type: "better-sqlite3",
   database: "data.db",
   synchronize: true,
-  entities: [User, TempLink, TopUp, DomainRequest, Promo],
+  entities: [
+    User,
+    TempLink,
+    TopUp,
+    DomainRequest,
+    Promo,
+    VirtualDedicatedServer,
+  ],
   enableWAL: true,
 });
 

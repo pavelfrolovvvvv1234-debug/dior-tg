@@ -13,8 +13,8 @@ const depositValuesOptions = [
   "150$",
 ];
 
-export const depositMenu = new Menu<MyAppContext>("deposit-menu").dynamic(
-  (_ctx, range) => {
+export const depositMenu = new Menu<MyAppContext>("deposit-menu")
+  .dynamic((_ctx, range) => {
     for (let i = 0; i < depositValuesOptions.length; i++) {
       range.text(depositValuesOptions[i], async (ctx) => {
         const session = await ctx.session;
@@ -44,12 +44,34 @@ export const depositMenu = new Menu<MyAppContext>("deposit-menu").dynamic(
       (ctx) => ctx.t("button-any-sum"),
       async (ctx) => {
         await ctx.conversation.enter("depositMoneyConversation");
-        const session = await ctx.session;
+        // const session = await ctx.session;
         ctx.menu.back();
       }
     );
-  }
-);
+  })
+  .row()
+  .back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      const session = await ctx.session;
+
+      if (!ctx.chat) {
+        return;
+      }
+
+      ctx.editMessageText(
+        ctx.t("profile", {
+          balance: session.main.user.balance,
+          id: session.main.user.id,
+          name:
+            ctx.chat.username || `${ctx.chat.first_name} ${ctx.chat.last_name}`,
+        }),
+        {
+          parse_mode: "HTML",
+        }
+      );
+    }
+  );
 
 export const depositPaymentSystemChoose = new Menu<MyAppContext>(
   "deposit-menu-payment-choose"
