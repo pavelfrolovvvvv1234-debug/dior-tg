@@ -352,27 +352,6 @@ async function index() {
     return next();
   });
 
-  bot.use(async (ctx, next) => {
-    const session = await ctx.session;
-
-    if (session.main.locale == "0") {
-      const usersRepo = ctx.appDataSource.getRepository(User);
-
-      const user = await usersRepo.findOneBy({
-        id: session.main.user.id,
-      });
-
-      session.main.locale = ctx.from?.language_code == "ru" ? "ru" : "en";
-
-      if (user) {
-        user.lang = session.main.locale as "ru" | "en";
-        await usersRepo.save(user);
-      }
-    }
-
-    return next();
-  });
-
   // Add the available languages to the context
   bot.use(async (ctx, next) => {
     const session = await ctx.session;
@@ -397,6 +376,27 @@ async function index() {
       session.main.user.role = user.role;
       session.main.user.isBanned = user.isBanned;
     }
+    return next();
+  });
+
+  bot.use(async (ctx, next) => {
+    const session = await ctx.session;
+
+    if (session.main.locale == "0") {
+      const usersRepo = ctx.appDataSource.getRepository(User);
+
+      const user = await usersRepo.findOneBy({
+        id: session.main.user.id,
+      });
+
+      session.main.locale = ctx.from?.language_code == "ru" ? "ru" : "en";
+
+      if (user) {
+        user.lang = session.main.locale as "ru" | "en";
+        await usersRepo.save(user);
+      }
+    }
+
     return next();
   });
 
