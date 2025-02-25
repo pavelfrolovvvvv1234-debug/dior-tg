@@ -60,7 +60,7 @@ export default class VirtualDedicatedServer {
   @Column({ nullable: false })
   targetUserId!: number;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "real" })
   renewalPrice!: number;
 
   @CreateDateColumn()

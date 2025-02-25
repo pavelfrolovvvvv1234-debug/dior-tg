@@ -40,7 +40,7 @@ export default class DomainRequest {
   @Column({ nullable: true })
   mod_id!: number;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "real" })
   price!: number;
 
   @Column({ nullable: true })
