@@ -82,7 +82,7 @@ export const vdsReinstallOs = new Menu<MyAppContext>("vds-select-os-reinstall")
           !os.adminonly &&
           os.name != "NoOS" &&
           os.state == "active" &&
-          os.id != 3
+          os.repository != "ISPsystem LXD"
       )
       .forEach((os) => {
         range.text(os.name, async (ctx) => {

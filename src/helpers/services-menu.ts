@@ -217,7 +217,11 @@ export const vdsRateOs = new Menu<MyAppContext>("vds-select-os").dynamic(
     let count = 0;
     osList.list
       .filter(
-        (os) => !os.adminonly && os.name != "NoOS" && os.state == "active"
+        (os) =>
+          !os.adminonly &&
+          os.name != "NoOS" &&
+          os.state == "active" &&
+          os.repository != "ISPsystem LXD"
       )
       .forEach((os) => {
         range.text(`${os.name}`, async (ctx) => {
