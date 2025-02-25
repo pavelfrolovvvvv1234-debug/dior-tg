@@ -88,7 +88,7 @@ async function createAndBuyVDS(
 
   if (!user) {
     await ctx.reply(ctx.t("bad-error"));
-    return;
+    return "user-not-found" as const;
   }
 
   const ratePrice = () =>
@@ -103,7 +103,7 @@ async function createAndBuyVDS(
         amount: ratePrice() - user.balance,
       })
     );
-    return;
+    return "money-not-enough" as const;
   }
 
   const newVds = new VirtualDedicatedServer();
@@ -125,8 +125,12 @@ async function createAndBuyVDS(
     );
   }
 
-  let info;
+  if (result == false) {
+    ctx.reply(ctx.t("bad-error"));
+    return "error-when-creating" as const;
+  }
 
+  let info;
   while (info == undefined) {
     info = await ctx.vmmanager.getInfoVM(result.id);
   }
@@ -174,21 +178,59 @@ export const vdsRateOs = new Menu<MyAppContext>("vds-select-os").dynamic(
       return;
     }
 
+    if (session.other.vdsRate.selectedOs != -1) {
+      range.text(ctx.t("vds-select-os-next"), async (ctx) => {
+        const session = await ctx.session;
+
+        ctx.menu.close();
+        ctx.editMessageText(ctx.t("await-please"));
+
+        const result = await createAndBuyVDS(
+          ctx,
+          session.other.vdsRate.selectedOs,
+          session.other.vdsRate.selectedRateId,
+          session.main.user.id,
+          session.other.vdsRate.bulletproof
+        );
+
+        await ctx.deleteMessage();
+      });
+
+      range.text(ctx.t("button-back"), async (ctx) => {
+        const session = await ctx.session;
+
+        session.other.vdsRate.selectedOs = -1;
+
+        await ctx.editMessageText(ctx.t("vds-os-select"), {
+          parse_mode: "HTML",
+        });
+
+        // ctx.menu.update();
+      });
+      return;
+    }
+
     let count = 0;
     osList.list
-      .filter((os) => !os.adminonly && os.name != "NoOS")
+      .filter(
+        (os) => !os.adminonly && os.name != "NoOS" && os.state == "active"
+      )
       .forEach((os) => {
-        range.text(os.name, async (ctx) => {
+        range.text(`${os.name}`, async (ctx) => {
           const session = await ctx.session;
 
-          // Run function for create VM and buy it
-          await createAndBuyVDS(
-            ctx,
-            os.id,
-            session.other.vdsRate.selectedRateId,
-            session.main.user.id,
-            session.other.vdsRate.bulletproof
+          // console.log(`${os.name} : ${os.id}`);
+
+          session.other.vdsRate.selectedOs = os.id;
+
+          await ctx.editMessageText(
+            ctx.t("vds-select-os-confirm", {
+              osName: os.name,
+            })
           );
+
+          // ctx.menu.update();
+          // Run function for create VM and buy it
         });
 
         count++;

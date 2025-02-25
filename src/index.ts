@@ -272,6 +272,7 @@ export interface SessionData {
     vdsRate: {
       bulletproof: boolean;
       selectedRateId: number;
+      selectedOs: number;
     };
     manageVds: {
       page: number;
@@ -303,6 +304,7 @@ async function index() {
           vdsRate: {
             bulletproof: true,
             selectedRateId: -1,
+            selectedOs: -1,
           },
           manageVds: {
             lastPickedId: -1,

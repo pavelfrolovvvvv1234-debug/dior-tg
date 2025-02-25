@@ -241,7 +241,7 @@ export class VMManager {
 
     setInterval(() => {
       this.login();
-    }, ms("4m"));
+    }, ms("5m"));
   }
 
   async login(): Promise<void> {
@@ -567,6 +567,8 @@ export class VMManager {
 
         if (error.response?.data.error.code == 1000) {
           await this.login();
+        } else {
+          return false as const;
         }
       }
     }

@@ -41,6 +41,7 @@ button-domains = 🌐 Домены
 button-vds = 🖥 Виртуальный выделенный сервер (VDS)
 button-dedicated-server = 🖥 Выделенный сервер
 button-agree = ✅ Согласен
+update-button = 🔄 Обновить
 
 button-back = 🔙 Назад
 button-close = ❌ Закрыть
@@ -259,6 +260,14 @@ no-vds-found = У пользовтеля нет купленных VDS
 
 vds-info-admin = {$id}. {$ip} {$expireAt} - Цена продления {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
 
+vds-select-os-confirm = Вы выбрали {$osName}. Вы хотите продолжить?
+vds-select-os-next = Продолжить
+
 vds-removed = VDS удалена
 
 vds-remove-failed = Удаление VDS с ID {$vdsId} не удалось
+
+failed-to-retrieve-info = Ошибка получения информации о машине
+
+await-please = Пожалуйста ожидайте...
+

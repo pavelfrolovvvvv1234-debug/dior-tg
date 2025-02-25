@@ -1,5 +1,5 @@
 import { Menu } from "@grammyjs/menu";
-import { MyAppContext } from "..";
+import { mainMenu, MyAppContext } from "..";
 import DomainRequest, { DomainRequestStatus } from "@/entities/DomainRequest";
 import { getAppDataSource } from "@/database";
 import { InlineKeyboard } from "grammy";
@@ -77,7 +77,9 @@ export const vdsReinstallOs = new Menu<MyAppContext>("vds-select-os-reinstall")
 
     let count = 0;
     osList.list
-      .filter((os) => !os.adminonly && os.name != "NoOS")
+      .filter(
+        (os) => !os.adminonly && os.name != "NoOS" && os.state == "active"
+      )
       .forEach((os) => {
         range.text(os.name, async (ctx) => {
           const session = await ctx.session;
@@ -99,9 +101,18 @@ export const vdsReinstallOs = new Menu<MyAppContext>("vds-select-os-reinstall")
               return;
             }
 
+            await ctx.editMessageText("await-please");
+            ctx.menu.close();
+
             let reinstall;
-            while (reinstall == undefined) {
+            for (let attempt = 0; attempt < 4; attempt++) {
               reinstall = await ctx.vmmanager.reinstallOS(vds.vdsId, os.id);
+              if (reinstall) break;
+            }
+
+            if (!reinstall) {
+              ctx.reply(ctx.t("bad-error"));
+              return;
             }
 
             vds.lastOsId = os.id;
@@ -154,11 +165,31 @@ export const vdsManageSpecific = new Menu<MyAppContext>(
 
   let info;
 
-  while (info == undefined) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     info = await ctx.vmmanager.getInfoVM(vds.vdsId);
+    if (info) break;
+  }
+
+  if (!info) {
+    ctx.reply(ctx.t("failed-to-retrieve-info"));
+    return;
   }
 
   range.copyText(ctx.t("vds-button-copy-password"), vds.password);
+
+  if (info.state == "creating") {
+    range.text(ctx.t("update-button"), async (ctx) => {
+      ctx.menu.update();
+    });
+  } else {
+    try {
+      await ctx.editMessageText(vdsInfoText(ctx, vds, info), {
+        parse_mode: "HTML",
+      });
+    } catch (err) {
+      console.log("[Menu Manage VDS] Okay updated");
+    }
+  }
 
   if (info.state == "stopped") {
     range.text(
@@ -182,8 +213,14 @@ export const vdsManageSpecific = new Menu<MyAppContext>(
 
           let info;
 
-          while (info == undefined) {
+          for (let attempt = 0; attempt < 4; attempt++) {
             info = await ctx.vmmanager.getInfoVM(vds.vdsId);
+            if (info) break;
+          }
+
+          if (!info) {
+            ctx.reply(ctx.t("failed-to-retrieve-info"));
+            return;
           }
 
           info.state = "active";
@@ -314,6 +351,14 @@ export const vdsManageSpecific = new Menu<MyAppContext>(
       }
     );
   }
+
+  range.row();
+
+  range.text(ctx.t("button-back"), async (ctx) => {
+    await ctx.deleteMessage();
+    // await ctx.deleteMessage();
+    // ctx.menu.close();
+  });
 });
 
 const status = (state: ListItem["state"], ctx: MyAppContext) => {
@@ -399,8 +444,14 @@ export const vdsManageServiceMenu = new Menu<MyAppContext>(
 
             let info;
 
-            while (info == undefined) {
+            for (let attempt = 0; attempt < 4; attempt++) {
               info = await ctx.vmmanager.getInfoVM(vds.vdsId);
+              if (info) break;
+            }
+
+            if (!info) {
+              ctx.reply(ctx.t("failed-to-retrieve-info"));
+              return;
             }
 
             session.other.manageVds.lastPickedId = Number(ctx.match);

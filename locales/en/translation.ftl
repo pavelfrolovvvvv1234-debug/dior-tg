@@ -40,6 +40,7 @@ button-domains = 🌐 Domains
 button-vds = 🖥 Virtual Dedicated Server (VDS)
 button-dedicated-server = 🖥 Dedicated server
 button-agree = ✅ Agree
+update-button = 🔄 Update
 
 button-back = 🔙 Back
 button-close = ❌ Close
@@ -262,3 +263,11 @@ vds-info-admin = {$id}. {$ip} {$expireAt} - Renewal price {NUMBER($renewalPrice,
 vds-removed = VDS removed
 
 vds-remove-failed = Remove VDS with ID {$vdsId} failed
+
+vds-select-os-confirm = You choose {$osName}. You want to continue?
+vds-select-os-next = Continue
+
+failed-to-retrieve-info = Error retrieving machine information
+
+vds-created = VDS has been created, you can monitor the status in > Manage Services
+await-please = Please await...
