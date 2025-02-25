@@ -193,6 +193,8 @@ export const vdsRateOs = new Menu<MyAppContext>("vds-select-os").dynamic(
           session.other.vdsRate.bulletproof
         );
 
+        session.other.vdsRate.selectedOs = -1;
+
         await ctx.deleteMessage();
       });
 
