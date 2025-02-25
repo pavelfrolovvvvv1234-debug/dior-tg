@@ -78,7 +78,11 @@ export const vdsReinstallOs = new Menu<MyAppContext>("vds-select-os-reinstall")
     let count = 0;
     osList.list
       .filter(
-        (os) => !os.adminonly && os.name != "NoOS" && os.state == "active"
+        (os) =>
+          !os.adminonly &&
+          os.name != "NoOS" &&
+          os.state == "active" &&
+          os.id != 3
       )
       .forEach((os) => {
         range.text(os.name, async (ctx) => {
