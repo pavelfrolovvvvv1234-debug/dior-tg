@@ -269,5 +269,4 @@ vds-select-os-next = Continue
 
 failed-to-retrieve-info = Error retrieving machine information
 
-vds-created = VDS has been created, you can monitor the status in > Manage Services
 await-please = Please await...
