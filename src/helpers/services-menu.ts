@@ -481,9 +481,10 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
           const session = await ctx.session;
 
           session.other.vdsRate.bulletproof = false;
+          ctx.editMessageText(ctx.t("vds-service"));
 
           // await editMessageVdsRate(ctx, Number(ctx.match));
-          await ctx.menu.update();
+          // await ctx.menu.update();
         }
       );
     } else {
@@ -496,9 +497,10 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
           const session = await ctx.session;
 
           session.other.vdsRate.bulletproof = true;
+          ctx.editMessageText(ctx.t("abuse-vds-service"));
 
           // await editMessageVdsRate(ctx, Number(ctx.match));
-          await ctx.menu.update();
+          // await ctx.menu.update();
         }
       );
     }
