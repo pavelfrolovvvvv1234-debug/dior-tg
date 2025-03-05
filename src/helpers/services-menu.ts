@@ -40,8 +40,14 @@ export const servicesMenu = new Menu<MyAppContext>("services-menu")
   .submenu(
     (ctx) => ctx.t("button-vds"),
     "vds-menu",
-    (ctx) => {
-      ctx.editMessageText(ctx.t("vds-service"), {
+    async (ctx) => {
+      const session = await ctx.session;
+      const text =
+        session.other.vdsRate.bulletproof == false
+          ? ctx.t("vds-service")
+          : ctx.t("abuse-vds-service");
+
+      ctx.editMessageText(text, {
         parse_mode: "HTML",
       });
     }
@@ -481,7 +487,9 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
           const session = await ctx.session;
 
           session.other.vdsRate.bulletproof = false;
-          ctx.editMessageText(ctx.t("vds-service"));
+          ctx.editMessageText(ctx.t("vds-service"), {
+            parse_mode: "HTML",
+          });
 
           // await editMessageVdsRate(ctx, Number(ctx.match));
           // await ctx.menu.update();
@@ -497,7 +505,9 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
           const session = await ctx.session;
 
           session.other.vdsRate.bulletproof = true;
-          ctx.editMessageText(ctx.t("abuse-vds-service"));
+          ctx.editMessageText(ctx.t("abuse-vds-service"), {
+            parse_mode: "HTML",
+          });
 
           // await editMessageVdsRate(ctx, Number(ctx.match));
           // await ctx.menu.update();
