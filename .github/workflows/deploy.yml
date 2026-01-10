@@ -75,12 +75,31 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            cd /opt/bot || mkdir -p /opt/bot && cd /opt/bot
+            set -e
+            DEPLOY_PATH=${DEPLOY_PATH:-/opt/bot}
+            cd $DEPLOY_PATH || (mkdir -p $DEPLOY_PATH && cd $DEPLOY_PATH)
+            
+            # Распаковка архива
             tar -xzf /tmp/deploy.tar.gz
-            cd deploy
+            
+            # Копирование файлов
+            cp -r deploy/* ./
+            rm -rf deploy /tmp/deploy.tar.gz
+            
+            # Установка зависимостей
             npm ci --production
-            pm2 restart drip-hosting-bot || pm2 start ecosystem.config.js
-            pm2 save
+            
+            # Перезапуск или запуск через PM2
+            if pm2 list | grep -q "drip-hosting-bot"; then
+              pm2 restart drip-hosting-bot
+            else
+              pm2 start ecosystem.config.js
+              pm2 save
+            fi
+            
+            # Показываем статус
+            pm2 status
+            pm2 logs drip-hosting-bot --lines 20
 
   docker-build:
     name: Build Docker Image
