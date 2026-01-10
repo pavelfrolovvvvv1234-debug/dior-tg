@@ -4,10 +4,10 @@
 quoted-balance = <blockquote>Ваш баланс: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</strong>
 
-welcome = Привет! Я — бот хостинга DripHosting.
+welcome = Привет! Я — бот хостинга PrimeHosting.
  Со мной ты легко можешь заказать услуги прямо здесь. 
 
- Мы — тот самый абузоустойчивый хостинг, где твои проекты будут работать стабильно 24/7. Если возникнут вопросы, наша поддержка всегда на связи: @drip_sup.
+ Мы — тот самый абузоустойчивый хостинг, где твои проекты будут работать стабильно 24/7. Если возникнут вопросы, наша поддержка всегда на связи: @freedom_is_ghetto.
  
  {quoted-balance}
 
@@ -252,7 +252,7 @@ vds-new-password = Новый пароль: <tg-spoiler>{$password}</tg-spoiler>
 
 vds-reinstall-started = Переустановка запущена, пожалуйста подождите. За статусом можете следить в > Управление услугами
 
-dedicated-servers = Этот раздел скоро будет доступен, а пока вы можете ознакомится с выделенными машинами на сайте https://driphosting.com/ru/abuse/dedicated/. Сделать заказ вы можете через ТП.
+dedicated-servers = Этот раздел скоро будет доступен, а пока вы можете ознакомится с выделенными машинами через ЛС в ТП.
 
 vds-expiration = Ваша VDS Истекает. Пополните баланс на {$amount} $
 

@@ -1,0 +1,108 @@
+/**
+ * Legacy menus exported from old structure.
+ * This is a temporary file to avoid circular dependencies during migration.
+ * These menus will be gradually migrated to the new structure.
+ *
+ * @module ui/menus/legacy-menus
+ */
+
+import { Menu } from "@grammyjs/menu";
+import type { AppContext } from "../../shared/types/context.js";
+
+/**
+ * Re-export old menus to avoid circular dependencies.
+ * These are imported dynamically from helpers to maintain functionality.
+ */
+export async function getLegacyMenus() {
+  const servicesMenu = await import("../../helpers/services-menu.js");
+  const depositMoney = await import("../../helpers/deposit-money.js");
+  const manageServices = await import("../../helpers/manage-services.js");
+  const usersControl = await import("../../helpers/users-control.js");
+  const promocodeInput = await import("../../helpers/promocode-input.js");
+  const domainReg = await import("../../helpers/domain-registraton.js");
+  const promotePerms = await import("../../helpers/promote-permissions.js");
+
+  return {
+    servicesMenu,
+    depositMoney,
+    manageServices,
+    usersControl,
+    promocodeInput,
+    domainReg,
+    promotePerms,
+  };
+}
+
+/**
+ * Create main menu directly to avoid circular dependency.
+ * This is a temporary solution until full migration is complete.
+ */
+export function createMainMenu(): Menu<AppContext> {
+  return new Menu<AppContext>("main-menu")
+    .submenu(
+      (ctx) => ctx.t("button-personal-profile"),
+      "profile-menu",
+      async (ctx) => {
+        const session = await ctx.session;
+        if (ctx.hasChatType("private")) {
+          await ctx.editMessageText(
+            ctx.t("profile", {
+              balance: session.main.user.balance,
+              id: session.main.user.id,
+              name:
+                ctx.chat.username ||
+                `${ctx.chat.first_name || ""} ${ctx.chat.last_name || ""}`.trim(),
+            }),
+            {
+              parse_mode: "HTML",
+            }
+          );
+        }
+      }
+    )
+    .submenu((ctx) => ctx.t("button-change-locale"), "change-locale-menu")
+    .row()
+    .submenu(
+      (ctx) => ctx.t("button-purchase"),
+      "services-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+          parse_mode: "HTML",
+        });
+      }
+    )
+    .submenu(
+      (ctx) => ctx.t("button-manage-services"),
+      "manage-services-menu",
+      async (ctx) => {
+        const session = await ctx.session;
+        await ctx.editMessageText(
+          ctx.t("manage-services-header", {
+            balance: session.main.user.balance,
+          }),
+          {
+            parse_mode: "HTML",
+          }
+        );
+      }
+    )
+    .row()
+    .submenu(
+      (ctx) => ctx.t("button-support"),
+      "support-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("support"), {
+          parse_mode: "HTML",
+        });
+      }
+    )
+    .submenu(
+      (ctx) => ctx.t("button-about-us"),
+      "about-us-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("about-us"), {
+          parse_mode: "HTML",
+        });
+      }
+    );
+}

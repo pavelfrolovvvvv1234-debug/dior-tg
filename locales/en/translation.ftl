@@ -4,10 +4,10 @@
 quoted-balance = <blockquote>Your balance: {NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</strong>
 
-welcome = Hi! I'm a DripHosting bot.
+welcome = Hi! I'm a PrimeHost bot.
  With me, you can easily order services right here. 
 
- We're the one bulletproof hosting where your projects will work stably 24/7. If you have any questions, our support is always on call: @drip_sup.
+ We're the one bulletproof hosting where your projects will work stably 24/7. If you have any questions, our support is always on call: @freedom_is_ghetto.
  
  {quoted-balance}
 
@@ -252,7 +252,7 @@ vds-new-password = New Password: <tg-spoiler>{$password}</tg-spoiler>
 
 vds-reinstall-started = Reinstallation is running, please wait. You can monitor the status in > Manage services
 
-dedicated-servers = This section will be available soon, but in the meantime you can familiarize yourself with the allocated machines on the site https://driphosting.com/en/abuse/dedicated/. You can place your order through the support.
+dedicated-servers = This section will be available soon. In the meantime, you can get information about dedicated servers via DM in tech support.
 
 vds-expiration = Your VDS Expires. Refill your balance by {$amount} $
 
