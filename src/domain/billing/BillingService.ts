@@ -6,15 +6,15 @@
 
 import { DataSource } from "typeorm";
 import { randomUUID } from "crypto";
-import type { PaymentProviderName, InvoiceStatus } from "../../infrastructure/payments/types.js";
-import { createPaymentProvider } from "../../infrastructure/payments/factory.js";
-import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository.js";
-import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
-import TopUp, { TopUpStatus } from "../../entities/TopUp.js";
-import User from "../../entities/User.js";
-import { PaymentError, BusinessError, NotFoundError } from "../../shared/errors/index.js";
-import { Logger } from "../../app/logger.js";
-import { retry } from "../../shared/utils/retry.js";
+import type { PaymentProviderName, InvoiceStatus } from "../../infrastructure/payments/types";
+import { createPaymentProvider } from "../../infrastructure/payments/factory";
+import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository";
+import { UserRepository } from "../../infrastructure/db/repositories/UserRepository";
+import TopUp, { TopUpStatus } from "../../entities/TopUp";
+import User from "../../entities/User";
+import { PaymentError, BusinessError, NotFoundError } from "../../shared/errors/index";
+import { Logger } from "../../app/logger";
+import { retry } from "../../shared/utils/retry";
 
 /**
  * Billing service for managing payments, invoices, and balance operations.
@@ -189,6 +189,29 @@ export class BillingService {
 
       Logger.info(`Applied payment ${topUpId} of ${topUp.amount} to user ${user.id}`);
 
+      // Apply referral reward if applicable (outside transaction to avoid deadlocks)
+      try {
+        const { ReferralService } = await import("../referral/ReferralService.js");
+        const referralService = new ReferralService(
+          this.dataSource,
+          this.userRepository
+        );
+        const rewardAmount = await referralService.applyReferralRewardOnTopup(
+          topUp.target_user_id,
+          topUpId,
+          topUp.amount
+        );
+
+        if (rewardAmount > 0) {
+          Logger.info(
+            `Applied referral reward ${rewardAmount} for topUp ${topUpId}`
+          );
+        }
+      } catch (error: any) {
+        Logger.error(`Failed to apply referral reward:`, error);
+        // Don't fail payment if referral reward fails
+      }
+
       return topUp.amount;
     });
   }
@@ -213,6 +236,18 @@ export class BillingService {
    */
   async hasSufficientBalance(userId: number, amount: number): Promise<boolean> {
     return await this.userRepository.hasSufficientBalance(userId, amount);
+  }
+
+  /**
+   * Check if user has active Prime subscription (20% domain discount).
+   *
+   * @param userId - User ID
+   * @returns True if primeActiveUntil is set and in the future
+   */
+  async hasActivePrime(userId: number): Promise<boolean> {
+    const user = await this.userRepository.findById(userId);
+    if (!user || !user.primeActiveUntil) return false;
+    return new Date() < new Date(user.primeActiveUntil);
   }
 
   /**

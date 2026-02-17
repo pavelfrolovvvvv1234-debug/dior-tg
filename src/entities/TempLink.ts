@@ -12,7 +12,7 @@ export default class TempLink {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "varchar" })
   code!: string;
 
   @Column({ nullable: false, type: "varchar" })
@@ -21,7 +21,7 @@ export default class TempLink {
   @Column({ nullable: true, type: "integer" })
   userId: number | null = null;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "datetime" })
   expiresAt!: Date;
 
   @CreateDateColumn()

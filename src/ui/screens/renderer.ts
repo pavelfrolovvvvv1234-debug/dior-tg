@@ -87,15 +87,22 @@ export class ScreenRenderer {
   /**
    * Render profile screen.
    */
-  renderProfile(data: { id: number; name: string; balance: number }): RenderedScreen {
-    // Fluent already handles formatting, so we pass raw balance
+  renderProfile(data: { 
+    userId: number; 
+    userStatus: string; 
+    balance: number; 
+    whoisStatus: string; 
+    emailStatus: string;
+  }): RenderedScreen {
     return {
       text: this.ctx.t("profile", {
-        id: data.id,
-        name: data.name,
+        userId: data.userId,
+        userStatus: data.userStatus,
         balance: data.balance,
+        whoisStatus: data.whoisStatus,
+        emailStatus: data.emailStatus,
       }),
-      parse_mode: "HTML",
+      parse_mode: undefined, // Plain text for clickable URLs
     };
   }
 

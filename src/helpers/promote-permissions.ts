@@ -13,6 +13,8 @@ export function promotePermissions(): Middleware<MyAppContext> {
     if (
       ctx.hasCommand("start") &&
       ctx.hasChatType("private") &&
+      ctx.match &&
+      typeof ctx.match === "string" &&
       ctx.match.startsWith(PREFIX_PROMOTE) &&
       session.main.user.role !== Role.Admin
     ) {
@@ -36,11 +38,11 @@ export function promotePermissions(): Middleware<MyAppContext> {
         session.main.user.role = found.userPromoteTo;
 
         if (found.userPromoteTo === Role.Admin) {
-          ctx.reply(ctx.t("promoted-to-admin"));
+          await ctx.reply(ctx.t("promoted-to-admin"));
         }
 
         if (found.userPromoteTo === Role.Moderator) {
-          ctx.reply(ctx.t("promoted-to-moderator"));
+          await ctx.reply(ctx.t("promoted-to-moderator"));
         }
 
         await ctx.appDataSource.manager.update(TempLink, found.id, {
@@ -58,6 +60,10 @@ export function promotePermissions(): Middleware<MyAppContext> {
           role: found.userPromoteTo,
           telegramId: ctx.from.id.toString(),
         });
+        
+        // Don't call next() - stop here to prevent /start command from executing
+        // This prevents the welcome message from being sent
+        return;
       }
     }
 

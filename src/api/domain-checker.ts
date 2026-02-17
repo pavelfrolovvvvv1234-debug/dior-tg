@@ -48,10 +48,11 @@ export default class DomainChecker {
 
   constructor() {
     this.api = axios.create({
-      // Free Non-Commercial endpoint :)
+      // DomainR API через RapidAPI
       baseURL: "https://domainr.p.rapidapi.com/v2",
       headers: {
-        "mashape-key": process.env.DOMAINR_TOKEN,
+        "X-RapidAPI-Key": process.env.DOMAINR_TOKEN,
+        "X-RapidAPI-Host": "domainr.p.rapidapi.com",
       },
       httpAgent: "node-fetch",
     });

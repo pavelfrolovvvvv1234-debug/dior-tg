@@ -5,18 +5,18 @@
  */
 
 import { DataSource } from "typeorm";
-import ms from "../../lib/multims.js";
-import type { VMManager } from "../../infrastructure/vmmanager/VMManager.js";
-import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
-import { BillingService } from "../billing/BillingService.js";
+import ms from "../../lib/multims";
+import type { VMManager } from "../../infrastructure/vmmanager/VMManager";
+import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository";
+import { BillingService } from "../billing/BillingService";
 import VirtualDedicatedServer, {
   generatePassword,
   generateRandomName,
-} from "../../entities/VirtualDedicatedServer.js";
-import User from "../../entities/User.js";
-import { NotFoundError, BusinessError, ExternalApiError } from "../../shared/errors/index.js";
-import { Logger } from "../../app/logger.js";
-import { retry } from "../../shared/utils/retry.js";
+} from "../../entities/VirtualDedicatedServer";
+import User from "../../entities/User";
+import { NotFoundError, BusinessError, ExternalApiError } from "../../shared/errors/index";
+import { Logger } from "../../app/logger";
+import { retry } from "../../shared/utils/retry";
 
 /**
  * VDS rate structure from prices.json.
@@ -323,6 +323,47 @@ export class VdsService {
     Logger.info(`Deleted VDS ${vdsId} (VM ID: ${vds.vdsId})`);
 
     return true;
+  }
+
+  /**
+   * Rename VDS (update displayName).
+   *
+   * @param vdsId - VDS ID
+   * @param userId - User ID (for authorization check)
+   * @param displayName - New display name (3-32 characters, trimmed)
+   * @returns Updated VDS
+   * @throws {NotFoundError} If VDS not found
+   * @throws {BusinessError} If user doesn't own VDS or invalid name
+   */
+  async renameVds(
+    vdsId: number,
+    userId: number,
+    displayName: string
+  ): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+
+    // Check ownership
+    if (vds.targetUserId !== userId) {
+      throw new BusinessError("You don't own this VDS");
+    }
+
+    // Validate display name
+    const trimmed = displayName.trim();
+    if (trimmed.length < 3 || trimmed.length > 32) {
+      throw new BusinessError("Display name must be between 3 and 32 characters");
+    }
+
+    // Check for newlines (shouldn't be in display name)
+    if (trimmed.includes("\n") || trimmed.includes("\r")) {
+      throw new BusinessError("Display name cannot contain line breaks");
+    }
+
+    vds.displayName = trimmed;
+    await this.vdsRepository.save(vds);
+
+    Logger.info(`Renamed VDS ${vdsId} to "${trimmed}" by user ${userId}`);
+
+    return vds;
   }
 
   /**

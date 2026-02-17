@@ -133,51 +133,173 @@
       }
     }
   ],
+  "dedicated_servers": [
+    {
+      "name": "E3-1240v2 16GB",
+      "cpu": 4,
+      "cpuThreads": 8,
+      "ram": 16,
+      "storage": 250,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 119,
+        "bulletproof": 189
+      }
+    },
+    {
+      "name": "E3-1240v2 32GB",
+      "cpu": 4,
+      "cpuThreads": 8,
+      "ram": 32,
+      "storage": 250,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 145,
+        "bulletproof": 215
+      }
+    },
+    {
+      "name": "2x X5670 64GB",
+      "cpu": 12,
+      "cpuThreads": 24,
+      "ram": 64,
+      "storage": 250,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 165,
+        "bulletproof": 235
+      }
+    },
+    {
+      "name": "2x X5670 144GB",
+      "cpu": 12,
+      "cpuThreads": 24,
+      "ram": 144,
+      "storage": 500,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 195
+      }
+    },
+    {
+      "name": "2x 2699v4 256GB",
+      "cpu": 44,
+      "cpuThreads": 88,
+      "ram": 256,
+      "storage": 1000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 365
+      }
+    },
+    {
+      "name": "2x 2699v4 512GB",
+      "cpu": 44,
+      "cpuThreads": 88,
+      "ram": 512,
+      "storage": 2000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 450
+      }
+    },
+    {
+      "name": "2x 2699v4 768GB",
+      "cpu": 44,
+      "cpuThreads": 88,
+      "ram": 768,
+      "storage": 4000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 550
+      }
+    },
+    {
+      "name": "2x Gold 6138 128GB",
+      "cpu": 32,
+      "cpuThreads": 64,
+      "ram": 128,
+      "storage": 500,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 265
+      }
+    },
+    {
+      "name": "2x Gold 6138 256GB",
+      "cpu": 32,
+      "cpuThreads": 64,
+      "ram": 256,
+      "storage": 500,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Linux, Windows",
+      "price": {
+        "default": 349
+      }
+    }
+  ],
   "domains": {
     ".com": {
-      "price": 70
+      "price": 80
     },
     ".org": {
-      "price": 70
+      "price": 80
     },
     ".net": {
-      "price": 70
+      "price": 80
     },
     ".biz": {
-      "price": 70
+      "price": 80
     },
     ".club": {
-      "price": 70
+      "price": 80
     },
     ".pro": {
-      "price": 70
+      "price": 80
     },
     ".uk": {
-      "price": 70
+      "price": 80
     },
     ".cc": {
-      "price": 70
+      "price": 80
     },
     ".io": {
       "price": 99
     },
     ".us": {
-      "price": 70
+      "price": 80
     },
     ".at": {
-      "price": 70
+      "price": 80
     },
     ".ca": {
-      "price": 70
+      "price": 80
     },
     ".guru": {
-      "price": 70
+      "price": 80
     },
     ".link": {
-      "price": 70
+      "price": 80
     },
     ".info": {
-      "price": 70
+      "price": 80
     }
   }
 }

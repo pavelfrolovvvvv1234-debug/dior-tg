@@ -1,4 +1,4 @@
-# GitHub Actions для DripHosting Bot
+# GitHub Actions для Dior Host Bot
 
 Этот репозиторий использует GitHub Actions для:
 - ✅ Автоматического тестирования

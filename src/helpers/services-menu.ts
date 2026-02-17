@@ -14,40 +14,104 @@ import VirtualDedicatedServer, {
 } from "@/entities/VirtualDedicatedServer";
 import ms from "@/lib/multims";
 
+// Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
+
+/**
+ * Dedicated server type selection menu (Standard/Bulletproof).
+ */
+const buildServiceHeader = (ctx: MyAppContext, labelKey: string): string =>
+  `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t(labelKey)}`;
+
+/** Apply Prime −20% discount if user has active Prime. */
+async function getPriceWithPrimeDiscount(
+  dataSource: Awaited<ReturnType<typeof getAppDataSource>>,
+  userId: number,
+  basePrice: number
+): Promise<number> {
+  const userRepo = dataSource.getRepository(User);
+  const user = await userRepo.findOneBy({ id: userId });
+  const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
+  return hasPrime ? Math.round(basePrice * 0.8 * 100) / 100 : basePrice;
+}
+
+export const dedicatedTypeMenu = new Menu<MyAppContext>("dedicated-type-menu")
+  .submenu(
+    (ctx) => ctx.t("button-standard"),
+    "dedicated-servers-menu",
+    async (ctx) => {
+      const session = await ctx.session;
+      if (!session.other.dedicatedType) {
+        session.other.dedicatedType = { bulletproof: false, selectedDedicatedId: -1 };
+      }
+      session.other.dedicatedType.bulletproof = false;
+      session.other.dedicatedType.selectedDedicatedId = -1;
+      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .submenu(
+    (ctx) => ctx.t("button-bulletproof"),
+    "dedicated-servers-menu",
+    async (ctx) => {
+      const session = await ctx.session;
+      if (!session.other.dedicatedType) {
+        session.other.dedicatedType = { bulletproof: true, selectedDedicatedId: -1 };
+      }
+      session.other.dedicatedType.bulletproof = true;
+      session.other.dedicatedType.selectedDedicatedId = -1;
+      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .row()
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
+  });
+
+/**
+ * VDS type selection menu (Standard/Bulletproof).
+ */
+export const vdsTypeMenu = new Menu<MyAppContext>("vds-type-menu")
+  .submenu(
+    (ctx) => ctx.t("button-standard"),
+    "vds-menu",
+    async (ctx) => {
+      const session = await ctx.session;
+      session.other.vdsRate.bulletproof = false;
+      await ctx.editMessageText(ctx.t("vds-service"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .submenu(
+    (ctx) => ctx.t("button-bulletproof"),
+    "vds-menu",
+    async (ctx) => {
+      const session = await ctx.session;
+      session.other.vdsRate.bulletproof = true;
+      await ctx.editMessageText(ctx.t("abuse-vds-service"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .row()
+  .back((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.editMessageText(buildServiceHeader(ctx, "button-vds"), {
+      parse_mode: "HTML",
+    });
+  });
+
 export const servicesMenu = new Menu<MyAppContext>("services-menu")
   .submenu(
     (ctx) => ctx.t("button-domains"),
     "domains-menu",
     async (ctx) => {
       await ctx.editMessageText(ctx.t("abuse-domains-service"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .text(
-    (ctx) => ctx.t("button-dedicated-server"),
-    (ctx) => {
-      ctx.reply(ctx.t("dedicated-servers"), {
-        reply_markup: new InlineKeyboard().url(
-          ctx.t("button-tp"),
-          `tg://resolve?domain=${process.env.SUPPORT_USERNAME_TG}`
-        ),
-      });
-    }
-  )
-  .row()
-  .submenu(
-    (ctx) => ctx.t("button-vds"),
-    "vds-menu",
-    async (ctx) => {
-      const session = await ctx.session;
-      const text =
-        session.other.vdsRate.bulletproof == false
-          ? ctx.t("vds-service")
-          : ctx.t("abuse-vds-service");
-
-      ctx.editMessageText(text, {
         parse_mode: "HTML",
       });
     }
@@ -99,16 +163,16 @@ async function createAndBuyVDS(
     return "user-not-found" as const;
   }
 
-  const ratePrice = () =>
-    bulletproof ? rate.price.bulletproof : rate.price.default;
+  const basePrice = bulletproof ? rate.price.bulletproof : rate.price.default;
+  const price = await getPriceWithPrimeDiscount(appDataSource, userId, basePrice);
 
   // Remember this thing
   const generatedPassword = generatePassword(12);
 
-  if (user.balance - ratePrice() < 0) {
+  if (user.balance - price < 0) {
     await ctx.reply(
       ctx.t("money-not-enough", {
-        amount: ratePrice() - user.balance,
+        amount: price - user.balance,
       })
     );
     return "money-not-enough" as const;
@@ -162,11 +226,11 @@ async function createAndBuyVDS(
   }
 
   newVds.ipv4Addr = ipv4Addrs.list[0].ip_addr;
-  newVds.renewalPrice = ratePrice();
+  newVds.renewalPrice = price;
 
   await vdsRepo.save(newVds);
 
-  user.balance -= ratePrice();
+  user.balance -= price;
 
   await usersRepo.save(user);
 
@@ -293,52 +357,6 @@ export const vdsRateChoose = new Menu<MyAppContext>("vds-selected-rate", {
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
 
-    if (session.other.vdsRate.bulletproof) {
-      range.text(
-        {
-          text: ctx.t("vds-bulletproof-mode-button-off"),
-          payload: session.other.vdsRate.selectedRateId.toString(),
-        },
-        async (ctx) => {
-          const session = await ctx.session;
-
-          if (ctx.match == "-1") {
-            ctx.menu.nav("vds-menu");
-            return;
-          }
-
-          session.other.vdsRate.bulletproof = false;
-
-          await editMessageVdsRate(ctx, Number(ctx.match));
-          // await ctx.menu.update();
-        }
-      );
-    } else {
-      range.text(
-        {
-          text: ctx.t("vds-bulletproof-mode-button-on"),
-          payload: session.other.vdsRate.selectedRateId.toString(),
-        },
-        async (ctx) => {
-          const session = await ctx.session;
-
-          if (ctx.match == "-1") {
-            ctx.menu.nav("vds-menu");
-            return;
-          }
-
-          session.other.vdsRate.bulletproof = true;
-
-          await editMessageVdsRate(ctx, Number(ctx.match));
-          // await ctx.menu.update();
-        }
-      );
-    }
-  })
-  .row()
-  .dynamic(async (ctx, range) => {
-    const session = await ctx.session;
-
     range.submenu(
       {
         text: ctx.t("button-buy"),
@@ -369,18 +387,16 @@ export const vdsRateChoose = new Menu<MyAppContext>("vds-selected-rate", {
         const rate = pricesList.virtual_vds[Number(ctx.match)];
 
         if (rate) {
-          if (
-            session.main.user.balance <
-            (session.other.vdsRate.bulletproof
-              ? rate.price.bulletproof
-              : rate.price.default)
-          ) {
+          const dataSource = await getAppDataSource();
+          const basePrice = session.other.vdsRate.bulletproof
+            ? rate.price.bulletproof
+            : rate.price.default;
+          const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+
+          if (session.main.user.balance < price) {
             ctx.reply(
               ctx.t("money-not-enough", {
-                amount:
-                  (session.other.vdsRate.bulletproof
-                    ? rate.price.bulletproof
-                    : rate.price.default) - session.main.user.balance,
+                amount: price - session.main.user.balance,
               })
             );
             // await ctx.deleteMessage();
@@ -410,6 +426,7 @@ export const vdsRateChoose = new Menu<MyAppContext>("vds-selected-rate", {
       }
     );
   })
+  .row()
   .back(
     (ctx) => ctx.t("button-back"),
     (ctx) => {
@@ -423,14 +440,21 @@ const editMessageVdsRate = async (ctx: MyAppContext, rateId: number) => {
   const pricesList = await prices();
   const session = await ctx.session;
   const rate = pricesList.virtual_vds[rateId];
+  const basePrice =
+    session.other.vdsRate.bulletproof == true
+      ? rate.price.bulletproof
+      : rate.price.default;
+  const dataSource = await getAppDataSource();
+  const price = await getPriceWithPrimeDiscount(
+    dataSource,
+    session.main.user.id,
+    basePrice
+  );
 
   await ctx.editMessageText(
     ctx.t("vds-rate-full-view", {
       rateName: rate.name,
-      price:
-        session.other.vdsRate.bulletproof == true
-          ? rate.price.bulletproof
-          : rate.price.default,
+      price,
       ram: rate.ram,
       disk: rate.ssd,
       cpu: rate.cpu,
@@ -450,17 +474,25 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
   .dynamic(async (ctx, range) => {
     const pricesList = await prices();
     const session = await ctx.session;
+    const dataSource = await getAppDataSource();
 
-    pricesList.virtual_vds.forEach((rate, id) => {
+    for (let id = 0; id < pricesList.virtual_vds.length; id++) {
+      const rate = pricesList.virtual_vds[id];
+      const basePrice =
+        session.other.vdsRate.bulletproof == true
+          ? rate.price.bulletproof
+          : rate.price.default;
+      const price = await getPriceWithPrimeDiscount(
+        dataSource,
+        session.main.user.id,
+        basePrice
+      );
       range
         .submenu(
           {
             text: ctx.t("vds-rate", {
               rateName: rate.name,
-              price:
-                session.other.vdsRate.bulletproof == true
-                  ? rate.price.bulletproof
-                  : rate.price.default,
+              price,
               ram: rate.ram,
               disk: rate.ssd,
               cpu: rate.cpu,
@@ -475,46 +507,24 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
           }
         )
         .row();
-    });
-
-    if (session.other.vdsRate.bulletproof) {
-      range.text(
-        {
-          text: ctx.t("vds-bulletproof-mode-button-off"),
-          payload: session.other.vdsRate.selectedRateId.toString(),
-        },
-        async (ctx) => {
-          const session = await ctx.session;
-
-          session.other.vdsRate.bulletproof = false;
-          ctx.editMessageText(ctx.t("vds-service"), {
-            parse_mode: "HTML",
-          });
-
-          // await editMessageVdsRate(ctx, Number(ctx.match));
-          // await ctx.menu.update();
-        }
-      );
-    } else {
-      range.text(
-        {
-          text: ctx.t("vds-bulletproof-mode-button-on"),
-          payload: session.other.vdsRate.selectedRateId.toString(),
-        },
-        async (ctx) => {
-          const session = await ctx.session;
-
-          session.other.vdsRate.bulletproof = true;
-          ctx.editMessageText(ctx.t("abuse-vds-service"), {
-            parse_mode: "HTML",
-          });
-
-          // await editMessageVdsRate(ctx, Number(ctx.match));
-          // await ctx.menu.update();
-        }
-      );
     }
   })
+  .row()
+  .text(
+    (ctx) => ctx.t("prime-discount-vds"),
+    async (ctx) => {
+      try {
+        const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
+        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any, {
+          backCallback: "prime-back-to-vds-menu",
+        });
+        await ctx.editMessageText(fullText, { reply_markup: keyboard, parse_mode: "HTML" });
+      } catch (e: any) {
+        await ctx.editMessageText(ctx.t("error-unknown", { error: e?.message || "Error" })).catch(() => {});
+      }
+    }
+  )
+  .row()
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
@@ -524,35 +534,304 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
     }
   );
 
+/**
+ * Dedicated servers list menu (shows after selecting Standard/Bulletproof).
+ */
+export const dedicatedServersMenu = new Menu<MyAppContext>("dedicated-servers-menu")
+  .dynamic(async (ctx, range) => {
+    const pricesList = await prices();
+    const session = await ctx.session;
+
+    if (!pricesList.dedicated_servers || pricesList.dedicated_servers.length === 0) {
+      range.text(ctx.t("button-back"), async (ctx) => {
+        await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+          parse_mode: "HTML",
+        });
+      });
+      return;
+    }
+
+    const isBulletproof = session.other.dedicatedType?.bulletproof || false;
+    
+    // Filter servers: if bulletproof, show only servers with bulletproof price
+    // Create array of indices that should be shown
+    const serverIndices: number[] = [];
+    pricesList.dedicated_servers.forEach((server, id) => {
+      if (!isBulletproof || (isBulletproof && server.price.bulletproof !== undefined)) {
+        serverIndices.push(id);
+      }
+    });
+
+    if (serverIndices.length === 0) {
+      range.text(ctx.t("button-back"), async (ctx) => {
+        const session = await ctx.session;
+        const isBulletproof = session.other.dedicatedType?.bulletproof || false;
+        await ctx.editMessageText(
+          isBulletproof ? ctx.t("abuse-dedicated-server") : ctx.t("dedicated-server"),
+          {
+            parse_mode: "HTML",
+          }
+        );
+      });
+      return;
+    }
+
+    const dataSource = await getAppDataSource();
+    const userId = session.main.user.id;
+
+    for (const id of serverIndices) {
+      const server = pricesList.dedicated_servers[id];
+      const basePrice =
+        isBulletproof && server.price.bulletproof
+          ? server.price.bulletproof
+          : server.price.default;
+      const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+
+      range
+        .submenu(
+          {
+            text: ctx.t("dedicated-rate", {
+              rateName: server.name,
+              price,
+              cpu: server.cpu,
+              cpuThreads: server.cpuThreads,
+              ram: server.ram,
+              storage: server.storage,
+            }),
+            payload: id.toString(),
+          },
+          "dedicated-selected-server",
+          async (ctx) => {
+            const session = await ctx.session;
+            session.other.dedicatedType.selectedDedicatedId = id;
+            await editMessageDedicatedServer(ctx, id);
+          }
+        )
+        .row();
+    }
+
+    range
+      .row()
+      .text(
+        (ctx) => ctx.t("prime-discount-dedicated"),
+        async (ctx) => {
+          try {
+            const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
+            const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any, {
+              backCallback: "prime-back-to-dedicated-servers",
+            });
+            await ctx.editMessageText(fullText, { reply_markup: keyboard, parse_mode: "HTML" });
+          } catch (e: any) {
+            await ctx.editMessageText(ctx.t("error-unknown", { error: e?.message || "Error" })).catch(() => {});
+          }
+        }
+      )
+      .row()
+      .text(
+        (ctx) => ctx.t("button-back"),
+        async (ctx) => {
+          await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
+            parse_mode: "HTML",
+            reply_markup: dedicatedTypeMenu,
+          });
+        }
+      );
+  });
+
+/**
+ * Function to edit message with dedicated server details.
+ */
+const editMessageDedicatedServer = async (ctx: MyAppContext, serverId: number) => {
+  const pricesList = await prices();
+  const session = await ctx.session;
+  const server = pricesList.dedicated_servers[serverId];
+
+  if (!server) {
+    await ctx.editMessageText(ctx.t("error-unknown", { error: "Server not found" }));
+    return;
+  }
+
+  const isBulletproof = session.other.dedicatedType?.bulletproof || false;
+  const basePrice =
+    isBulletproof && server.price.bulletproof
+      ? server.price.bulletproof
+      : server.price.default;
+  const dataSource = await getAppDataSource();
+  const price = await getPriceWithPrimeDiscount(
+    dataSource,
+    session.main.user.id,
+    basePrice
+  );
+
+  await ctx.editMessageText(
+    ctx.t("dedicated-rate-full-view", {
+      rateName: server.name,
+      price,
+      cpu: server.cpu,
+      cpuThreads: server.cpuThreads,
+      ram: server.ram,
+      storage: server.storage,
+      network: server.network,
+      bandwidth: server.bandwidth === "unlimited" ? ctx.t("unlimited") : server.bandwidth,
+      os: server.os,
+      abuse: isBulletproof
+        ? ctx.t("bulletproof-on")
+        : ctx.t("bulletproof-off"),
+    }),
+    {
+      parse_mode: "HTML",
+    }
+  );
+};
+
+/**
+ * Dedicated server detail menu (shows server info with Order button).
+ */
+export const dedicatedSelectedServerMenu = new Menu<MyAppContext>("dedicated-selected-server", {
+  onMenuOutdated: (ctx) => {
+    ctx.deleteMessage().then();
+  },
+})
+  .row()
+  .text(
+    (ctx) => ctx.t("button-order-dedicated"),
+    async (ctx) => {
+      try {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
+        if (selectedId < 0) {
+          await ctx.reply(ctx.t("bad-error"));
+          return;
+        }
+
+        const pricesList = await prices();
+        const server = pricesList.dedicated_servers?.[selectedId];
+        if (!server) {
+          await ctx.reply(ctx.t("bad-error"));
+          return;
+        }
+
+        const isBulletproof = session.other.dedicatedType?.bulletproof || false;
+        const basePrice = isBulletproof && server.price.bulletproof
+          ? server.price.bulletproof
+          : server.price.default;
+
+        const dataSource = await getAppDataSource();
+        const usersRepo = dataSource.getRepository(User);
+        const user = await usersRepo.findOneBy({ id: session.main.user.id });
+        if (!user) {
+          await ctx.reply(ctx.t("bad-error"));
+          return;
+        }
+
+        const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+
+        if (user.balance < price) {
+          await ctx.reply(
+            ctx.t("money-not-enough", {
+              amount: price - user.balance,
+            })
+          );
+          return;
+        }
+
+        user.balance -= price;
+        await usersRepo.save(user);
+        session.main.user.balance = user.balance;
+        session.main.user.referralBalance = user.referralBalance ?? 0;
+
+        session.other.dedicatedOrder = {
+          step: "idle",
+          requirements: undefined,
+        };
+        const keyboard = new InlineKeyboard()
+          .url(ctx.t("button-support"), "tg://resolve?domain=diorhost");
+        await ctx.reply(ctx.t("dedicated-purchase-success"), {
+          reply_markup: keyboard,
+          parse_mode: "HTML",
+        });
+      } catch (error: any) {
+        const { Logger } = await import("../../app/logger.js");
+        Logger.error("Failed to start order dedicated conversation:", error);
+        await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+      }
+    }
+  )
+  .row()
+  .text(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
+        parse_mode: "HTML",
+        reply_markup: dedicatedServersMenu,
+      });
+    }
+  );
+
 export const domainsMenu = new Menu<MyAppContext>("domains-menu")
-  .dynamic(async (_, range) => {
+  .text(
+    (ctx) => ctx.t("button-register-domain"),
+    async (ctx) => {
+      try {
+        await ctx.conversation.enter("domainRegisterConversation");
+      } catch (error: any) {
+        console.error("Failed to start domain register conversation:", error);
+        await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+      }
+    }
+  )
+  .text(
+    (ctx) => ctx.t("button-my-domains"),
+    async (ctx) => {
+      // Navigate to amper domains menu
+      ctx.menu.nav("amper-domains-menu");
+    }
+  )
+  .row()
+  .dynamic(async (ctx, range) => {
+    const dataSource = await getAppDataSource();
+    const userId = (await ctx.session)?.main?.user?.id;
     const domainZones = (await prices()).domains;
     let count = 0;
 
     for (const zone in domainZones) {
+      const basePrice = domainZones[zone as keyof typeof domainZones].price;
+      const price =
+        userId != null
+          ? await getPriceWithPrimeDiscount(dataSource, userId, basePrice)
+          : basePrice;
+
       range.text(
-        `${zone} - ${domainZones[zone as keyof typeof domainZones].price} $`,
+        `${zone} - ${price} $`,
         async (ctx) => {
           const session = await ctx.session;
-          if (
-            session.main.user.balance <
-            domainZones[zone as keyof typeof domainZones].price
-          ) {
+          const ds = await getAppDataSource();
+          const priceForCheck = await getPriceWithPrimeDiscount(
+            ds,
+            session.main.user.id,
+            basePrice
+          );
+          if (session.main.user.balance < priceForCheck) {
             await ctx.reply(
               ctx.t("money-not-enough", {
-                amount:
-                  domainZones[zone as keyof typeof domainZones].price -
-                  session.main.user.balance,
+                amount: priceForCheck - session.main.user.balance,
               })
             );
             return;
           }
-          await domainQuestion.replyWithHTML(
-            ctx,
+          session.other.domains.pendingZone = zone;
+          await ctx.reply(
             ctx.t("domain-question", {
               zoneName: zone,
             }),
-            zone
+            {
+              reply_markup: new InlineKeyboard().text(
+                ctx.t("button-cancel"),
+                "domain-register-cancel"
+              ),
+              parse_mode: "HTML",
+            }
           );
         }
       );
@@ -567,6 +846,27 @@ export const domainsMenu = new Menu<MyAppContext>("domains-menu")
       range.row();
     }
   })
+  .row()
+  .text(
+    (ctx) => ctx.t("prime-button-menu-row"),
+    async (ctx) => {
+      try {
+        const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
+        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx, {
+          backCallback: "prime-back-to-domains-zones",
+        });
+        await ctx.editMessageText(fullText, {
+          reply_markup: keyboard,
+          parse_mode: "HTML",
+        });
+      } catch (error: any) {
+        const { Logger } = await import("../app/logger.js");
+        Logger.error("Failed to open Prime screen from domains menu:", error);
+        await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+      }
+    }
+  )
+  .row()
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {

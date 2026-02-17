@@ -5,9 +5,9 @@
  */
 
 import { DataSource } from "typeorm";
-import Promo from "../../../entities/Promo.js";
-import { BaseRepository } from "./base.js";
-import { NotFoundError, BusinessError } from "../../../shared/errors/index.js";
+import Promo from "../../../entities/Promo";
+import { BaseRepository } from "./base";
+import { NotFoundError, BusinessError } from "../../../shared/errors/index";
 
 /**
  * Promo repository with promo code-specific operations.

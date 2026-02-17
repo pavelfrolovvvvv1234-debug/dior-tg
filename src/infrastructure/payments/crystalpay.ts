@@ -4,14 +4,14 @@
  * @module infrastructure/payments/crystalpay
  */
 
-import type { IPaymentProvider, Invoice, InvoiceStatus } from "./types.js";
-import { PaymentProviderName } from "./types.js";
-import { PaymentError } from "../../shared/errors/index.js";
-import { config } from "../../app/config.js";
-import { Logger } from "../../app/logger.js";
+import type { IPaymentProvider, Invoice, InvoiceStatus } from "./types";
+import { PaymentProviderName } from "./types";
+import { PaymentError } from "../../shared/errors/index";
+import { config } from "../../app/config";
+import { Logger } from "../../app/logger";
 // TODO: Move CrystalPayClient to infrastructure/payments/crystal-pay-client.ts
 // Temporarily importing from old location
-import { CrystalPayClient } from "../../api/crystal-pay.js";
+import { CrystalPayClient } from "../../api/crystal-pay";
 
 /**
  * CrystalPay payment provider implementation.
@@ -32,7 +32,7 @@ export class CrystalPayProvider implements IPaymentProvider {
     orderId: string
   ): Promise<Invoice> {
     try {
-      const invoice = await this.client.createInvoice(amount);
+      const invoice = await this.client.createInvoice(amount, orderId);
 
       return {
         id: invoice.id,

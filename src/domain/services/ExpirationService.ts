@@ -19,6 +19,21 @@ import User from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import { retry } from "../../shared/utils/retry.js";
 
+/** Callback when grace period starts (3 days left). Used for growth trigger discount. */
+export type OnGracePeriodStarted = (
+  userId: number,
+  serviceId: number,
+  serviceType: "vds" | "dedicated" | "domain"
+) => Promise<void>;
+
+/** Callback when VDS is in grace (payDayAt set). Used for Day 2 / Day 3 retarget messages. */
+export type OnGraceDayCheck = (
+  vdsId: number,
+  userId: number,
+  telegramId: number,
+  payDayAt: Date
+) => Promise<boolean>;
+
 /**
  * Service for handling expiration and renewal of services.
  */
@@ -29,7 +44,9 @@ export class ExpirationService {
   constructor(
     private bot: Bot<unknown, Api<RawApi>>,
     private vmManager: VMManager,
-    private fluent: Fluent
+    private fluent: Fluent,
+    private onGracePeriodStarted?: OnGracePeriodStarted,
+    private onGraceDayCheck?: OnGraceDayCheck
   ) {}
 
   /**
@@ -120,7 +137,36 @@ export class ExpirationService {
             await this.notifyUser(user.telegramId, user.lang || "en", "vds-expiration", {
               amount: vds.renewalPrice,
             });
-
+            if (this.onGracePeriodStarted) {
+              this.onGracePeriodStarted(user.id, vds.id, "vds").catch((e) =>
+                Logger.error(`[Expiration] onGracePeriodStarted failed`, e)
+              );
+            }
+            // Emit automation events for service.expiring and service.grace_start
+            try {
+              const { emit } = await import("../../modules/automations/engine/event-bus.js");
+              const ts = new Date();
+              emit({
+                event: "service.expiring",
+                userId: user.id,
+                timestamp: ts,
+                serviceType: "vds",
+                serviceId: vds.id,
+                payDayAt: vds.payDayAt,
+                graceDay: 1,
+              });
+              emit({
+                event: "service.grace_start",
+                userId: user.id,
+                timestamp: ts,
+                serviceType: "vds",
+                serviceId: vds.id,
+                payDayAt: vds.payDayAt,
+                graceDay: 1,
+              });
+            } catch {
+              // Ignore if automations module not available
+            }
             Logger.info(`VDS ${vds.id} marked for deletion in 3 days (user ${user.id})`);
             continue;
           }
@@ -144,7 +190,12 @@ export class ExpirationService {
             continue;
           }
 
-          // Still in grace period
+          // Still in grace period: maybe send Day 2 / Day 3 retarget
+          if (this.onGraceDayCheck && vds.payDayAt) {
+            this.onGraceDayCheck(vds.id, user.id, user.telegramId, vds.payDayAt).catch((e) =>
+              Logger.error(`[Expiration] onGraceDayCheck failed`, e)
+            );
+          }
           continue;
         }
 

@@ -1,4 +1,4 @@
-# Dockerfile for DripHosting Bot
+# Dockerfile for Dior Host Bot
 FROM node:20-alpine AS builder
 
 # Install build dependencies

@@ -5,9 +5,9 @@
  */
 
 import { DataSource } from "typeorm";
-import User, { Role } from "../../../entities/User.js";
-import { BaseRepository } from "./base.js";
-import { NotFoundError } from "../../../shared/errors/index.js";
+import User, { Role, UserStatus } from "../../../entities/User";
+import { BaseRepository } from "./base";
+import { NotFoundError } from "../../../shared/errors/index";
 
 /**
  * User repository with user-specific operations.
@@ -35,6 +35,7 @@ export class UserRepository extends BaseRepository<User> {
     if (!user) {
       user = new User();
       user.telegramId = telegramId;
+      user.status = UserStatus.Newbie;
       user = await this.save(user);
     }
 
@@ -123,5 +124,17 @@ export class UserRepository extends BaseRepository<User> {
     return this.repository.find({
       where: { role },
     });
+  }
+
+  /**
+   * Update user status.
+   */
+  async updateStatus(userId: number, status: UserStatus): Promise<User> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundError("User", userId);
+    }
+    user.status = status;
+    return this.save(user);
   }
 }

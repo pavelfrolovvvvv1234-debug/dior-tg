@@ -6,8 +6,11 @@
 
 import type { Bot } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
-import { Role } from "../../entities/User.js";
+import User, { Role } from "../../entities/User.js";
 import { mainMenu } from "../menus/main-menu.js";
+import { profileMenu } from "../menus/profile-menu.js";
+import { topupMethodMenu } from "../../helpers/deposit-money.js";
+import { adminMenu } from "../menus/admin-menu";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { InlineKeyboard } from "grammy";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
@@ -15,37 +18,188 @@ import { UserRepository } from "../../infrastructure/db/repositories/UserReposit
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
 import { DomainRepository } from "../../infrastructure/db/repositories/DomainRepository.js";
 import { PromoRepository } from "../../infrastructure/db/repositories/PromoRepository.js";
-import { TempLink } from "../../entities/TempLink.js";
-import { Promo } from "../../entities/Promo.js";
 import DomainRequest, { DomainRequestStatus } from "../../entities/DomainRequest.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import { Logger } from "../../app/logger.js";
 import { config } from "../../app/config.js";
 import ms from "../../lib/multims.js";
+import { ensureSessionUser } from "../../shared/utils/session-user.js";
+import { BroadcastService } from "../../domain/broadcast/BroadcastService.js";
 
 import { PREFIX_PROMOTE } from "../../helpers/promote-permissions.js";
 import TempLink, { createLink } from "../../entities/TempLink.js";
+import Promo from "../../entities/Promo.js";
+
+// Track registered bots to prevent duplicate registration
+const registeredBots = new WeakSet<Bot<AppContext>>();
+// Track processed updates to prevent duplicate execution
+const processedUpdates = new Set<string>();
 
 /**
  * Register all bot commands.
  */
 export function registerCommands(bot: Bot<AppContext>): void {
+  // Prevent duplicate registration for the same bot instance
+  if (registeredBots.has(bot)) {
+    console.warn("[Commands] registerCommands called multiple times for the same bot, skipping");
+    return;
+  }
+  registeredBots.add(bot);
+  
+  // Register bot commands in Telegram menu
+  bot.api.setMyCommands([
+    { command: "start", description: "Главное меню" },
+    { command: "balance", description: "Проверить баланс" },
+    { command: "services", description: "Услуги" },
+    { command: "admin", description: "Админ-панель (только для админов)" },
+  ]).catch((error) => {
+    Logger.error("Failed to set bot commands:", error);
+  });
+
+  // Bot profile: name and descriptions (visible in @ mention and profile)
+  bot.api.setMyName({ name: "Dior Host" }).catch((error) => {
+    Logger.error("Failed to set bot name:", error);
+  });
+  bot.api
+    .setMyShortDescription({
+      short_description:
+        "Bulletproof VPS, domains & dedicated servers — order and manage hosting in TG. 24/7.",
+    })
+    .catch((error) => {
+      Logger.error("Failed to set bot short description:", error);
+    });
+  bot.api
+    .setMyDescription({
+      description:
+        "Welcome to Dior Host!\n\nBulletproof VPS, domains and dedicated servers — order and manage hosting in TG. 24/7 support, offshore, reliable infrastructure.\n\nPress /start to begin.",
+    })
+    .catch((error) => {
+      Logger.error("Failed to set bot description:", error);
+    });
+
   // Start command
   bot.command("start", async (ctx) => {
-    if (ctx.message) {
-      await ctx.deleteMessage();
+    // Create unique key for this update to prevent duplicate processing
+    const updateKey = `${ctx.update.update_id}_${ctx.chatId}_start`;
+    if (processedUpdates.has(updateKey)) {
+      console.warn("[Commands] Duplicate /start command detected, ignoring");
+      return;
+    }
+    processedUpdates.add(updateKey);
+    
+    // Clean up old processed updates (keep only last 100)
+    if (processedUpdates.size > 100) {
+      const firstKey = processedUpdates.values().next().value;
+      processedUpdates.delete(firstKey);
+    }
+    // Check if this is a promote link - if so, let promotePermissions middleware handle it
+    if (ctx.match && typeof ctx.match === "string" && ctx.match.startsWith("promote_")) {
+      // Let promotePermissions middleware handle it first, but don't continue
+      return;
+    }
+    
+    // Delete the command message if it exists
+    try {
+      if (ctx.message) {
+        await ctx.deleteMessage();
+      }
+    } catch (error) {
+      // Ignore if message already deleted
     }
 
     const session = await ctx.session;
+    
+    // Handle referral code from /start payload (for new users)
+    if (ctx.match && typeof ctx.match === "string" && ctx.match.length > 0) {
+      // Check if this is not a promote link
+      if (!ctx.match.startsWith("promote_")) {
+        try {
+          const { ReferralService } = await import("../../domain/referral/ReferralService.js");
+          const { UserRepository } = await import("../../infrastructure/db/repositories/UserRepository.js");
+          const userRepo = new UserRepository(ctx.appDataSource);
+          const referralService = new ReferralService(ctx.appDataSource, userRepo);
+          
+          // Only bind if user is new (doesn't have referrer yet)
+          const user = await userRepo.findById(session.main.user.id);
+          if (user && !user.referrerId) {
+            await referralService.bindReferrer(user.id, ctx.match);
+            console.log(`[Referral] Bound referrer for user ${user.id} with refCode ${ctx.match}`);
+          }
+        } catch (error: any) {
+          console.error(`[Referral] Failed to bind referrer:`, error);
+          // Don't fail the request if referral binding fails
+        }
+      }
+    }
+    
+    // If locale is not set (first time user), show language selection
+    if (session.main.locale === "0" || !session.main.locale) {
+      // Use default locale for the selection message
+      ctx.fluent.useLocale("en");
+      const { languageSelectMenu } = await import("../menus/language-select-menu.js");
+      await ctx.reply(ctx.t("select-language"), {
+        reply_markup: languageSelectMenu,
+        parse_mode: "HTML",
+      });
+      return;
+    }
+
     const renderer = ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
       balance: session.main.user.balance,
     });
 
+    // Send welcome message only once
     await ctx.reply(screen.text, {
       reply_markup: mainMenu,
       parse_mode: screen.parse_mode,
     });
+  });
+
+  // Balance command - open deposit menu for balance top-up
+  bot.command("balance", async (ctx) => {
+    try {
+      if (ctx.message) {
+        await ctx.deleteMessage().catch(() => {});
+      }
+
+      const session = await ctx.session;
+      
+      if (!ctx.hasChatType("private")) {
+        return;
+      }
+
+      // Open deposit menu for balance top-up
+      await ctx.reply(ctx.t("topup-select-method"), {
+        reply_markup: topupMethodMenu,
+        parse_mode: "HTML",
+      });
+    } catch (error: any) {
+      Logger.error("Failed to execute /balance command:", error);
+      await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+    }
+  });
+
+  // Services command - show services menu
+  bot.command("services", async (ctx) => {
+    try {
+      if (ctx.message) {
+        await ctx.deleteMessage().catch(() => {});
+      }
+
+      const session = await ctx.session;
+      
+      // Import services menu dynamically to avoid circular dependencies
+      const { servicesMenu } = await import("../../helpers/services-menu.js");
+      
+      await ctx.reply(ctx.t("menu-service-for-buy-choose"), {
+        reply_markup: servicesMenu,
+        parse_mode: "HTML",
+      });
+    } catch (error: any) {
+      Logger.error("Failed to execute /services command:", error);
+      await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+    }
   });
 
   // Help command (admin only)
@@ -56,6 +210,132 @@ export function registerCommands(bot: Bot<AppContext>): void {
       await ctx.reply(ctx.t("admin-help"), {
         parse_mode: "HTML",
       });
+    }
+  });
+
+  // Admin panel command (admin only) — check ONLY by DB, ignore session
+  bot.command("admin", async (ctx) => {
+    try {
+      const telegramId = ctx.chatId ?? ctx.from?.id;
+      if (!telegramId) {
+        await ctx.reply(ctx.t("error-access-denied"));
+        return;
+      }
+      const { getAppDataSource } = await import("../../infrastructure/db/datasource.js");
+      const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+      const dbUser = await dataSource.manager.findOneBy(User, {
+        telegramId: Number(telegramId),
+      });
+      const roleStr = dbUser ? String(dbUser.role).toLowerCase() : "";
+      const isAdmin = dbUser && (roleStr === "admin" || dbUser.role === Role.Admin);
+      if (!isAdmin) {
+        await ctx.reply(ctx.t("error-access-denied"));
+        return;
+      }
+      const session = await ctx.session;
+      if (session?.main?.user) {
+        session.main.user.role = Role.Admin;
+        session.main.user.status = dbUser.status;
+        session.main.user.id = dbUser.id;
+        session.main.user.balance = dbUser.balance;
+        session.main.user.referralBalance = dbUser.referralBalance ?? 0;
+        session.main.user.isBanned = dbUser.isBanned;
+      }
+      await ctx.reply(ctx.t("admin-panel-header"), {
+        parse_mode: "HTML",
+        reply_markup: adminMenu,
+      });
+    } catch (error: any) {
+      Logger.error("[Admin] Failed to open admin menu:", error);
+      await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+    }
+  });
+
+  // Broadcast command (admin only)
+  bot.command("broadcast", async (ctx) => {
+    const session = await ctx.session;
+    const hasSessionUser = await ensureSessionUser(ctx);
+    if (!session || !hasSessionUser) {
+      await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
+      return;
+    }
+
+    if (session.main.user.role !== Role.Admin) {
+      return;
+    }
+
+    session.other.broadcast = {
+      step: "awaiting_text",
+    };
+    await ctx.reply(ctx.t("broadcast-enter-text"));
+  });
+
+  // Send broadcast immediately (admin only)
+  bot.command("send", async (ctx) => {
+    const session = await ctx.session;
+    const hasSessionUser = await ensureSessionUser(ctx);
+    if (!session || !hasSessionUser) {
+      await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
+      return;
+    }
+
+    if (session.main.user.role !== Role.Admin) {
+      return;
+    }
+
+    const text = ctx.message?.text?.split(" ").slice(1).join(" ").trim() || "";
+    if (text.length === 0) {
+      session.other.broadcast = { step: "awaiting_text" };
+      await ctx.reply(ctx.t("broadcast-enter-text"), { parse_mode: "HTML" });
+      return;
+    }
+
+    try {
+      const broadcastService = new BroadcastService(ctx.appDataSource, bot as unknown as Bot);
+      const broadcast = await broadcastService.createBroadcast(session.main.user.id, text);
+
+      const statusMessage = await ctx.reply(
+        ctx.t("broadcast-starting", { id: broadcast.id })
+      );
+
+      broadcastService
+        .sendBroadcast(broadcast.id)
+        .then(async (result) => {
+          try {
+            const errors = await broadcastService.getBroadcastErrors(broadcast.id);
+            const errorText =
+              errors.length > 0 ? `\n\n<code>${errors.slice(0, 5).join("\n")}</code>` : "";
+            const completedText =
+              ctx.t("broadcast-completed") +
+              "\n\n" +
+              ctx.t("broadcast-stats", {
+                total: result.totalCount,
+                sent: result.sentCount,
+                failed: result.failedCount,
+                blocked: result.blockedCount,
+              }) +
+              errorText;
+
+            await ctx.api.editMessageText(
+              ctx.chatId,
+              statusMessage.message_id,
+              completedText,
+              { parse_mode: "HTML" }
+            );
+          } catch (error) {
+            Logger.warn("Failed to update broadcast status:", error);
+          }
+        })
+        .catch((error) => {
+          Logger.error("Broadcast failed:", error);
+        });
+    } catch (error) {
+      Logger.error("Failed to start broadcast:", error);
+      await ctx.reply(
+        ctx.t("error-unknown", {
+          error: (error as Error)?.message || "Unknown error",
+        }).substring(0, 200)
+      );
     }
   });
 
@@ -505,10 +785,16 @@ export function registerCommands(bot: Bot<AppContext>): void {
     const session = await ctx.session;
     if (session.main.user.role === Role.User) return;
 
-    // TODO: Import controlUsers from helpers
-    await ctx.reply(ctx.t("control-panel-users"), {
-      parse_mode: "HTML",
-    });
+    try {
+      const { controlUsers } = await import("../../helpers/users-control");
+      await ctx.reply(ctx.t("control-panel-users"), {
+        parse_mode: "HTML",
+        reply_markup: controlUsers,
+      });
+    } catch (error: any) {
+      Logger.error("Failed to open control users menu:", error);
+      await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+    }
   });
 
   Logger.info("Commands registered");

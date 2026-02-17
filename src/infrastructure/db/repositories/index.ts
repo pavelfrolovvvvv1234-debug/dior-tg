@@ -11,6 +11,7 @@ import { TopUpRepository } from "./TopUpRepository.js";
 import { VdsRepository } from "./VdsRepository.js";
 import { DomainRepository } from "./DomainRepository.js";
 import { PromoRepository } from "./PromoRepository.js";
+import { ServiceInvoiceRepository } from "./ServiceInvoiceRepository.js";
 
 export * from "./base.js";
 export * from "./UserRepository.js";
@@ -18,6 +19,7 @@ export * from "./TopUpRepository.js";
 export * from "./VdsRepository.js";
 export * from "./DomainRepository.js";
 export * from "./PromoRepository.js";
+export * from "./ServiceInvoiceRepository.js";
 
 /**
  * Repository factory for dependency injection.

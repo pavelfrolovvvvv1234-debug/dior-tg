@@ -45,26 +45,43 @@ export class CrystalPayClient {
     this.axiosClient = axios.create({
       baseURL: this.endpoint,
       headers: {
-        "User-Agent": "DripHosting/Bot 1.1",
+        "User-Agent": "DiorHost/Bot 1.1",
       },
     });
   }
 
-  async createInvoice(amount: number): Promise<ResponseCreatedInvoice> {
+  async createInvoice(amount: number, orderId?: string): Promise<ResponseCreatedInvoice> {
     try {
+      const redirectUrl =
+        process.env["PAYMENT_CRYSTALPAY_REDIRECT_URL"] ||
+        (process.env["BOT_USERNAME"]
+          ? `https://t.me/@${process.env["BOT_USERNAME"]}/`
+          : undefined);
+      const callbackUrl = process.env["PAYMENT_CRYSTALPAY_CALLBACK_URL"];
+
+      const payload: Record<string, unknown> = {
+        auth_login: this.login,
+        auth_secret: this.secretKey,
+        amount,
+        amount_currency: "USD",
+        lifetime: 30,
+        type: "purchase",
+      };
+      if (redirectUrl) {
+        payload.redirect_url = redirectUrl;
+      }
+      if (callbackUrl) {
+        payload.callback_url = callbackUrl;
+      }
+      if (orderId) {
+        payload.extra = orderId;
+      }
+
       const response = await this.axiosClient<ResponseCreatedInvoice>(
         "/invoice/create/",
         {
           method: "POST",
-          data: JSON.stringify({
-            auth_login: this.login,
-            auth_secret: this.secretKey,
-            amount,
-            amount_currency: "USD",
-            lifetime: 30,
-            type: "purchase",
-            redirect_url: `https://t.me/@${process.env["BOT_USERNAME"]}/`,
-          }),
+          data: payload,
         }
       );
       return response.data;

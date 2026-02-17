@@ -64,6 +64,7 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
+.bot.lock
 
 # PM2
 .pm2/

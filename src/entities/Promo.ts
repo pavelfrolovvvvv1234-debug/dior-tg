@@ -11,10 +11,10 @@ export default class Promo {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ type: "integer", nullable: false })
   maxUses!: number;
 
-  @Column({ default: 0 })
+  @Column({ default: 0, type: "integer", nullable: false })
   uses!: number;
 
   @Column({
@@ -23,11 +23,14 @@ export default class Promo {
   })
   users!: number[];
 
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   code!: string;
 
-  @Column()
+  @Column({ type: "real", nullable: false })
   sum!: number;
+
+  @Column({ type: "boolean", default: true })
+  isActive!: boolean;
 
   @CreateDateColumn()
   createdAt!: Date;

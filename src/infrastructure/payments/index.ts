@@ -5,6 +5,6 @@
  */
 
 export * from "./types.js";
-export * from "./aaio.js";
 export * from "./crystalpay.js";
+export * from "./cryptobot.js";
 export * from "./factory.js";

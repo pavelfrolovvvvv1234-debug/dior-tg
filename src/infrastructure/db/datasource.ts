@@ -12,6 +12,24 @@ import DomainRequest from "../../entities/DomainRequest.js";
 import Promo from "../../entities/Promo.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import DomainService from "../../entities/DomainService.js";
+import Ticket from "../../entities/Ticket.js";
+import Broadcast from "../../entities/Broadcast.js";
+import BroadcastLog from "../../entities/BroadcastLog.js";
+import DedicatedServer from "../../entities/DedicatedServer.js";
+import TicketAudit from "../../entities/TicketAudit.js";
+import Domain from "../../entities/Domain.js";
+import DomainOperation from "../../entities/DomainOperation.js";
+import ReferralReward from "../../entities/ReferralReward.js";
+import ServiceInvoice from "../../entities/ServiceInvoice.js";
+import GrowthEvent from "../../entities/GrowthEvent.js";
+import {
+  AutomationScenario,
+  ScenarioVersion,
+  UserNotificationState,
+  OfferInstance,
+  AutomationEventLog,
+  ScenarioMetric,
+} from "../../entities/automations/index.js";
 import { Logger } from "../../app/logger.js";
 
 /**
@@ -29,6 +47,22 @@ const AppDataSource = new DataSource({
     Promo,
     VirtualDedicatedServer,
     DomainService,
+    Ticket,
+    Broadcast,
+    BroadcastLog,
+    DedicatedServer,
+    TicketAudit,
+    Domain,
+    DomainOperation,
+    ReferralReward,
+    ServiceInvoice,
+    GrowthEvent,
+    AutomationScenario,
+    ScenarioVersion,
+    UserNotificationState,
+    OfferInstance,
+    AutomationEventLog,
+    ScenarioMetric,
   ],
   enableWAL: true,
   logging: false,

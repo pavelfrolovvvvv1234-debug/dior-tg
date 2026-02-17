@@ -23,16 +23,16 @@ export default class TopUp {
   @Column({ nullable: false, type: "varchar" })
   url!: string;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "real" })
   amount!: number;
 
   @Column({ nullable: true, type: "varchar" })
   orderId!: string;
 
-  @Column({ nullable: false })
-  paymentSystem!: "aaio" | "crystalpay";
+  @Column({ nullable: false, type: "varchar" })
+  paymentSystem!: "crystalpay" | "cryptobot";
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "integer" })
   target_user_id!: number;
 
   @CreateDateColumn()

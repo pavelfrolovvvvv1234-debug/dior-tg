@@ -1,7 +1,7 @@
 @echo off
 REM Quick test script for Windows
 echo ============================================
-echo   DripHosting Bot - Quick Test
+echo   Dior Host Bot - Quick Test
 echo ============================================
 echo.
 
@@ -65,8 +65,6 @@ echo ============================================
 echo   All basic tests passed!
 echo ============================================
 echo.
-echo To start the bot, run:
-echo   start.bat       (old architecture)
-echo   start-new.bat   (new architecture)
+echo To start the bot, run: start.bat
 echo.
 pause

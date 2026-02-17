@@ -103,9 +103,9 @@ echo -e "${GREEN}🚀 Шаг 6: Запуск бота...${NC}"
 
 if [ "$USE_PM2" = true ]; then
     # Проверяем есть ли уже запущенный процесс
-    if pm2 list | grep -q "drip-hosting-bot"; then
+    if pm2 list | grep -q "dior-host-bot"; then
         echo -e "${YELLOW}⚠️  Бот уже запущен. Перезапускаем...${NC}"
-        pm2 restart drip-hosting-bot
+        pm2 restart dior-host-bot
     else
         echo -e "${GREEN}✅ Запускаем новый процесс...${NC}"
         pm2 start ecosystem.config.js
@@ -118,10 +118,10 @@ if [ "$USE_PM2" = true ]; then
     
     echo ""
     echo -e "${GREEN}📋 Полезные команды:${NC}"
-    echo "  pm2 logs drip-hosting-bot          # Просмотр логов"
+    echo "  pm2 logs dior-host-bot          # Просмотр логов"
     echo "  pm2 monit                          # Мониторинг"
-    echo "  pm2 restart drip-hosting-bot       # Перезапуск"
-    echo "  pm2 stop drip-hosting-bot          # Остановка"
+    echo "  pm2 restart dior-host-bot       # Перезапуск"
+    echo "  pm2 stop dior-host-bot          # Остановка"
 else
     echo -e "${YELLOW}⚠️  PM2 не используется. Запустите бота вручную:${NC}"
     echo "  npm start"
@@ -133,7 +133,7 @@ echo ""
 echo -e "${GREEN}🎉 Деплой завершен!${NC}"
 echo ""
 echo -e "${YELLOW}📋 Следующие шаги:${NC}"
-echo "  1. Проверьте логи: pm2 logs drip-hosting-bot"
+echo "  1. Проверьте логи: pm2 logs dior-host-bot"
 echo "  2. Проверьте статус: pm2 status"
 echo "  3. Протестируйте бота в Telegram"
 echo ""

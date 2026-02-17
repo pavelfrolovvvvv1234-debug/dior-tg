@@ -1,6 +1,6 @@
-# DripHosting Bot
+# Dior Host Bot
 
-Production-ready Telegram bot built with grammY, TypeORM, SQLite, and Fluent i18n. Features payment integration (AAIO/CrystalPay), VMManager API, domain management, and service provisioning.
+Production-ready Telegram bot built with grammY, TypeORM, SQLite, and Fluent i18n. Features payment integration (CrystalPay/CryptoBot), VMManager API, domain management, and service provisioning.
 
 ## 📋 Requirements
 
@@ -29,16 +29,11 @@ Edit `.env` with your actual values:
 
 ```env
 BOT_TOKEN="your_telegram_bot_token"
-WEBSITE_URL="https://driphosting.com/"
-SUPPORT_USERNAME_TG="drip_sup"
+WEBSITE_URL="https://diorhost.com/"
+SUPPORT_USERNAME_TG="diorhost"
 BOT_USERNAME="your_bot_username"
 
 # Payment providers (at least one required)
-PAYMENT_AAIO_ID="..."
-PAYMENT_AAIO_SECRET_ONE="..."
-PAYMENT_AAIO_SECRET_TWO="..."
-PAYMENT_AAIO_TOKEN="..."
-
 PAYMENT_CRYSTALPAY_ID="..."
 PAYMENT_CRYSTALPAY_SECRET_ONE="..."
 PAYMENT_CRYSTALPAY_SECRET_TWO="..."
@@ -46,7 +41,7 @@ PAYMENT_CRYSTALPAY_SECRET_TWO="..."
 # VMManager API
 VMM_EMAIL="example@example.com"
 VMM_PASSWORD="your_password"
-VMM_ENDPOINT_URL="https://vm.driphosting.com/"
+VMM_ENDPOINT_URL="https://vm.diorhost.com/"
 
 # Optional
 DOMAINR_TOKEN="domain_checker_token"
@@ -136,7 +131,7 @@ Translation files are located in `locales/{lang}/`:
 
 ```bash
 # Build image
-docker build -t driphosting-bot .
+docker build -t dior-host-bot .
 
 # Run with docker-compose
 docker-compose up -d

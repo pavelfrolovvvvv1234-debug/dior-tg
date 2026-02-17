@@ -1,7 +1,7 @@
 @echo off
 REM Quick start script for Windows
 echo ============================================
-echo   DripHosting Bot - Quick Start
+echo   Dior Host Bot - Quick Start
 echo ============================================
 echo.
 

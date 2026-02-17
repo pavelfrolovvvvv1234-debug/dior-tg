@@ -9,10 +9,6 @@ declare global {
       IS_WEBHOOK?: string;
       PORT_WEBHOOK?: string;
       DOMAINR_TOKEN?: string;
-      PAYMENT_AAIO_ID: string;
-      PAYMENT_AAIO_SECRET_ONE: string;
-      PAYMENT_AAIO_SECRET_TWO: string;
-      PAYMENT_AAIO_TOKEN: string;
       PAYMENT_CRYSTALPAY_ID: string;
       PAYMENT_CRYSTALPAY_SECRET_ONE: string;
       PAYMENT_CRYSTALPAY_SECRET_TWO: string;

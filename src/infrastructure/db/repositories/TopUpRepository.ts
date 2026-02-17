@@ -5,9 +5,9 @@
  */
 
 import { DataSource } from "typeorm";
-import TopUp, { TopUpStatus } from "../../../entities/TopUp.js";
-import { BaseRepository } from "./base.js";
-import { NotFoundError } from "../../../shared/errors/index.js";
+import TopUp, { TopUpStatus } from "../../../entities/TopUp";
+import { BaseRepository } from "./base";
+import { NotFoundError } from "../../../shared/errors/index";
 
 /**
  * TopUp repository with payment-specific operations.
@@ -49,7 +49,7 @@ export class TopUpRepository extends BaseRepository<TopUp> {
    * Find top-ups by payment system.
    */
   async findByPaymentSystem(
-    paymentSystem: "aaio" | "crystalpay"
+    paymentSystem: "crystalpay" | "cryptobot"
   ): Promise<TopUp[]> {
     return this.repository.find({
       where: { paymentSystem },

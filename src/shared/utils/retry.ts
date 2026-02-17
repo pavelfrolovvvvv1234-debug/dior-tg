@@ -4,7 +4,7 @@
  * @module shared/utils/retry
  */
 
-import { Logger } from "../../app/logger.js";
+import { Logger } from "../../app/logger";
 
 export interface RetryOptions {
   maxAttempts?: number;

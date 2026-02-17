@@ -10,7 +10,7 @@ export default class DomainService {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   domain!: string;
 
   // Zone list
@@ -29,21 +29,21 @@ export default class DomainService {
   // guru
   // link
   // info
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   zone!: string;
 
-  @Column()
+  @Column({ type: "text", nullable: false })
   nameservers!: string;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "integer" })
   target_user_id!: number;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "datetime" })
   expire_at!: Date;
 
   @CreateDateColumn()
   created_at!: Date;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "datetime" })
   payday_at!: Date;
 }

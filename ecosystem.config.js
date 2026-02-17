@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "drip-hosting-bot",
+      name: "dior-host-bot",
       script: "dist/index.js",
       interpreter: "node",
       interpreter_args: "--no-deprecation",

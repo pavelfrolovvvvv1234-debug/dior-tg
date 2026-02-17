@@ -5,9 +5,9 @@
  */
 
 import { DataSource, LessThanOrEqual } from "typeorm";
-import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
-import { BaseRepository } from "./base.js";
-import { NotFoundError } from "../../../shared/errors/index.js";
+import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer";
+import { BaseRepository } from "./base";
+import { NotFoundError } from "../../../shared/errors/index";
 
 /**
  * VDS repository with VDS-specific operations.

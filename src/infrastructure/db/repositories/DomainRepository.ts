@@ -1,107 +1,66 @@
 /**
- * DomainRequest repository for domain management.
+ * Domain repository for database operations.
  *
  * @module infrastructure/db/repositories/DomainRepository
  */
 
-import { DataSource, LessThanOrEqual } from "typeorm";
-import DomainRequest, {
-  DomainRequestStatus,
-} from "../../../entities/DomainRequest.js";
-import { BaseRepository } from "./base.js";
-import { NotFoundError } from "../../../shared/errors/index.js";
+import { DataSource, Repository } from "typeorm";
+import Domain, { DomainStatus } from "../../../entities/Domain";
+import { BaseRepository } from "./base";
 
 /**
- * Domain repository with domain-specific operations.
+ * Domain repository for managing domain entities.
  */
-export class DomainRepository extends BaseRepository<DomainRequest> {
+export class DomainRepository extends BaseRepository<Domain> {
   constructor(dataSource: DataSource) {
-    super(dataSource, DomainRequest);
+    super(dataSource, Domain);
   }
 
   /**
-   * Find domain requests by user ID.
+   * Find domain by ID.
    */
-  async findByUserId(userId: number): Promise<DomainRequest[]> {
-    return this.repository.find({
-      where: { target_user_id: userId },
+  async findById(id: number): Promise<Domain | null> {
+    return this.getRepository().findOne({ where: { id } });
+  }
+
+  /**
+   * Find domains by user ID.
+   */
+  async findByUserId(userId: number): Promise<Domain[]> {
+    return this.getRepository().find({
+      where: { userId },
       order: { createdAt: "DESC" },
     });
   }
 
   /**
-   * Find domain requests by status.
+   * Find domain by provider domain ID.
    */
-  async findByStatus(
-    status: DomainRequestStatus
-  ): Promise<DomainRequest[]> {
-    return this.repository.find({
+  async findByProviderDomainId(providerDomainId: string): Promise<Domain | null> {
+    return this.getRepository().findOne({
+      where: { providerDomainId },
+    });
+  }
+
+  /**
+   * Find domains by status.
+   */
+  async findByStatus(status: DomainStatus): Promise<Domain[]> {
+    return this.getRepository().find({
       where: { status },
-      order: { createdAt: "DESC" },
+      order: { createdAt: "ASC" },
     });
   }
 
   /**
-   * Find pending domain requests (InProgress).
+   * Find domains requiring payment (expired or about to expire).
    */
-  async findPending(): Promise<DomainRequest[]> {
-    return this.findByStatus(DomainRequestStatus.InProgress);
-  }
-
-  /**
-   * Find domains that need payment (payday_at <= now, status: Completed).
-   */
-  async findRequiringPayment(): Promise<DomainRequest[]> {
-    return this.repository.find({
-      where: {
-        payday_at: LessThanOrEqual(new Date()),
-        status: DomainRequestStatus.Completed,
-      },
+  async findRequiringPayment(): Promise<Domain[]> {
+    const repo = this.getRepository();
+    // This would need a more complex query in production
+    // For now, return domains with REGISTERED status
+    return repo.find({
+      where: { status: DomainStatus.REGISTERED },
     });
-  }
-
-  /**
-   * Update domain status.
-   */
-  async updateStatus(
-    domainId: number,
-    status: DomainRequestStatus
-  ): Promise<DomainRequest> {
-    const domain = await this.findById(domainId);
-    if (!domain) {
-      throw new NotFoundError("DomainRequest", domainId);
-    }
-    domain.status = status;
-    return this.save(domain);
-  }
-
-  /**
-   * Approve domain request.
-   */
-  async approve(
-    domainId: number,
-    expireAt: Date,
-    paydayAt: Date
-  ): Promise<DomainRequest> {
-    const domain = await this.findById(domainId);
-    if (!domain) {
-      throw new NotFoundError("DomainRequest", domainId);
-    }
-    domain.status = DomainRequestStatus.Completed;
-    domain.expireAt = expireAt;
-    domain.paydayAt = paydayAt;
-    return this.save(domain);
-  }
-
-  /**
-   * Reject domain request.
-   */
-  async reject(domainId: number): Promise<DomainRequest> {
-    const domain = await this.findById(domainId);
-    if (!domain) {
-      throw new NotFoundError("DomainRequest", domainId);
-    }
-    domain.status = DomainRequestStatus.Failed;
-    return this.save(domain);
   }
 }

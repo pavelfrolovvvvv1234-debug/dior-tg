@@ -16,52 +16,59 @@ export default class VirtualDedicatedServer {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ type: "integer", nullable: false })
   vdsId!: number;
 
-  @Column({ default: "root" })
+  @Column({ default: "root", type: "varchar", nullable: false })
   login!: string;
 
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   password!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "varchar" })
   ipv4Addr!: string;
 
-  @Column()
+  @Column({ type: "integer", nullable: false })
   cpuCount!: number;
 
   // Mbits/ps
-  @Column()
+  @Column({ type: "integer", nullable: false })
   networkSpeed!: number;
 
-  @Column()
+  @Column({ type: "boolean", nullable: false })
   isBulletproof!: boolean;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "datetime" })
   payDayAt!: Date;
 
   // Gb
-  @Column()
+  @Column({ type: "integer", nullable: false })
   ramSize!: number;
 
-  @Column()
+  @Column({ type: "integer", nullable: false })
   diskSize!: number;
 
-  @Column()
+  @Column({ type: "integer", nullable: false })
   lastOsId!: number;
 
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   rateName!: string;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "datetime" })
   expireAt!: Date;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "integer" })
   targetUserId!: number;
 
   @Column({ nullable: false, type: "real" })
   renewalPrice!: number;
+
+  @Column({ nullable: true, type: "varchar" })
+  displayName!: string | null;
+
+  /** Set when VPS was purchased as part of an infrastructure bundle (e.g. "1m", "3m"). */
+  @Column({ nullable: true, type: "varchar" })
+  bundleType!: string | null;
 
   @CreateDateColumn()
   createdAt!: Date;

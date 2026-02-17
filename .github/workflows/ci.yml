@@ -84,10 +84,6 @@ jobs:
           BOT_USERNAME: ${{ secrets.BOT_USERNAME || 'dummy_bot' }}
           WEBSITE_URL: https://example.com
           SUPPORT_USERNAME_TG: support
-          PAYMENT_AAIO_ID: dummy
-          PAYMENT_AAIO_SECRET_ONE: dummy
-          PAYMENT_AAIO_SECRET_TWO: dummy
-          PAYMENT_AAIO_TOKEN: dummy
           PAYMENT_CRYSTALPAY_ID: dummy
           PAYMENT_CRYSTALPAY_SECRET_ONE: dummy
           PAYMENT_CRYSTALPAY_SECRET_TWO: dummy

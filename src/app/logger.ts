@@ -4,7 +4,7 @@
  * @module app/logger
  */
 
-import { isDevelopment } from "./config.js";
+import { isDevelopment } from "./config";
 
 export enum LogLevel {
   DEBUG = 0,

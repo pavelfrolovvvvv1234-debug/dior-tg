@@ -90,8 +90,8 @@ jobs:
             npm ci --production
             
             # Перезапуск или запуск через PM2
-            if pm2 list | grep -q "drip-hosting-bot"; then
-              pm2 restart drip-hosting-bot
+            if pm2 list | grep -q "dior-host-bot"; then
+              pm2 restart dior-host-bot
             else
               pm2 start ecosystem.config.js
               pm2 save
@@ -99,7 +99,7 @@ jobs:
             
             # Показываем статус
             pm2 status
-            pm2 logs drip-hosting-bot --lines 20
+            pm2 logs dior-host-bot --lines 20
 
   docker-build:
     name: Build Docker Image
@@ -126,8 +126,8 @@ jobs:
           context: .
           push: ${{ github.event_name != 'pull_request' && secrets.DOCKER_USERNAME != '' }}
           tags: |
-            driphosting-bot:latest
-            driphosting-bot:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME && format('{0}/driphosting-bot:latest', secrets.DOCKER_USERNAME) }}
+            dior-host-bot:latest
+            dior-host-bot:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME && format('{0}/dior-host-bot:latest', secrets.DOCKER_USERNAME) }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -237,7 +237,7 @@ export class VMManager {
 
   constructor(private email: string, private password: string) {
     this.login();
-    console.info("[DripHosting Bot]: Created VMManager API instance");
+    console.info("[Dior Host Bot]: Created VMManager API instance");
 
     setInterval(() => {
       this.login();
@@ -246,7 +246,7 @@ export class VMManager {
 
   async login(): Promise<void> {
     try {
-      console.info("[DripHosting Bot]: Trying authorization");
+      console.info("[Dior Host Bot]: Trying authorization");
       const { status, data } = await axios.post<CreatePublicTokenResponse>(
         `${process.env.VMM_ENDPOINT_URL}auth/v4/public/token`,
         {

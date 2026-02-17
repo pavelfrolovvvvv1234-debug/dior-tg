@@ -1,6 +1,6 @@
 abuse-domains-service = 🔒 <strong>Bulletproof Domain</strong> – the best choice when facing domain blocking risks from regular registrars. <u>No KYC</u> and <u>linked registration</u> in two clicks. We register domains <u>for any content type</u>.
 
- 💰 Price: $70/year (any zone from list)
+ 💰 Price: $80/year (any zone from list)
  ♻️ Renewals available
  🔄 Transfer via support
 
@@ -15,8 +15,12 @@ abuse-vds-service = 🔥 <strong>Bulletproof Virtual Private Server</strong> (<u
  🚀 Internet speed: 150 Mbit/sec
  🔒 No logs – your privacy protected
 
-dedicated-server = 🖥 Dedicated Server – a fully controlled resource with no neighbors or limitations. Delivers high performance, stability, and flexible configuration for any tasks.
+dedicated-server =
+  📃 Select the category of services to purchase
 
- 🚀 Internet speed: 1 Gbit/sec
- 🔒 No logs – your privacy protected
- ⛔️ Abuse reports not accepted
+  🖥 Dedicated Server
+
+abuse-dedicated-server =
+  📃 Select the category of services to purchase
+
+  🖥 Dedicated Server

@@ -112,9 +112,9 @@ Write-Host "🚀 Шаг 6: Запуск бота..." -ForegroundColor Green
 if ($usePm2) {
     # Проверяем есть ли уже запущенный процесс
     $pm2List = pm2 list 2>&1
-    if ($pm2List -match "drip-hosting-bot") {
+    if ($pm2List -match "dior-host-bot") {
         Write-Host "⚠️  Бот уже запущен. Перезапускаем..." -ForegroundColor Yellow
-        pm2 restart drip-hosting-bot
+        pm2 restart dior-host-bot
     } else {
         Write-Host "✅ Запускаем новый процесс..." -ForegroundColor Green
         pm2 start ecosystem.config.js
@@ -128,10 +128,10 @@ if ($usePm2) {
     
     Write-Host ""
     Write-Host "📋 Полезные команды:" -ForegroundColor Green
-    Write-Host "  pm2 logs drip-hosting-bot          # Просмотр логов" -ForegroundColor Gray
+    Write-Host "  pm2 logs dior-host-bot          # Просмотр логов" -ForegroundColor Gray
     Write-Host "  pm2 monit                          # Мониторинг" -ForegroundColor Gray
-    Write-Host "  pm2 restart drip-hosting-bot       # Перезапуск" -ForegroundColor Gray
-    Write-Host "  pm2 stop drip-hosting-bot          # Остановка" -ForegroundColor Gray
+    Write-Host "  pm2 restart dior-host-bot       # Перезапуск" -ForegroundColor Gray
+    Write-Host "  pm2 stop dior-host-bot          # Остановка" -ForegroundColor Gray
 } else {
     Write-Host "⚠️  PM2 не используется. Запустите бота вручную:" -ForegroundColor Yellow
     Write-Host "  npm start" -ForegroundColor Gray
@@ -143,7 +143,7 @@ Write-Host ""
 Write-Host "🎉 Деплой завершен!" -ForegroundColor Green
 Write-Host ""
 Write-Host "📋 Следующие шаги:" -ForegroundColor Yellow
-Write-Host "  1. Проверьте логи: pm2 logs drip-hosting-bot" -ForegroundColor Gray
+    Write-Host "  1. Проверьте логи: pm2 logs dior-host-bot" -ForegroundColor Gray
 Write-Host "  2. Проверьте статус: pm2 status" -ForegroundColor Gray
 Write-Host "  3. Протестируйте бота в Telegram" -ForegroundColor Gray
 Write-Host ""

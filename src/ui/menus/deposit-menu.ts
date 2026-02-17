@@ -4,7 +4,8 @@
  * @module ui/menus/deposit-menu
  */
 
-import { Menu, InlineKeyboard } from "@grammyjs/menu";
+import { Menu } from "@grammyjs/menu";
+import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import type { AppConversation } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
@@ -14,8 +15,9 @@ import { BillingService } from "../../domain/billing/BillingService.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository.js";
 import { createPaymentProvider } from "../../infrastructure/payments/factory.js";
+import { Logger } from "../../app/logger.js";
 
-const depositValuesOptions = ["10$", "25$", "30$", "50$", "60$", "100$", "150$"];
+const depositValuesOptions = ["10$", "30$", "50$", "100$"];
 
 /**
  * Deposit menu with predefined amounts.
@@ -49,11 +51,22 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
       }
     }
 
+    range.row();
     range.text(
       (ctx) => ctx.t("button-any-sum"),
       async (ctx) => {
-        await ctx.conversation.enter("depositMoneyConversation");
-        ctx.menu.back();
+        await ctx.answerCallbackQuery().catch(() => {});
+        try {
+          await ctx.conversation.enter("depositMoneyConversation");
+        } catch (error: any) {
+          Logger.error("Failed to start deposit money conversation:", error);
+          const session = await ctx.session;
+          session.other.deposit.awaitingAmount = true;
+          await ctx.reply(ctx.t("deposit-money-enter-sum"), {
+            reply_markup: new InlineKeyboard().text(ctx.t("button-cancel"), "deposit-cancel"),
+            parse_mode: "HTML",
+          });
+        }
       }
     );
   })
@@ -64,18 +77,12 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
       const session = await ctx.session;
       if (!ctx.chat) return;
 
-      const renderer = ScreenRenderer.fromContext(ctx);
-      const screen = renderer.renderProfile({
-        id: session.main.user.id,
-        name:
-          ctx.chat.username ||
-          `${ctx.chat.first_name || ""} ${ctx.chat.last_name || ""}`.trim(),
-        balance: session.main.user.balance,
-      });
-
-      await ctx.editMessageText(screen.text, {
-        reply_markup: screen.keyboard,
-        parse_mode: screen.parse_mode,
+      const { profileMenu, getProfileText } = await import("./profile-menu.js");
+      const profileText = await getProfileText(ctx);
+      await ctx.editMessageText(profileText, {
+        reply_markup: profileMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
       });
     }
   );
@@ -86,12 +93,24 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
 export const depositPaymentSystemChoose = new Menu<AppContext>(
   "deposit-menu-payment-choose"
 )
-  .text("💸 AAIO", async (ctx) => {
-    await handlePaymentSelection(ctx, "aaio");
+  .text((ctx) => ctx.t("button-pay"), async (ctx) => {
+    const session = await ctx.session;
+    const method = session.main.topupMethod;
+
+    if (method === "cryptobot") {
+      await handlePaymentSelection(ctx, "cryptobot");
+      return;
+    }
+
+    await handlePaymentSelection(ctx, "crystalpay");
   })
   .row()
-  .text("💎 CrystalPay", async (ctx) => {
-    await handlePaymentSelection(ctx, "crystalpay");
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(ctx.t("topup-select-amount"), {
+      reply_markup: depositMenu,
+      parse_mode: "HTML",
+    });
   });
 
 /**
@@ -99,7 +118,7 @@ export const depositPaymentSystemChoose = new Menu<AppContext>(
  */
 async function handlePaymentSelection(
   ctx: AppContext,
-  provider: "aaio" | "crystalpay"
+  provider: "crystalpay" | "cryptobot"
 ): Promise<void> {
   if (!ctx.chat) return;
 
@@ -134,10 +153,10 @@ async function handlePaymentSelection(
     // Update message with payment link
     if (topUp.url) {
       await ctx.editMessageText(ctx.t("payment-information"), {
-        reply_markup: new InlineKeyboard().url(
-          ctx.t("payment-next-url-label"),
-          topUp.url
-        ),
+        reply_markup: new InlineKeyboard()
+          .url(ctx.t("payment-next-url-label"), topUp.url)
+          .row()
+          .text(ctx.t("button-back"), "topup_back_to_amount"),
         parse_mode: "HTML",
       });
     } else {
@@ -168,6 +187,7 @@ export async function depositMoneyConversation(
   );
 
   await ctx.reply(message, {
+    reply_markup: new InlineKeyboard().text(ctx.t("button-cancel"), "deposit-cancel"),
     parse_mode: "HTML",
   });
 

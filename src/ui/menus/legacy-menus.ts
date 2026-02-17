@@ -17,7 +17,7 @@ export async function getLegacyMenus() {
   const servicesMenu = await import("../../helpers/services-menu.js");
   const depositMoney = await import("../../helpers/deposit-money.js");
   const manageServices = await import("../../helpers/manage-services.js");
-  const usersControl = await import("../../helpers/users-control.js");
+  const usersControl = await import("../../helpers/users-control");
   const promocodeInput = await import("../../helpers/promocode-input.js");
   const domainReg = await import("../../helpers/domain-registraton.js");
   const promotePerms = await import("../../helpers/promote-permissions.js");
@@ -40,29 +40,6 @@ export async function getLegacyMenus() {
 export function createMainMenu(): Menu<AppContext> {
   return new Menu<AppContext>("main-menu")
     .submenu(
-      (ctx) => ctx.t("button-personal-profile"),
-      "profile-menu",
-      async (ctx) => {
-        const session = await ctx.session;
-        if (ctx.hasChatType("private")) {
-          await ctx.editMessageText(
-            ctx.t("profile", {
-              balance: session.main.user.balance,
-              id: session.main.user.id,
-              name:
-                ctx.chat.username ||
-                `${ctx.chat.first_name || ""} ${ctx.chat.last_name || ""}`.trim(),
-            }),
-            {
-              parse_mode: "HTML",
-            }
-          );
-        }
-      }
-    )
-    .submenu((ctx) => ctx.t("button-change-locale"), "change-locale-menu")
-    .row()
-    .submenu(
       (ctx) => ctx.t("button-purchase"),
       "services-menu",
       async (ctx) => {
@@ -71,15 +48,30 @@ export function createMainMenu(): Menu<AppContext> {
         });
       }
     )
+    .row()
+    .submenu(
+      (ctx) => ctx.t("button-personal-profile"),
+      "profile-menu",
+      async (ctx) => {
+        const session = await ctx.session;
+        if (ctx.hasChatType("private")) {
+          const { profileMenu, getProfileText } = await import("./profile-menu.js");
+          const profileText = await getProfileText(ctx);
+          await ctx.editMessageText(profileText, {
+            reply_markup: profileMenu,
+            parse_mode: "HTML",
+            link_preview_options: { is_disabled: true },
+          });
+        }
+      }
+    )
     .submenu(
       (ctx) => ctx.t("button-manage-services"),
       "manage-services-menu",
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          ctx.t("manage-services-header", {
-            balance: session.main.user.balance,
-          }),
+          ctx.t("manage-services-header"),
           {
             parse_mode: "HTML",
           }
@@ -93,6 +85,7 @@ export function createMainMenu(): Menu<AppContext> {
       async (ctx) => {
         await ctx.editMessageText(ctx.t("support"), {
           parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
         });
       }
     )

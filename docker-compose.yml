@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: drip-hosting-bot
+    container_name: dior-host-bot
     restart: unless-stopped
     env_file:
       - .env

@@ -31,10 +31,6 @@ jobs:
           echo "BOT_USERNAME=test_bot" >> .env.test
           echo "WEBSITE_URL=https://example.com" >> .env.test
           echo "SUPPORT_USERNAME_TG=test_support" >> .env.test
-          echo "PAYMENT_AAIO_ID=test" >> .env.test
-          echo "PAYMENT_AAIO_SECRET_ONE=test" >> .env.test
-          echo "PAYMENT_AAIO_SECRET_TWO=test" >> .env.test
-          echo "PAYMENT_AAIO_TOKEN=test" >> .env.test
           echo "PAYMENT_CRYSTALPAY_ID=test" >> .env.test
           echo "PAYMENT_CRYSTALPAY_SECRET_ONE=test" >> .env.test
           echo "PAYMENT_CRYSTALPAY_SECRET_TWO=test" >> .env.test

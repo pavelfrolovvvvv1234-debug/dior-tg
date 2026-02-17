@@ -18,10 +18,10 @@ export default class DomainRequest {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   domainName!: string;
 
-  @Column()
+  @Column({ type: "varchar", nullable: false })
   zone!: string;
 
   @Column({
@@ -31,19 +31,19 @@ export default class DomainRequest {
   })
   status!: DomainRequestStatus;
 
-  @Column({ nullable: false })
+  @Column({ nullable: false, type: "integer" })
   target_user_id!: number;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "text" })
   additionalInformation!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "integer" })
   mod_id!: number;
 
   @Column({ nullable: false, type: "real" })
   price!: number;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "datetime" })
   expireAt!: Date;
 
   @CreateDateColumn()
@@ -52,7 +52,7 @@ export default class DomainRequest {
   @UpdateDateColumn()
   lastUpdateAt!: Date;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "datetime" })
   payday_at!: Date;
 }
 

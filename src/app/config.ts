@@ -24,12 +24,6 @@ const envSchema = z.object({
   // Domain Checker (optional)
   DOMAINR_TOKEN: z.string().optional(),
 
-  // Payment Provider: AAIO
-  PAYMENT_AAIO_ID: z.string().min(1, "PAYMENT_AAIO_ID is required"),
-  PAYMENT_AAIO_SECRET_ONE: z.string().min(1, "PAYMENT_AAIO_SECRET_ONE is required"),
-  PAYMENT_AAIO_SECRET_TWO: z.string().min(1, "PAYMENT_AAIO_SECRET_TWO is required"),
-  PAYMENT_AAIO_TOKEN: z.string().min(1, "PAYMENT_AAIO_TOKEN is required"),
-
   // Payment Provider: CrystalPay
   PAYMENT_CRYSTALPAY_ID: z.string().min(1, "PAYMENT_CRYSTALPAY_ID is required"),
   PAYMENT_CRYSTALPAY_SECRET_ONE: z.string().min(1, "PAYMENT_CRYSTALPAY_SECRET_ONE is required"),
