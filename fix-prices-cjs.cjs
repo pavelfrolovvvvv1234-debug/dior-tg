@@ -17,8 +17,16 @@ if (!fs.existsSync(pricesJs)) {
 
 let code = fs.readFileSync(pricesJs, "utf-8");
 code = code
+  // Remove exports.__esModule
   .replace(/Object\.defineProperty\(exports,\s*["']__esModule["'],\s*\{\s*value:\s*true\s*\}\);?\s*\n?/g, "")
-  .replace(/exports\.default\s*=/g, "module.exports =");
+  // Replace exports.default with module.exports
+  .replace(/exports\.default\s*=/g, "module.exports =")
+  // Remove __dirname declaration (it's auto-available in CommonJS)
+  .replace(/const\s+__dirname\s*=\s*\(0,\s*[^)]+\)\.dirname\(\(0,\s*[^)]+\)\.fileURLToPath\(import\.meta\.url\)\);?\s*\n?/g, "")
+  // Remove import.meta.url usage if any remains
+  .replace(/import\.meta\.url/g, "undefined")
+  // Remove unused node_url import if present
+  .replace(/const\s+node_url_1\s*=\s*require\(["']node:url["']\);?\s*\n?/g, "");
 fs.writeFileSync(pricesCjs, code, "utf-8");
 fs.unlinkSync(pricesJs);
 console.log("fix-prices-cjs: wrote dist/helpers/prices.cjs, removed prices.js");

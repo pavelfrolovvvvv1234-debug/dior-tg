@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon",
-    "fix-prices": "node -e \"const fs=require('fs'),p=require('path');const d=p.join(process.cwd(),'dist'),pj=p.join(d,'helpers','prices.js'),pc=p.join(d,'helpers','prices.cjs');if(!fs.existsSync(pj)){process.exit(0);}let c=fs.readFileSync(pj,'utf-8');c=c.replace(/Object\\.defineProperty\\(exports,\\s*[\\\"']__esModule[\\\"'],\\s*\\{\\s*value:\\s*true\\s*\\}\\);?\\s*\\n?/g,'').replace(/exports\\.default\\s*=/g,'module.exports =');fs.writeFileSync(pc,c,'utf-8');fs.unlinkSync(pj);console.log('fix-prices-cjs: wrote dist/helpers/prices.cjs');function w(dir){try{fs.readdirSync(dir,{withFileTypes:true}).forEach(e=>{const f=p.join(dir,e.name);if(e.isDirectory())w(f);else if(e.name.endsWith('.js')){let ct=fs.readFileSync(f,'utf-8'),b=ct;ct=ct.replace(/require\\s*\\(\\s*([\\\"'])([^\\\"']*helpers\\/prices)(\\.js)?\\1\\s*\\)/g,(_,q,p)=>'require('+q+p+'.cjs'+q+')').replace(/require\\s*\\(\\s*([\\\"'])\\.\\/prices(\\.js)?\\1\\s*\\)/g,(_,q)=>'require('+q+'./prices.cjs'+q+')');if(ct!==b){fs.writeFileSync(f,ct,'utf-8');console.log('fix-prices-cjs: patched',p.relative(d,f));}}}catch(e){}}w(d);\"",
+    "fix-prices": "node fix-prices-cjs.cjs || node scripts/fix-prices-cjs.cjs || echo 'fix-prices script not found, skipping'",
     "build": "tsc || echo. && tsc-alias -p tsconfig.json && npm run fix-prices",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "start": "node --no-deprecation dist/index.js",
