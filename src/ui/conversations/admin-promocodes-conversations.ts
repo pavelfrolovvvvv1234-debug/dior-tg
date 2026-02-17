@@ -48,8 +48,8 @@ export const registerPromoConversations = (bot: Bot<AppContext>): void => {
     return;
   }
   registeredPromoConversations.add(bot);
-  bot.use(createConversation(promoCreateConversation, "promoCreateConversation"));
-  bot.use(createConversation(promoEditConversation, "promoEditConversation"));
+  bot.use(createConversation(promoCreateConversation as any, "promoCreateConversation"));
+  bot.use(createConversation(promoEditConversation as any, "promoEditConversation"));
 };
 
 export async function promoCreateConversation(

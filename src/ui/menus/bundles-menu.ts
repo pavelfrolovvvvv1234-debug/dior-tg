@@ -148,7 +148,7 @@ async function showBundleDetails(ctx: AppContext, bundleType: BundleType, period
     const user = await userRepo.findOneBy({ id: (await ctx.session).main.user.id });
     const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
 
-    const pricing = await calculateBundlePrice(config, hasPrime);
+    const pricing = await calculateBundlePrice(config, hasPrime ?? false);
 
     const isStarterShield = bundleType === BundleType.STARTER_SHIELD;
     const isProPack = bundleType === BundleType.PRO_INFRASTRUCTURE_PACK;
@@ -236,7 +236,7 @@ async function showBundleDetails(ctx: AppContext, bundleType: BundleType, period
               default:
                 return "";
             }
-          })();
+          });
           return [
             `<b>${ctx.t(config.nameKey)}</b>`,
             "",

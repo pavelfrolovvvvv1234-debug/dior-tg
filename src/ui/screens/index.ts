@@ -4,5 +4,5 @@
  * @module ui/screens
  */
 
-export * from "./types.js";
-export * from "./renderer.js";
+export type { ScreenRendererFn, ScreenData, RenderedScreen } from "./types.js";
+export { ScreenRenderer } from "./renderer.js";

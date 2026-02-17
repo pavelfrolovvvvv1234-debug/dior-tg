@@ -22,7 +22,8 @@ const DEFAULT_PRIME_CHANNEL_INVITE = "https://t.me/+C27tBPXXpj40ZGE6";
 export function buildPrimeBlockText(
   ctx: AppContext,
   primeActiveUntil: Date | null,
-  monthlyPrice: string = PRIME_MONTHLY_PRICE
+  monthlyPrice: string = PRIME_MONTHLY_PRICE,
+  locale?: string
 ): string {
   const lines = [
     ctx.t("prime-subscription-title"),
@@ -34,7 +35,8 @@ export function buildPrimeBlockText(
   const now = new Date();
   const isActive = primeActiveUntil && new Date(primeActiveUntil) > now;
   if (isActive && primeActiveUntil) {
-    const dateStr = new Date(primeActiveUntil).toLocaleDateString(ctx.session?.main?.locale === "en" ? "en-US" : "ru-RU", {
+    const loc = locale ?? "ru";
+    const dateStr = new Date(primeActiveUntil).toLocaleDateString(loc === "en" ? "en-US" : "ru-RU", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -63,7 +65,7 @@ export async function getDomainsListWithPrimeScreen(
   const userRepo = new UserRepository(ctx.appDataSource);
   const user = await userRepo.findById(session.main.user.id);
   const primeActiveUntil = user?.primeActiveUntil ?? null;
-  const fullText = buildPrimeBlockText(ctx, primeActiveUntil);
+  const fullText = buildPrimeBlockText(ctx, primeActiveUntil, undefined, session?.main?.locale);
 
   const keyboard = new InlineKeyboard();
   const hasActivePrime = primeActiveUntil && new Date(primeActiveUntil) > new Date();

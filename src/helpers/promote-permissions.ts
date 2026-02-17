@@ -1,12 +1,12 @@
 import { Middleware } from "grammy";
-import { MyAppContext } from "..";
+import type { AppContext } from "../shared/types/context";
 import TempLink from "@entities/TempLink";
 import User, { Role } from "@entities/User";
 import { notifyAllAdminsAboutPromotedUser } from "@helpers/notifier";
 
 export const PREFIX_PROMOTE = "promote_";
 
-export function promotePermissions(): Middleware<MyAppContext> {
+export function promotePermissions(): Middleware<AppContext> {
   return async (ctx, next) => {
     const session = await ctx.session;
 

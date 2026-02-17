@@ -30,7 +30,7 @@ export function setupAutomationEventHandler(
       }
       extra.reply_markup = kb;
     }
-    await bot.api.sendMessage(telegramId, text, extra).catch(() => {});
+    await bot.api.sendMessage(telegramId, text, extra as Parameters<typeof bot.api.sendMessage>[2]).catch(() => {});
   };
 
   const handler = async (payload: AutomationEventPayload): Promise<void> => {

@@ -206,20 +206,20 @@ export async function handleBundleConfirmPurchase(ctx: AppContext): Promise<void
           context.vpsOsId,
           registerDomainFn
         )
-      : await bundleService.purchaseBundleDomainOnly(userId, context, context.domainName, registerDomainFn);
+      : await bundleService.purchaseBundleDomainOnly(userId, context, context.domainName, registerDomainFn!);
 
     if (session.other.bundle) delete session.other.bundle;
 
     if (result.success) {
       const msg = result.vds
         ? (ctx.t("bundle-purchase-success", {
-            domain: result.domain?.domain,
+            domain: result.domain?.domain ?? "",
             vdsId: result.vds?.vdsId,
             ip: result.vds?.ipv4Addr,
           }) ||
           `Пакет успешно приобретён.\nДомен: ${result.domain?.domain}\nVPS ID: ${result.vds?.vdsId}\nIP: ${result.vds?.ipv4Addr}`)
         : (ctx.t("bundle-purchase-domain-only", {
-            domain: result.domain?.domain,
+            domain: result.domain?.domain ?? "",
           }) ||
           `Домен <b>${result.domain?.domain}</b> успешно зарегистрирован.\n\nVPS временно недоступен (не подключены данные от VMManager). Когда подключите — пакеты с VPS заработают.`);
       await ctx.reply(msg, { parse_mode: "HTML" });

@@ -23,9 +23,9 @@ export interface RenderedScreen {
 }
 
 /**
- * Screen renderer function.
+ * Screen renderer function type.
  */
-export type ScreenRenderer = (
+export type ScreenRendererFn = (
   data: ScreenData,
   locale: string
 ) => RenderedScreen | Promise<RenderedScreen>;

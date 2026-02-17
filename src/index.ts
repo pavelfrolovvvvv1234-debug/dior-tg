@@ -3,7 +3,6 @@ import {
   Api,
   Bot,
   Context,
-  InlineKeyboard,
   LazySessionFlavor,
   MemorySessionStorage,
   RawApi,
@@ -16,9 +15,9 @@ import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
-import { getAppDataSource } from "@/database";
-import User, { Role, UserStatus } from "@entities/User";
-import { createLink } from "@entities/TempLink";
+import { getAppDataSource } from "./database";
+import User, { Role, UserStatus } from "./entities/User";
+import { createLink } from "./entities/TempLink";
 import {
   PREFIX_PROMOTE,
   promotePermissions,
@@ -52,19 +51,17 @@ import {
   vdsTypeMenu,
   dedicatedServersMenu,
   dedicatedSelectedServerMenu,
-} from "@helpers/services-menu";
-import { renameVdsConversation } from "@helpers/manage-services";
+} from "./helpers/services-menu";
+import { renameVdsConversation } from "./helpers/manage-services";
 import {
   depositMenu,
   depositMoneyConversation,
   depositPaymentSystemChoose,
   topupMethodMenu,
-} from "@helpers/deposit-money";
+} from "./helpers/deposit-money";
 // Admin menu will be loaded dynamically to avoid circular dependencies
 // Import language select menu - will be loaded dynamically in /start command
 import {
-  type Conversation,
-  type ConversationFlavor,
   conversations,
   createConversation,
 } from "@grammyjs/conversations";
@@ -72,7 +69,7 @@ import { domainRegisterConversation } from "./ui/conversations/domain-register-c
 import { domainUpdateNsConversation } from "./ui/conversations/domain-update-ns-conversation";
 import { withdrawRequestConversation } from "./ui/conversations/withdraw-conversation";
 import { registerPromoConversations } from "./ui/conversations/admin-promocodes-conversations.js";
-import { startCheckTopUpStatus } from "@api/payment";
+import { startCheckTopUpStatus } from "./api/payment";
 import { ServicePaymentStatusChecker } from "./domain/billing/ServicePaymentStatusChecker.js";
 import { InlineKeyboard } from "grammy";
 import {
@@ -82,38 +79,26 @@ import {
   vdsManageServiceMenu,
   vdsManageSpecific,
   vdsReinstallOs,
-} from "@helpers/manage-services";
-import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
-import Promo from "@entities/Promo";
-import { handlePromocodeInput, promocodeQuestion } from "@helpers/promocode-input";
-import { registerDomainRegistrationMiddleware } from "@helpers/domain-registraton";
+} from "./helpers/manage-services";
+import DomainRequest, { DomainRequestStatus } from "./entities/DomainRequest";
+import Promo from "./entities/Promo";
+import { handlePromocodeInput, promocodeQuestion } from "./helpers/promocode-input";
+import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 import ms from "./lib/multims";
-import { GetOsListResponse, VMManager } from "@api/vmmanager";
+import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
 import { Fluent } from "@moebius/fluent";
-import DomainChecker from "@api/domain-checker";
-import { escapeUserInput } from "@helpers/formatting";
+import DomainChecker from "./api/domain-checker";
+import { escapeUserInput } from "./helpers/formatting";
+import type { SessionData } from "./shared/types/session";
+import type { AppContext, AppConversation } from "./shared/types/context";
 import { ensureSessionUser } from "./shared/utils/session-user.js";
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
 dotenv.config({});
 
-export type MyAppContext = ConversationFlavor<
-  Context &
-    FluentContextFlavor &
-    LazySessionFlavor<SessionData> &
-    MenuFlavor & {
-      availableLanguages: string[];
-      appDataSource: DataSource;
-      vmmanager: VMManager;
-      osList: GetOsListResponse | null;
-    }
->;
-
-export type MyConversation = Conversation<MyAppContext>;
-
-export const mainMenu = new Menu<MyAppContext>("main-menu")
+export const mainMenu = new Menu<AppContext>("main-menu")
   .submenu(
     (ctx) => ctx.t("button-purchase"),
     "services-menu",
@@ -128,7 +113,7 @@ export const mainMenu = new Menu<MyAppContext>("main-menu")
     (ctx) => ctx.t("button-manage-services"),
     "manage-services-menu",
     async (ctx) => {
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       
       ctx.editMessageText(ctx.t("manage-services-header"), {
         parse_mode: "HTML",
@@ -150,7 +135,7 @@ export const mainMenu = new Menu<MyAppContext>("main-menu")
     (ctx) => ctx.t("button-personal-profile"),
     "profile-menu",
     async (ctx) => {
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       if (ctx.hasChatType("private")) {
         const { getProfileText } = await import("./ui/menus/profile-menu.js");
         const profileText = await getProfileText(ctx);
@@ -173,7 +158,7 @@ export const mainMenu = new Menu<MyAppContext>("main-menu")
     }
   );
 
-const supportMenu = new Menu<MyAppContext>("support-menu", {
+const supportMenu = new Menu<AppContext>("support-menu", {
   autoAnswer: false,
 })
   .url(
@@ -187,7 +172,7 @@ const supportMenu = new Menu<MyAppContext>("support-menu", {
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
         {
@@ -197,14 +182,14 @@ const supportMenu = new Menu<MyAppContext>("support-menu", {
     }
   );
 
-const profileMenu = new Menu<MyAppContext>("profile-menu", {})
+const profileMenu = new Menu<AppContext>("profile-menu", {})
   .submenu((ctx) => ctx.t("button-deposit"), "topup-method-menu")
   .row()
   .text(
     (ctx) => ctx.t("button-referrals"),
     async (ctx) => {
       try {
-        const session = await ctx.session;
+        const session = (await ctx.session) as SessionData;
         const { ReferralService } = await import(
           "./domain/referral/ReferralService"
         );
@@ -276,7 +261,7 @@ const profileMenu = new Menu<MyAppContext>("profile-menu", {})
   )
   .row()
   .text((ctx) => ctx.t("button-change-locale"), async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     const nextLocale = session.main.locale === "ru" ? "en" : "ru";
     session.main.locale = nextLocale;
 
@@ -301,7 +286,7 @@ const profileMenu = new Menu<MyAppContext>("profile-menu", {})
   .text(
     (ctx) => ctx.t("button-promocode"),
     async (ctx) => {
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       session.other.promocode.awaitingInput = true;
 
       await ctx.reply(ctx.t("promocode-input-question"), {
@@ -325,7 +310,7 @@ const profileMenu = new Menu<MyAppContext>("profile-menu", {})
     const roleStr = dbUser ? String(dbUser.role).toLowerCase() : "";
     const isAdmin = dbUser && (roleStr === "admin" || dbUser.role === Role.Admin);
     if (!isAdmin) return;
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (session?.main?.user) {
       session.main.user.role = Role.Admin;
       session.main.user.status = dbUser!.status;
@@ -352,7 +337,7 @@ const profileMenu = new Menu<MyAppContext>("profile-menu", {})
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
         {
@@ -362,12 +347,12 @@ const profileMenu = new Menu<MyAppContext>("profile-menu", {})
     }
   );
 
-const changeLocaleMenu = new Menu<MyAppContext>("change-locale-menu", {
+const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
   autoAnswer: false,
   onMenuOutdated: false,
 })
   .dynamic(async (ctx, range) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     for (const lang of ctx.availableLanguages) {
       if (lang !== session.main.locale) {
         range
@@ -399,193 +384,45 @@ const changeLocaleMenu = new Menu<MyAppContext>("change-locale-menu", {
   })
   .back((ctx) => ctx.t("button-back"));
 
-export interface SessionData {
-  main: {
-    locale: string;
+function createInitialMainSession(): SessionData["main"] {
+  return {
+    locale: "ru",
     user: {
-      id: number;
-      balance: number;
-      role: Role;
-      status: UserStatus;
-      isBanned: boolean;
-    };
-    lastSumDepositsEntered: number;
-    topupMethod: "crystalpay" | "cryptobot" | "manual" | null;
-  };
-  other: {
-    broadcast: {
-      step: "idle" | "awaiting_text" | "awaiting_confirm";
-      text?: string;
-    };
-    controlUsersPage: {
-      orderBy: "balance" | "id";
-      sortBy: "ASC" | "DESC";
-      page: number;
-      pickedUserData?: {
-        id: number;
-      };
-    };
-    vdsRate: {
-      bulletproof: boolean;
-      selectedRateId: number;
-      selectedOs: number;
-    };
-    dedicatedType: {
-      bulletproof: boolean;
-      selectedDedicatedId: number;
-    };
-    manageVds: {
-      page: number;
-      lastPickedId: number;
-      expandedId: number | null;
-      showPassword: boolean;
-    };
-    manageDedicated: {
-      expandedId: number | null;
-      showPassword: boolean;
-    };
-    domains: {
-      lastPickDomain: string;
-      page: number;
-      pendingZone?: string;
-    };
-    dedicatedOrder: {
-      step: "idle" | "requirements" | "comment";
-      requirements?: string;
-    };
-    promocode: {
-      awaitingInput: boolean;
-    };
-    promoAdmin: {
-      page: number;
-      editingPromoId?: number | null;
-      createStep?: "code" | "amount" | "max" | null;
-      createDraft?: {
-        code?: string;
-        amount?: number;
-      };
-      editStep?: "code" | null;
-    };
-    ticketsView: {
-      list: "new" | "in_progress" | null;
-      currentTicketId?: number | null;
-      pendingAction?:
-        | "ask_user"
-        | "provide_result"
-        | "reject"
-        | "provide_dedicated_ip"
-        | "provide_dedicated_login"
-        | "provide_dedicated_password"
-        | "provide_dedicated_panel"
-        | "provide_dedicated_notes"
-        | null;
-      pendingTicketId?: number | null;
-      pendingData?: {
-        ip?: string;
-        login?: string;
-        password?: string;
-        panel?: string | null;
-        notes?: string | null;
-      };
-    };
-    /** Admin balance edit: awaiting amount for add/deduct */
-    balanceEdit?: {
-      userId: number;
-      action: "add" | "deduct";
-    };
-    /** Admin message to user: awaiting text to send */
-    messageToUser?: {
-      userId: number;
-      telegramId: number;
-    };
-    /** Admin subscription grant: awaiting number of days */
-    subscriptionEdit?: {
-      userId: number;
-    };
-    /** Admin referral percent edit: awaiting percentage 0-100 */
-    referralPercentEdit?: {
-      userId: number;
-    };
+      balance: 0,
+      referralBalance: 0,
+      id: 0,
+      role: Role.User,
+      status: UserStatus.Newbie,
+      isBanned: false,
+    },
+    lastSumDepositsEntered: 0,
+    topupMethod: null,
   };
 }
 
-const createInitialMainSession = (): SessionData["main"] => ({
-  locale: "ru",
-  user: {
-    balance: 0,
-    referralBalance: 0,
-    id: 0,
-    role: Role.User,
-    status: UserStatus.Newbie,
-    isBanned: false,
-  },
-  lastSumDepositsEntered: 0,
-  topupMethod: null,
-});
-
-const createInitialOtherSession = (): SessionData["other"] => ({
-  broadcast: {
-    step: "idle",
-  },
-  controlUsersPage: {
-    orderBy: "id",
-    sortBy: "ASC",
-    page: 0,
-  },
-  vdsRate: {
-    bulletproof: true,
-    selectedRateId: -1,
-    selectedOs: -1,
-  },
-  dedicatedType: {
-    bulletproof: false,
-    selectedDedicatedId: -1,
-  },
-  manageVds: {
-    lastPickedId: -1,
-    page: 0,
-    expandedId: null,
-    showPassword: false,
-  },
-  manageDedicated: {
-    expandedId: null,
-    showPassword: false,
-  },
-  domains: {
-    lastPickDomain: "",
-    page: 0,
-    pendingZone: undefined,
-  },
-  dedicatedOrder: {
-    step: "idle",
-    requirements: undefined,
-  },
-  ticketsView: {
-    list: null,
-    currentTicketId: null,
-    pendingAction: null,
-    pendingTicketId: null,
-    pendingData: {},
-  },
-  deposit: {
-    awaitingAmount: false,
-  },
-  promocode: {
-    awaitingInput: false,
-  },
-  promoAdmin: {
-    page: 0,
-    editingPromoId: null,
-    createStep: null,
-    createDraft: {},
-    editStep: null,
-  },
-});
+function createInitialOtherSession(): SessionData["other"] {
+  return {
+    broadcast: { step: "idle" },
+    controlUsersPage: { orderBy: "id", sortBy: "ASC", page: 0 },
+    vdsRate: { bulletproof: true, selectedRateId: -1, selectedOs: -1 },
+    dedicatedType: { bulletproof: false, selectedDedicatedId: -1 },
+    manageVds: { lastPickedId: -1, page: 0, expandedId: null, showPassword: false },
+    manageDedicated: { expandedId: null, showPassword: false },
+    domains: { lastPickDomain: "", page: 0, pendingZone: undefined },
+    dedicatedOrder: { step: "idle", requirements: undefined },
+    ticketsView: { list: null, currentTicketId: null, pendingAction: null, pendingTicketId: null, pendingData: {} },
+    deposit: { awaitingAmount: false },
+    promocode: { awaitingInput: false },
+    promoAdmin: { page: 0, editingPromoId: null, createStep: null, createDraft: {}, editStep: null },
+  };
+}
 
 async function index() {
   const { fluent, availableLocales } = await initFluent();
 
-  const bot = new Bot<MyAppContext>(process.env.BOT_TOKEN, {});
+  const token = process.env.BOT_TOKEN;
+  if (!token) throw new Error("BOT_TOKEN is required");
+  const bot = new Bot<AppContext>(token, {});
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Must run before session.
   bot.use(async (ctx, next) => {
@@ -631,7 +468,7 @@ async function index() {
   );
 
   bot.use(async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (!session.main) {
       session.main = createInitialMainSession();
     }
@@ -642,8 +479,8 @@ async function index() {
   });
 
   const vmmanager = new VMManager(
-    process.env["VMM_EMAIL"],
-    process.env["VMM_PASSWORD"]
+    process.env["VMM_EMAIL"] ?? "",
+    process.env["VMM_PASSWORD"] ?? ""
   );
 
   startExpirationCheck(bot, vmmanager, fluent);
@@ -668,7 +505,7 @@ async function index() {
 
   // Add the available languages to the context
   bot.use(async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     ctx.availableLanguages = availableLocales;
     ctx.appDataSource = await getAppDataSource();
@@ -703,7 +540,7 @@ async function index() {
   });
 
   bot.use(async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (!session?.main) {
       return next();
     }
@@ -729,7 +566,7 @@ async function index() {
     useFluent({
       fluent,
       localeNegotiator: async (ctx) => {
-        const session = await ctx.session;
+        const session = (await ctx.session) as SessionData;
         const locale = session?.main?.locale;
         if (!locale || locale === "0") {
           return "ru";
@@ -742,7 +579,7 @@ async function index() {
   // Ensure ctx.t is always defined (prefer Fluent translations)
   bot.use(async (ctx, next) => {
     if (typeof (ctx as any).t !== "function") {
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       const fluent = (ctx as any).fluent;
       const locale =
         session?.main?.locale && session.main.locale !== "0"
@@ -764,9 +601,9 @@ async function index() {
   // Setup conversations BEFORE menus so ctx.conversation is available
   bot.use(conversations());
   registerPromoConversations(bot);
-  bot.use(createConversation(domainRegisterConversation, "domainRegisterConversation"));
-  bot.use(createConversation(domainUpdateNsConversation, "domainUpdateNsConversation"));
-  bot.use(createConversation(withdrawRequestConversation, "withdrawRequestConversation"));
+  bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
+  bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
+  bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
   registerBroadcastAndTickets(bot);
   registerAdminPromosHandlers(bot);
 
@@ -831,7 +668,7 @@ async function index() {
 
   bot.callbackQuery("referral-stats-back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     const { ReferralService } = await import("./domain/referral/ReferralService.js");
     const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
     const { referralsMenu } = await import("./ui/menus/referrals-menu.js");
@@ -897,7 +734,7 @@ async function index() {
 
     try {
       if (isPrimeBack) {
-        const session = await ctx.session;
+        const session = (await ctx.session) as SessionData;
         const balance = session?.main?.user?.balance ?? 0;
         const welcomeText = ctx.t("welcome", { balance });
         await ctx.editMessageText(welcomeText, {
@@ -907,11 +744,11 @@ async function index() {
         return;
       }
       if (isPrimeActivate) {
-        await handlePrimeActivateTrial(ctx);
+        await handlePrimeActivateTrial(ctx as AppContext);
         return;
       }
       if (isPrimeSubscribed) {
-        await handlePrimeISubscribed(ctx);
+        await handlePrimeISubscribed(ctx as AppContext);
         return;
       }
     } catch (err: any) {
@@ -942,7 +779,7 @@ async function index() {
       console.log(`[Lang] Callback answered for ${lang}`);
       
       // Get session and update locale
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       session.main.locale = lang;
       console.log(`[Lang] Session locale set to ${lang}`);
       
@@ -998,7 +835,7 @@ async function index() {
   });
 
   bot.use(async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (session.main.user.isBanned) {
       await ctx.reply(ctx.t("message-about-block"));
@@ -1011,10 +848,10 @@ async function index() {
 
   bot.use(depositPaymentSystemChoose);
   bot.use(
-    createConversation(depositMoneyConversation, "depositMoneyConversation")
+    createConversation(depositMoneyConversation as any, "depositMoneyConversation")
   );
   bot.use(
-    createConversation(renameVdsConversation, "renameVdsConversation")
+    createConversation(renameVdsConversation as any, "renameVdsConversation")
   );
   
   // Register domain registration conversation
@@ -1031,7 +868,7 @@ async function index() {
         await ctx.deleteMessage().catch(() => {});
       }
 
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       // Referral: bind referrer when user opens bot via ?start=REFERRER_TELEGRAM_ID
       const payload = ctx.match && typeof ctx.match === "string" ? ctx.match.trim() : "";
       if (payload.length > 0 && !payload.startsWith("promote_")) {
@@ -1071,7 +908,7 @@ async function index() {
 
   bot.callbackQuery("promocode-cancel", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     session.other.promocode.awaitingInput = false;
     if (ctx.callbackQuery.message) {
       await ctx.deleteMessage().catch(() => {});
@@ -1080,7 +917,7 @@ async function index() {
 
   bot.callbackQuery("promocode-back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     session.other.promocode.awaitingInput = false;
     const balance = session?.main?.user?.balance ?? 0;
     await ctx.reply(ctx.t("welcome", { balance }), {
@@ -1091,7 +928,7 @@ async function index() {
 
   bot.callbackQuery("deposit-cancel", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     session.main.lastSumDepositsEntered = -1;
     session.other.deposit.awaitingAmount = false;
     if (ctx.callbackQuery.message) {
@@ -1105,12 +942,12 @@ async function index() {
     if (!match) return;
     const [, bundleTypeStr, periodStr] = match;
     const { handleBundlePurchase } = await import("./ui/menus/bundle-handlers.js");
-    await handleBundlePurchase(ctx, bundleTypeStr, periodStr);
+    await handleBundlePurchase(ctx as AppContext, bundleTypeStr, periodStr);
   });
 
   bot.callbackQuery("bundle-change-period", async (ctx) => {
     const { handleBundleChangePeriod } = await import("./ui/menus/bundle-handlers.js");
-    await handleBundleChangePeriod(ctx);
+    await handleBundleChangePeriod(ctx as AppContext);
   });
 
   bot.callbackQuery("bundle-back-to-types", async (ctx) => {
@@ -1124,7 +961,7 @@ async function index() {
 
   bot.callbackQuery("bundle-cancel", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (session.other.bundle) {
       delete session.other.bundle;
     }
@@ -1138,7 +975,7 @@ async function index() {
   // Bundle: confirm purchase (after user entered domain name)
   bot.callbackQuery("bundle-confirm-purchase", async (ctx) => {
     const { handleBundleConfirmPurchase } = await import("./ui/menus/bundle-handlers.js");
-    await handleBundleConfirmPurchase(ctx);
+    await handleBundleConfirmPurchase(ctx as AppContext);
   });
 
   bot.callbackQuery("domain-register-cancel", async (ctx) => {
@@ -1163,8 +1000,8 @@ async function index() {
 
   bot.callbackQuery("admin-menu-back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
-    const hasSessionUser = await ensureSessionUser(ctx);
+    const session = (await ctx.session) as SessionData;
+    const hasSessionUser = await ensureSessionUser(ctx as AppContext);
     if (!session || !hasSessionUser) {
       await ctx.answerCallbackQuery(
         ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200)
@@ -1201,7 +1038,7 @@ async function index() {
       await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
       return;
     }
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (session?.main?.user) {
       session.main.user.role = Role.Admin;
       session.main.user.status = dbUser!.status;
@@ -1222,7 +1059,7 @@ async function index() {
 
   bot.callbackQuery("admin-referrals-back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (!session.other.controlUsersPage?.pickedUserData) return;
     const user = await ctx.appDataSource.manager.findOne(User, {
       where: { id: session.other.controlUsersPage.pickedUserData.id },
@@ -1234,7 +1071,7 @@ async function index() {
 
   bot.callbackQuery("admin-referrals-change-percent", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (!session.other.controlUsersPage?.pickedUserData) return;
     if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
     session.other.referralPercentEdit = { userId: session.other.controlUsersPage.pickedUserData.id };
@@ -1242,7 +1079,7 @@ async function index() {
   });
 
   bot.on("message:text", async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     const messageToUser = session.other.messageToUser;
     if (messageToUser) {
       if (!ctx.hasChatType("private")) {
@@ -1272,7 +1109,7 @@ async function index() {
     const bundle = session.other.bundle;
     if (bundle?.step === "awaiting_domain" && ctx.message?.text) {
       const { handleBundleDomainInput } = await import("./ui/menus/bundle-handlers.js");
-      const consumed = await handleBundleDomainInput(ctx, ctx.message.text.trim());
+      const consumed = await handleBundleDomainInput(ctx as AppContext, ctx.message.text.trim());
       if (consumed) return;
     }
 
@@ -1420,7 +1257,7 @@ async function index() {
 
   // Withdraw: user tapped "Вывод средств", we asked for amount; this message is the amount → enter conversation
   bot.on("message:text", async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     const withdrawStart = session.other?.withdrawStart;
     if (!withdrawStart?.awaitingAmount || !ctx.message?.text) {
       return next();
@@ -1457,7 +1294,7 @@ async function index() {
   });
 
   bot.on("message:text", async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (!session.other.deposit.awaitingAmount) {
       return next();
     }
@@ -1492,7 +1329,7 @@ async function index() {
 
   // Domain purchase flow for zone-based domains menu
   bot.on("message:text", async (ctx, next) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     const pendingZone = session.other.domains?.pendingZone;
     if (!pendingZone) {
       return next();
@@ -1541,7 +1378,7 @@ async function index() {
 
       let checkReason: string | undefined;
       if (amperBaseUrl && amperToken) {
-        const { AmperDomainsProvider } = await import("@/infrastructure/domains/AmperDomainsProvider.js");
+        const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
         const provider = new AmperDomainsProvider({
           apiBaseUrl: amperBaseUrl,
           apiToken: amperToken,
@@ -1628,7 +1465,7 @@ async function index() {
         await ctx.deleteMessage().catch(() => {});
       }
 
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       
       if (!ctx.hasChatType("private")) {
         return;
@@ -1682,7 +1519,7 @@ async function index() {
         await ctx.reply(ctx.t("error-access-denied"));
         return;
       }
-      const session = await ctx.session;
+      const session = (await ctx.session) as SessionData;
       if (session?.main?.user) {
         session.main.user.role = Role.Admin;
         session.main.user.status = dbUser.status;
@@ -1703,8 +1540,8 @@ async function index() {
 
   // Broadcast command (admin only)
   bot.command("broadcast", async (ctx) => {
-    const session = await ctx.session;
-    const hasSessionUser = await ensureSessionUser(ctx);
+    const session = (await ctx.session) as SessionData;
+    const hasSessionUser = await ensureSessionUser(ctx as AppContext);
     if (!session || !hasSessionUser) {
       await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
       return;
@@ -1733,8 +1570,8 @@ async function index() {
 
   // Send broadcast immediately (admin only)
   bot.command("send", async (ctx) => {
-    const session = await ctx.session;
-    const hasSessionUser = await ensureSessionUser(ctx);
+    const session = (await ctx.session) as SessionData;
+    const hasSessionUser = await ensureSessionUser(ctx as AppContext);
     if (!session || !hasSessionUser) {
       await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
       return;
@@ -1751,7 +1588,7 @@ async function index() {
     }
 
     try {
-      const broadcastService = new BroadcastService(ctx.appDataSource, bot);
+      const broadcastService = new BroadcastService(ctx.appDataSource, bot as any);
       const broadcast = await broadcastService.createBroadcast(session.main.user.id, text);
 
       const statusMessage = await ctx.reply(
@@ -1947,20 +1784,17 @@ async function index() {
   registerDomainRegistrationMiddleware(bot);
 
   bot.command("domainrequests", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (
       session.main.user.role != Role.Admin &&
       session.main.user.role != Role.Moderator
     )
       return;
 
-    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+    const { DomainRequestRepository } = await import("./infrastructure/db/repositories/DomainRequestRepository.js");
+    const domainRequestRepo = new DomainRequestRepository(ctx.appDataSource);
 
-    const requests = await domainRequestRepo.find({
-      where: {
-        status: DomainRequestStatus.InProgress,
-      },
-    });
+    const requests = await domainRequestRepo.findPending();
 
     if (requests.length > 0) {
       ctx.reply(
@@ -1989,7 +1823,7 @@ async function index() {
   });
 
   bot.command("help", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (session.main.user.role == Role.Admin) {
       ctx.reply(ctx.t("admin-help"), {
@@ -1999,7 +1833,7 @@ async function index() {
   });
 
   bot.command("promote_link", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (session.main.user.role != Role.Admin) return;
 
     const link = createLink(Role.Moderator);
@@ -2016,7 +1850,7 @@ async function index() {
 
   // create_promo <name> <sum> <max_uses>
   bot.command("create_promo", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (session.main.user.role != Role.Admin) return;
 
@@ -2061,7 +1895,7 @@ async function index() {
 
   // promo_codes
   bot.command("promo_codes", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (session.main.user.role != Role.Admin) return;
 
@@ -2093,7 +1927,7 @@ async function index() {
 
   // remove_promo <id>
   bot.command("remove_promo", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (session.main.user.role != Role.Admin) return;
 
@@ -2138,7 +1972,7 @@ async function index() {
 
   // approve_domain <id> <expire_at>
   bot.command("approve_domain", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (
       session.main.user.role != Role.Admin &&
@@ -2189,7 +2023,7 @@ async function index() {
 
   // showvds <userId>
   bot.command("showvds", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (
       session.main.user.role != Role.Admin &&
@@ -2242,7 +2076,7 @@ async function index() {
 
   // removevds <idVds>
   bot.command("removevds", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (
       session.main.user.role != Role.Admin &&
@@ -2301,7 +2135,7 @@ async function index() {
 
   // reject_domain <id>
   bot.command("reject_domain", async (ctx) => {
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
 
     if (
       session.main.user.role != Role.Admin &&
@@ -2355,7 +2189,7 @@ async function index() {
 
   bot.command("users", async (ctx) => {
     await ctx.deleteMessage();
-    const session = await ctx.session;
+    const session = (await ctx.session) as SessionData;
     if (session.main.user.role == Role.User) return;
 
     await ctx.reply(ctx.t("control-panel-users"), {
@@ -2471,7 +2305,7 @@ index()
   });
 
 async function startExpirationCheck(
-  bot: Bot<MyAppContext, Api<RawApi>>,
+  bot: Bot<AppContext, Api<RawApi>>,
   vmManager: VMManager,
   fluent: Fluent
 ) {
@@ -2525,7 +2359,7 @@ async function startExpirationCheck(
             deleted = await vmManager.deleteVM(vds.vdsId);
           }
 
-          await vdsRepo.delete(vds);
+          await vdsRepo.delete(vds.id);
         }
       } else {
         user.balance -= vds.renewalPrice;

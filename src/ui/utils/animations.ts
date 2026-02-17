@@ -5,6 +5,7 @@
  * @module ui/utils/animations
  */
 
+import type { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 
 /**
@@ -70,7 +71,7 @@ export async function editOrSend(
   ctx: AppContext,
   text: string,
   options?: {
-    reply_markup?: unknown;
+    reply_markup?: InlineKeyboard;
     parse_mode?: "HTML" | "Markdown" | "MarkdownV2";
   }
 ): Promise<number> {
@@ -78,6 +79,9 @@ export async function editOrSend(
     throw new Error("No chat in context");
   }
 
+  const apiOptions: { parse_mode?: "HTML" | "Markdown" | "MarkdownV2"; reply_markup?: InlineKeyboard } | undefined = options
+    ? { parse_mode: options.parse_mode, reply_markup: options.reply_markup }
+    : undefined;
   try {
     // Try to edit if message exists
     if (ctx.callbackQuery?.message && "message_id" in ctx.callbackQuery.message) {
@@ -85,7 +89,7 @@ export async function editOrSend(
         ctx.chat.id,
         ctx.callbackQuery.message.message_id,
         text,
-        options
+        apiOptions as Parameters<typeof ctx.api.editMessageText>[3]
       );
       return ctx.callbackQuery.message.message_id;
     }
@@ -95,6 +99,6 @@ export async function editOrSend(
   }
 
   // Send new message
-  const message = await ctx.api.sendMessage(ctx.chat.id, text, options);
+  const message = await ctx.api.sendMessage(ctx.chat.id, text, apiOptions as Parameters<typeof ctx.api.sendMessage>[2]);
   return message.message_id;
 }

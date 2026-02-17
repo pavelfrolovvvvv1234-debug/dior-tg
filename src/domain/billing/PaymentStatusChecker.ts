@@ -21,7 +21,7 @@ export class PaymentStatusChecker {
   private readonly checkIntervalMs = 10_000; // 10 seconds
 
   constructor(
-    private bot: Bot<unknown, Api<RawApi>>,
+    private bot: Bot<any, Api<RawApi>>,
     private billingService: BillingService,
     private fluent: Fluent
   ) {}

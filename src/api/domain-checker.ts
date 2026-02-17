@@ -1,8 +1,7 @@
 // Reference: https://domainr.com/
 // Documentaion here: https://domainr.com/docs/api
-import axios from "axios";
+import axios, { type AxiosInstance, AxiosError } from "axios";
 import prices from "@helpers/prices";
-import { AxiosError } from "axios";
 import { parse } from "tldts";
 
 type DomainStatus = "Available" | "Unavailable";
@@ -44,7 +43,7 @@ type DomainStatusResponseAPI =
   | "tld";
 
 export default class DomainChecker {
-  private api: axios.AxiosInstance;
+  private api: AxiosInstance;
 
   constructor() {
     this.api = axios.create({

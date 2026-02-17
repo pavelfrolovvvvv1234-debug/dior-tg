@@ -1,25 +1,25 @@
 import { DataSource } from "typeorm";
-import User from "@entities/User";
-import TempLink from "@entities/TempLink";
-import TopUp from "@entities/TopUp";
-import DomainRequest from "@entities/DomainRequest";
-import Promo from "@entities/Promo";
-import VirtualDedicatedServer from "@entities/VirtualDedicatedServer";
-import Ticket from "@entities/Ticket";
-import Broadcast from "@entities/Broadcast";
-import BroadcastLog from "@entities/BroadcastLog";
-import DedicatedServer from "@entities/DedicatedServer";
-import TicketAudit from "@entities/TicketAudit";
-import Domain from "@entities/Domain";
-import DomainOperation from "@entities/DomainOperation";
-import ReferralReward from "@entities/ReferralReward";
-import ServiceInvoice from "@entities/ServiceInvoice";
-import AutomationScenario from "@entities/automations/AutomationScenario";
-import ScenarioVersion from "@entities/automations/ScenarioVersion";
-import UserNotificationState from "@entities/automations/UserNotificationState";
-import OfferInstance from "@entities/automations/OfferInstance";
-import AutomationEventLog from "@entities/automations/AutomationEventLog";
-import ScenarioMetric from "@entities/automations/ScenarioMetric";
+import User from "./entities/User";
+import TempLink from "./entities/TempLink";
+import TopUp from "./entities/TopUp";
+import DomainRequest from "./entities/DomainRequest";
+import Promo from "./entities/Promo";
+import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
+import Ticket from "./entities/Ticket";
+import Broadcast from "./entities/Broadcast";
+import BroadcastLog from "./entities/BroadcastLog";
+import DedicatedServer from "./entities/DedicatedServer";
+import TicketAudit from "./entities/TicketAudit";
+import Domain from "./entities/Domain";
+import DomainOperation from "./entities/DomainOperation";
+import ReferralReward from "./entities/ReferralReward";
+import ServiceInvoice from "./entities/ServiceInvoice";
+import AutomationScenario from "./entities/automations/AutomationScenario";
+import ScenarioVersion from "./entities/automations/ScenarioVersion";
+import UserNotificationState from "./entities/automations/UserNotificationState";
+import OfferInstance from "./entities/automations/OfferInstance";
+import AutomationEventLog from "./entities/automations/AutomationEventLog";
+import ScenarioMetric from "./entities/automations/ScenarioMetric";
 
 const AppDataSource = new DataSource({
   type: "better-sqlite3",

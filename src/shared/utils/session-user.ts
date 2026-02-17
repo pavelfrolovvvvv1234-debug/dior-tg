@@ -5,7 +5,17 @@
  */
 
 import type { AppContext } from "../types/context.js";
+import type { MainSessionData } from "../types/session.js";
 import User, { Role, UserStatus } from "../../entities/User.js";
+
+const emptyUser: MainSessionData["user"] = {
+  id: 0,
+  balance: 0,
+  referralBalance: 0,
+  role: Role.User,
+  status: UserStatus.Newbie,
+  isBanned: false,
+};
 
 /**
  * Ensure session.main.user is populated from the database if possible.
@@ -34,6 +44,7 @@ export const ensureSessionUser = async (ctx: AppContext): Promise<boolean> => {
     session.main.user = {
       id: 0,
       balance: 0,
+      referralBalance: 0,
       role: Role.User,
       status: UserStatus.Newbie,
       isBanned: false,
@@ -44,6 +55,7 @@ export const ensureSessionUser = async (ctx: AppContext): Promise<boolean> => {
   session.main.user = {
     id: user.id,
     balance: user.balance,
+    referralBalance: user.referralBalance ?? 0,
     role: user.role,
     status: user.status,
     isBanned: user.isBanned,

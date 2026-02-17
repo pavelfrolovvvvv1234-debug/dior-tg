@@ -29,7 +29,7 @@ function cronShouldRunNow(scenarioKey: string, expression: string): boolean {
   const now = Date.now();
   const windowMs = 65 * 60 * 1000;
   try {
-    const interval = cronParser.parseExpression(expression, { currentDate: new Date(now - windowMs) });
+    const interval = (cronParser as unknown as { parseExpression: (expr: string, opts?: { currentDate?: Date }) => { prev: () => Date } }).parseExpression(expression, { currentDate: new Date(now - windowMs) });
     const prev = interval.prev().getTime();
     if (now - prev > windowMs) return false;
     const last = lastCronRun.get(scenarioKey) ?? 0;
@@ -134,7 +134,7 @@ export function startScheduleRunner(dataSource: DataSource, bot: Bot): () => voi
       }
       extra.reply_markup = kb;
     }
-    await bot.api.sendMessage(tid, text, extra).catch(() => {});
+    await bot.api.sendMessage(tid, text, extra as Parameters<typeof bot.api.sendMessage>[2]).catch(() => {});
   };
 
   const tick = async (): Promise<void> => {

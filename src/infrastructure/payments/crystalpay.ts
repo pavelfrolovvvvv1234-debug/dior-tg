@@ -4,8 +4,8 @@
  * @module infrastructure/payments/crystalpay
  */
 
-import type { IPaymentProvider, Invoice, InvoiceStatus } from "./types";
-import { PaymentProviderName } from "./types";
+import type { IPaymentProvider, Invoice } from "./types";
+import { PaymentProviderName, InvoiceStatus } from "./types"; // InvoiceStatus as value for enum use
 import { PaymentError } from "../../shared/errors/index";
 import { config } from "../../app/config";
 import { Logger } from "../../app/logger";
@@ -40,7 +40,7 @@ export class CrystalPayProvider implements IPaymentProvider {
         amount,
         provider: this.name,
         status: InvoiceStatus.PENDING,
-        expiresAt: invoice.expired_at ? new Date(invoice.expired_at + " UTC+3") : undefined,
+        expiresAt: (invoice as { expired_at?: string }).expired_at ? new Date((invoice as { expired_at?: string }).expired_at! + " UTC+3") : undefined,
       };
     } catch (error) {
       Logger.error("Failed to create CrystalPay invoice", error);
@@ -103,7 +103,7 @@ export class CrystalPayProvider implements IPaymentProvider {
       return {
         id: invoiceId,
         url: invoiceInfo.url || "",
-        amount: invoiceInfo.amount || 0,
+        amount: Number(invoiceInfo.initial_amount || invoiceInfo.rub_amount || 0),
         provider: this.name,
         status,
         expiresAt: invoiceInfo.expired_at

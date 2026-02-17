@@ -1,6 +1,6 @@
 import { Menu } from "@grammyjs/menu";
 import { Context, InlineKeyboard } from "grammy";
-import { MyAppContext, MyConversation } from "..";
+import type { AppContext, AppConversation } from "../shared/types/context";
 import { PaymentBuilder } from "@/api/payment";
 import { Logger } from "@/app/logger";
 
@@ -8,22 +8,22 @@ const depositValuesOptions = ["10$", "30$", "50$", "100$"];
 
 type TopupMethod = "crystalpay" | "cryptobot" | "manual";
 
-function renderTopupMethodText(ctx: MyAppContext): string {
+function renderTopupMethodText(ctx: AppContext): string {
   return ctx.t("topup-select-method");
 }
 
-function renderTopupAmountsText(ctx: MyAppContext): string {
+function renderTopupAmountsText(ctx: AppContext): string {
   return ctx.t("button-deposit");
 }
 
-async function showTopupMethodMenu(ctx: MyAppContext): Promise<void> {
+async function showTopupMethodMenu(ctx: AppContext): Promise<void> {
   await ctx.editMessageText(renderTopupMethodText(ctx), {
     reply_markup: topupMethodMenu,
     parse_mode: "HTML",
   });
 }
 
-async function showProfileScreen(ctx: MyAppContext): Promise<void> {
+async function showProfileScreen(ctx: AppContext): Promise<void> {
   const session = await ctx.session;
   if (!ctx.chat) return;
 
@@ -37,7 +37,7 @@ async function showProfileScreen(ctx: MyAppContext): Promise<void> {
 }
 
 async function ensureTopupMethod(
-  ctx: MyAppContext
+  ctx: AppContext
 ): Promise<TopupMethod | null> {
   const session = await ctx.session;
   if (!session.main.topupMethod) {
@@ -49,7 +49,7 @@ async function ensureTopupMethod(
 }
 
 async function handleTopupByMethod(
-  ctx: MyAppContext,
+  ctx: AppContext,
   method: TopupMethod,
   amount: number
 ): Promise<void> {
@@ -100,7 +100,7 @@ async function handleTopupByMethod(
   });
 }
 
-export const topupMethodMenu = new Menu<MyAppContext>("topup-method-menu")
+export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
   .text("CrystalPay", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
@@ -139,7 +139,7 @@ export const topupMethodMenu = new Menu<MyAppContext>("topup-method-menu")
     await showProfileScreen(ctx);
   });
 
-export const depositMenu = new Menu<MyAppContext>("deposit-menu")
+export const depositMenu = new Menu<AppContext>("deposit-menu")
   .dynamic((_ctx, range) => {
     for (let i = 0; i < depositValuesOptions.length; i++) {
       range.text(depositValuesOptions[i], async (ctx) => {
@@ -188,7 +188,7 @@ export const depositMenu = new Menu<MyAppContext>("deposit-menu")
     });
   });
 
-export const depositPaymentSystemChoose = new Menu<MyAppContext>(
+export const depositPaymentSystemChoose = new Menu<AppContext>(
   "deposit-menu-payment-choose"
 )
   .text((ctx) => ctx.t("button-pay"), async (ctx) => {
@@ -239,15 +239,15 @@ export const depositPaymentSystemChoose = new Menu<MyAppContext>(
 
 // Choose any sum for create deposit
 export async function depositMoneyConversation(
-  conversation: MyConversation,
+  conversation: AppConversation,
   ctx: Context
 ): Promise<void> {
-  const message = await conversation.external((ctx) =>
+  const message = await conversation.external((ctx: AppContext) =>
     ctx.t("deposit-money-enter-sum")
   );
 
-  await (ctx as MyAppContext).reply(message, {
-    reply_markup: new InlineKeyboard().text(ctx.t("button-cancel"), "deposit-cancel"),
+  await (ctx as AppContext).reply(message, {
+    reply_markup: new InlineKeyboard().text((ctx as AppContext).t("button-cancel"), "deposit-cancel"),
     parse_mode: "HTML",
   });
 
@@ -262,7 +262,7 @@ export async function depositMoneyConversation(
   });
 
   if (isNaN(sumToDeposit) || sumToDeposit <= 0 || sumToDeposit > 1_500_000) {
-    await (ctx as MyAppContext).reply(incorrectMessage, {
+    await (ctx as AppContext).reply(incorrectMessage, {
       parse_mode: "HTML",
     });
 

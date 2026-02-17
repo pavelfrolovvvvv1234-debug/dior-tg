@@ -17,7 +17,7 @@ import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import { initFluent } from "../../fluent.js";
 import { InlineKeyboard } from "grammy";
 import type { Fluent } from "@moebius/fluent";
-import { DomainChecker } from "../../api/domain-checker.js";
+import DomainChecker from "../../api/domain-checker.js";
 
 let cachedFluent: Fluent | null = null;
 

@@ -16,7 +16,7 @@ import { InlineKeyboard } from "grammy";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
-import { DomainRepository } from "../../infrastructure/db/repositories/DomainRepository.js";
+import { DomainRequestRepository } from "../../infrastructure/db/repositories/DomainRequestRepository.js";
 import { PromoRepository } from "../../infrastructure/db/repositories/PromoRepository.js";
 import DomainRequest, { DomainRequestStatus } from "../../entities/DomainRequest.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
@@ -57,22 +57,16 @@ export function registerCommands(bot: Bot<AppContext>): void {
   });
 
   // Bot profile: name and descriptions (visible in @ mention and profile)
-  bot.api.setMyName({ name: "Dior Host" }).catch((error) => {
+  bot.api.setMyName("Dior Host").catch((error) => {
     Logger.error("Failed to set bot name:", error);
   });
   bot.api
-    .setMyShortDescription({
-      short_description:
-        "Bulletproof VPS, domains & dedicated servers — order and manage hosting in TG. 24/7.",
-    })
+    .setMyShortDescription("Bulletproof VPS, domains & dedicated servers — order and manage hosting in TG. 24/7.")
     .catch((error) => {
       Logger.error("Failed to set bot short description:", error);
     });
   bot.api
-    .setMyDescription({
-      description:
-        "Welcome to Dior Host!\n\nBulletproof VPS, domains and dedicated servers — order and manage hosting in TG. 24/7 support, offshore, reliable infrastructure.\n\nPress /start to begin.",
-    })
+    .setMyDescription("Welcome to Dior Host!\n\nBulletproof VPS, domains and dedicated servers — order and manage hosting in TG. 24/7 support, offshore, reliable infrastructure.\n\nPress /start to begin.")
     .catch((error) => {
       Logger.error("Failed to set bot description:", error);
     });
@@ -90,7 +84,7 @@ export function registerCommands(bot: Bot<AppContext>): void {
     // Clean up old processed updates (keep only last 100)
     if (processedUpdates.size > 100) {
       const firstKey = processedUpdates.values().next().value;
-      processedUpdates.delete(firstKey);
+      if (firstKey !== undefined) processedUpdates.delete(firstKey);
     }
     // Check if this is a promote link - if so, let promotePermissions middleware handle it
     if (ctx.match && typeof ctx.match === "string" && ctx.match.startsWith("promote_")) {
@@ -350,13 +344,13 @@ export function registerCommands(bot: Bot<AppContext>): void {
     }
 
     const dataSource = await getAppDataSource();
-    const domainRepo = new DomainRepository(dataSource);
+    const domainRequestRepo = new DomainRequestRepository(dataSource);
 
-    const requests = await domainRepo.findPending();
+    const requests = await domainRequestRepo.findPending();
 
     if (requests.length > 0) {
       const text = `${ctx.t("domain-request-list-header")}\n${requests
-        .map((request) =>
+        .map((request: DomainRequest) =>
           ctx.t("domain-request", {
             id: request.id,
             targetId: request.target_user_id,
@@ -561,9 +555,9 @@ export function registerCommands(bot: Bot<AppContext>): void {
     }
 
     const dataSource = await getAppDataSource();
-    const domainRepo = new DomainRepository(dataSource);
+    const domainRequestRepo = new DomainRequestRepository(dataSource);
 
-    const request = await domainRepo.findById(id);
+    const request = await domainRequestRepo.findById(id);
 
     if (!request || request.status !== DomainRequestStatus.InProgress) {
       await ctx.reply(ctx.t("domain-request-not-found"), {
@@ -575,7 +569,7 @@ export function registerCommands(bot: Bot<AppContext>): void {
     const expireAt = new Date(Date.now() + expireAtMs);
     const paydayAt = new Date(expireAt.getTime() - ms("7d"));
 
-    await domainRepo.approve(id, expireAt.getTime() - Date.now());
+    await domainRequestRepo.approve(id, expireAt, paydayAt);
 
     await ctx.reply(ctx.t("domain-request-approved"), {
       parse_mode: "HTML",
@@ -741,10 +735,10 @@ export function registerCommands(bot: Bot<AppContext>): void {
     }
 
     const dataSource = await getAppDataSource();
-    const domainRepo = new DomainRepository(dataSource);
+    const domainRequestRepo = new DomainRequestRepository(dataSource);
     const userRepo = new UserRepository(dataSource);
 
-    const request = await domainRepo.findById(id);
+    const request = await domainRequestRepo.findById(id);
 
     if (!request || request.status !== DomainRequestStatus.InProgress) {
       await ctx.reply(ctx.t("domain-request-not-found"), {

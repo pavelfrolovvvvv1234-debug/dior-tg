@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { CrystalPayClient } from "./crystal-pay";
 import User from "@entities/User";
 import { Api, Bot, RawApi } from "grammy";
-import { MyAppContext } from "..";
+import type { AppContext } from "../shared/types/context";
 import axios from "axios";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
@@ -95,10 +95,10 @@ export class PaymentBuilder {
   }
 
   async createCrystalPayment(): Promise<TopUp> {
-    const crystalpay = new CrystalPayClient(
-      process.env["PAYMENT_CRYSTALPAY_ID"],
-      process.env["PAYMENT_CRYSTALPAY_SECRET_ONE"]
-    );
+    const id = process.env["PAYMENT_CRYSTALPAY_ID"];
+    const secret = process.env["PAYMENT_CRYSTALPAY_SECRET_ONE"];
+    if (!id || !secret) throw new Error("PAYMENT_CRYSTALPAY_ID and PAYMENT_CRYSTALPAY_SECRET_ONE required");
+    const crystalpay = new CrystalPayClient(id, secret);
 
     const appdatasource = await getAppDataSource();
     const repo = appdatasource.getRepository(TopUp);
@@ -133,7 +133,7 @@ export class PaymentBuilder {
 }
 
 export async function startCheckTopUpStatus(
-  bot: Bot<MyAppContext, Api<RawApi>>
+  bot: Bot<AppContext, Api<RawApi>>
 ) {
   // Every 10 seconds
   setInterval(async () => {
@@ -149,10 +149,10 @@ export async function startCheckTopUpStatus(
     for (const topUp of allTopUps) {
       switch (topUp.paymentSystem) {
         case "crystalpay": {
-          const crystalpay = new CrystalPayClient(
-            process.env["PAYMENT_CRYSTALPAY_ID"],
-            process.env["PAYMENT_CRYSTALPAY_SECRET_ONE"]
-          );
+          const cpayId = process.env["PAYMENT_CRYSTALPAY_ID"];
+          const cpaySecret = process.env["PAYMENT_CRYSTALPAY_SECRET_ONE"];
+          if (!cpayId || !cpaySecret) break;
+          const crystalpay = new CrystalPayClient(cpayId, cpaySecret);
 
           const invoiceInfo = await crystalpay.getInvoice(topUp.orderId);
 
@@ -211,7 +211,7 @@ export async function startCheckTopUpStatus(
 async function paymentSuccess(
   targetUser: number,
   topUpId: number,
-  bot: Bot<MyAppContext, Api<RawApi>>
+  bot: Bot<AppContext, Api<RawApi>>
 ) {
   const datasource = await getAppDataSource();
   const topUpRepo = datasource.getRepository(TopUp);

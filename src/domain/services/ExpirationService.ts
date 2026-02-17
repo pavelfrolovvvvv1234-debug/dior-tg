@@ -10,7 +10,7 @@ import { Fluent } from "@moebius/fluent";
 import ms from "../../lib/multims.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
-import { DomainRepository } from "../../infrastructure/db/repositories/DomainRepository.js";
+import { DomainRequestRepository } from "../../infrastructure/db/repositories/DomainRequestRepository.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import type { VMManager } from "../../infrastructure/vmmanager/VMManager.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
@@ -42,7 +42,7 @@ export class ExpirationService {
   private readonly checkIntervalMs = ms("1d"); // Check once per day
 
   constructor(
-    private bot: Bot<unknown, Api<RawApi>>,
+    private bot: Bot<any, Api<RawApi>>,
     private vmManager: VMManager,
     private fluent: Fluent,
     private onGracePeriodStarted?: OnGracePeriodStarted,
@@ -92,14 +92,14 @@ export class ExpirationService {
 
     const dataSource = await getAppDataSource();
     const vdsRepo = new VdsRepository(dataSource);
-    const domainRepo = new DomainRepository(dataSource);
+    const domainRequestRepo = new DomainRequestRepository(dataSource);
     const userRepo = new UserRepository(dataSource);
 
     // Check expired VDS
     await this.checkExpiredVds(vdsRepo, userRepo, dataSource);
 
-    // Check expired domains
-    await this.checkExpiredDomains(domainRepo, userRepo, dataSource);
+    // Check expired domain requests
+    await this.checkExpiredDomains(domainRequestRepo, userRepo, dataSource);
   }
 
   /**
@@ -213,7 +213,6 @@ export class ExpirationService {
 
           updatedUser.balance -= vds.renewalPrice;
           updatedVds.expireAt = new Date(Date.now() + ms("30d"));
-          // @ts-expect-error - TypeORM accepts null for nullable fields
           updatedVds.payDayAt = null;
 
           await userManager.save(updatedUser);
@@ -229,61 +228,61 @@ export class ExpirationService {
   }
 
   /**
-   * Check and handle expired domains.
+   * Check and handle expired domain requests.
    */
   private async checkExpiredDomains(
-    domainRepo: DomainRepository,
+    domainRequestRepo: DomainRequestRepository,
     userRepo: UserRepository,
     dataSource: DataSource
   ): Promise<void> {
-    const expiredDomains = await domainRepo.findRequiringPayment();
+    const expiring = await domainRequestRepo.findExpiringSoon();
 
-    if (expiredDomains.length === 0) {
+    if (expiring.length === 0) {
       return;
     }
 
-    Logger.info(`Found ${expiredDomains.length} expired domains to process`);
+    Logger.info(`Found ${expiring.length} domain requests to process for renewal`);
 
-    for (const domain of expiredDomains) {
+    for (const request of expiring) {
       try {
-        const user = await userRepo.findById(domain.target_user_id);
+        const user = await userRepo.findById(request.target_user_id);
         if (!user) {
-          Logger.warn(`User ${domain.target_user_id} not found for domain ${domain.id}`);
+          Logger.warn(`User ${request.target_user_id} not found for domain request ${request.id}`);
           continue;
         }
 
         // If user has insufficient balance
-        if (user.balance < domain.price) {
-          domain.status = DomainRequestStatus.Expired;
-          await domainRepo.save(domain);
-          Logger.info(`Domain ${domain.id} expired (insufficient balance)`);
+        if (user.balance < request.price) {
+          request.status = DomainRequestStatus.Expired;
+          await domainRequestRepo.save(request);
+          Logger.info(`Domain request ${request.id} expired (insufficient balance)`);
           continue;
         }
 
-        // Auto-renew domain
+        // Auto-renew domain request
         await dataSource.transaction(async (manager) => {
           const domainManager = manager.getRepository(DomainRequest);
           const userManager = manager.getRepository(User);
 
           const updatedUser = await userManager.findOne({ where: { id: user.id } });
-          const updatedDomain = await domainManager.findOne({ where: { id: domain.id } });
+          const updatedRequest = await domainManager.findOne({ where: { id: request.id } });
 
-          if (!updatedUser || !updatedDomain) {
-            throw new Error("User or domain not found during renewal");
+          if (!updatedUser || !updatedRequest) {
+            throw new Error("User or domain request not found during renewal");
           }
 
-          updatedUser.balance -= domain.price;
+          updatedUser.balance -= request.price;
           const now = Date.now();
-          updatedDomain.expireAt = new Date(now + ms("1y"));
-          updatedDomain.payday_at = new Date(now + ms("360d"));
+          updatedRequest.expireAt = new Date(now + ms("1y"));
+          updatedRequest.payday_at = new Date(now + ms("360d"));
 
           await userManager.save(updatedUser);
-          await domainManager.save(updatedDomain);
+          await domainManager.save(updatedRequest);
         });
 
-        Logger.info(`Domain ${domain.id} auto-renewed for user ${user.id}`);
+        Logger.info(`Domain request ${request.id} auto-renewed for user ${user.id}`);
       } catch (error) {
-        Logger.error(`Failed to process expired domain ${domain.id}`, error);
+        Logger.error(`Failed to process expired domain request ${request.id}`, error);
         // Continue with other domains
       }
     }
@@ -296,10 +295,10 @@ export class ExpirationService {
     telegramId: number,
     locale: string,
     key: string,
-    args?: Record<string, unknown>
+    args?: Record<string, string | number>
   ): Promise<void> {
     try {
-      const message = this.fluent.translate(locale, key, args || {});
+      const message = this.fluent.translate(locale, key, (args || {}) as Record<string, string | number>);
       await this.bot.api.sendMessage(telegramId, message, {
         parse_mode: "HTML",
       });

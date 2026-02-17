@@ -200,11 +200,11 @@ export const registerAdminPromosHandlers = (bot: Bot<AppContext>): void => {
     const session = await ctx.session;
     const hasSessionUser = await ensureSessionUser(ctx);
     if (!session || !hasSessionUser) {
-      await ctx.answerCallbackQuery(safeT(ctx, "error-unknown", { error: "Session not initialized" }).substring(0, 200), { show_alert: true }).catch(() => {});
+      await ctx.answerCallbackQuery({ text: safeT(ctx, "error-unknown", { error: "Session not initialized" }).substring(0, 200), show_alert: true }).catch(() => {});
       return;
     }
     if (session.main.user.role !== Role.Admin) {
-      await ctx.answerCallbackQuery(safeT(ctx, "error-access-denied").substring(0, 200), { show_alert: true }).catch(() => {});
+      await ctx.answerCallbackQuery({ text: safeT(ctx, "error-access-denied").substring(0, 200), show_alert: true }).catch(() => {});
       return;
     }
 
@@ -212,7 +212,7 @@ export const registerAdminPromosHandlers = (bot: Bot<AppContext>): void => {
     const promoRepo = ctx.appDataSource.getRepository(Promo);
     const promo = await promoRepo.findOne({ where: { id: promoId } });
     if (!promo) {
-      await ctx.answerCallbackQuery(safeT(ctx, "admin-promos-not-found").substring(0, 200), { show_alert: true }).catch(() => {});
+      await ctx.answerCallbackQuery({ text: safeT(ctx, "admin-promos-not-found").substring(0, 200), show_alert: true }).catch(() => {});
       return;
     }
 

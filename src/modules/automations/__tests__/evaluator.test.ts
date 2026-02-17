@@ -80,6 +80,7 @@ describe("evaluator", () => {
     it("returns allowed boolean when window set", () => {
       const config: ScenarioConfig = {
         trigger: { type: "EVENT", eventNames: [] },
+        conditions: { rules: [] },
         steps: [],
         offers: {},
         templates: {},
@@ -97,7 +98,7 @@ describe("evaluator", () => {
 
   describe("pickExperimentVariant", () => {
     it("returns null when experiment disabled", () => {
-      const config = { experiment: { enabled: false, variants: [] } } as ScenarioConfig;
+      const config = { experiment: { enabled: false, variants: [] } } as unknown as ScenarioConfig;
       assert.strictEqual(pickExperimentVariant(config), null);
     });
 

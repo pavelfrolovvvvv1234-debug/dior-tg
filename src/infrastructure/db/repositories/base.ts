@@ -4,19 +4,19 @@
  * @module infrastructure/db/repositories/base
  */
 
-import { DataSource, Repository, EntityTarget } from "typeorm";
+import { DataSource, Repository, EntityTarget, FindOptionsWhere, ObjectLiteral } from "typeorm";
 
 /**
  * Base repository class with common CRUD operations.
  */
-export abstract class BaseRepository<T> {
+export abstract class BaseRepository<T extends ObjectLiteral> {
   protected repository: Repository<T>;
 
   constructor(
     protected dataSource: DataSource,
     protected entity: EntityTarget<T>
   ) {
-    this.repository = dataSource.getRepository(entity);
+    this.repository = dataSource.getRepository(entity) as Repository<T>;
   }
 
   /**
@@ -24,7 +24,7 @@ export abstract class BaseRepository<T> {
    */
   async findById(id: number): Promise<T | null> {
     return this.repository.findOne({
-      where: { id } as unknown as Partial<T>,
+      where: { id } as unknown as FindOptionsWhere<T>,
     });
   }
 
@@ -60,6 +60,6 @@ export abstract class BaseRepository<T> {
    * Get the underlying TypeORM repository for advanced queries.
    */
   getRepository(): Repository<T> {
-    return this.repository;
+    return this.repository as Repository<T>;
   }
 }

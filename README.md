@@ -127,6 +127,31 @@ Translation files are located in `locales/{lang}/`:
 - Sensitive operations use database transactions
 - Rate limiting on sensitive commands
 
+## 🖥 Deploy on VPS (after code changes)
+
+Чтобы бот на VPS собирался и запускался, репозиторий на сервере должен совпадать с тем, где сделаны правки.
+
+1. **На своей машине (где правки):** закоммитить и запушить всё в `main`:
+   ```bash
+   git add -A
+   git status   # убедиться, что в коммит попадают нужные файлы
+   git commit -m "fix: TypeScript and session/context types for build"
+   git push origin main
+   ```
+
+2. **На VPS:** подтянуть код и пересобрать:
+   ```bash
+   cd ~/dior-tg
+   git fetch origin
+   git reset --hard origin/main
+   npm ci
+   npm run build
+   pm2 restart all
+   ```
+   Если `git pull` пишет "Already up to date", но ошибки сборки остаются — значит с dev-машины ещё не был выполнен `git push`. Сначала пуш с той машины, где правили код.
+
+3. Ошибка **`Cannot find module '@/database'`** после сборки: после `npm run build` выполнить `npm run fix-dist` (или вручную заменить в `dist/*.js` все `require("@/...")` на относительные пути). В `package.json` должен быть скрипт `"fix-dist": "node scripts/fix-dist-aliases.cjs || node scripts/fix-dist-fallback.cjs"`.
+
 ## 🐳 Docker Deployment
 
 ```bash

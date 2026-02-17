@@ -1,7 +1,8 @@
 import { Menu } from "@grammyjs/menu";
 import { InlineKeyboard } from "grammy";
 import { MoreThan } from "typeorm";
-import { MyAppContext, SessionData } from "..";
+import type { AppContext } from "../shared/types/context";
+import type { SessionData } from "../shared/types/session";
 import User, { Role, UserStatus } from "@entities/User";
 import VirtualDedicatedServer from "@entities/VirtualDedicatedServer";
 import DedicatedServer, { DedicatedServerStatus } from "@entities/DedicatedServer";
@@ -16,7 +17,7 @@ import { ensureSessionUser } from "../shared/utils/session-user.js";
 const LIMIT_ON_PAGE = 7;
 
 async function getQuickUserStats(
-  dataSource: MyAppContext["appDataSource"],
+  dataSource: AppContext["appDataSource"],
   userId: number,
   userLastUpdateAt: Date
 ): Promise<{
@@ -121,11 +122,11 @@ const sorting = (
 
 /** Build profile text and reply_markup for control panel user view. Pass replyMarkup (e.g. controlUser) at call site. */
 export async function buildControlPanelUserReply(
-  ctx: MyAppContext,
+  ctx: AppContext,
   user: User,
   username: string | undefined,
-  replyMarkup: Menu<MyAppContext>
-): Promise<{ text: string; reply_markup: Menu<MyAppContext> }> {
+  replyMarkup: Menu<AppContext>
+): Promise<{ text: string; reply_markup: Menu<AppContext> }> {
   let un = username;
   if (un === undefined) {
     try {
@@ -171,13 +172,13 @@ export async function buildControlPanelUserReply(
   };
 }
 
-let _controlUserMenu: Menu<MyAppContext> | null = null;
-function getControlUserMenu(): Menu<MyAppContext> {
+let _controlUserMenu: Menu<AppContext> | null = null;
+function getControlUserMenu(): Menu<AppContext> {
   if (!_controlUserMenu) throw new Error("Control user menu not initialized");
   return _controlUserMenu;
 }
 
-export const controlUsers = new Menu<MyAppContext>("control-users", {})
+export const controlUsers = new Menu<AppContext>("control-users", {})
   .text(
     async (ctx) => {
       const session = await ctx.session;
@@ -338,7 +339,7 @@ export const controlUsers = new Menu<MyAppContext>("control-users", {})
     }
   });
 
-export const controlUser = new Menu<MyAppContext>("control-user", {})
+export const controlUser = new Menu<AppContext>("control-user", {})
   .dynamic(
   async (ctx, range) => {
     const session = await ctx.session;
@@ -529,7 +530,7 @@ export const controlUser = new Menu<MyAppContext>("control-user", {})
 _controlUserMenu = controlUser;
 
 /** Balance submenu: add / deduct. */
-export const controlUserBalance = new Menu<MyAppContext>("control-user-balance", {})
+export const controlUserBalance = new Menu<AppContext>("control-user-balance", {})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
     if (!session.other.controlUsersPage?.pickedUserData) return;
@@ -559,7 +560,7 @@ export const controlUserBalance = new Menu<MyAppContext>("control-user-balance",
   });
 
 /** Subscription submenu: grant or revoke Prime. */
-export const controlUserSubscription = new Menu<MyAppContext>("control-user-subscription", {})
+export const controlUserSubscription = new Menu<AppContext>("control-user-subscription", {})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
     if (!session.other.controlUsersPage?.pickedUserData) return;
@@ -589,7 +590,7 @@ export const controlUserSubscription = new Menu<MyAppContext>("control-user-subs
 /**
  * Menu for changing user status.
  */
-export const controlUserStatus = new Menu<MyAppContext>("control-user-status", {})
+export const controlUserStatus = new Menu<AppContext>("control-user-status", {})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
     const hasSessionUser = await ensureSessionUser(ctx);

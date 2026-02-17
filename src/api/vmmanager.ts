@@ -20,6 +20,9 @@ export type CreateVMSuccesffulyResponse = {
   spice_task: number;
 };
 
+/** Alias for CreateVMSuccesffulyResponse (API typo). */
+export type CreateVMSuccessfullyResponse = CreateVMSuccesffulyResponse;
+
 export type GetOsListResponse = {
   last_notify: number;
   list: Os[];

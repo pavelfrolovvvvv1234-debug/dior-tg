@@ -71,13 +71,13 @@ export async function runScenarioForEvent(params: RunScenarioParams): Promise<"s
 
   const throttle = await checkThrottle(dataSource, scenarioKey, userId, config);
   if (!throttle.allowed) {
-    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, throttle.reason);
+    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, throttle.reason ?? null);
     return "skipped";
   }
 
   const quiet = checkQuietHours(config, null);
   if (!quiet.allowed) {
-    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, quiet.reason);
+    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, quiet.reason ?? null);
     return "skipped";
   }
 
@@ -168,13 +168,13 @@ export async function runScenarioForScheduleUser(params: RunScheduleScenarioPara
 
   const throttle = await checkThrottle(dataSource, scenarioKey, userId, config);
   if (!throttle.allowed) {
-    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, throttle.reason);
+    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, throttle.reason ?? null);
     return "skipped";
   }
 
   const quiet = checkQuietHours(config, null);
   if (!quiet.allowed) {
-    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, quiet.reason);
+    await logOutcome(dataSource, scenarioKey, userId, "skipped", null, quiet.reason ?? null);
     return "skipped";
   }
 

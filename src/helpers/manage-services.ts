@@ -1,6 +1,7 @@
 import { Menu } from "@grammyjs/menu";
 import { Not, IsNull } from "typeorm";
-import { mainMenu, MyAppContext, MyConversation } from "..";
+import { mainMenu } from "..";
+import type { AppContext, AppConversation } from "../shared/types/context";
 import DomainRequest, { DomainRequestStatus } from "@/entities/DomainRequest";
 import Domain from "@/entities/Domain";
 import { getAppDataSource } from "@/database";
@@ -26,12 +27,12 @@ const getDemoVdsInfo = (): ListItem => {
   return { state: "active" } as ListItem;
 };
 
-const replyDemoOperation = async (ctx: MyAppContext): Promise<void> => {
+const replyDemoOperation = async (ctx: AppContext): Promise<void> => {
   await ctx.reply(ctx.t("demo-operation-not-available"));
 };
 
 const getStatusLabel = (
-  ctx: MyAppContext,
+  ctx: AppContext,
   state: ListItem["state"]
 ): string => {
   if (state === "active") {
@@ -44,7 +45,7 @@ const getStatusLabel = (
 };
 
 const buildVdsManageText = (
-  ctx: MyAppContext,
+  ctx: AppContext,
   vds: VirtualDedicatedServer | null,
   info: ListItem | null,
   showPassword: boolean
@@ -71,7 +72,7 @@ const buildVdsManageText = (
   return `${header}\n\n${infoBlock}`;
 };
 
-const updateVdsManageView = async (ctx: MyAppContext): Promise<void> => {
+const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const session = await ctx.session;
   const expandedId = session.other.manageVds.expandedId;
 
@@ -121,7 +122,7 @@ const updateVdsManageView = async (ctx: MyAppContext): Promise<void> => {
 };
 
 const createVdsServiceInvoice = async (
-  ctx: MyAppContext,
+  ctx: AppContext,
   vds: VirtualDedicatedServer
 ): Promise<void> => {
   const session = await ctx.session;
@@ -151,7 +152,7 @@ const createVdsServiceInvoice = async (
   );
 };
 
-export const manageSerivcesMenu = new Menu<MyAppContext>("manage-services-menu")
+export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
   .submenu(
     (ctx) => ctx.t("button-domains"),
     "domain-manage-services-menu",
@@ -189,7 +190,7 @@ const emojiByStatus = (domainRequestStatus: DomainRequestStatus) => {
   }
 };
 
-export const vdsReinstallOs = new Menu<MyAppContext>("vds-select-os-reinstall")
+export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
   .dynamic(async (ctx, range) => {
     const osList = ctx.osList;
 
@@ -262,7 +263,7 @@ export const vdsReinstallOs = new Menu<MyAppContext>("vds-select-os-reinstall")
   })
   .back((ctx) => ctx.t("button-back"));
 
-export const vdsManageSpecific = new Menu<MyAppContext>(
+export const vdsManageSpecific = new Menu<AppContext>(
   "vds-manage-specific"
 ).dynamic(async (ctx, range) => {
   const session = await ctx.session;
@@ -530,8 +531,8 @@ export const vdsManageSpecific = new Menu<MyAppContext>(
  * Conversation for renaming VDS.
  */
 export async function renameVdsConversation(
-  conversation: MyConversation,
-  ctx: MyAppContext
+  conversation: AppConversation,
+  ctx: AppContext
 ) {
   const session = await ctx.session;
   const vdsId = session.other.manageVds.lastPickedId;
@@ -612,7 +613,7 @@ export async function renameVdsConversation(
   }
 }
 
-const status = (state: ListItem["state"], ctx: MyAppContext) => {
+const status = (state: ListItem["state"], ctx: AppContext) => {
   switch (state) {
     case "creating":
       return ctx.t("vds-creating");
@@ -624,7 +625,7 @@ const status = (state: ListItem["state"], ctx: MyAppContext) => {
 };
 
 const vdsInfoText = (
-  ctx: MyAppContext,
+  ctx: AppContext,
   vds: VirtualDedicatedServer,
   info: ListItem
 ) => {
@@ -648,7 +649,7 @@ const vdsInfoText = (
   });
 };
 
-export const vdsManageServiceMenu = new Menu<MyAppContext>(
+export const vdsManageServiceMenu = new Menu<AppContext>(
   "vds-manage-services-list"
 )
   .dynamic(async (ctx, range) => {
@@ -880,7 +881,7 @@ export const vdsManageServiceMenu = new Menu<MyAppContext>(
     }
   );
 
-export const domainManageServicesMenu = new Menu<MyAppContext>(
+export const domainManageServicesMenu = new Menu<AppContext>(
   "domain-manage-services-menu"
 )
   .dynamic(async (ctx, range) => {
@@ -1062,7 +1063,7 @@ export const domainManageServicesMenu = new Menu<MyAppContext>(
   );
 
 /** Menu for services purchased as part of an infrastructure bundle (domain + VPS). */
-export const bundleManageServicesMenu = new Menu<MyAppContext>(
+export const bundleManageServicesMenu = new Menu<AppContext>(
   "bundle-manage-services-menu"
 )
   .dynamic(async (ctx, range) => {

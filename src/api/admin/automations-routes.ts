@@ -12,6 +12,10 @@ import type { ScenarioConfig } from "../../modules/automations/schemas/scenario-
 import AutomationEventLog from "../../entities/automations/AutomationEventLog.js";
 import OfferInstance from "../../entities/automations/OfferInstance.js";
 
+function paramStr(p: string | string[] | undefined): string {
+  return (Array.isArray(p) ? p[0] : p) ?? "";
+}
+
 export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMessage: (chatId: number, text: string, extra?: object) => Promise<unknown> } } | null }) {
   const router = express.Router();
 
@@ -32,7 +36,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
     try {
       const ds = await getAppDataSource();
       const service = new ScenarioAdminService(ds);
-      const s = await service.getScenario(req.params.key);
+      const s = await service.getScenario(paramStr(req.params.key));
       if (!s) return res.status(404).json({ error: "Not found" });
       res.json(s);
     } catch (e) {
@@ -55,7 +59,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
     try {
       const ds = await getAppDataSource();
       const service = new ScenarioAdminService(ds);
-      const updated = await service.updateScenario(req.params.key, req.body);
+      const updated = await service.updateScenario(paramStr(req.params.key), req.body);
       res.json(updated);
     } catch (e) {
       res.status(400).json({ error: String(e) });
@@ -66,7 +70,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
     try {
       const ds = await getAppDataSource();
       const service = new ScenarioAdminService(ds);
-      await service.deleteScenario(req.params.key);
+      await service.deleteScenario(paramStr(req.params.key));
       res.status(204).send();
     } catch (e) {
       res.status(500).json({ error: String(e) });
@@ -77,7 +81,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
     try {
       const ds = await getAppDataSource();
       const service = new ScenarioAdminService(ds);
-      const list = await service.listVersions(req.params.key);
+      const list = await service.listVersions(paramStr(req.params.key));
       res.json(list);
     } catch (e) {
       res.status(500).json({ error: String(e) });
@@ -90,7 +94,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
       const service = new ScenarioAdminService(ds);
       const config = ScenarioConfigSchema.parse(req.body.config);
       const created = await service.createVersion({
-        scenarioKey: req.params.key,
+        scenarioKey: paramStr(req.params.key),
         config: config as ScenarioConfig,
         status: req.body.status,
       });
@@ -104,9 +108,9 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
     try {
       const ds = await getAppDataSource();
       const service = new ScenarioAdminService(ds);
-      const versionId = parseInt(req.params.id, 10);
+      const versionId = parseInt(paramStr(req.params.id), 10);
       const publishedBy = req.body.publishedBy != null ? parseInt(String(req.body.publishedBy), 10) : undefined;
-      const published = await service.publishVersion(req.params.key, versionId, publishedBy);
+      const published = await service.publishVersion(paramStr(req.params.key), versionId, publishedBy);
       res.json(published);
     } catch (e) {
       res.status(400).json({ error: String(e) });
@@ -118,7 +122,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
       const userId = req.body.userId ?? req.body.telegramId;
       if (userId == null) return res.status(400).json({ error: "userId or telegramId required" });
       const ds = await getAppDataSource();
-      const version = await new ScenarioAdminService(ds).getPublishedVersion(req.params.key);
+      const version = await new ScenarioAdminService(ds).getPublishedVersion(paramStr(req.params.key));
       if (!version?.config) return res.status(404).json({ error: "No published version" });
       const config = version.config as ScenarioConfig;
       const templateKey = config.steps?.[0]?.templateKey;
@@ -144,7 +148,7 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
       const repo = ds.getRepository(AutomationEventLog);
       const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit), 10) || 20));
-      const scenarioKey = req.query.scenarioKey as string | undefined;
+      const scenarioKey = (Array.isArray(req.query.scenarioKey) ? req.query.scenarioKey[0] : req.query.scenarioKey) as string | undefined;
       const qb = repo.createQueryBuilder("l").orderBy("l.createdAt", "DESC").take(limit).skip((page - 1) * limit);
       if (scenarioKey) qb.andWhere("l.scenarioKey = :scenarioKey", { scenarioKey });
       const [items, total] = await qb.getManyAndCount();
@@ -159,9 +163,12 @@ export function createAutomationsRouter(deps: { getBot?: () => { api: { sendMess
       const ds = await getAppDataSource();
       const repo = ds.getRepository(OfferInstance);
       const qb = repo.createQueryBuilder("o").orderBy("o.createdAt", "DESC").take(100);
-      if (req.query.userId) qb.andWhere("o.userId = :userId", { userId: req.query.userId });
-      if (req.query.scenarioKey) qb.andWhere("o.scenarioKey = :scenarioKey", { scenarioKey: req.query.scenarioKey });
-      if (req.query.status) qb.andWhere("o.status = :status", { status: req.query.status });
+      const userId = Array.isArray(req.query.userId) ? req.query.userId[0] : req.query.userId;
+      const scenarioKeyQ = Array.isArray(req.query.scenarioKey) ? req.query.scenarioKey[0] : req.query.scenarioKey;
+      const statusQ = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
+      if (userId) qb.andWhere("o.userId = :userId", { userId });
+      if (scenarioKeyQ) qb.andWhere("o.scenarioKey = :scenarioKey", { scenarioKey: scenarioKeyQ });
+      if (statusQ) qb.andWhere("o.status = :status", { status: statusQ });
       const items = await qb.getMany();
       res.json({ items });
     } catch (e) {

@@ -6,7 +6,7 @@
 
 import { CryptoBotProvider } from "../../infrastructure/payments/cryptobot.js";
 import { ServiceInvoiceRepository } from "../../infrastructure/db/repositories/ServiceInvoiceRepository.js";
-import { ServiceInvoiceStatus } from "../../entities/ServiceInvoice.js";
+import { InvoiceStatus } from "../../infrastructure/payments/types.js";
 import { Logger } from "../../app/logger.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import { ServicePaymentService } from "./ServicePaymentService.js";
@@ -50,7 +50,7 @@ export class ServicePaymentStatusChecker {
     for (const invoice of pending) {
       try {
         const info = await this.provider.getInvoice(invoice.invoiceId);
-        if (info.status === ServiceInvoiceStatus.Paid) {
+        if (info.status === InvoiceStatus.PAID) {
           const updated = await service.handlePaidInvoice(invoice.invoiceId, invoice.payload);
           if (updated && this.bot && updated.chatId && updated.messageId) {
             const paidUntil = await service.getPaidUntil(updated);
@@ -66,7 +66,7 @@ export class ServicePaymentStatusChecker {
               `✅ Paid\nPaid until: ${dateText}`
             );
           }
-        } else if (info.status === ServiceInvoiceStatus.Expired) {
+        } else if (info.status === InvoiceStatus.EXPIRED) {
           await service.markExpired(invoice.invoiceId);
         }
       } catch (error) {

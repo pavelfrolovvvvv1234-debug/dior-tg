@@ -49,7 +49,7 @@ export async function localeMiddleware(ctx: AppContext, next: () => Promise<void
     const userRepo = new UserRepository(dataSource);
 
     try {
-      const user = await userRepo.findOneBy({ id: session.main.user.id });
+      const user = await userRepo.findById(session.main.user.id);
       if (user && user.lang) {
         session.main.locale = user.lang;
       }

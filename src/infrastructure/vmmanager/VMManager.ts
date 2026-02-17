@@ -5,7 +5,6 @@
  */
 
 import axios, { AxiosError } from "axios";
-import axios from "axios";
 import { config } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
 import { retry } from "../../shared/utils/retry.js";
@@ -14,7 +13,7 @@ import ms from "../../lib/multims.js";
 import { generatePassword } from "../../entities/VirtualDedicatedServer.js";
 import type {
   CreatePublicTokenResponse,
-  CreateVMSuccessfullyResponse,
+  CreateVMSuccesffulyResponse,
   GetOsListResponse,
   GetVMResponse,
 } from "../../api/vmmanager.js";
@@ -203,9 +202,9 @@ export class VMManager {
     ipv4Count: number,
     networkIn: number,
     networkOut: number
-  ): Promise<CreateVMSuccessfullyResponse | false> {
+  ): Promise<CreateVMSuccesffulyResponse | false> {
     return this.handleApiCall(async () => {
-      const { status, data } = await axios.post<CreateVMSuccessfullyResponse>(
+      const { status, data } = await axios.post<CreateVMSuccesffulyResponse>(
         `${this.baseUrl}vm/v3/host`,
         {
           name,

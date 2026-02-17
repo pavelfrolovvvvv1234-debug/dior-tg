@@ -39,7 +39,7 @@ export default class VirtualDedicatedServer {
   isBulletproof!: boolean;
 
   @Column({ nullable: true, type: "datetime" })
-  payDayAt!: Date;
+  payDayAt!: Date | null;
 
   // Gb
   @Column({ type: "integer", nullable: false })

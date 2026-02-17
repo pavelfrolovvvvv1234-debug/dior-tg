@@ -1,8 +1,8 @@
-import { MyAppContext } from "..";
+import type { AppContext } from "../shared/types/context";
 import User, { Role } from "@entities/User";
 
 export async function notifyAllAdminsAboutPromotedUser(
-  ctx: MyAppContext,
+  ctx: AppContext,
   promotedUser: {
     telegramId: string;
     name: string;

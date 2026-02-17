@@ -26,7 +26,7 @@ export async function domainUpdateNsConversation(
   // Try to get domainId from callback query data or session
   let domainId: number | undefined;
   if (ctx.callbackQuery && "data" in ctx.callbackQuery) {
-    const match = ctx.callbackQuery.data.match(/^domain_update_ns_(\d+)$/);
+    const match = (ctx.callbackQuery.data ?? "").match(/^domain_update_ns_(\d+)$/);
     if (match) {
       domainId = parseInt(match[1]);
       session.other = session.other || {};

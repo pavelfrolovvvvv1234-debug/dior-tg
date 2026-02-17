@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "nodemon",
     "fix-prices": "node fix-prices-cjs.cjs || node scripts/fix-prices-cjs.cjs || echo 'fix-prices script not found, skipping'",
-    "build": "tsc || echo. && tsc-alias -p tsconfig.json && npm run fix-prices",
+    "build": "tsc && (node scripts/fix-dist-aliases.cjs || node scripts/fix-dist-fallback.cjs) && (tsc-alias -p tsconfig.json || true) && (node scripts/fix-dist-aliases.cjs || node scripts/fix-dist-fallback.cjs) && npm run fix-prices",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "fix-dist": "node scripts/fix-dist-aliases.cjs || node scripts/fix-dist-fallback.cjs",
     "start": "node --no-deprecation dist/index.js",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

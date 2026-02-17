@@ -39,7 +39,7 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
         });
 
         await editOrSend(ctx, screen.text, {
-          reply_markup: depositPaymentSystemChoose,
+          reply_markup: depositPaymentSystemChoose as unknown as import("grammy").InlineKeyboard,
           parse_mode: screen.parse_mode,
         });
 

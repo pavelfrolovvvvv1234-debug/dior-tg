@@ -76,7 +76,7 @@ export class BundleService {
       return { success: false, error: "Bundle configuration not found" };
     }
 
-    const hasPrime = user.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
+    const hasPrime = Boolean(user.primeActiveUntil && new Date(user.primeActiveUntil) > new Date());
     const pricing = await calculateBundlePrice(config, hasPrime);
 
     if (user.balance < pricing.finalPrice) {

@@ -6,7 +6,7 @@
 
 import { DataSource } from "typeorm";
 import ms from "../../lib/multims.js";
-import { DomainRepository } from "../../infrastructure/db/repositories/DomainRepository.js";
+import { DomainRequestRepository } from "../../infrastructure/db/repositories/DomainRequestRepository.js";
 import { BillingService } from "../billing/BillingService.js";
 import DomainRequest, {
   DomainRequestStatus,
@@ -17,12 +17,12 @@ import { NotFoundError, BusinessError } from "../../shared/errors/index.js";
 import { Logger } from "../../app/logger.js";
 
 /**
- * Domain service for managing domain registrations.
+ * Domain service for managing domain requests (moderation flow).
  */
 export class DomainService {
   constructor(
     private dataSource: DataSource,
-    private domainRepository: DomainRepository,
+    private domainRequestRepository: DomainRequestRepository,
     private billingService: BillingService
   ) {}
 
@@ -101,21 +101,21 @@ export class DomainService {
     domainId: number,
     expireDays: number = 365
   ): Promise<DomainRequest> {
-    const domain = await this.domainRepository.findById(domainId);
-    if (!domain) {
+    const request = await this.domainRequestRepository.findById(domainId);
+    if (!request) {
       throw new NotFoundError("DomainRequest", domainId);
     }
 
-    if (domain.status !== DomainRequestStatus.InProgress) {
+    if (request.status !== DomainRequestStatus.InProgress) {
       throw new BusinessError(
-        `Cannot approve domain with status: ${domain.status}`
+        `Cannot approve domain with status: ${request.status}`
       );
     }
 
     const expireAt = new Date(Date.now() + ms(`${expireDays}d`));
     const paydayAt = new Date(expireAt.getTime() - ms("7d"));
 
-    return await this.domainRepository.approve(domainId, expireAt, paydayAt);
+    return await this.domainRequestRepository.approve(domainId, expireAt, paydayAt);
   }
 
   /**
@@ -127,14 +127,14 @@ export class DomainService {
    * @throws {NotFoundError} If domain request or user not found
    */
   async rejectDomain(domainId: number, userId: number): Promise<DomainRequest> {
-    const domain = await this.domainRepository.findById(domainId);
-    if (!domain) {
+    const request = await this.domainRequestRepository.findById(domainId);
+    if (!request) {
       throw new NotFoundError("DomainRequest", domainId);
     }
 
-    if (domain.status !== DomainRequestStatus.InProgress) {
+    if (request.status !== DomainRequestStatus.InProgress) {
       throw new BusinessError(
-        `Cannot reject domain with status: ${domain.status}`
+        `Cannot reject domain with status: ${request.status}`
       );
     }
 
@@ -149,19 +149,19 @@ export class DomainService {
         throw new NotFoundError("User", userId);
       }
 
-      user.balance += domain.price;
+      user.balance += request.price;
 
       // Reject domain
-      domain.status = DomainRequestStatus.Failed;
+      request.status = DomainRequestStatus.Failed;
 
       await userRepo.save(user);
-      const savedDomain = await domainRepo.save(domain);
+      const savedRequest = await domainRepo.save(request);
 
       Logger.info(
-        `Rejected domain request ${domainId} and refunded ${domain.price} to user ${userId}`
+        `Rejected domain request ${domainId} and refunded ${request.price} to user ${userId}`
       );
 
-      return savedDomain;
+      return savedRequest;
     });
   }
 
@@ -174,29 +174,29 @@ export class DomainService {
    * @throws {BusinessError} If insufficient balance or not completed
    */
   async renewDomain(domainId: number): Promise<DomainRequest> {
-    const domain = await this.domainRepository.findById(domainId);
-    if (!domain) {
+    const request = await this.domainRequestRepository.findById(domainId);
+    if (!request) {
       throw new NotFoundError("DomainRequest", domainId);
     }
 
-    if (domain.status !== DomainRequestStatus.Completed) {
+    if (request.status !== DomainRequestStatus.Completed) {
       throw new BusinessError(
-        `Cannot renew domain with status: ${domain.status}`
+        `Cannot renew domain with status: ${request.status}`
       );
     }
 
     // Check balance
     if (
       !(await this.billingService.hasSufficientBalance(
-        domain.target_user_id,
-        domain.price
+        request.target_user_id,
+        request.price
       ))
     ) {
       const balance = await this.billingService.getBalance(
-        domain.target_user_id
+        request.target_user_id
       );
       throw new BusinessError(
-        `Insufficient balance for renewal. Required: ${domain.price}, Available: ${balance}`
+        `Insufficient balance for renewal. Required: ${request.price}, Available: ${balance}`
       );
     }
 
@@ -207,52 +207,52 @@ export class DomainService {
 
       // Deduct balance
       const user = await userRepo.findOne({
-        where: { id: domain.target_user_id },
+        where: { id: request.target_user_id },
       });
       if (!user) {
-        throw new NotFoundError("User", domain.target_user_id);
+        throw new NotFoundError("User", request.target_user_id);
       }
 
-      user.balance -= domain.price;
+      user.balance -= request.price;
 
       // Extend expiration
       const now = Date.now();
-      domain.expireAt = new Date(now + ms("1y"));
-      domain.payday_at = new Date(now + ms("360d"));
+      request.expireAt = new Date(now + ms("1y"));
+      request.payday_at = new Date(now + ms("360d"));
 
       await userRepo.save(user);
-      const savedDomain = await domainRepo.save(domain);
+      const savedRequest = await domainRepo.save(request);
 
       Logger.info(
-        `Renewed domain ${domainId} for user ${domain.target_user_id}`
+        `Renewed domain ${domainId} for user ${request.target_user_id}`
       );
 
-      return savedDomain;
+      return savedRequest;
     });
   }
 
   /**
-   * Get domain by ID.
+   * Get domain request by ID.
    */
   async getDomainById(domainId: number): Promise<DomainRequest> {
-    const domain = await this.domainRepository.findById(domainId);
-    if (!domain) {
+    const request = await this.domainRequestRepository.findById(domainId);
+    if (!request) {
       throw new NotFoundError("DomainRequest", domainId);
     }
-    return domain;
+    return request;
   }
 
   /**
-   * Get all domains for a user.
+   * Get all domain requests for a user.
    */
   async getUserDomains(userId: number): Promise<DomainRequest[]> {
-    return await this.domainRepository.findByUserId(userId);
+    return await this.domainRequestRepository.findByTargetUserId(userId);
   }
 
   /**
    * Get pending domain requests (for moderators/admins).
    */
   async getPendingDomains(): Promise<DomainRequest[]> {
-    return await this.domainRepository.findPending();
+    return await this.domainRequestRepository.findPending();
   }
 }

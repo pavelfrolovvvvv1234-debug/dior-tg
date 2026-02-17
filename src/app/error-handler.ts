@@ -5,7 +5,7 @@
  * @module app/error-handler
  */
 
-import type { Bot, Context } from "grammy";
+import type { Bot } from "grammy";
 import { GrammyError } from "grammy";
 import { Logger } from "./logger.js";
 import type { AppContext } from "../shared/types/context.js";
@@ -58,7 +58,7 @@ function isMessageNotModifiedError(error: unknown): boolean {
 /**
  * Handle application errors (user-friendly messages).
  */
-async function handleAppError(ctx: Context, error: AppError): Promise<void> {
+async function handleAppError(ctx: AppContext, error: AppError): Promise<void> {
   if (!ctx.chat) return;
 
   try {
@@ -116,7 +116,7 @@ async function handleAppError(ctx: Context, error: AppError): Promise<void> {
 /**
  * Handle generic JavaScript errors.
  */
-async function handleGenericError(ctx: Context, error: Error): Promise<void> {
+async function handleGenericError(ctx: AppContext, error: Error): Promise<void> {
   if (!ctx.chat) return;
 
   try {
@@ -158,7 +158,7 @@ async function handleGenericError(ctx: Context, error: Error): Promise<void> {
 /**
  * Handle unknown errors (non-Error objects).
  */
-async function handleUnknownError(ctx: Context, error: unknown): Promise<void> {
+async function handleUnknownError(ctx: AppContext, error: unknown): Promise<void> {
   if (!ctx.chat) return;
 
   try {

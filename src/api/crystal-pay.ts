@@ -1,10 +1,11 @@
-import axios from "axios";
+import axios, { type AxiosInstance } from "axios";
 
 interface ResponseCreatedInvoice {
   id: string;
   url: string;
   type: "purchase";
   rub_amount: string;
+  expired_at?: string;
 }
 
 interface ResponseInvoiceInfo {
@@ -39,7 +40,7 @@ interface ResponseInvoiceInfo {
 
 export class CrystalPayClient {
   private endpoint: string = "https://api.crystalpay.io/v3/";
-  private axiosClient: axios.AxiosInstance;
+  private axiosClient: AxiosInstance;
 
   constructor(private login: string, private secretKey: string) {
     this.axiosClient = axios.create({

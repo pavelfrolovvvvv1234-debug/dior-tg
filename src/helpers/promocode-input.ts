@@ -2,7 +2,7 @@ import { getAppDataSource } from "@/database";
 import Promo from "@entities/Promo";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 import { InlineKeyboard } from "grammy";
-import { MyAppContext } from "..";
+import type { AppContext } from "../shared/types/context";
 import User from "@entities/User";
 
 /**
@@ -10,7 +10,7 @@ import User from "@entities/User";
  * Uses transaction to avoid race conditions; search by code is case-insensitive.
  */
 export async function handlePromocodeInput(
-  ctx: MyAppContext,
+  ctx: AppContext,
   rawInput: string
 ): Promise<void> {
   const session = await ctx.session;
@@ -68,7 +68,7 @@ export async function handlePromocodeInput(
   }
 }
 
-export const promocodeQuestion = new StatelessQuestion<MyAppContext>(
+export const promocodeQuestion = new StatelessQuestion<AppContext>(
   "promocodeQuestion",
   async (ctx) => {
     const promoInput = ctx.message;

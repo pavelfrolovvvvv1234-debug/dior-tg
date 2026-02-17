@@ -1,7 +1,7 @@
 import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
 import User, { Role } from "@entities/User";
 import { Bot, Api, RawApi } from "grammy";
-import { MyAppContext } from "..";
+import type { AppContext } from "../shared/types/context";
 import prices from "./prices";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 import { escapeUserInput } from "@helpers/formatting";
@@ -15,10 +15,10 @@ import { BusinessError, NotFoundError } from "@/shared/errors";
 import { Logger } from "@/app/logger";
 
 export function registerDomainRegistrationMiddleware(
-  bot: Bot<MyAppContext, Api<RawApi>>
+  bot: Bot<AppContext, Api<RawApi>>
 ) {
   const createDomainRequest = async (
-    ctx: MyAppContext,
+    ctx: AppContext,
     domain: string,
     additionalInformation: string
   ): Promise<void> => {
@@ -107,7 +107,7 @@ export function registerDomainRegistrationMiddleware(
     });
   };
 
-  const additionalInformationQuestion = new StatelessQuestion<MyAppContext>(
+  const additionalInformationQuestion = new StatelessQuestion<AppContext>(
     "add-info",
     async (ctx, domain) => {
       const rawInput = ctx.message?.text?.trim() ?? "";

@@ -6,7 +6,8 @@
 
 import { DataSource } from "typeorm";
 import { randomUUID } from "crypto";
-import type { PaymentProviderName, InvoiceStatus } from "../../infrastructure/payments/types";
+import type { PaymentProviderName } from "../../infrastructure/payments/types";
+import { InvoiceStatus } from "../../infrastructure/payments/types";
 import { createPaymentProvider } from "../../infrastructure/payments/factory";
 import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository";

@@ -1,5 +1,6 @@
 import { Menu } from "@grammyjs/menu";
-import { mainMenu, MyAppContext, MyConversation } from "..";
+import { mainMenu } from "..";
+import type { AppContext, AppConversation } from "../shared/types/context";
 import prices from "@helpers/prices";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 
@@ -19,7 +20,7 @@ import ms from "@/lib/multims";
 /**
  * Dedicated server type selection menu (Standard/Bulletproof).
  */
-const buildServiceHeader = (ctx: MyAppContext, labelKey: string): string =>
+const buildServiceHeader = (ctx: AppContext, labelKey: string): string =>
   `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t(labelKey)}`;
 
 /** Apply Prime −20% discount if user has active Prime. */
@@ -34,7 +35,7 @@ async function getPriceWithPrimeDiscount(
   return hasPrime ? Math.round(basePrice * 0.8 * 100) / 100 : basePrice;
 }
 
-export const dedicatedTypeMenu = new Menu<MyAppContext>("dedicated-type-menu")
+export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu")
   .submenu(
     (ctx) => ctx.t("button-standard"),
     "dedicated-servers-menu",
@@ -76,7 +77,7 @@ export const dedicatedTypeMenu = new Menu<MyAppContext>("dedicated-type-menu")
 /**
  * VDS type selection menu (Standard/Bulletproof).
  */
-export const vdsTypeMenu = new Menu<MyAppContext>("vds-type-menu")
+export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu")
   .submenu(
     (ctx) => ctx.t("button-standard"),
     "vds-menu",
@@ -106,7 +107,7 @@ export const vdsTypeMenu = new Menu<MyAppContext>("vds-type-menu")
     });
   });
 
-export const servicesMenu = new Menu<MyAppContext>("services-menu")
+export const servicesMenu = new Menu<AppContext>("services-menu")
   .submenu(
     (ctx) => ctx.t("button-domains"),
     "domains-menu",
@@ -132,7 +133,7 @@ export const servicesMenu = new Menu<MyAppContext>("services-menu")
   );
 
 async function createAndBuyVDS(
-  ctx: MyAppContext,
+  ctx: AppContext,
   osId: number,
   rateId: number,
   userId: number,
@@ -239,7 +240,7 @@ async function createAndBuyVDS(
   });
 }
 
-export const vdsRateOs = new Menu<MyAppContext>("vds-select-os").dynamic(
+export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
   async (ctx, range) => {
     const session = await ctx.session;
 
@@ -349,7 +350,7 @@ export const vdsRateOs = new Menu<MyAppContext>("vds-select-os").dynamic(
   }
 );
 
-export const vdsRateChoose = new Menu<MyAppContext>("vds-selected-rate", {
+export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
   onMenuOutdated: (ctx) => {
     ctx.deleteMessage().then();
   },
@@ -436,7 +437,7 @@ export const vdsRateChoose = new Menu<MyAppContext>("vds-selected-rate", {
     }
   );
 
-const editMessageVdsRate = async (ctx: MyAppContext, rateId: number) => {
+const editMessageVdsRate = async (ctx: AppContext, rateId: number) => {
   const pricesList = await prices();
   const session = await ctx.session;
   const rate = pricesList.virtual_vds[rateId];
@@ -470,7 +471,7 @@ const editMessageVdsRate = async (ctx: MyAppContext, rateId: number) => {
   );
 };
 
-export const vdsMenu = new Menu<MyAppContext>("vds-menu")
+export const vdsMenu = new Menu<AppContext>("vds-menu")
   .dynamic(async (ctx, range) => {
     const pricesList = await prices();
     const session = await ctx.session;
@@ -537,7 +538,7 @@ export const vdsMenu = new Menu<MyAppContext>("vds-menu")
 /**
  * Dedicated servers list menu (shows after selecting Standard/Bulletproof).
  */
-export const dedicatedServersMenu = new Menu<MyAppContext>("dedicated-servers-menu")
+export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu")
   .dynamic(async (ctx, range) => {
     const pricesList = await prices();
     const session = await ctx.session;
@@ -641,7 +642,7 @@ export const dedicatedServersMenu = new Menu<MyAppContext>("dedicated-servers-me
 /**
  * Function to edit message with dedicated server details.
  */
-const editMessageDedicatedServer = async (ctx: MyAppContext, serverId: number) => {
+const editMessageDedicatedServer = async (ctx: AppContext, serverId: number) => {
   const pricesList = await prices();
   const session = await ctx.session;
   const server = pricesList.dedicated_servers[serverId];
@@ -687,7 +688,7 @@ const editMessageDedicatedServer = async (ctx: MyAppContext, serverId: number) =
 /**
  * Dedicated server detail menu (shows server info with Order button).
  */
-export const dedicatedSelectedServerMenu = new Menu<MyAppContext>("dedicated-selected-server", {
+export const dedicatedSelectedServerMenu = new Menu<AppContext>("dedicated-selected-server", {
   onMenuOutdated: (ctx) => {
     ctx.deleteMessage().then();
   },
@@ -752,7 +753,7 @@ export const dedicatedSelectedServerMenu = new Menu<MyAppContext>("dedicated-sel
           parse_mode: "HTML",
         });
       } catch (error: any) {
-        const { Logger } = await import("../../app/logger.js");
+        const { Logger } = await import("../app/logger.js");
         Logger.error("Failed to start order dedicated conversation:", error);
         await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
       }
@@ -769,7 +770,7 @@ export const dedicatedSelectedServerMenu = new Menu<MyAppContext>("dedicated-sel
     }
   );
 
-export const domainsMenu = new Menu<MyAppContext>("domains-menu")
+export const domainsMenu = new Menu<AppContext>("domains-menu")
   .text(
     (ctx) => ctx.t("button-register-domain"),
     async (ctx) => {
@@ -876,7 +877,7 @@ export const domainsMenu = new Menu<MyAppContext>("domains-menu")
     }
   );
 
-export const domainQuestion = new StatelessQuestion<MyAppContext>(
+export const domainQuestion = new StatelessQuestion<AppContext>(
   "domain-pick",
   async (ctx, zone) => {
     if (!ctx.hasChatType("private")) return;
@@ -943,6 +944,6 @@ export const domainQuestion = new StatelessQuestion<MyAppContext>(
 );
 
 // Domain Order Stage
-export const domainOrderMenu = new Menu<MyAppContext>(
+export const domainOrderMenu = new Menu<AppContext>(
   "domain-order-menu"
 ).dynamic((ctx, range) => {});

@@ -197,7 +197,7 @@ export async function createDedicatedOrderTicket(
     await dedicatedService.createDedicatedRequest(
       session.main.user.id,
       ticket.id,
-      null
+      undefined
     );
 
     // Notify moderators

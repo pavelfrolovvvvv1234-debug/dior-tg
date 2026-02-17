@@ -396,12 +396,12 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
       Logger.warn("Failed to register admin promos menu:", error);
     }
   }
-  // Register conversations
-  bot.use(createConversation(askUserConversation, "askUserConversation"));
-  bot.use(createConversation(provideDedicatedResultConversation, "provideDedicatedResultConversation"));
-  bot.use(createConversation(provideResultConversation, "provideResultConversation"));
-  bot.use(createConversation(rejectTicketConversation, "rejectTicketConversation"));
-  bot.use(createConversation(orderDedicatedConversation, "orderDedicatedConversation"));
+  // Register conversations (type assertion for grammY conversation builder compatibility)
+  bot.use(createConversation(askUserConversation as any, "askUserConversation"));
+  bot.use(createConversation(provideDedicatedResultConversation as any, "provideDedicatedResultConversation"));
+  bot.use(createConversation(provideResultConversation as any, "provideResultConversation"));
+  bot.use(createConversation(rejectTicketConversation as any, "rejectTicketConversation"));
+  bot.use(createConversation(orderDedicatedConversation as any, "orderDedicatedConversation"));
   registerPromoConversations(bot);
   bot.use(ticketViewMenu);
 
@@ -410,7 +410,7 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
     const session = await ctx.session;
     const hasSessionUser = await ensureSessionUser(ctx);
     if (session && hasSessionUser) {
-      if (session.main.user.role === Role.Moderator || session.main.user.role === Role.Admin) {
+      if ((session.main.user.role === Role.Moderator || session.main.user.role === Role.Admin) && ctx.chatId != null) {
         setModeratorChatId(ctx.chatId);
       }
     }
@@ -887,7 +887,7 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
     session.other.broadcast = { step: "idle" };
 
     try {
-      const broadcastService = new BroadcastService(ctx.appDataSource, bot);
+      const broadcastService = new BroadcastService(ctx.appDataSource, bot as any);
       const broadcast = await broadcastService.createBroadcast(session.main.user.id, text);
 
       const messageId = ctx.callbackQuery.message?.message_id;
@@ -914,9 +914,9 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
             }) +
             errorText;
 
-          if (messageId) {
+          if (messageId && ctx.chat?.id) {
             await bot.api.editMessageText(
-              ctx.chatId,
+              ctx.chat.id,
               messageId,
               completedText,
               { parse_mode: "HTML" }
@@ -1272,7 +1272,7 @@ Are you sure you want to proceed?`,
 <strong>Created:</strong> ${domain.createdAt.toISOString()}`;
 
       const menu = createDomainViewMenu(domainId);
-      menu.register(bot);
+      bot.use(menu);
 
       await ctx.editMessageText(text, {
         reply_markup: menu,

@@ -106,9 +106,9 @@ export async function createBot(): Promise<{
   });
 
   // Initialize payment status checker with bot
-  const paymentChecker = new PaymentStatusChecker(bot, billingService, fluent);
+  const paymentChecker = new PaymentStatusChecker(bot as any, billingService, fluent);
   Logger.info("PaymentStatusChecker initialized");
-  const servicePaymentChecker = new ServicePaymentStatusChecker(bot);
+  const servicePaymentChecker = new ServicePaymentStatusChecker(bot as any);
   Logger.info("ServicePaymentStatusChecker initialized");
 
   // Setup session
@@ -133,6 +133,7 @@ export async function createBot(): Promise<{
           },
           dedicatedType: {
             bulletproof: false,
+            selectedDedicatedId: -1,
           },
           manageVds: {
             page: 0,
@@ -181,6 +182,7 @@ export async function createBot(): Promise<{
           user: {
             id: 0,
             balance: 0,
+            referralBalance: 0,
             role: Role.User,
             status: UserStatus.Newbie,
             isBanned: false,
@@ -238,8 +240,8 @@ export async function createBot(): Promise<{
     "../ui/conversations/domain-update-ns-conversation.js"
   );
   const { createConversation } = await import("@grammyjs/conversations");
-  bot.use(createConversation(domainRegisterConversation, "domainRegisterConversation"));
-  bot.use(createConversation(domainUpdateNsConversation, "domainUpdateNsConversation"));
+  bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
+  bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
 
   // Register menus - using old menus temporarily to preserve functionality
   // TODO: Gradually migrate to new menu structure (ui/menus/)
@@ -498,8 +500,7 @@ export async function createBot(): Promise<{
   vdsManageSpecific.register(vdsReinstallOs);
   vdsManageServiceMenu.register(vdsReinstallOs, "vds-manage-services-list");
 
-  // Register conversations
-  const { createConversation } = await import("@grammyjs/conversations");
+  // Register conversations (createConversation imported above)
   bot.use(createConversation(depositMoneyConversation, "depositMoneyConversation"));
 
   // Register broadcast and tickets functionality before text handlers
@@ -673,7 +674,7 @@ export async function createBot(): Promise<{
 
   // Initialize and start expiration service
   const expirationService = new ExpirationService(
-    bot,
+    bot as any,
     vmManager,
     fluent,
     onGracePeriodStarted,
@@ -689,7 +690,7 @@ export async function createBot(): Promise<{
   try {
     const dataSource = await getAppDataSource();
     const { setupAutomationEventHandler } = await import("../modules/automations/integration/event-handler.js");
-    stopAutomationHandler = setupAutomationEventHandler(dataSource, bot);
+    stopAutomationHandler = setupAutomationEventHandler(dataSource, bot as any);
     Logger.info("Automation event handler started");
 
     const sendMessage: (tid: number, text: string, buttons?: Array<{ text: string; url?: string; callback_data?: string }>) => Promise<void> = async (tid, text, buttons) => {
@@ -703,7 +704,7 @@ export async function createBot(): Promise<{
         }
         extra.reply_markup = kb;
       }
-      await bot.api.sendMessage(tid, text, extra).catch(() => {});
+      await bot.api.sendMessage(tid, text, extra as { parse_mode?: "HTML"; reply_markup?: import("grammy").InlineKeyboard }).catch(() => {});
     };
     const { runDueMultiSteps } = await import("../modules/automations/engine/index.js");
     const dueStepsTick = () => {
@@ -717,7 +718,7 @@ export async function createBot(): Promise<{
     Logger.info("Automation due-steps cron started (30m)");
 
     const { startScheduleRunner } = await import("../modules/automations/integration/schedule-runner.js");
-    stopScheduleRunner = startScheduleRunner(dataSource, bot);
+    stopScheduleRunner = startScheduleRunner(dataSource, bot as any);
     Logger.info("Automation schedule runner started");
   } catch (e) {
     Logger.warn("Automation event handler not started", e);

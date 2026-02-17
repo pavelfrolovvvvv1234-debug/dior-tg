@@ -10,10 +10,10 @@ import type { DomainAvailabilityResult } from "./DomainProvider.js";
 
 function lookup(domain: string, timeoutMs = 10000): Promise<string> {
   return new Promise((resolve, reject) => {
-    whoisLookup(domain, { timeout: timeoutMs }, (err: Error | null, data: string) => {
+    whoisLookup(domain, { timeout: timeoutMs }, ((err: Error | null, data: string | import("whois").WhoisResult[]) => {
       if (err) reject(err);
-      else resolve(data ?? "");
-    });
+      else resolve(typeof data === "string" ? data ?? "" : "");
+    }) as import("whois").WhoisCallback);
   });
 }
 
