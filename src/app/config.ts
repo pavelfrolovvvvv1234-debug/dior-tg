@@ -42,6 +42,9 @@ const envSchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : undefined))
     .pipe(z.number().int().positive().optional()),
 
+  // Optional: comma-separated Telegram user IDs that always have admin access (e.g. "7568177886" or "123,456")
+  ADMIN_TELEGRAM_IDS: z.string().optional(),
+
   // Environment
   NODE_ENV: z
     .enum(["development", "production", "test"])
@@ -93,4 +96,20 @@ export const getWebhookPort = (): number => {
  */
 export const isDevelopment = (): boolean => {
   return config.NODE_ENV === "development";
+};
+
+/** Parsed list of Telegram user IDs that always have admin access (from ADMIN_TELEGRAM_IDS). */
+let _adminTelegramIds: number[] | null = null;
+
+/**
+ * Returns Telegram user IDs that are granted admin access via env (ADMIN_TELEGRAM_IDS).
+ */
+export const getAdminTelegramIds = (): number[] => {
+  if (_adminTelegramIds !== null) return _adminTelegramIds;
+  const raw = process.env.ADMIN_TELEGRAM_IDS ?? "";
+  _adminTelegramIds = raw
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !Number.isNaN(n));
+  return _adminTelegramIds;
 };

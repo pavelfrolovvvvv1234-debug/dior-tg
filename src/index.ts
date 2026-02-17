@@ -16,6 +16,7 @@ import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 import { getAppDataSource } from "./database";
+import { getAdminTelegramIds } from "./app/config";
 import User, { Role, UserStatus } from "./entities/User";
 import { createLink } from "./entities/TempLink";
 import {
@@ -308,16 +309,21 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
       telegramId: Number(telegramId),
     });
     const roleStr = dbUser ? String(dbUser.role).toLowerCase() : "";
-    const isAdmin = dbUser && (roleStr === "admin" || dbUser.role === Role.Admin);
+    const adminIds = getAdminTelegramIds();
+    const isAdmin = (dbUser && (roleStr === "admin" || dbUser.role === Role.Admin)) || adminIds.includes(Number(telegramId));
     if (!isAdmin) return;
+    if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
+      dbUser.role = Role.Admin;
+      await dataSource.manager.save(dbUser);
+    }
     const session = (await ctx.session) as SessionData;
     if (session?.main?.user) {
       session.main.user.role = Role.Admin;
-      session.main.user.status = dbUser!.status;
-      session.main.user.id = dbUser!.id;
-      session.main.user.balance = dbUser!.balance;
-      session.main.user.referralBalance = dbUser!.referralBalance ?? 0;
-      session.main.user.isBanned = dbUser!.isBanned;
+      session.main.user.status = dbUser?.status ?? session.main.user.status;
+      session.main.user.id = dbUser?.id ?? 0;
+      session.main.user.balance = dbUser?.balance ?? 0;
+      session.main.user.referralBalance = dbUser?.referralBalance ?? 0;
+      session.main.user.isBanned = dbUser?.isBanned ?? false;
     }
     range.text(ctx.t("button-admin-panel"), async (ctx) => {
       try {
@@ -1033,19 +1039,24 @@ async function index() {
     const dataSource = ctx.appDataSource ?? (await getAppDataSource());
     const dbUser = await dataSource.manager.findOneBy(User, { telegramId: Number(telegramId) });
     const roleStr = dbUser ? String(dbUser.role).toLowerCase() : "";
-    const isAdmin = dbUser && (roleStr === "admin" || dbUser.role === Role.Admin);
+    const adminIds = getAdminTelegramIds();
+    const isAdmin = (dbUser && (roleStr === "admin" || dbUser.role === Role.Admin)) || adminIds.includes(Number(telegramId));
     if (!isAdmin) {
       await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
       return;
     }
+    if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
+      dbUser.role = Role.Admin;
+      await dataSource.manager.save(dbUser);
+    }
     const session = (await ctx.session) as SessionData;
     if (session?.main?.user) {
       session.main.user.role = Role.Admin;
-      session.main.user.status = dbUser!.status;
-      session.main.user.id = dbUser!.id;
-      session.main.user.balance = dbUser!.balance;
-      session.main.user.referralBalance = dbUser!.referralBalance ?? 0;
-      session.main.user.isBanned = dbUser!.isBanned;
+      session.main.user.status = dbUser?.status ?? session.main.user.status;
+      session.main.user.id = dbUser?.id ?? 0;
+      session.main.user.balance = dbUser?.balance ?? 0;
+      session.main.user.referralBalance = dbUser?.referralBalance ?? 0;
+      session.main.user.isBanned = dbUser?.isBanned ?? false;
     }
     try {
       await ctx.editMessageText(ctx.t("admin-panel-header"), {
@@ -1514,19 +1525,24 @@ async function index() {
         telegramId: Number(telegramId),
       });
       const roleStr = dbUser ? String(dbUser.role).toLowerCase() : "";
-      const isAdmin = dbUser && (roleStr === "admin" || dbUser.role === Role.Admin);
+      const adminIds = getAdminTelegramIds();
+      const isAdmin = (dbUser && (roleStr === "admin" || dbUser.role === Role.Admin)) || adminIds.includes(Number(telegramId));
       if (!isAdmin) {
         await ctx.reply(ctx.t("error-access-denied"));
         return;
       }
+      if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
+        dbUser.role = Role.Admin;
+        await dataSource.manager.save(dbUser);
+      }
       const session = (await ctx.session) as SessionData;
       if (session?.main?.user) {
         session.main.user.role = Role.Admin;
-        session.main.user.status = dbUser.status;
-        session.main.user.id = dbUser.id;
-        session.main.user.balance = dbUser.balance;
-        session.main.user.referralBalance = dbUser.referralBalance ?? 0;
-        session.main.user.isBanned = dbUser.isBanned;
+        session.main.user.status = dbUser?.status ?? session.main.user.status;
+        session.main.user.id = dbUser?.id ?? 0;
+        session.main.user.balance = dbUser?.balance ?? 0;
+        session.main.user.referralBalance = dbUser?.referralBalance ?? 0;
+        session.main.user.isBanned = dbUser?.isBanned ?? false;
       }
       await ctx.reply(ctx.t("admin-panel-header"), {
         parse_mode: "HTML",

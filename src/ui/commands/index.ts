@@ -21,7 +21,7 @@ import { PromoRepository } from "../../infrastructure/db/repositories/PromoRepos
 import DomainRequest, { DomainRequestStatus } from "../../entities/DomainRequest.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import { Logger } from "../../app/logger.js";
-import { config } from "../../app/config.js";
+import { config, getAdminTelegramIds } from "../../app/config.js";
 import ms from "../../lib/multims.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { BroadcastService } from "../../domain/broadcast/BroadcastService.js";
@@ -221,19 +221,24 @@ export function registerCommands(bot: Bot<AppContext>): void {
         telegramId: Number(telegramId),
       });
       const roleStr = dbUser ? String(dbUser.role).toLowerCase() : "";
-      const isAdmin = dbUser && (roleStr === "admin" || dbUser.role === Role.Admin);
+      const adminIds = getAdminTelegramIds();
+      const isAdmin = (dbUser && (roleStr === "admin" || dbUser.role === Role.Admin)) || adminIds.includes(Number(telegramId));
       if (!isAdmin) {
         await ctx.reply(ctx.t("error-access-denied"));
         return;
       }
+      if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
+        dbUser.role = Role.Admin;
+        await dataSource.manager.save(dbUser);
+      }
       const session = await ctx.session;
       if (session?.main?.user) {
         session.main.user.role = Role.Admin;
-        session.main.user.status = dbUser.status;
-        session.main.user.id = dbUser.id;
-        session.main.user.balance = dbUser.balance;
-        session.main.user.referralBalance = dbUser.referralBalance ?? 0;
-        session.main.user.isBanned = dbUser.isBanned;
+        session.main.user.status = dbUser?.status ?? session.main.user.status;
+        session.main.user.id = dbUser?.id ?? 0;
+        session.main.user.balance = dbUser?.balance ?? 0;
+        session.main.user.referralBalance = dbUser?.referralBalance ?? 0;
+        session.main.user.isBanned = dbUser?.isBanned ?? false;
       }
       await ctx.reply(ctx.t("admin-panel-header"), {
         parse_mode: "HTML",
