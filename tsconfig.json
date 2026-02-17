@@ -9,7 +9,6 @@
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "resolvePackageJsonImports": true,
     "rootDir": "src",
     "baseUrl": "./",
     "lib": ["ESNext"],
