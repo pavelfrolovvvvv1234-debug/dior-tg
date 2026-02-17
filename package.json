@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Telegram Bot for Dior Host",
   "private": true,
+  "type": "commonjs",
   "scripts": {
     "dev": "nodemon",
     "build": "tsc || true; tsc-alias -p tsconfig.json",
