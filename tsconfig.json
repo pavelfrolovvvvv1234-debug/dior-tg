@@ -22,7 +22,8 @@
     "experimentalDecorators": true,
     "outDir": "dist",
     "typeRoots": ["node_modules/@types", "./global.d.ts"],
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "noEmitOnError": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "scripts"],
