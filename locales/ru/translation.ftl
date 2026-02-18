@@ -4,10 +4,10 @@
 quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $</strong>
 
-welcome = DiorHost • Bulletproof Infrastructure
+welcome = DiorHost • Абузоустойчивая Инфраструктура
  
- Order and manage hosting services directly in this bot.
- 24/7 uptime • Bulletproof • Offshore
+ Покупка и управление услугами хостинга прямо в тг боте
+ 24/7 uptime • Абузостоустойчивость • Офшорность
  @diorhost
  
  {quoted-balance}
