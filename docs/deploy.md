@@ -1,4 +1,23 @@
-# Деплой: GitHub и VPS
+# Деплой: GitHub, VPS и Cloudflare
+
+## Кратко: как задеплоить на VPS
+
+1. **Локально** — отправить код на GitHub:
+   ```bash
+   git add -A && git commit -m "обновление" && git push origin main
+   ```
+2. **На VPS по SSH** — обновить проект и перезапустить бота:
+   ```bash
+   cd /opt/bot
+   git fetch origin && git reset --hard origin/main
+   npm ci && npm run build && npm run fix-dist
+   pm2 restart all
+   ```
+3. Проверка: `pm2 status`, `pm2 logs`.
+
+Файл `.env` на VPS создаётся вручную (скопировать с `.env.example` и подставить свои значения). После правок `.env` — `pm2 restart all`.
+
+---
 
 ## 1. Деплой на GitHub (со своей машины)
 
@@ -66,6 +85,56 @@ ADMIN_TELEGRAM_IDS=7568177886
 После изменения `.env` выполни `pm2 restart all`. Затем открой бота в Telegram (приватный чат), нажми «Профиль» или отправь `/start` — кнопка «Админ» появится в главном меню; также работает команда `/admin`.
 
 **Проверка:** в логах при первом запросе должно появиться сообщение `[Config] Admin Telegram IDs (ADMIN_TELEGRAM_IDS): 7568177886`. Если его нет — переменная не подхватилась (проверь путь к `.env`, перезапуск после правки, отсутствие пробелов в значении).
+
+---
+
+## 3. Webhook через Cloudflare Tunnel (опционально)
+
+Если нужен режим **webhook** (Telegram шлёт обновления на твой URL), а не long polling, бот должен быть доступен по HTTPS. Один из способов — **Cloudflare Tunnel**: трафик идёт через Cloudflare, порты на VPS можно не открывать.
+
+### Шаг 1: Бот на VPS в режиме webhook
+
+В `.env` на VPS **пока не ставь** `IS_WEBHOOK` — сначала поднимем туннель и получим URL.
+
+### Шаг 2: Установка cloudflared на VPS
+
+```bash
+# Linux (пример для x86_64)
+wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared-linux-amd64.deb
+# или через пакетный менеджер: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+```
+
+### Шаг 3: Запуск туннеля (быстрый вариант — временный URL)
+
+Бот слушает webhook на порту `PORT_WEBHOOK` (по умолчанию 3002). Туннель пробросит его в интернет:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:3002
+```
+
+В консоли появится строка вида `https://xxxx-xx-xx-xx-xx.trycloudflare.com` — это твой временный HTTPS-URL.
+
+### Шаг 4: Включить webhook в боте
+
+1. В `.env` на VPS добавь (подставь свой URL из шага 3, без слэша в конце или со слэшем — как в логе):
+   ```env
+   IS_WEBHOOK=https://xxxx-xx-xx-xx-xx.trycloudflare.com
+   PORT_WEBHOOK=3002
+   ```
+2. Перезапусти бота и туннель:
+   ```bash
+   pm2 restart all
+   ```
+   Туннель держи запущенным (в screen/tmux или как сервис). При перезагрузке VPS туннель нужно запускать заново; для постоянного URL лучше настроить [named tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/) и свой домен.
+
+### Шаг 5: Постоянный туннель и свой домен (по желанию)
+
+1. [Cloudflare Dashboard](https://dash.cloudflare.com/) → Zero Trust → Access → Tunnels → Create a tunnel.
+2. Установить connector на VPS, привязать туннель к домену (например `bot.dior.host`) и указать Service = `http://localhost:3002`.
+3. В `.env` задать `IS_WEBHOOK=https://bot.dior.host` (или твой поддомен) и перезапустить бота.
+
+**Важно:** в режиме webhook бот не использует long polling; все обновления приходят только на `IS_WEBHOOK`. Если туннель упадёт, бот перестанет получать сообщения, пока туннель снова не заработает.
 
 ---
 

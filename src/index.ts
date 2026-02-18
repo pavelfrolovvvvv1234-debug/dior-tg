@@ -2294,6 +2294,9 @@ index()
     const primeChannel = getPrimeChannelForCheck();
     if (primeChannel != null) {
       console.log("[Bot] Prime trial channel (for subscription check):", primeChannel);
+      if (typeof primeChannel === "number" && primeChannel > 0) {
+        console.log("[Bot] Prime: for private channels use full ID with -100 prefix, e.g. PRIME_CHANNEL_ID=-1001234567890 (get ID from @userinfobot in the channel)");
+      }
     } else {
       console.log("[Bot] Prime trial channel: not set (add PRIME_CHANNEL_ID or PRIME_CHANNEL_USERNAME to .env for «Я подписался»)");
     }

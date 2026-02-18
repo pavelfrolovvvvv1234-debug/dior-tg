@@ -332,13 +332,16 @@ export async function handlePrimeISubscribed(ctx: AppContext): Promise<void> {
     return;
   }
 
-  const status = member.status;
-  const isSubscribed = status === "member" || status === "administrator" || status === "creator";
+  const status = (member as { status: string }).status;
+  // member | administrator | creator | restricted (в канале с ограничениями) — считаем подписанным
+  const isSubscribed =
+    status === "member" || status === "administrator" || status === "creator" || status === "restricted";
   if (!isSubscribed) {
     Logger.warn("Prime check: user not subscribed", {
       userId,
-      channel: typeof chatIdForCheck === "string" ? chatIdForCheck : `#${chatIdForCheck}`,
+      channel: typeof chatIdForCheck === "string" ? chatIdForCheck : chatIdForCheck,
       status,
+      hint: "If user is subscribed, ensure PRIME_CHANNEL_ID is the channel's full ID (e.g. -1001234567890 from @userinfobot)",
     });
     await ctx.answerCallbackQuery({
       text: ctx.t("prime-trial-subscribe-first").substring(0, 200),
@@ -346,6 +349,12 @@ export async function handlePrimeISubscribed(ctx: AppContext): Promise<void> {
     });
     return;
   }
+
+  Logger.info("Prime check: subscribed", {
+    userId,
+    channel: typeof chatIdForCheck === "string" ? chatIdForCheck : chatIdForCheck,
+    status,
+  });
 
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   user.primeActiveUntil = new Date(Date.now() + sevenDaysMs);

@@ -124,15 +124,23 @@ export const getAdminTelegramIds = (): number[] => {
  * Prime trial: channel identifier for getChatMember (number for private channel ID, string @username for public).
  * Bot must be admin in the channel. Returns null if neither PRIME_CHANNEL_ID nor PRIME_CHANNEL_USERNAME is set.
  */
+function trimQuotes(s: string): string {
+  const t = s.trim();
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+    return t.slice(1, -1).trim();
+  }
+  return t;
+}
+
 export const getPrimeChannelForCheck = (): number | string | null => {
-  const idRaw = config.PRIME_CHANNEL_ID ?? process.env.PRIME_CHANNEL_ID ?? "";
-  const username = config.PRIME_CHANNEL_USERNAME ?? process.env.PRIME_CHANNEL_USERNAME ?? "";
-  if (idRaw.trim()) {
-    const n = parseInt(idRaw.trim(), 10);
+  const idRaw = trimQuotes(config.PRIME_CHANNEL_ID ?? process.env.PRIME_CHANNEL_ID ?? "");
+  const username = trimQuotes(config.PRIME_CHANNEL_USERNAME ?? process.env.PRIME_CHANNEL_USERNAME ?? "");
+  if (idRaw) {
+    const n = parseInt(idRaw, 10);
     if (!Number.isNaN(n)) return n;
   }
-  if (username.trim()) {
-    return username.trim().startsWith("@") ? username.trim() : `@${username.trim()}`;
+  if (username) {
+    return username.startsWith("@") ? username : `@${username}`;
   }
   return null;
 };
