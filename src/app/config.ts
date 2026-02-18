@@ -45,6 +45,11 @@ const envSchema = z.object({
   // Optional: comma-separated Telegram user IDs that always have admin access (e.g. "7568177886" or "123,456")
   ADMIN_TELEGRAM_IDS: z.string().optional(),
 
+  // Prime trial: channel for subscription check (bot must be admin). Use ID for private channels or username for public
+  PRIME_CHANNEL_ID: z.string().optional(),
+  PRIME_CHANNEL_USERNAME: z.string().optional(),
+  PRIME_CHANNEL_INVITE: z.string().url().optional().or(z.literal("")),
+
   // Environment
   NODE_ENV: z
     .enum(["development", "production", "test"])
@@ -103,13 +108,31 @@ let _adminTelegramIds: number[] | null = null;
 
 /**
  * Returns Telegram user IDs that are granted admin access via env (ADMIN_TELEGRAM_IDS).
+ * Uses validated config so .env is loaded; fallback to process.env for backwards compatibility.
  */
 export const getAdminTelegramIds = (): number[] => {
   if (_adminTelegramIds !== null) return _adminTelegramIds;
-  const raw = process.env.ADMIN_TELEGRAM_IDS ?? "";
+  const raw = config.ADMIN_TELEGRAM_IDS ?? process.env.ADMIN_TELEGRAM_IDS ?? "";
   _adminTelegramIds = raw
     .split(",")
     .map((s) => parseInt(s.trim(), 10))
     .filter((n) => !Number.isNaN(n));
   return _adminTelegramIds;
+};
+
+/**
+ * Prime trial: channel identifier for getChatMember (number for private channel ID, string @username for public).
+ * Bot must be admin in the channel. Returns null if neither PRIME_CHANNEL_ID nor PRIME_CHANNEL_USERNAME is set.
+ */
+export const getPrimeChannelForCheck = (): number | string | null => {
+  const idRaw = config.PRIME_CHANNEL_ID ?? process.env.PRIME_CHANNEL_ID ?? "";
+  const username = config.PRIME_CHANNEL_USERNAME ?? process.env.PRIME_CHANNEL_USERNAME ?? "";
+  if (idRaw.trim()) {
+    const n = parseInt(idRaw.trim(), 10);
+    if (!Number.isNaN(n)) return n;
+  }
+  if (username.trim()) {
+    return username.trim().startsWith("@") ? username.trim() : `@${username.trim()}`;
+  }
+  return null;
 };

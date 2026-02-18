@@ -11,6 +11,7 @@ import { ConversationFlavor, Conversation } from "@grammyjs/conversations";
 import { DataSource } from "typeorm";
 import { VMManager, GetOsListResponse } from "../../infrastructure/vmmanager/VMManager.js";
 import { SessionData } from "./session.js";
+import type User from "../../entities/User.js";
 
 /**
  * Extended Grammy context with all required flavors and custom properties.
@@ -24,6 +25,8 @@ export type AppContext = ConversationFlavor<
       appDataSource: DataSource;
       vmmanager: VMManager;
       osList: GetOsListResponse | null;
+      /** User loaded in session middleware; use to avoid duplicate DB fetch (e.g. locale). */
+      loadedUser?: User | null;
     }
 >;
 

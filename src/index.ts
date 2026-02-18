@@ -16,7 +16,7 @@ import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 import { getAppDataSource } from "./database";
-import { getAdminTelegramIds } from "./app/config";
+import { getAdminTelegramIds, getPrimeChannelForCheck } from "./app/config";
 import User, { Role, UserStatus } from "./entities/User";
 import { createLink } from "./entities/TempLink";
 import {
@@ -93,7 +93,10 @@ import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
 import type { SessionData } from "./shared/types/session";
 import type { AppContext, AppConversation } from "./shared/types/context";
+import { createInitialMainSession, createInitialOtherSession } from "./shared/session-initial.js";
 import { ensureSessionUser } from "./shared/utils/session-user.js";
+import { getCachedOsList, startOsListBackgroundRefresh } from "./shared/vmmanager-os-cache.js";
+import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cache.js";
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
@@ -390,39 +393,6 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
   })
   .back((ctx) => ctx.t("button-back"));
 
-function createInitialMainSession(): SessionData["main"] {
-  return {
-    locale: "ru",
-    user: {
-      balance: 0,
-      referralBalance: 0,
-      id: 0,
-      role: Role.User,
-      status: UserStatus.Newbie,
-      isBanned: false,
-    },
-    lastSumDepositsEntered: 0,
-    topupMethod: null,
-  };
-}
-
-function createInitialOtherSession(): SessionData["other"] {
-  return {
-    broadcast: { step: "idle" },
-    controlUsersPage: { orderBy: "id", sortBy: "ASC", page: 0 },
-    vdsRate: { bulletproof: true, selectedRateId: -1, selectedOs: -1 },
-    dedicatedType: { bulletproof: false, selectedDedicatedId: -1 },
-    manageVds: { lastPickedId: -1, page: 0, expandedId: null, showPassword: false },
-    manageDedicated: { expandedId: null, showPassword: false },
-    domains: { lastPickDomain: "", page: 0, pendingZone: undefined },
-    dedicatedOrder: { step: "idle", requirements: undefined },
-    ticketsView: { list: null, currentTicketId: null, pendingAction: null, pendingTicketId: null, pendingData: {} },
-    deposit: { awaitingAmount: false },
-    promocode: { awaitingInput: false },
-    promoAdmin: { page: 0, editingPromoId: null, createStep: null, createDraft: {}, editStep: null },
-  };
-}
-
 async function index() {
   const { fluent, availableLocales } = await initFluent();
 
@@ -490,22 +460,11 @@ async function index() {
   );
 
   startExpirationCheck(bot, vmmanager, fluent);
+  startOsListBackgroundRefresh(vmmanager);
 
-  bot.use(async (ctx, next) => {
+  bot.use((ctx, next) => {
     ctx.vmmanager = vmmanager;
-
-    if (ctx.osList == null) {
-      try {
-        const list = await vmmanager.getOsList();
-        if (list) {
-          ctx.osList = list;
-        }
-      } catch (error) {
-        console.error("[VMManager] Failed to load OS list:", error);
-        ctx.osList = null;
-      }
-    }
-
+    ctx.osList = getCachedOsList();
     return next();
   });
 
@@ -515,32 +474,48 @@ async function index() {
 
     ctx.availableLanguages = availableLocales;
     ctx.appDataSource = await getAppDataSource();
+    ctx.loadedUser = null;
 
     if (!session?.main) {
       return next();
     }
 
-    if (ctx.hasChatType("private")) {
-      let user = await ctx.appDataSource.manager.findOneBy(User, {
-        telegramId: ctx.chatId,
-      });
+    if (ctx.hasChatType("private") && ctx.chatId != null) {
+      const tid = Number(ctx.chatId);
+      let user = getCachedUser(tid);
 
-      const isNewUser = !user;
       if (!user) {
-        const newUser = new User();
-        newUser.telegramId = ctx.chatId;
-        newUser.status = UserStatus.Newbie;
-        newUser.referrerId = null;
+        user = await ctx.appDataSource.manager.findOneBy(User, {
+          telegramId: ctx.chatId,
+        });
 
-        user = await ctx.appDataSource.manager.save(newUser);
+        if (!user) {
+          const newUser = new User();
+          newUser.telegramId = ctx.chatId;
+          newUser.status = UserStatus.Newbie;
+          newUser.referrerId = null;
+          user = await ctx.appDataSource.manager.save(newUser);
+        }
+        setCachedUser(tid, user);
       }
 
+      ctx.loadedUser = user;
       session.main.user.balance = user.balance;
       session.main.user.referralBalance = user.referralBalance ?? 0;
       session.main.user.id = user.id;
       session.main.user.role = user.role;
       session.main.user.status = user.status;
       session.main.user.isBanned = user.isBanned;
+      // Grant admin in session if ID is in ADMIN_TELEGRAM_IDS (and persist to DB once)
+      const adminIds = getAdminTelegramIds();
+      if (adminIds.length > 0 && adminIds.includes(tid)) {
+        session.main.user.role = Role.Admin;
+        if (user.role !== Role.Admin) {
+          user.role = Role.Admin;
+          await ctx.appDataSource.manager.save(user);
+          setCachedUser(tid, user);
+        }
+      }
     }
     return next();
   });
@@ -551,18 +526,17 @@ async function index() {
       return next();
     }
 
-    // If locale not set and user exists in DB, try to load from DB
-    if ((session.main.locale === "0" || !session.main.locale) && session.main.user.id > 0) {
-      const usersRepo = ctx.appDataSource.getRepository(User);
-
-      const user = await usersRepo.findOneBy({
-        id: session.main.user.id,
-      });
-
-      if (user && user.lang) {
+    // If locale not set and user exists, use already loaded user to avoid extra DB query
+    if (session.main.locale === "0" || !session.main.locale) {
+      const user =
+        ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
+          ? ctx.loadedUser
+          : session.main.user.id > 0
+            ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
+            : null;
+      if (user?.lang) {
         session.main.locale = user.lang;
       }
-      // If user.lang is null, keep locale as "0" to show language selection
     }
 
     return next();
@@ -2310,6 +2284,18 @@ index()
       console.warn(
         "[Bot] Crypto Pay (CryptoBot): not configured — set PAYMENT_CRYPTOBOT_TOKEN or PAYMENT_CRYPTO_PAY_TOKEN in .env"
       );
+    }
+    const adminIds = getAdminTelegramIds();
+    if (adminIds.length > 0) {
+      console.log("[Bot] Admin Telegram IDs (ADMIN_TELEGRAM_IDS):", adminIds.join(", "));
+    } else {
+      console.log("[Bot] Admin Telegram IDs: not set (add ADMIN_TELEGRAM_IDS to .env for admin-by-ID)");
+    }
+    const primeChannel = getPrimeChannelForCheck();
+    if (primeChannel != null) {
+      console.log("[Bot] Prime trial channel (for subscription check):", primeChannel);
+    } else {
+      console.log("[Bot] Prime trial channel: not set (add PRIME_CHANNEL_ID or PRIME_CHANNEL_USERNAME to .env for «Я подписался»)");
     }
   })
   .catch((err) => {

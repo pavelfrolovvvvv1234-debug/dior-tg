@@ -284,18 +284,10 @@ export async function handlePrimeISubscribed(ctx: AppContext): Promise<void> {
     return;
   }
 
-  // Для проверки подписки нужен ID канала (приватный канал) или @username (публичный)
-  const primeChannelIdRaw = process.env.PRIME_CHANNEL_ID?.trim();
-  const primeChannelUsername = process.env.PRIME_CHANNEL_USERNAME?.trim();
-  const chatIdForCheck = primeChannelIdRaw
-    ? Number(primeChannelIdRaw)
-    : primeChannelUsername
-      ? primeChannelUsername.startsWith("@")
-        ? primeChannelUsername
-        : `@${primeChannelUsername}`
-      : null;
+  const { getPrimeChannelForCheck } = await import("../../app/config.js");
+  const chatIdForCheck = getPrimeChannelForCheck();
 
-  if (!chatIdForCheck || (typeof chatIdForCheck === "number" && Number.isNaN(chatIdForCheck))) {
+  if (chatIdForCheck == null || (typeof chatIdForCheck === "number" && Number.isNaN(chatIdForCheck))) {
     await ctx.answerCallbackQuery({
       text: ctx.t("prime-channel-not-configured").substring(0, 200),
       show_alert: true,
@@ -319,11 +311,20 @@ export async function handlePrimeISubscribed(ctx: AppContext): Promise<void> {
   }
 
   // Проверка подписки: бот должен быть админом в канале (PRIME_CHANNEL_ID или PRIME_CHANNEL_USERNAME)
+  const userId = ctx.from!.id;
   let member: { status: string };
   try {
-    member = await ctx.api.getChatMember(chatIdForCheck, ctx.from!.id);
+    member = await ctx.api.getChatMember(chatIdForCheck, userId);
   } catch (err: any) {
-    Logger.error("getChatMember for Prime channel failed:", err);
+    const msg = err?.message || String(err);
+    const code = err?.error_code ?? err?.code;
+    Logger.error("Prime getChatMember failed", {
+      chatId: typeof chatIdForCheck === "string" ? chatIdForCheck : `#${chatIdForCheck}`,
+      userId,
+      error: msg,
+      code,
+    });
+    // Частые причины: бот не админ в канале; неверный ID канала; канал удалён
     await ctx.answerCallbackQuery({
       text: ctx.t("prime-trial-subscribe-first").substring(0, 200),
       show_alert: true,
@@ -334,6 +335,11 @@ export async function handlePrimeISubscribed(ctx: AppContext): Promise<void> {
   const status = member.status;
   const isSubscribed = status === "member" || status === "administrator" || status === "creator";
   if (!isSubscribed) {
+    Logger.warn("Prime check: user not subscribed", {
+      userId,
+      channel: typeof chatIdForCheck === "string" ? chatIdForCheck : `#${chatIdForCheck}`,
+      status,
+    });
     await ctx.answerCallbackQuery({
       text: ctx.t("prime-trial-subscribe-first").substring(0, 200),
       show_alert: true,

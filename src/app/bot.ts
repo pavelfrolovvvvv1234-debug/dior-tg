@@ -28,6 +28,7 @@ import {
   vmmanagerMiddleware,
   languagesMiddleware,
 } from "./middlewares.js";
+import { startOsListBackgroundRefresh } from "../shared/vmmanager-os-cache.js";
 import { initFluent } from "../fluent.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
 import { VMManager } from "../infrastructure/vmmanager/VMManager.js";
@@ -67,6 +68,7 @@ export async function createBot(): Promise<{
 
   // Initialize VMManager
   const vmManager = new VMManager(config.VMM_EMAIL, config.VMM_PASSWORD);
+  startOsListBackgroundRefresh(vmManager);
   Logger.info("VMManager initialized");
 
   // Initialize services

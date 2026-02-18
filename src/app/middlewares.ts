@@ -5,13 +5,15 @@
  */
 
 import type { AppContext } from "../shared/types/context.js";
-import { Role, UserStatus } from "../entities/User.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
 import { UserRepository } from "../infrastructure/db/repositories/UserRepository.js";
+import { getCachedOsList } from "../shared/vmmanager-os-cache.js";
+import { getCachedUser, setCachedUser } from "../shared/user-cache.js";
 import { Logger } from "./logger.js";
 
 /**
  * Middleware to initialize database and user context.
+ * Uses in-memory user cache to avoid DB hit on every update.
  */
 export async function databaseMiddleware(ctx: AppContext, next: () => Promise<void>): Promise<void> {
   const session = await ctx.session;
@@ -19,12 +21,16 @@ export async function databaseMiddleware(ctx: AppContext, next: () => Promise<vo
   const userRepo = new UserRepository(dataSource);
 
   ctx.appDataSource = dataSource;
+  ctx.loadedUser = null;
 
-  if (ctx.hasChatType("private")) {
-    // Find or create user
-    const user = await userRepo.findOrCreateByTelegramId(ctx.chatId);
-
-    // Update session
+  if (ctx.hasChatType("private") && ctx.chatId != null) {
+    const tid = Number(ctx.chatId);
+    let user = getCachedUser(tid);
+    if (!user) {
+      user = await userRepo.findOrCreateByTelegramId(ctx.chatId);
+      setCachedUser(tid, user);
+    }
+    ctx.loadedUser = user;
     session.main.user.balance = user.balance;
     session.main.user.referralBalance = user.referralBalance ?? 0;
     session.main.user.id = user.id;
@@ -38,26 +44,24 @@ export async function databaseMiddleware(ctx: AppContext, next: () => Promise<vo
 
 /**
  * Middleware to initialize locale from user settings.
- * For new users (locale === "0"), we don't set it automatically - they will choose it on first /start.
+ * Uses ctx.loadedUser when available to avoid duplicate DB query.
  */
 export async function localeMiddleware(ctx: AppContext, next: () => Promise<void>): Promise<void> {
   const session = await ctx.session;
 
-  // If locale not set and user exists in DB, try to load from DB
-  if ((session.main.locale === "0" || !session.main.locale) && session.main.user.id > 0) {
-    const dataSource = await getAppDataSource();
-    const userRepo = new UserRepository(dataSource);
+  if (session.main.locale !== "0" && session.main.locale) {
+    return next();
+  }
+  if (session.main.user.id <= 0) {
+    return next();
+  }
 
-    try {
-      const user = await userRepo.findById(session.main.user.id);
-      if (user && user.lang) {
-        session.main.locale = user.lang;
-      }
-      // If user.lang is null, keep locale as "0" to show language selection
-    } catch (error) {
-      Logger.error("Failed to load user language", error);
-      // Keep locale as "0" to show language selection
-    }
+  const user =
+    ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
+      ? ctx.loadedUser
+      : await getAppDataSource().then((ds) => new UserRepository(ds).findById(session.main.user.id)).catch(() => null);
+  if (user?.lang) {
+    session.main.locale = user.lang;
   }
 
   return next();
@@ -89,24 +93,12 @@ export async function banCheckMiddleware(ctx: AppContext, next: () => Promise<vo
 
 /**
  * Middleware to setup VMManager and OS list in context.
+ * OS list is read from in-memory cache (refreshed in background) so the request path never blocks on VMManager.
  */
 export function vmmanagerMiddleware(vmManager: import("../infrastructure/vmmanager/VMManager.js").VMManager) {
-  return async (ctx: AppContext, next: () => Promise<void>): Promise<void> => {
+  return (ctx: AppContext, next: () => Promise<void>): Promise<void> => {
     ctx.vmmanager = vmManager;
-
-    // Lazy load OS list
-    if (ctx.osList == null) {
-      try {
-        const list = await vmManager.getOsList();
-        if (list) {
-          ctx.osList = list;
-        }
-      } catch (error) {
-        Logger.error("Failed to load OS list", error);
-        ctx.osList = null;
-      }
-    }
-
+    ctx.osList = getCachedOsList();
     return next();
   };
 }

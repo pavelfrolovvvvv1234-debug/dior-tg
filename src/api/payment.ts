@@ -5,6 +5,7 @@ import { CrystalPayClient } from "./crystal-pay";
 import User from "@entities/User";
 import { Api, Bot, RawApi } from "grammy";
 import type { AppContext } from "../shared/types/context";
+import { invalidateUser } from "../shared/user-cache.js";
 import axios from "axios";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
@@ -236,6 +237,7 @@ async function paymentSuccess(
   user.balance += topUp.amount;
 
   await usersRepo.save(user);
+  invalidateUser(user.telegramId);
 
   // Apply referral reward if applicable
   try {
