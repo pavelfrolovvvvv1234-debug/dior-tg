@@ -66,6 +66,10 @@ export interface OtherSessionData {
   dedicatedOrder: {
     step: "idle" | "requirements" | "comment";
     requirements?: string;
+    /** Selected location key for support message (e.g. "de-frankfurt"). */
+    selectedLocationKey?: string;
+    /** Selected OS key for support message (e.g. "ubuntu-2204"). */
+    selectedOsKey?: string;
   };
   promoAdmin: {
     page: number;

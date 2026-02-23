@@ -115,6 +115,7 @@ promoted-to-admin = You have been promoted to administrator
 promoted-to-user = You have been demoted to user
 
 admin-notification-about-promotion = User <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} has been promoted to {$role}
+admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
 
 -users-list = Users list
 -users-list-empty = Users list is empty
@@ -544,7 +545,7 @@ ticket-request-server = Server
 
 # Dedicated Servers
 button-order-dedicated = 💳 Make Order
-button-my-dedicated = 🖥 My Dedicated
+button-my-dedicated = 🖥 Dedicated
 button-my-tickets = 🎫 My Requests
 dedicated-none = You don't have any dedicated servers
 dedicated-status-requested = <strong>Dedicated Server Request</strong>
@@ -620,6 +621,31 @@ dedicated-operation-confirm = Confirm operation (placeholder - using inline)
 dedicated-menu-header = <strong>Dedicated Servers</strong>
 
 Choose an option:
+dedicated-location-select-title = Start with location selection.
+dedicated-os-select-title = After selecting an operating system, the server is rented.
+dedicated-purchase-success-deducted = <strong>Purchase successful.</strong> {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $ has been deducted from your balance.
+dedicated-contact-support-message = To receive your dedicated server, contact our support.
+button-go-to-support = Go to support
+support-message-dedicated-paid = Hello! I paid for the service "{$serviceName}", location: {$location}, OS: {$os}. Can you provide it?
+# Dedicated locations (table: Germany, NL/USA/Turkey)
+dedicated-location-de-germany = Germany
+dedicated-location-nl-amsterdam = Netherlands
+dedicated-location-usa = USA
+dedicated-location-tr-istanbul = Turkey
+# Dedicated OS (table: Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24; or Any)
+dedicated-os-winserver2019 = Windows Server 2019
+dedicated-os-winserver2025 = Windows Server 2025
+dedicated-os-windows11 = Windows 11
+dedicated-os-alma8 = AlmaLinux 8
+dedicated-os-alma9 = AlmaLinux 9
+dedicated-os-centos9 = CentOS 9
+dedicated-os-debian11 = Debian 11
+dedicated-os-debian12 = Debian 12
+dedicated-os-debian13 = Debian 13
+dedicated-os-ubuntu2204 = Ubuntu 22.04
+dedicated-os-ubuntu2404 = Ubuntu 24.04
+dedicated-os-os-any = Any (your choice)
+button-return-to-main = Return to main page
 dedicated-not-active = Dedicated server is not active
 dedicated-not-suspended = Dedicated server is not powered off
 dedicated-price-not-set = Dedicated price is not set. Please contact support.
@@ -936,6 +962,7 @@ prime-subscribe-message = Subscribe to our <a href="{$channelLink}">channel</a> 
 prime-trial-activated-message = 💎 Your Prime subscription has been activated for 1 week!
 prime-trial-already-used = You have already used the free trial. Continue subscription at {$monthlyPrice}$/month.
 prime-trial-subscribe-first = Please subscribe to the channel first, then press "I have subscribed".
+prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the button above, wait 5–10 seconds and press "I have subscribed" again. Ensure the bot is added to the channel as an administrator.
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
 prime-discount-dedicated = 🔐 Prime Subscription −20% on Dedicated
 prime-discount-vds = 🔐 Prime Subscription −20% on VPS/VDS

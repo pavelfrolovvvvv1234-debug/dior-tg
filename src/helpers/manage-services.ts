@@ -163,6 +163,16 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
     }
   )
   .row()
+  .submenu(
+    (ctx) => ctx.t("button-my-dedicated"),
+    "dedicated-menu",
+    (ctx) => {
+      ctx.editMessageText(ctx.t("dedicated-menu-header"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .row()
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {

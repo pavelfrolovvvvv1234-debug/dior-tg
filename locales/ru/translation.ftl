@@ -116,6 +116,7 @@ promoted-to-admin = Вы были повышенны до администрат
 promoted-to-user = Вы были понижены до пользователя
 
 admin-notification-about-promotion = Пользователь <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} повышен до роли {$role}
+admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
 
 -users-list = Список пользователей
 -users-list-empty = Список пользователей пуст
@@ -544,7 +545,7 @@ ticket-request-server = Сервер
 
 # Dedicated Servers
 button-order-dedicated = 💳 Make Order
-button-my-dedicated = 🖥 Мой Dedicated
+button-my-dedicated = 🖥 Dedicated
 button-my-tickets = 🎫 Мои Запросы
 dedicated-none = У вас нет выделенных серверов
 dedicated-status-requested = <strong>Запрос Dedicated Сервера</strong>
@@ -617,6 +618,31 @@ dedicated-operation-confirm = Подтверждение операции (place
 dedicated-menu-header = <strong>Выделенные Серверы</strong>
 
 Выберите опцию:
+dedicated-location-select-title = Начните с выбора локации.
+dedicated-os-select-title = После выбора операционной системы арендуется сервер.
+dedicated-purchase-success-deducted = <strong>Покупка успешна.</strong> С вашего баланса списано {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $.
+dedicated-contact-support-message = Для выдачи dedicated свяжитесь с нашей поддержкой.
+button-go-to-support = Перейти в поддержку
+support-message-dedicated-paid = Здравствуйте! Я оплатил услугу «{$serviceName}», локация: {$location}, ОС: {$os}. Можете выдать?
+# Dedicated locations (таблица: Germany, NL/USA/Turkey)
+dedicated-location-de-germany = Германия
+dedicated-location-nl-amsterdam = Нидерланды
+dedicated-location-usa = США
+dedicated-location-tr-istanbul = Турция
+# Dedicated OS (таблица: Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24; или Любая на выбор)
+dedicated-os-winserver2019 = Windows Server 2019
+dedicated-os-winserver2025 = Windows Server 2025
+dedicated-os-windows11 = Windows 11
+dedicated-os-alma8 = AlmaLinux 8
+dedicated-os-alma9 = AlmaLinux 9
+dedicated-os-centos9 = CentOS 9
+dedicated-os-debian11 = Debian 11
+dedicated-os-debian12 = Debian 12
+dedicated-os-debian13 = Debian 13
+dedicated-os-ubuntu2204 = Ubuntu 22.04
+dedicated-os-ubuntu2404 = Ubuntu 24.04
+dedicated-os-os-any = Любая на выбор
+button-return-to-main = Вернуться на главную
 dedicated-not-active = Dedicated сервер не активен
 dedicated-not-suspended = Dedicated сервер не выключен
 dedicated-price-not-set = Цена для Dedicated не указана. Обратитесь в поддержку.
@@ -938,6 +964,7 @@ prime-subscribe-message = Подпишись на наш <a href="{$channelLink}
 prime-trial-activated-message = 💎 Ваша Prime подписка была активирована на 1 неделю!
 prime-trial-already-used = Вы уже использовали бесплатный пробный период. Продолжить подписку можно по тарифу {$monthlyPrice}$/мес.
 prime-trial-subscribe-first = Сначала подпишитесь на канал, затем нажмите «Я подписался».
+prime-trial-subscribe-first-retry = Подписка не обнаружена. Подпишитесь на канал по кнопке выше, подождите 5–10 секунд и нажмите «Я подписался» снова. Убедитесь, что бот добавлен в канал как администратор.
 prime-channel-not-configured = Проверка подписки пока не настроена. Напишите в поддержку.
 prime-discount-dedicated = 🔐 Prime Подписка −20% на Dedicated
 prime-discount-vds = 🔐 Prime Подписка −20% на VPS/VDS

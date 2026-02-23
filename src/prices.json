@@ -135,124 +135,304 @@
   ],
   "dedicated_servers": [
     {
-      "name": "E3-1240v2 16GB",
+      "name": "Intel Core i7-6700 64GB",
+      "category": "standard",
       "cpu": 4,
       "cpuThreads": 8,
-      "ram": 16,
-      "storage": 250,
+      "ram": 64,
+      "storage": 500,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 119,
-        "bulletproof": 189
-      }
+      "os": "Windows Server 2019/2025, Windows 11, AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 90 }
     },
     {
-      "name": "E3-1240v2 32GB",
+      "name": "Intel Core i7-8700 64GB",
+      "category": "standard",
+      "cpu": 6,
+      "cpuThreads": 12,
+      "ram": 64,
+      "storage": 500,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Windows Server 2019/2025, Windows 11, AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 110 }
+    },
+    {
+      "name": "Intel Xeon E3-1240v2 64GB",
+      "category": "standard",
+      "cpu": 4,
+      "cpuThreads": 8,
+      "ram": 64,
+      "storage": 500,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Windows Server 2019/2025, Windows 11, AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 120 }
+    },
+    {
+      "name": "Ryzen 7 3700X 64GB",
+      "category": "standard",
+      "cpu": 8,
+      "cpuThreads": 16,
+      "ram": 64,
+      "storage": 2000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Windows Server 2019/2025, Windows 11, AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 140 }
+    },
+    {
+      "name": "Ryzen 9 3900 64GB",
+      "category": "standard",
+      "cpu": 12,
+      "cpuThreads": 24,
+      "ram": 64,
+      "storage": 2000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Windows Server 2019/2025, Windows 11, AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 150 }
+    },
+    {
+      "name": "Ryzen 9 5950X 128GB",
+      "category": "standard",
+      "cpu": 16,
+      "cpuThreads": 32,
+      "ram": 128,
+      "storage": 2000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Windows Server 2019/2025, Windows 11, AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 190 }
+    },
+    {
+      "name": "Intel Xeon E3-1240v2 32GB",
+      "category": "standard",
       "cpu": 4,
       "cpuThreads": 8,
       "ram": 32,
       "storage": 250,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 145,
-        "bulletproof": 215
-      }
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 80 }
     },
     {
-      "name": "2x X5670 64GB",
+      "name": "2x Intel Xeon X5670 64GB",
+      "category": "standard",
       "cpu": 12,
       "cpuThreads": 24,
       "ram": 64,
       "storage": 250,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 165,
-        "bulletproof": 235
-      }
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 110 }
     },
     {
-      "name": "2x X5670 144GB",
+      "name": "2x Intel Xeon X5670 144GB",
+      "category": "standard",
       "cpu": 12,
       "cpuThreads": 24,
       "ram": 144,
       "storage": 500,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 195
-      }
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 160 }
     },
     {
-      "name": "2x 2699v4 256GB",
-      "cpu": 44,
-      "cpuThreads": 88,
+      "name": "2x Intel Xeon E5-2690 256GB",
+      "category": "standard",
+      "cpu": 16,
+      "cpuThreads": 32,
       "ram": 256,
+      "storage": 500,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 220 }
+    },
+    {
+      "name": "2x Intel Xeon E5-2697 v2 384GB",
+      "category": "standard",
+      "cpu": 24,
+      "cpuThreads": 48,
+      "ram": 384,
       "storage": 1000,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 365
-      }
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 280 }
     },
     {
-      "name": "2x 2699v4 512GB",
+      "name": "2x Intel Xeon E5-2699 v4 512GB",
+      "category": "standard",
       "cpu": 44,
       "cpuThreads": 88,
       "ram": 512,
+      "storage": 1000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 350 }
+    },
+    {
+      "name": "2x Platinum 8173M 768GB",
+      "category": "standard",
+      "cpu": 52,
+      "cpuThreads": 104,
+      "ram": 768,
       "storage": 2000,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 450
-      }
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 450 }
     },
     {
-      "name": "2x 2699v4 768GB",
-      "cpu": 44,
-      "cpuThreads": 88,
+      "name": "2x Platinum 8168 768GB",
+      "category": "standard",
+      "cpu": 48,
+      "cpuThreads": 96,
       "ram": 768,
       "storage": 4000,
-      "network": 1000,
+      "network": 10000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 550
-      }
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 800 }
     },
     {
-      "name": "2x Gold 6138 128GB",
-      "cpu": 32,
-      "cpuThreads": 64,
-      "ram": 128,
+      "name": "2x Platinum 8168 1024GB",
+      "category": "standard",
+      "cpu": 48,
+      "cpuThreads": 96,
+      "ram": 1024,
+      "storage": 6000,
+      "network": 10000,
+      "bandwidth": "unlimited",
+      "os": "AlmaLinux 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24",
+      "price": { "default": 900 }
+    },
+    {
+      "name": "Intel Xeon E3-1240v2 16GB",
+      "category": "bulletproof",
+      "cpu": 4,
+      "cpuThreads": 8,
+      "ram": 16,
+      "storage": 250,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 180 }
+    },
+    {
+      "name": "Intel Xeon E3-1240v2 32GB",
+      "category": "bulletproof",
+      "cpu": 4,
+      "cpuThreads": 8,
+      "ram": 32,
+      "storage": 250,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 210 }
+    },
+    {
+      "name": "2x Intel Xeon X5670 64GB",
+      "category": "bulletproof",
+      "cpu": 12,
+      "cpuThreads": 24,
+      "ram": 64,
+      "storage": 250,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 249 }
+    },
+    {
+      "name": "2x Intel Xeon X5670 144GB",
+      "category": "bulletproof",
+      "cpu": 12,
+      "cpuThreads": 24,
+      "ram": 144,
       "storage": 500,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 265
-      }
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 350 }
     },
     {
-      "name": "2x Gold 6138 256GB",
-      "cpu": 32,
-      "cpuThreads": 64,
+      "name": "2x Intel Xeon E5-2690 256GB",
+      "category": "bulletproof",
+      "cpu": 16,
+      "cpuThreads": 32,
       "ram": 256,
       "storage": 500,
       "network": 1000,
       "bandwidth": "unlimited",
-      "os": "Linux, Windows",
-      "price": {
-        "default": 349
-      }
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 499 }
+    },
+    {
+      "name": "2x Intel Xeon E5-2697 v2 384GB",
+      "category": "bulletproof",
+      "cpu": 24,
+      "cpuThreads": 48,
+      "ram": 384,
+      "storage": 1000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 590 }
+    },
+    {
+      "name": "2x Intel Xeon E5-2699 v4 512GB",
+      "category": "bulletproof",
+      "cpu": 44,
+      "cpuThreads": 88,
+      "ram": 512,
+      "storage": 1000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 780 }
+    },
+    {
+      "name": "2x Platinum 8173M 768GB",
+      "category": "bulletproof",
+      "cpu": 52,
+      "cpuThreads": 104,
+      "ram": 768,
+      "storage": 2000,
+      "network": 1000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 1100 }
+    },
+    {
+      "name": "2x Platinum 8168 768GB",
+      "category": "bulletproof",
+      "cpu": 48,
+      "cpuThreads": 96,
+      "ram": 768,
+      "storage": 8000,
+      "network": 10000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 1999 }
+    },
+    {
+      "name": "2x Platinum 8168 1024GB",
+      "category": "bulletproof",
+      "cpu": 48,
+      "cpuThreads": 96,
+      "ram": 1024,
+      "storage": 6000,
+      "network": 10000,
+      "bandwidth": "unlimited",
+      "os": "Все. Любая, на выбор",
+      "price": { "bulletproof": 2400 }
     }
   ],
   "domains": {
@@ -300,6 +480,25 @@
     },
     ".info": {
       "price": 80
-    }
+    },
+    ".ac": { "price": 80 },
+    ".app": { "price": 80 },
+    ".bio": { "price": 80 },
+    ".bot": { "price": 80 },
+    ".cash": { "price": 80 },
+    ".co": { "price": 80 },
+    ".dev": { "price": 80 },
+    ".energy": { "price": 80 },
+    ".host": { "price": 80 },
+    ".money": { "price": 80 },
+    ".my": { "price": 80 },
+    ".one": { "price": 80 },
+    ".pw": { "price": 80 },
+    ".shop": { "price": 80 },
+    ".site": { "price": 80 },
+    ".skin": { "price": 80 },
+    ".team": { "price": 80 },
+    ".top": { "price": 80 },
+    ".vip": { "price": 80 }
   }
 }

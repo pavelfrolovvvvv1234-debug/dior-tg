@@ -193,6 +193,13 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       return;
     }
     if (data === "prime-back-to-dedicated-servers") {
+      const session = await ctx.session;
+      if (session.other.dedicatedType) {
+        session.other.dedicatedType.bulletproof = false;
+        session.other.dedicatedType.selectedDedicatedId = -1;
+      } else {
+        session.other.dedicatedType = { bulletproof: false, selectedDedicatedId: -1 };
+      }
       const { dedicatedServersMenu } = await import("../../helpers/services-menu.js");
       const header = `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t("button-dedicated-server")}`;
       await ctx.editMessageText(header, {
@@ -312,39 +319,57 @@ export async function handlePrimeISubscribed(ctx: AppContext): Promise<void> {
 
   // Проверка подписки: бот должен быть админом в канале (PRIME_CHANNEL_ID или PRIME_CHANNEL_USERNAME)
   const userId = ctx.from!.id;
-  let member: { status: string };
+  const SUBSCRIBED_STATUSES = ["member", "administrator", "creator", "restricted"] as const;
+
+  const isSubscribedStatus = (s: string) => SUBSCRIBED_STATUSES.includes(s as any);
+
+  let member: { status: string } | null = null;
   try {
-    member = await ctx.api.getChatMember(chatIdForCheck, userId);
-  } catch (err: any) {
-    const msg = err?.message || String(err);
-    const code = err?.error_code ?? err?.code;
-    Logger.error("Prime getChatMember failed", {
-      chatId: typeof chatIdForCheck === "string" ? chatIdForCheck : `#${chatIdForCheck}`,
-      userId,
-      error: msg,
-      code,
-    });
-    // Частые причины: бот не админ в канале; неверный ID канала; канал удалён
-    await ctx.answerCallbackQuery({
-      text: ctx.t("prime-trial-subscribe-first").substring(0, 200),
-      show_alert: true,
-    });
-    return;
+    member = await ctx.api.getChatMember(chatIdForCheck, userId).then((m) => m as { status: string });
+  } catch {
+    // Часто бывает задержка обновления после подписки или временная ошибка — одна повторная попытка через 2 с
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      member = await ctx.api.getChatMember(chatIdForCheck, userId).then((m) => m as { status: string });
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      const code = err?.error_code ?? err?.code;
+      Logger.error("Prime getChatMember failed", {
+        chatId: typeof chatIdForCheck === "string" ? chatIdForCheck : `#${chatIdForCheck}`,
+        userId,
+        error: msg,
+        code,
+      });
+      await ctx.answerCallbackQuery({
+        text: ctx.t("prime-trial-subscribe-first").substring(0, 200),
+        show_alert: true,
+      });
+      return;
+    }
   }
 
-  const status = (member as { status: string }).status;
-  // member | administrator | creator | restricted (в канале с ограничениями) — считаем подписанным
-  const isSubscribed =
-    status === "member" || status === "administrator" || status === "creator" || status === "restricted";
+  let status = member?.status ?? "left";
+  if (!isSubscribedStatus(status) && (status === "left" || status === "kicked")) {
+    // Только что подписался — Telegram может отдавать «left» с задержкой; проверяем ещё раз через 2.5 с
+    await new Promise((r) => setTimeout(r, 2500));
+    try {
+      const again = await ctx.api.getChatMember(chatIdForCheck, userId).then((m) => m as { status: string });
+      status = again.status;
+      if (isSubscribedStatus(status)) member = again;
+    } catch {
+      // оставляем прежний status
+    }
+  }
+
+  const isSubscribed = member != null && isSubscribedStatus(status);
   if (!isSubscribed) {
     Logger.warn("Prime check: user not subscribed", {
       userId,
       channel: typeof chatIdForCheck === "string" ? chatIdForCheck : chatIdForCheck,
       status,
-      hint: "If user is subscribed, ensure PRIME_CHANNEL_ID is the channel's full ID (e.g. -1001234567890 from @userinfobot)",
     });
     await ctx.answerCallbackQuery({
-      text: ctx.t("prime-trial-subscribe-first").substring(0, 200),
+      text: ctx.t("prime-trial-subscribe-first-retry").substring(0, 200),
       show_alert: true,
     });
     return;

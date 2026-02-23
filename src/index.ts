@@ -52,6 +52,9 @@ import {
   vdsTypeMenu,
   dedicatedServersMenu,
   dedicatedSelectedServerMenu,
+  dedicatedLocationMenu,
+  dedicatedOsMenu,
+  handleDedicatedOsSelect,
 } from "./helpers/services-menu";
 import { renameVdsConversation } from "./helpers/manage-services";
 import {
@@ -602,6 +605,8 @@ async function index() {
   bot.use(vdsTypeMenu);
   bot.use(dedicatedServersMenu);
   bot.use(dedicatedSelectedServerMenu);
+  bot.use(dedicatedLocationMenu);
+  bot.use(dedicatedOsMenu);
   bot.use(adminPromosMenu);
   bot.use(vdsRateChoose);
   bot.use(vdsRateOs);
@@ -635,6 +640,21 @@ async function index() {
       reply_markup: depositMenu,
       parse_mode: "HTML",
     });
+  });
+
+  // Dedicated OS selection (manual keyboard after location) — "dedicated-os:osKey" or "dedicated-os:back"
+  bot.callbackQuery(/^dedicated-os:(.+)$/, async (ctx) => {
+    const payload = ctx.match[1];
+    if (payload === "back") {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      await ctx.editMessageText(
+        ctx.t("welcome", { balance: session.main.user.balance }),
+        { parse_mode: "HTML", reply_markup: mainMenu }
+      );
+    } else {
+      await handleDedicatedOsSelect(ctx, payload);
+    }
   });
 
   // Register referrals menu
@@ -1688,7 +1708,6 @@ async function index() {
   servicesMenu.register(vdsTypeMenu, "services-menu");
   servicesMenu.register(vdsMenu, "services-menu");
   
-  // Register dedicated servers menu in dedicated-type-menu
   try {
     dedicatedTypeMenu.register(dedicatedServersMenu, "dedicated-type-menu");
   } catch (error: any) {
@@ -1703,6 +1722,22 @@ async function index() {
   } catch (error: any) {
     if (!error.message?.includes("already registered")) {
       console.error("[Bot] Failed to register dedicatedSelectedServerMenu:", error);
+    }
+  }
+
+  // Register dedicated location menu (after Make Order) and OS menu
+  try {
+    dedicatedSelectedServerMenu.register(dedicatedLocationMenu, "dedicated-selected-server");
+  } catch (error: any) {
+    if (!error.message?.includes("already registered")) {
+      console.error("[Bot] Failed to register dedicatedLocationMenu:", error);
+    }
+  }
+  try {
+    dedicatedLocationMenu.register(dedicatedOsMenu, "dedicated-location-menu");
+  } catch (error: any) {
+    if (!error.message?.includes("already registered")) {
+      console.error("[Bot] Failed to register dedicatedOsMenu:", error);
     }
   }
   

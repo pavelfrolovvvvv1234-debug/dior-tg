@@ -262,6 +262,7 @@ export async function createBot(): Promise<{
   const domainOrderMenu = legacyMenus.servicesMenu.domainOrderMenu;
   const domainQuestion = legacyMenus.servicesMenu.domainQuestion;
   const dedicatedTypeMenu = legacyMenus.servicesMenu.dedicatedTypeMenu;
+  const dedicatedServersMenu = legacyMenus.servicesMenu.dedicatedServersMenu;
   const vdsTypeMenu = legacyMenus.servicesMenu.vdsTypeMenu;
   
   const depositMenu = legacyMenus.depositMoney.depositMenu;
@@ -492,7 +493,11 @@ export async function createBot(): Promise<{
   servicesMenu.register(vdsTypeMenu, "services-menu");
   servicesMenu.register(vdsMenu, "services-menu");
   
-  // Register dedicated menu in dedicated-type-menu (will be done by broadcast-tickets-integration)
+  try {
+    dedicatedTypeMenu.register(dedicatedServersMenu, "dedicated-type-menu");
+  } catch (error: any) {
+    Logger.warn("dedicatedServersMenu already registered or error:", error);
+  }
   // Register vds menu in vds-type-menu
   vdsTypeMenu.register(vdsMenu, "vds-type-menu");
   

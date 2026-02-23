@@ -104,8 +104,8 @@ export class ReferralService {
 
     // Use telegramId as referral code
     const refCode = user.telegramId.toString();
-    const botUsername =
-      config.BOT_USERNAME === "your_bot_name" ? "diorhost_bot" : config.BOT_USERNAME;
+    const rawBot = config.BOT_USERNAME === "your_bot_name" ? "diorhost_bot" : config.BOT_USERNAME;
+    const botUsername = rawBot.replace(/^@/, "");
     return `https://t.me/${botUsername}?start=${refCode}`;
   }
 

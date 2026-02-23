@@ -26,11 +26,10 @@ export async function handlePromocodeInput(
       const promoRepo = manager.getRepository(Promo);
       const usersRepo = manager.getRepository(User);
 
-      const promo = await promoRepo
-        .createQueryBuilder("p")
-        .where("LOWER(p.code) = :code", { code: normalizedCode })
-        .setLock("pessimistic_write")
-        .getOne();
+      // findOne by normalized code (same as admin: code stored lowercase); avoid setLock for SQLite compatibility
+      const promo = await promoRepo.findOne({
+        where: { code: normalizedCode },
+      });
 
       if (!promo) return null;
       if (!promo.isActive || promo.uses >= promo.maxUses || promo.users.includes(userId)) {

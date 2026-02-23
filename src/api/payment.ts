@@ -7,6 +7,7 @@ import { Api, Bot, RawApi } from "grammy";
 import type { AppContext } from "../shared/types/context";
 import { invalidateUser } from "../shared/user-cache.js";
 import axios from "axios";
+import { getAdminTelegramIds } from "../app/config.js";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 
@@ -283,6 +284,33 @@ async function paymentSuccess(
   }
 
   bot.api.sendMessage(user.telegramId, balanceMessage).then();
+
+  // Notify admins in their bot chat: buyer username and amount
+  try {
+    const adminIds = getAdminTelegramIds();
+    if (adminIds.length > 0) {
+      let buyerLabel: string;
+      try {
+        const chat = await bot.api.getChat(user.telegramId);
+        const un = (chat as { username?: string }).username;
+        buyerLabel = un ? `@${un}` : `ID ${user.id} (TG: ${user.telegramId})`;
+      } catch {
+        buyerLabel = `ID ${user.id} (TG: ${user.telegramId})`;
+      }
+      const amountFormatted = new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(topUp.amount);
+      const adminText = `💳 <b>Пополнение баланса</b>\nПокупатель: ${buyerLabel}\nСумма: ${amountFormatted} $`;
+      for (const adminTelegramId of adminIds) {
+        await bot.api
+          .sendMessage(adminTelegramId, adminText, { parse_mode: "HTML" })
+          .catch(() => {});
+      }
+    }
+  } catch (e) {
+    // Don't fail payment flow if admin notify fails
+  }
 
   // Emit automation event for deposit.completed
   try {

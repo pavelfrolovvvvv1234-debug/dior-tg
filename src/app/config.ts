@@ -137,7 +137,11 @@ export const getPrimeChannelForCheck = (): number | string | null => {
   const username = trimQuotes(config.PRIME_CHANNEL_USERNAME ?? process.env.PRIME_CHANNEL_USERNAME ?? "");
   if (idRaw) {
     const n = parseInt(idRaw, 10);
-    if (!Number.isNaN(n)) return n;
+    if (!Number.isNaN(n)) {
+      // Private channel IDs in Telegram are -100xxxxxxxxxx; if user passed positive short ID, convert
+      if (n > 0 && n < 1e10) return -(100 * 1e10 + n);
+      return n;
+    }
   }
   if (username) {
     return username.startsWith("@") ? username : `@${username}`;

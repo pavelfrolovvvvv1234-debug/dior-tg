@@ -23,6 +23,29 @@ import ms from "@/lib/multims";
 const buildServiceHeader = (ctx: AppContext, labelKey: string): string =>
   `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t(labelKey)}`;
 
+/** Location key suffixes for dedicated order (FTL: dedicated-location-{key}). Table: Germany, NL/USA/Turkey. */
+const DEDICATED_LOCATION_KEYS = [
+  "de-germany",
+  "nl-amsterdam",
+  "usa",
+  "tr-istanbul",
+] as const;
+
+/** OS key suffixes for dedicated order (FTL: dedicated-os-{key}). Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24. */
+const DEDICATED_OS_KEYS = [
+  "winserver2019",
+  "winserver2025",
+  "windows11",
+  "alma8",
+  "alma9",
+  "centos9",
+  "debian11",
+  "debian12",
+  "debian13",
+  "ubuntu2204",
+  "ubuntu2404",
+] as const;
+
 /** Apply Prime −20% discount if user has active Prime. */
 async function getPriceWithPrimeDiscount(
   dataSource: Awaited<ReturnType<typeof getAppDataSource>>,
@@ -113,6 +136,16 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
     "domains-menu",
     async (ctx) => {
       await ctx.editMessageText(ctx.t("abuse-domains-service"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .row()
+  .submenu(
+    (ctx) => ctx.t("button-dedicated-server"),
+    "dedicated-type-menu",
+    async (ctx) => {
+      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
         parse_mode: "HTML",
       });
     }
@@ -543,7 +576,13 @@ export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu
     const pricesList = await prices();
     const session = await ctx.session;
 
-    if (!pricesList.dedicated_servers || pricesList.dedicated_servers.length === 0) {
+    // Ensure dedicatedType is set (e.g. when opening list from Back or direct path)
+    if (!session.other.dedicatedType) {
+      session.other.dedicatedType = { bulletproof: false, selectedDedicatedId: -1 };
+    }
+
+    const list = pricesList.dedicated_servers ?? [];
+    if (!list.length) {
       range.text(ctx.t("button-back"), async (ctx) => {
         await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
           parse_mode: "HTML",
@@ -552,59 +591,67 @@ export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu
       return;
     }
 
-    const isBulletproof = session.other.dedicatedType?.bulletproof || false;
-    
-    // Filter servers: if bulletproof, show only servers with bulletproof price
-    // Create array of indices that should be shown
+    const isBulletproof = session.other.dedicatedType.bulletproof;
+
+    // Filter servers by category: standard vs bulletproof (abuse-resistant)
     const serverIndices: number[] = [];
-    pricesList.dedicated_servers.forEach((server, id) => {
-      if (!isBulletproof || (isBulletproof && server.price.bulletproof !== undefined)) {
+    list.forEach((server: any, id) => {
+      const category = server.category ?? "standard";
+      if (!isBulletproof && category === "standard") {
+        serverIndices.push(id);
+      }
+      if (isBulletproof && category === "bulletproof") {
         serverIndices.push(id);
       }
     });
 
     if (serverIndices.length === 0) {
-      range.text(ctx.t("button-back"), async (ctx) => {
-        const session = await ctx.session;
-        const isBulletproof = session.other.dedicatedType?.bulletproof || false;
-        await ctx.editMessageText(
-          isBulletproof ? ctx.t("abuse-dedicated-server") : ctx.t("dedicated-server"),
-          {
+      range
+        .row()
+        .text(ctx.t("button-back"), async (ctx) => {
+          const session = await ctx.session;
+          await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
             parse_mode: "HTML",
-          }
-        );
-      });
+            reply_markup: dedicatedTypeMenu,
+          });
+        });
       return;
     }
 
-    const dataSource = await getAppDataSource();
-    const userId = session.main.user.id;
+    let dataSource: Awaited<ReturnType<typeof getAppDataSource>> | null = null;
+    try {
+      dataSource = await getAppDataSource();
+    } catch {
+      // DB may be unavailable; we still show servers with base price
+    }
+    const userId = session.main?.user?.id ?? 0;
 
     for (const id of serverIndices) {
-      const server = pricesList.dedicated_servers[id];
+      const server = list[id];
+      const priceObj = server.price ?? {};
       const basePrice =
-        isBulletproof && server.price.bulletproof
-          ? server.price.bulletproof
-          : server.price.default;
-      const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+        isBulletproof && priceObj.bulletproof != null
+          ? (priceObj.bulletproof as number)
+          : (priceObj.default ?? 0);
+      let price = basePrice;
+      if (dataSource && userId > 0) {
+        try {
+          price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+        } catch {
+          // keep basePrice on error
+        }
+      }
 
       range
         .submenu(
           {
-            text: ctx.t("dedicated-rate", {
-              rateName: server.name,
-              price,
-              cpu: server.cpu,
-              cpuThreads: server.cpuThreads,
-              ram: server.ram,
-              storage: server.storage,
-            }),
+            text: server.name ?? "",
             payload: id.toString(),
           },
           "dedicated-selected-server",
           async (ctx) => {
             const session = await ctx.session;
-            session.other.dedicatedType.selectedDedicatedId = id;
+            if (session.other.dedicatedType) session.other.dedicatedType.selectedDedicatedId = id;
             await editMessageDedicatedServer(ctx, id);
           }
         )
@@ -641,8 +688,13 @@ export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu
 
 /**
  * Function to edit message with dedicated server details.
+ * @param replyMarkup - Optional keyboard (e.g. dedicatedSelectedServerMenu when returning from location menu).
  */
-const editMessageDedicatedServer = async (ctx: AppContext, serverId: number) => {
+const editMessageDedicatedServer = async (
+  ctx: AppContext,
+  serverId: number,
+  replyMarkup?: Menu<AppContext>
+) => {
   const pricesList = await prices();
   const session = await ctx.session;
   const server = pricesList.dedicated_servers[serverId];
@@ -681,9 +733,141 @@ const editMessageDedicatedServer = async (ctx: AppContext, serverId: number) => 
     }),
     {
       parse_mode: "HTML",
+      ...(replyMarkup && { reply_markup: replyMarkup }),
     }
   );
 };
+
+/**
+ * Dedicated location selection menu (after Make Order).
+ */
+export const dedicatedLocationMenu = new Menu<AppContext>("dedicated-location-menu")
+  .dynamic(async (ctx, range) => {
+    for (const key of DEDICATED_LOCATION_KEYS) {
+      const labelKey = `dedicated-location-${key}` as const;
+      range
+        .text((c) => c.t(labelKey), async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
+          const session = await ctx.session;
+          session.other.dedicatedOrder = session.other.dedicatedOrder ?? { step: "idle", requirements: undefined };
+          session.other.dedicatedOrder.selectedLocationKey = key;
+          const osKeyboard = new InlineKeyboard();
+          for (const osKey of DEDICATED_OS_KEYS) {
+            osKeyboard.text(ctx.t(`dedicated-os-${osKey}`), `dedicated-os:${osKey}`).row();
+          }
+          osKeyboard.text(ctx.t("button-return-to-main"), "dedicated-os:back");
+          await ctx.editMessageText(ctx.t("dedicated-os-select-title"), {
+            parse_mode: "HTML",
+            reply_markup: osKeyboard,
+          });
+        })
+        .row();
+    }
+  })
+  .row()
+  .back((ctx) => ctx.t("button-back"), async (ctx) => {
+    const session = await ctx.session;
+    const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
+    const pricesList = await prices();
+    const server = pricesList.dedicated_servers?.[selectedId];
+    if (server !== undefined) {
+      await editMessageDedicatedServer(ctx, selectedId, dedicatedSelectedServerMenu);
+    } else {
+      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), { parse_mode: "HTML" });
+    }
+  });
+
+/**
+ * Handles dedicated OS selection: payment and contact-support message.
+ * Used from callback "dedicated-os:{osKey}" when OS is chosen from manual keyboard.
+ */
+export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): Promise<void> {
+  const session = await ctx.session;
+  const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
+  const locationKey = session.other.dedicatedOrder?.selectedLocationKey;
+  if (selectedId < 0 || !locationKey) {
+    await ctx.reply(ctx.t("bad-error"));
+    return;
+  }
+  const pricesList = await prices();
+  const server = pricesList.dedicated_servers?.[selectedId];
+  if (!server) {
+    await ctx.reply(ctx.t("bad-error"));
+    return;
+  }
+  const isBulletproof = session.other.dedicatedType?.bulletproof ?? false;
+  const basePrice =
+    isBulletproof && server.price.bulletproof
+      ? server.price.bulletproof
+      : server.price.default;
+  const dataSource = await getAppDataSource();
+  const usersRepo = dataSource.getRepository(User);
+  const user = await usersRepo.findOneBy({ id: session.main.user.id });
+  if (!user) {
+    await ctx.reply(ctx.t("bad-error"));
+    return;
+  }
+  const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+  if (user.balance < price) {
+    await ctx.reply(ctx.t("money-not-enough", { amount: price - user.balance }));
+    return;
+  }
+  user.balance -= price;
+  await usersRepo.save(user);
+  session.main.user.balance = user.balance;
+  session.main.user.referralBalance = user.referralBalance ?? 0;
+  session.other.dedicatedOrder = {
+    step: "idle",
+    requirements: undefined,
+    selectedLocationKey: locationKey,
+    selectedOsKey: osKey,
+  };
+  const serviceName = server.name;
+  const location = ctx.t(`dedicated-location-${locationKey}`);
+  const os = ctx.t(`dedicated-os-${osKey}`);
+  const supportText = ctx.t("support-message-dedicated-paid", {
+    serviceName,
+    location,
+    os,
+  });
+  await ctx.answerCallbackQuery().catch(() => {});
+  await ctx.deleteMessage().catch(() => {});
+  await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
+    parse_mode: "HTML",
+  });
+  const keyboard = new InlineKeyboard().url(
+    ctx.t("button-go-to-support"),
+    `tg://resolve?domain=diorhost&text=${encodeURIComponent(supportText)}`
+  );
+  await ctx.reply(ctx.t("dedicated-contact-support-message"), {
+    reply_markup: keyboard,
+    parse_mode: "HTML",
+  });
+}
+
+/**
+ * Dedicated OS selection menu (after location). On select: pay and show contact-support message.
+ * Also used when navigating from location menu (grammY nav); manual keyboard uses handleDedicatedOsSelect.
+ */
+export const dedicatedOsMenu = new Menu<AppContext>("dedicated-os-menu")
+  .dynamic(async (ctx, range) => {
+    for (const osKey of DEDICATED_OS_KEYS) {
+      const labelKey = `dedicated-os-${osKey}` as const;
+      range
+        .text((c) => c.t(labelKey), async (ctx) => {
+          await handleDedicatedOsSelect(ctx, osKey);
+        })
+        .row();
+    }
+  })
+  .row()
+  .text((ctx) => ctx.t("button-return-to-main"), async (ctx) => {
+    const session = await ctx.session;
+    await ctx.editMessageText(
+      ctx.t("welcome", { balance: session.main.user.balance }),
+      { parse_mode: "HTML", reply_markup: mainMenu }
+    );
+  });
 
 /**
  * Dedicated server detail menu (shows server info with Order button).
@@ -694,69 +878,13 @@ export const dedicatedSelectedServerMenu = new Menu<AppContext>("dedicated-selec
   },
 })
   .row()
-  .text(
+  .submenu(
     (ctx) => ctx.t("button-order-dedicated"),
+    "dedicated-location-menu",
     async (ctx) => {
-      try {
-        await ctx.answerCallbackQuery().catch(() => {});
-        const session = await ctx.session;
-        const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
-        if (selectedId < 0) {
-          await ctx.reply(ctx.t("bad-error"));
-          return;
-        }
-
-        const pricesList = await prices();
-        const server = pricesList.dedicated_servers?.[selectedId];
-        if (!server) {
-          await ctx.reply(ctx.t("bad-error"));
-          return;
-        }
-
-        const isBulletproof = session.other.dedicatedType?.bulletproof || false;
-        const basePrice = isBulletproof && server.price.bulletproof
-          ? server.price.bulletproof
-          : server.price.default;
-
-        const dataSource = await getAppDataSource();
-        const usersRepo = dataSource.getRepository(User);
-        const user = await usersRepo.findOneBy({ id: session.main.user.id });
-        if (!user) {
-          await ctx.reply(ctx.t("bad-error"));
-          return;
-        }
-
-        const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
-
-        if (user.balance < price) {
-          await ctx.reply(
-            ctx.t("money-not-enough", {
-              amount: price - user.balance,
-            })
-          );
-          return;
-        }
-
-        user.balance -= price;
-        await usersRepo.save(user);
-        session.main.user.balance = user.balance;
-        session.main.user.referralBalance = user.referralBalance ?? 0;
-
-        session.other.dedicatedOrder = {
-          step: "idle",
-          requirements: undefined,
-        };
-        const keyboard = new InlineKeyboard()
-          .url(ctx.t("button-support"), "tg://resolve?domain=diorhost");
-        await ctx.reply(ctx.t("dedicated-purchase-success"), {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
-      } catch (error: any) {
-        const { Logger } = await import("../app/logger.js");
-        Logger.error("Failed to start order dedicated conversation:", error);
-        await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
-      }
+      await ctx.editMessageText(ctx.t("dedicated-location-select-title"), {
+        parse_mode: "HTML",
+      });
     }
   )
   .row()
