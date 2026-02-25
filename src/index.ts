@@ -109,6 +109,18 @@ import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webh
 // Using dynamic import to avoid ts-node ESM resolution issues
 dotenv.config({});
 
+/** Русское приветствие без FTL — всегда один и тот же текст. */
+function getWelcomeTextRu(balance: number): string {
+  const b = Number.isFinite(balance) ? Math.round(balance) : 0;
+  return `DiorHost • Абузоустойчивая Инфраструктура
+
+Покупка и управление услугами хостинга прямо в тг боте
+24/7 uptime • Абузостоустойчивость • Офшорность
+@diorhost
+
+<blockquote>Баланс: ${b} $</blockquote>`;
+}
+
 export const mainMenu = new Menu<AppContext>("main-menu")
   .submenu(
     (ctx) => ctx.t("button-purchase"),
@@ -185,10 +197,8 @@ const supportMenu = new Menu<AppContext>("support-menu", {
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        {
-          parse_mode: "HTML",
-        }
+        getWelcomeTextRu(session.main.user.balance),
+        { parse_mode: "HTML" }
       );
     }
   );
@@ -355,10 +365,8 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        {
-          parse_mode: "HTML",
-        }
+        getWelcomeTextRu(session.main.user.balance),
+        { parse_mode: "HTML" }
       );
     }
   );
@@ -387,10 +395,8 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
 
             ctx.fluent.useLocale(lang);
             await ctx.editMessageText(
-              ctx.t("welcome", { balance: session.main.user.balance }),
-              {
-                parse_mode: "HTML",
-              }
+              getWelcomeTextRu(session.main.user.balance),
+              { parse_mode: "HTML" }
             );
             ctx.menu.back();
           })
@@ -417,20 +423,15 @@ function patchBotApiForRu(
   ) => {
     if (typeof text === "string") {
       try {
-        const user = await appDataSource.manager.findOneBy(User, {
-          telegramId: Number(chatId),
-        });
-        if (user?.lang === "ru") {
-          const isEnWelcome =
-            text.includes("Bulletproof Infrastructure") ||
-            text.includes("Abuse-Resistant") ||
-            text.includes("Order and manage hosting") ||
-            text.includes("Purchase and management of hosting") ||
-            (text.includes("DiorHost") && text.includes("Balance:"));
-          if (isEnWelcome && typeof fluent.translate === "function") {
-            const balance = user.balance ?? 0;
-            text = fluent.translate("ru", "welcome", { balance });
-          }
+        const isEnWelcome =
+          text.includes("Bulletproof Infrastructure") ||
+          text.includes("Abuse-Resistant") ||
+          text.includes("Order and manage hosting") ||
+          text.includes("Purchase and management of hosting") ||
+          (text.includes("DiorHost") && text.includes("Balance:"));
+        if (isEnWelcome) {
+          const user = await appDataSource.manager.findOneBy(User, { telegramId: Number(chatId) });
+          text = getWelcomeTextRu(user?.balance ?? 0);
         }
       } catch {
         // ignore
@@ -442,20 +443,15 @@ function patchBotApiForRu(
   (bot.api as any).sendMessage = async (chatId: number, text: string, ...rest: unknown[]) => {
     if (typeof text === "string") {
       try {
-        const user = await appDataSource.manager.findOneBy(User, {
-          telegramId: Number(chatId),
-        });
-        if (user?.lang === "ru") {
-          const isEnWelcome =
-            text.includes("Bulletproof Infrastructure") ||
-            text.includes("Abuse-Resistant") ||
-            text.includes("Order and manage hosting") ||
-            text.includes("Purchase and management of hosting") ||
-            (text.includes("DiorHost") && text.includes("Balance:"));
-          if (isEnWelcome && typeof fluent.translate === "function") {
-            const balance = user.balance ?? 0;
-            text = fluent.translate("ru", "welcome", { balance });
-          }
+        const isEnWelcome =
+          text.includes("Bulletproof Infrastructure") ||
+          text.includes("Abuse-Resistant") ||
+          text.includes("Order and manage hosting") ||
+          text.includes("Purchase and management of hosting") ||
+          (text.includes("DiorHost") && text.includes("Balance:"));
+        if (isEnWelcome) {
+          const user = await appDataSource.manager.findOneBy(User, { telegramId: Number(chatId) });
+          text = getWelcomeTextRu(user?.balance ?? 0);
         }
       } catch {
         // ignore
@@ -635,7 +631,7 @@ async function index() {
     })
   );
 
-  // Force locale and override ctx.t so EVERY translation uses session locale (no flash to EN)
+  // Force locale and override ctx.t: welcome ВСЕГДА русский (хардкод), остальное по локали
   bot.use(async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
     const locale = session?.main?.locale === "en" ? "en" : "ru";
@@ -643,31 +639,22 @@ async function index() {
     if (ctxFluent?.useLocale) ctxFluent.useLocale(locale);
     const sessionLocale = locale;
     if (ctxFluent?.t) {
+      const origT = ctxFluent.t.bind(ctxFluent);
       (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
+        if (key === "welcome") {
+          return getWelcomeTextRu(Number((vars as any)?.balance ?? 0));
+        }
         if (ctxFluent.useLocale) ctxFluent.useLocale(sessionLocale);
-        return ctxFluent.t(key, vars);
+        return origT(key, vars);
       };
     }
-    // Replace EN welcome/profile with RU when user's lang in DB is RU (so it always sticks)
+    // Всегда подменять EN приветствие на русское (хардкод)
     const replaceEnWithRu = async (text: string, currentCtx: typeof ctx): Promise<string> => {
       if (typeof text !== "string") return text;
-      const chatId = currentCtx.chat?.id ?? currentCtx.from?.id;
-      if (chatId == null) return text;
-      let isRu = false;
-      try {
-        const dbUser = await currentCtx.appDataSource.manager.findOneBy(User, { telegramId: Number(chatId) });
-        isRu = dbUser?.lang === "ru";
-      } catch {
-        const currentSession = (await currentCtx.session) as SessionData;
-        isRu = currentSession?.main?.locale === "ru";
-      }
-      if (!isRu) return text;
       const currentSession = (await currentCtx.session) as SessionData;
       const balance = currentSession?.main?.user?.balance ?? 0;
       const isEnWelcome = text.includes("Bulletproof Infrastructure") || text.includes("Abuse-Resistant") || text.includes("Order and manage hosting") || text.includes("Purchase and management of hosting") || (text.includes("DiorHost") && text.includes("Balance:"));
-      if (isEnWelcome && typeof fluent.translate === "function") {
-        return fluent.translate("ru", "welcome", { balance });
-      }
+      if (isEnWelcome) return getWelcomeTextRu(balance);
       const isEnProfile = text.includes("STATISTICS") || text.includes("Prime: no") || (text.includes("Balance:") && (text.includes("Web Site") || text.includes("Support") || text.includes("Dior News") || text.includes("Site"))) || (text.includes("DIOR PROFILE") && text.includes("Status:"));
       if (isEnProfile) {
         const { getProfileText } = await import("./ui/menus/profile-menu.js");
@@ -699,7 +686,7 @@ async function index() {
     return next();
   });
 
-  // Ensure ctx.t is always defined (prefer Fluent translations)
+  // Ensure ctx.t is always defined; welcome всегда русский
   bot.use(async (ctx, next) => {
     if (typeof (ctx as any).t !== "function") {
       const session = (await ctx.session) as SessionData;
@@ -708,14 +695,16 @@ async function index() {
         session?.main?.locale && session.main.locale !== "0"
           ? session.main.locale
           : "ru";
+      const wrapT = (fn: (k: string, v?: Record<string, string | number>) => string) =>
+        (key: string, vars?: Record<string, string | number>) =>
+          key === "welcome" ? getWelcomeTextRu(Number((vars as any)?.balance ?? 0)) : fn(key, vars);
       if (fluent && typeof fluent.translate === "function") {
-        (ctx as any).t = (key: string, vars?: Record<string, string | number>) =>
-          fluent.translate(locale, key, vars);
+        (ctx as any).t = wrapT((k, v) => fluent.translate(locale, k, v));
       } else if (fluent && typeof fluent.t === "function") {
-        (ctx as any).t = (key: string, vars?: Record<string, string | number>) =>
-          fluent.t(key, vars);
+        (ctx as any).t = wrapT((k, v) => fluent.t(k, v));
       } else {
-        (ctx as any).t = (key: string) => key;
+        (ctx as any).t = (key: string, vars?: Record<string, string | number>) =>
+          key === "welcome" ? getWelcomeTextRu(Number((vars as any)?.balance ?? 0)) : key;
       }
     }
     return next();
@@ -789,7 +778,7 @@ async function index() {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
       await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
+        getWelcomeTextRu(session.main.user.balance),
         { parse_mode: "HTML", reply_markup: mainMenu }
       );
     } else {
@@ -875,8 +864,7 @@ async function index() {
     try {
       if (isPrimeBack) {
         const session = (await ctx.session) as SessionData;
-        const balance = session?.main?.user?.balance ?? 0;
-        const welcomeText = ctx.t("welcome", { balance });
+        const welcomeText = getWelcomeTextRu(session?.main?.user?.balance ?? 0);
         await ctx.editMessageText(welcomeText, {
           reply_markup: mainMenu,
           parse_mode: "HTML",
@@ -938,11 +926,7 @@ async function index() {
       }
 
       ctx.fluent.useLocale(lang);
-
-      const balance = session.main.user.balance;
-      const welcomeText = typeof fluent.translate === "function"
-        ? fluent.translate(lang, "welcome", { balance })
-        : ctx.t("welcome", { balance });
+      const welcomeText = getWelcomeTextRu(session.main.user.balance);
 
       // Send via bot.api directly so nothing can override the text we built
       const chatId = ctx.chat?.id;
@@ -1030,14 +1014,10 @@ async function index() {
         }
       }
 
-      // Show language selection in user's current locale (no forced EN → no flash)
-      const currentLocale = session.main.locale === "en" ? "en" : "ru";
-      ctx.fluent.useLocale(currentLocale);
-      const keyboard = new InlineKeyboard()
-        .text(ctx.t("button-change-locale-ru"), "lang_ru")
-        .text(ctx.t("button-change-locale-en"), "lang_en");
-      await ctx.reply(ctx.t("select-language"), {
-        reply_markup: keyboard,
+      session.main.locale = "ru";
+      const welcomeText = getWelcomeTextRu(session.main.user.balance ?? 0);
+      await ctx.reply(welcomeText, {
+        reply_markup: mainMenu,
         parse_mode: "HTML",
       });
     } catch (error: any) {
@@ -1063,8 +1043,7 @@ async function index() {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = (await ctx.session) as SessionData;
     session.other.promocode.awaitingInput = false;
-    const balance = session?.main?.user?.balance ?? 0;
-    await ctx.reply(ctx.t("welcome", { balance }), {
+    await ctx.reply(getWelcomeTextRu(session?.main?.user?.balance ?? 0), {
       reply_markup: mainMenu,
       parse_mode: "HTML",
     });

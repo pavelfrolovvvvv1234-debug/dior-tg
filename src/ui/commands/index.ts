@@ -126,16 +126,11 @@ export function registerCommands(bot: Bot<AppContext>): void {
       }
     }
     
-    // If locale is not set (first time user), show language selection
+    // Локалка выключена: всегда русский
     if (session.main.locale === "0" || !session.main.locale) {
-      ctx.fluent.useLocale("ru");
-      const { languageSelectMenu } = await import("../menus/language-select-menu.js");
-      await ctx.reply(ctx.t("select-language"), {
-        reply_markup: languageSelectMenu,
-        parse_mode: "HTML",
-      });
-      return;
+      session.main.locale = "ru";
     }
+    ctx.fluent.useLocale(session.main.locale === "en" ? "en" : "ru");
 
     const renderer = ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
