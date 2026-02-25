@@ -917,9 +917,17 @@ admin-message-to-user-enter = Enter the message text for the user:
 admin-message-to-user-prefix = 📩 Message from administration:
 admin-message-to-user-sent = Message sent.
 admin-message-to-user-failed = Failed to send message: {$error}
-admin-user-services-summary = <strong>User services</strong>\n\n💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Active services: {$activeServicesCount}\n🎫 Tickets: {$ticketsCount}\n\nVPS/VDS: {$vdsCount}\nDedicated: {$dedicatedCount}\nDomains: {$domainCount}
+admin-user-services-summary =
+    <strong>User services</strong>
+
+    💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+    🛠 Active services: {$activeServicesCount}
+    🎫 Tickets: {$ticketsCount}
+
+    VPS/VDS: {$vdsCount} · Dedicated: {$dedicatedCount} · Domains: {$domainCount}
 admin-user-services-domains-title = <strong>User domains</strong>
-admin-domain-ns-prompt = Enter nameservers on one line, space-separated:\n<code>ns1.example.com ns2.example.com</code>
+admin-domain-ns-prompt = Enter nameservers on one line, space-separated:
+    <code>ns1.example.com ns2.example.com</code>
 admin-domain-ns-success = Nameservers for <b>{$domain}</b> updated.
 admin-domain-ns-cancelled = Cancelled.
 admin-domain-ns-failed = Failed to update NS: {$error}

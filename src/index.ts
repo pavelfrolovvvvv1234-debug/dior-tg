@@ -533,7 +533,7 @@ async function index() {
       return next();
     }
 
-    // If locale not set and user exists, use already loaded user to avoid extra DB query
+    // If locale not set and user exists, use saved preference; otherwise default "ru" so language doesn't flip
     if (session.main.locale === "0" || !session.main.locale) {
       const user =
         ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
@@ -541,9 +541,7 @@ async function index() {
           : session.main.user.id > 0
             ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
             : null;
-      if (user?.lang) {
-        session.main.locale = user.lang;
-      }
+      session.main.locale = user?.lang && (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
     }
 
     return next();

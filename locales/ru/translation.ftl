@@ -919,9 +919,17 @@ admin-message-to-user-enter = Введите текст сообщения дл�
 admin-message-to-user-prefix = 📩 Сообщение от администрации:
 admin-message-to-user-sent = Сообщение отправлено.
 admin-message-to-user-failed = Не удалось отправить сообщение: {$error}
-admin-user-services-summary = <strong>Услуги пользователя</strong>\n\n💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Активных услуг: {$activeServicesCount}\n🎫 Тикетов: {$ticketsCount}\n\nVPS/VDS: {$vdsCount} | Dedicated: {$dedicatedCount} | Домены: {$domainCount}
+admin-user-services-summary =
+    <strong>Услуги пользователя</strong>
+
+    💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+    🛠 Активных услуг: {$activeServicesCount}
+    🎫 Тикетов: {$ticketsCount}
+
+    VPS/VDS: {$vdsCount} · Dedicated: {$dedicatedCount} · Домены: {$domainCount}
 admin-user-services-domains-title = <strong>Домены пользователя</strong>
-admin-domain-ns-prompt = Введите неймсерверы в одну строку через пробел:\n<code>ns1.example.com ns2.example.com</code>
+admin-domain-ns-prompt = Введите неймсерверы в одну строку через пробел:
+    <code>ns1.example.com ns2.example.com</code>
 admin-domain-ns-success = NS для домена <b>{$domain}</b> обновлены.
 admin-domain-ns-cancelled = Отменено.
 admin-domain-ns-failed = Ошибка смены NS: {$error}
