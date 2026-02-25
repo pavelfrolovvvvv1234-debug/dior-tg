@@ -799,10 +799,11 @@ domain-registered = <strong>Domain Registered</strong>
 Domain: {$domain}
 ID: {$domainId}
 Status: {$status}
-domain-register-failed = <strong>Domain Registration Failed</strong>
+domain-register-failed = <strong>Domain Registration Failed</strong>\n\nReason: { $error }
 domain-register-failed-registrar-balance = Registrar (Amper) account has insufficient funds. Top up your balance in the Amper dashboard — then domain registration in the bot will work. Your bot balance was not charged (refunded).
 domain-register-failed-domain-taken = Domain <b>{$domain}</b> is already taken and unavailable for registration. Your balance was not charged (refunded).
 domain-service-temporarily-unavailable = ⚠️ Domain registration service is temporarily unavailable (error { $statusCode }). Please try again later.
+domain-register-failed-network = ⚠️ Domain registration service is temporarily unavailable (network issue). Check Amper API availability or try again later. Your balance was not charged.
 domain-check-service-unavailable = ⚠️ Domain availability check is temporarily unavailable (error { $statusCode }). Amper service is overloaded or unavailable. Please try again later.
 
 Domain: {$domain}

@@ -799,10 +799,11 @@ domain-registered = <strong>Домен зарегистрирован</strong>
 Домен: {$domain}
 ID: {$domainId}
 Статус: {$status}
-domain-register-failed = <strong>Ошибка регистрации домена</strong>
+domain-register-failed = <strong>Ошибка регистрации домена</strong>\n\nПричина: { $error }
 domain-register-failed-registrar-balance = На счёте регистратора (Amper) недостаточно средств. Пополните баланс в кабинете Amper — после этого регистрация доменов в боте будет проходить. Средства с вашего баланса в боте не списаны (возврат выполнен).
 domain-register-failed-domain-taken = Домен <b>{$domain}</b> уже занят и недоступен для регистрации. Средства с вашего баланса не списаны (возврат выполнен).
 domain-service-temporarily-unavailable = ⚠️ Сервис регистрации доменов временно недоступен (ошибка { $statusCode }). Пожалуйста, попробуйте позже.
+domain-register-failed-network = ⚠️ Сервис регистрации доменов временно недоступен (проблемы с сетью). Проверьте доступность Amper API или попробуйте позже. Средства с баланса не списаны.
 domain-check-service-unavailable = ⚠️ Проверка доступности домена временно недоступна (ошибка { $statusCode }). Сервис Amper перегружен или недоступен. Попробуйте позже.
 
 Домен: {$domain}

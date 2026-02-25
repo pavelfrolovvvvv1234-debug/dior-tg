@@ -384,14 +384,22 @@ export async function domainRegisterConversation(
         errMsgLower.includes("504") ||
         errMsgLower.includes("bad gateway") ||
         errMsgLower.includes("service unavailable");
+      const isNetworkError =
+        errMsgLower.includes("econnrefused") ||
+        errMsgLower.includes("etimedout") ||
+        errMsgLower.includes("enotfound") ||
+        errMsgLower.includes("ehostunreach") ||
+        errMsgLower.includes("network") ||
+        errMsgLower.includes("timeout");
       
       let text: string;
       if (isRegistrarBalance) {
         text = safeT(ctx, "domain-register-failed-registrar-balance");
       } else if (isDomainTaken) {
         text = safeT(ctx, "domain-register-failed-domain-taken", { domain: fullDomain });
+      } else if (isNetworkError) {
+        text = safeT(ctx, "domain-register-failed-network");
       } else if (isTemporaryError) {
-        // Извлекаем код статуса из сообщения об ошибке
         const statusMatch = errMsg.match(/(\d{3})/);
         const statusCode = statusMatch ? statusMatch[1] : "502";
         text = safeT(ctx, "domain-service-temporarily-unavailable", { statusCode });
