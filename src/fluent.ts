@@ -17,7 +17,7 @@ export async function initFluent(): Promise<{
       pathToFtl("en", "translation.ftl"),
       pathToFtl("en", "services.ftl"),
     ],
-    isDefault: true,
+    isDefault: false,
     bundleOptions: {
       useIsolating: false,
     },
@@ -29,7 +29,7 @@ export async function initFluent(): Promise<{
       pathToFtl("ru", "translation.ftl"),
       pathToFtl("ru", "services.ftl"),
     ],
-    isDefault: false,
+    isDefault: true,
     bundleOptions: {
       useIsolating: false,
     },

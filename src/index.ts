@@ -561,12 +561,19 @@ async function index() {
     })
   );
 
-  // Force Fluent to use session locale so welcome/profile are never in wrong language
+  // Force locale and override ctx.t so EVERY translation uses session locale (no flash to EN)
   bot.use(async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
     const locale = session?.main?.locale === "en" ? "en" : "ru";
-    if (typeof (ctx as any).fluent?.useLocale === "function") {
-      (ctx as any).fluent.useLocale(locale);
+    const fluent = (ctx as any).fluent;
+    if (fluent?.useLocale) fluent.useLocale(locale);
+    // Override ctx.t so delayed/second calls (e.g. menu refresh) always use session locale
+    const sessionLocale = locale;
+    if (fluent?.t) {
+      (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
+        if (fluent.useLocale) fluent.useLocale(sessionLocale);
+        return fluent.t(key, vars);
+      };
     }
     return next();
   });
