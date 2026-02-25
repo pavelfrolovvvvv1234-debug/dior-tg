@@ -1113,7 +1113,8 @@ async function index() {
     if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
     const domainId = parseInt(ctx.match[1]);
     session.other.adminDomainSetAmperId = { domainId };
-    await ctx.reply(ctx.t("admin-domain-set-amper-id-prompt") + "\nОтмена: /cancel", { parse_mode: "HTML" });
+    const kb = new InlineKeyboard().text(ctx.t("button-cancel"), "admin-cancel-input");
+    await ctx.reply(ctx.t("admin-domain-set-amper-id-prompt"), { parse_mode: "HTML", reply_markup: kb });
   });
 
   bot.callbackQuery(/^admin-user-services-back-(\d+)$/, async (ctx) => {
@@ -1157,7 +1158,20 @@ async function index() {
     if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
     const domainId = parseInt(ctx.match[1]);
     session.other.adminDomainNs = { domainId };
-    await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
+    const kbNs = new InlineKeyboard().text(ctx.t("button-cancel"), "admin-cancel-input");
+    await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML", reply_markup: kbNs });
+  });
+
+  bot.callbackQuery("admin-cancel-input", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
+    const hadNs = !!session.other.adminDomainNs;
+    const hadAmperId = !!session.other.adminDomainSetAmperId;
+    delete session.other.adminDomainNs;
+    delete session.other.adminDomainSetAmperId;
+    const msg = hadNs ? ctx.t("admin-domain-ns-cancelled") : ctx.t("admin-domain-set-amper-id-cancelled");
+    await ctx.reply(msg, { parse_mode: "HTML" });
   });
 
   bot.on("message:text", async (ctx, next) => {
@@ -1341,14 +1355,15 @@ async function index() {
         return next();
       }
       const parts = input.split(/\s+/).filter(Boolean);
+      const cancelKb = new InlineKeyboard().text(ctx.t("button-cancel"), "admin-cancel-input");
       if (parts.length < 2) {
-        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
+        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML", reply_markup: cancelKb });
         return;
       }
       const [ns1, ns2] = [parts[0], parts[1]];
       const nsRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i;
       if (!nsRegex.test(ns1) || !nsRegex.test(ns2)) {
-        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
+        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML", reply_markup: cancelKb });
         return;
       }
       try {
