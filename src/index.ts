@@ -513,6 +513,10 @@ async function index() {
       session.main.user.role = user.role;
       session.main.user.status = user.status;
       session.main.user.isBanned = user.isBanned;
+      // Set locale from user so first render uses correct language (no flash ru → en)
+      if (!session.main.locale || session.main.locale === "0") {
+        session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
+      }
       // Grant admin in session if ID is in ADMIN_TELEGRAM_IDS (and persist to DB once)
       const adminIds = getAdminTelegramIds();
       if (adminIds.length > 0 && adminIds.includes(tid)) {
