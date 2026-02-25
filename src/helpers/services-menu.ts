@@ -705,16 +705,13 @@ const editMessageDedicatedServer = async (
   }
 
   const isBulletproof = session.other.dedicatedType?.bulletproof || false;
-  const basePrice =
-    isBulletproof && server.price.bulletproof
+  const basePrice: number =
+    (isBulletproof && server.price.bulletproof
       ? server.price.bulletproof
-      : server.price.default;
+      : server.price.default) ?? 0;
   const dataSource = await getAppDataSource();
-  const price = await getPriceWithPrimeDiscount(
-    dataSource,
-    session.main.user.id,
-    basePrice
-  );
+  const userId: number = session.main?.user?.id ?? 0;
+  const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
 
   await ctx.editMessageText(
     ctx.t("dedicated-rate-full-view", {
@@ -796,10 +793,10 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     return;
   }
   const isBulletproof = session.other.dedicatedType?.bulletproof ?? false;
-  const basePrice =
-    isBulletproof && server.price.bulletproof
+  const basePrice: number =
+    (isBulletproof && server.price.bulletproof
       ? server.price.bulletproof
-      : server.price.default;
+      : server.price.default) ?? 0;
   const dataSource = await getAppDataSource();
   const usersRepo = dataSource.getRepository(User);
   const user = await usersRepo.findOneBy({ id: session.main.user.id });
@@ -807,7 +804,8 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     await ctx.reply(ctx.t("bad-error"));
     return;
   }
-  const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+  const userId: number = user.id ?? 0;
+  const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
   if (user.balance < price) {
     await ctx.reply(ctx.t("money-not-enough", { amount: price - user.balance }));
     return;
