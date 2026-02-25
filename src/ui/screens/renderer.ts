@@ -73,10 +73,11 @@ export class ScreenRenderer {
 
   /**
    * Render welcome screen.
-   * If locale is passed, forces Fluent to use it so welcome is never in wrong language.
+   * Language from DB (ctx.loadedUser.lang) only — session locale is ignored so RU is not overwritten by stale "en".
    */
   renderWelcome(data: { balance: number; locale?: string }): RenderedScreen {
-    const locale = data.locale === "en" ? "en" : "ru";
+    const userLang = (this.ctx as any).loadedUser?.lang;
+    const locale = userLang === "en" ? "en" : "ru";
     if (typeof (this.ctx as any).fluent?.useLocale === "function") {
       (this.ctx as any).fluent.useLocale(locale);
     }
