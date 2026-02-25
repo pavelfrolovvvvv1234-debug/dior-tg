@@ -1349,6 +1349,58 @@ Are you sure you want to proceed?`,
     }
   });
 
+  // Add domain from Amper to "Услуги" (when "already owned by you")
+  bot.callbackQuery(/^domain_import_(.+)$/, async (ctx) => {
+    try {
+      const session = await ctx.session;
+      const hasSessionUser = await ensureSessionUser(ctx);
+      if (!session || !hasSessionUser) {
+        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
+        return;
+      }
+      const domainEnc = ctx.match[1];
+      const domain = domainEnc.replace(/_/g, ".");
+      const userId = session.main.user.id;
+
+      const DomainRepository = (await import("../../infrastructure/db/repositories/DomainRepository.js")).DomainRepository;
+      const UserRepository = (await import("../../infrastructure/db/repositories/UserRepository.js")).UserRepository;
+      const TopUpRepository = (await import("../../infrastructure/db/repositories/TopUpRepository.js")).TopUpRepository;
+      const BillingService = (await import("../../domain/billing/BillingService.js")).BillingService;
+      const AmperDomainsProvider = (await import("../../infrastructure/domains/AmperDomainsProvider.js")).AmperDomainsProvider;
+      const AmperDomainService = (await import("../../domain/services/AmperDomainService.js")).AmperDomainService;
+
+      const domainRepo = new DomainRepository(ctx.appDataSource);
+      const userRepo = new UserRepository(ctx.appDataSource);
+      const topUpRepo = new TopUpRepository(ctx.appDataSource);
+      const billingService = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+      const provider = new AmperDomainsProvider({
+        apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
+        apiToken: process.env.AMPER_API_TOKEN || "",
+        timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
+        defaultNs1: process.env.DEFAULT_NS1,
+        defaultNs2: process.env.DEFAULT_NS2,
+      });
+      const domainService = new AmperDomainService(ctx.appDataSource, domainRepo, billingService, provider);
+
+      const telegramId = ctx.from?.id;
+      const imported = await domainService.importDomainFromAmper(userId, domain, telegramId);
+      if (imported) {
+        await ctx.answerCallbackQuery();
+        await safeEditMessageText(
+          ctx,
+          ctx.t("domain-import-success", { domain: imported.domain }),
+          { parse_mode: "HTML" }
+        );
+      } else {
+        await ctx.answerCallbackQuery(ctx.t("domain-import-not-found").substring(0, 200), { show_alert: true });
+        await safeEditMessageText(ctx, ctx.t("domain-import-not-found"), { parse_mode: "HTML" });
+      }
+    } catch (error: any) {
+      Logger.error("Failed to import domain from Amper:", error);
+      await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Unknown error" }).substring(0, 200));
+    }
+  });
+
   // Handle domain renew confirmation
   bot.callbackQuery(/^domain_renew_confirm_(\d+)$/, async (ctx) => {
     try {

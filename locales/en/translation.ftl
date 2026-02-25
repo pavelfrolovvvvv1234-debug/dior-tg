@@ -802,6 +802,10 @@ Status: {$status}
 domain-register-failed = <strong>Domain Registration Failed</strong>\n\nReason: { $error }
 domain-register-failed-registrar-balance = Registrar (Amper) account has insufficient funds. Top up your balance in the Amper dashboard — then domain registration in the bot will work. Your bot balance was not charged (refunded).
 domain-register-failed-domain-taken = Domain <b>{$domain}</b> is already taken and unavailable for registration. Your balance was not charged (refunded).
+domain-register-failed-already-owned = Domain <b>{$domain}</b> is already registered to you. Add it to Services to change nameservers.
+domain-import-success = Domain <b>{$domain}</b> added to Services. Go to Services → domains to change nameservers.
+domain-import-not-found = Domain not found in Amper account. If you just registered it, wait a minute and try again.
+button-domain-add-to-services = Add to Services
 domain-service-temporarily-unavailable = ⚠️ Domain registration service is temporarily unavailable (error { $statusCode }). Please try again later.
 domain-register-failed-network = ⚠️ Domain registration service is temporarily unavailable (network issue). Check Amper API availability or try again later. Your balance was not charged.
 domain-check-service-unavailable = ⚠️ Domain availability check is temporarily unavailable (error { $statusCode }). Amper service is overloaded or unavailable. Please try again later.

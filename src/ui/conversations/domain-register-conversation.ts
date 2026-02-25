@@ -375,6 +375,10 @@ export async function domainRegisterConversation(
         errMsg.includes("already taken") ||
         errMsg.includes("уже занят") ||
         errMsg.includes("domain is not available");
+      const isAlreadyOwnedByYou =
+        errMsg.includes("already owned by you") ||
+        errMsg.includes("owned by you") ||
+        errMsg.includes("уже принадлежит вам");
       
       const errMsgLower = errMsg.toLowerCase();
       const isTemporaryError =
@@ -395,6 +399,8 @@ export async function domainRegisterConversation(
       let text: string;
       if (isRegistrarBalance) {
         text = safeT(ctx, "domain-register-failed-registrar-balance");
+      } else if (isAlreadyOwnedByYou) {
+        text = safeT(ctx, "domain-register-failed-already-owned", { domain: fullDomain });
       } else if (isDomainTaken) {
         text = safeT(ctx, "domain-register-failed-domain-taken", { domain: fullDomain });
       } else if (isNetworkError) {
@@ -409,7 +415,17 @@ export async function domainRegisterConversation(
           error: error?.message || "Unknown error",
         });
       }
-      await confirmCtx.editMessageText(text, { parse_mode: "HTML" });
+      const replyMarkup =
+        isAlreadyOwnedByYou
+          ? new InlineKeyboard().text(
+              safeT(ctx, "button-domain-add-to-services"),
+              `domain_import_${fullDomain.replace(/\./g, "_")}`
+            )
+          : undefined;
+      await confirmCtx.editMessageText(text, {
+        parse_mode: "HTML",
+        ...(replyMarkup && { reply_markup: replyMarkup }),
+      });
     }
   } catch (error: any) {
     Logger.error("Domain registration conversation error:", error);

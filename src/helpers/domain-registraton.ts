@@ -212,11 +212,11 @@ export function registerDomainRegistrationMiddleware(
         });
         let message: string;
         let isRegistrarBalance = false;
+        let isAlreadyOwnedByYou = false;
         
         if (err instanceof BusinessError) {
           message = err.message;
           Logger.info(`[DomainRegistration] BusinessError: ${message}`);
-          // Проверяем, не связано ли это с балансом регистратора или недоступностью домена
           const msgLower = message.toLowerCase();
           isRegistrarBalance =
             msgLower.includes("balance") ||
@@ -225,10 +225,11 @@ export function registerDomainRegistrationMiddleware(
             msgLower.includes("баланс") ||
             msgLower.includes("средств") ||
             msgLower.includes("пополните");
-          
-          // Если домен недоступен — показываем понятное сообщение
+          isAlreadyOwnedByYou = msgLower.includes("already owned by you") || msgLower.includes("owned by you");
           if (message.includes("not available") || message.includes("недоступен") || message.includes("Domain is not available")) {
             message = ctx.t("domain-register-failed-domain-taken", { domain });
+          } else if (isAlreadyOwnedByYou) {
+            message = ctx.t("domain-register-failed-already-owned", { domain });
           }
         } else if (err instanceof NotFoundError) {
           message = err.message;
@@ -241,6 +242,7 @@ export function registerDomainRegistrationMiddleware(
             errMsgLower.includes("funds") ||
             errMsgLower.includes("баланс") ||
             errMsgLower.includes("средств");
+          isAlreadyOwnedByYou = errMsgLower.includes("already owned by you") || errMsgLower.includes("owned by you");
           message = errMsg;
         }
         
@@ -248,9 +250,11 @@ export function registerDomainRegistrationMiddleware(
         
         const alertText = isRegistrarBalance
           ? ctx.t("domain-register-failed-registrar-balance")
-          : message.length > 200
-            ? message.slice(0, 197) + "…"
-            : message;
+          : isAlreadyOwnedByYou
+            ? ctx.t("domain-register-failed-already-owned", { domain })
+            : message.length > 200
+              ? message.slice(0, 197) + "…"
+              : message;
         
         await ctx.answerCallbackQuery({
           text: alertText,
@@ -260,8 +264,20 @@ export function registerDomainRegistrationMiddleware(
         try {
           const replyText = isRegistrarBalance
             ? ctx.t("domain-register-failed-registrar-balance")
-            : ctx.t("domain-register-failed", { domain, error: message });
-          await ctx.reply(replyText, { parse_mode: "HTML" });
+            : isAlreadyOwnedByYou
+              ? ctx.t("domain-register-failed-already-owned", { domain })
+              : ctx.t("domain-register-failed", { domain, error: message });
+          const { InlineKeyboard } = await import("grammy");
+          const replyMarkup = isAlreadyOwnedByYou
+            ? new InlineKeyboard().text(
+                ctx.t("button-domain-add-to-services"),
+                `domain_import_${domain.replace(/\./g, "_")}`
+              )
+            : undefined;
+          await ctx.reply(replyText, {
+            parse_mode: "HTML",
+            ...(replyMarkup && { reply_markup: replyMarkup }),
+          });
         } catch {
           /* ignore */
         }

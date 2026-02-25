@@ -362,6 +362,53 @@ export class AmperDomainService {
   }
 
   /**
+   * Import a domain already owned by the user in Amper into our DB so it appears in "Услуги" and user can change nameservers.
+   * Tries listDomains with our user.id first; if empty and telegramId is provided, tries with telegram id (Amper may use it).
+   *
+   * @param telegramId - Optional Telegram user id; used as fallback for listDomains if Amper filters by it.
+   * @returns Domain entity (existing or newly created), or null if not found in Amper.
+   */
+  async importDomainFromAmper(userId: number, fullDomain: string, telegramId?: number): Promise<Domain | null> {
+    const normalized = fullDomain.toLowerCase().trim();
+    if (!this.isValidDomain(normalized)) {
+      return null;
+    }
+    let list = await this.domainProvider.listDomains(String(userId));
+    if (list.length === 0 && telegramId != null) {
+      list = await this.domainProvider.listDomains(String(telegramId));
+    }
+    const amperInfo = list.find((d) => d.domain.toLowerCase() === normalized);
+    if (!amperInfo?.domainId) {
+      return null;
+    }
+    const existing = await this.domainRepository.findByProviderDomainId(amperInfo.domainId);
+    if (existing) {
+      return existing;
+    }
+    const existingByUser = await this.domainRepository.findByUserId(userId);
+    const inDb = existingByUser.find((d) => d.domain.toLowerCase() === normalized);
+    if (inDb) {
+      return inDb;
+    }
+    const lastDot = normalized.lastIndexOf(".");
+    const tld = lastDot >= 0 ? normalized.slice(lastDot) : "";
+    const domainEntity = new Domain();
+    domainEntity.userId = userId;
+    domainEntity.domain = normalized;
+    domainEntity.tld = tld.startsWith(".") ? tld.slice(1) : tld;
+    domainEntity.period = 1;
+    domainEntity.price = 0;
+    domainEntity.status = DomainStatus.REGISTERED as any;
+    domainEntity.ns1 = amperInfo.ns1 ?? null;
+    domainEntity.ns2 = amperInfo.ns2 ?? null;
+    domainEntity.provider = "amper";
+    domainEntity.providerDomainId = amperInfo.domainId;
+    const saved = await this.domainRepository.getRepository().save(domainEntity);
+    Logger.info(`Imported domain ${normalized} from Amper for user ${userId} (providerId: ${amperInfo.domainId})`);
+    return saved;
+  }
+
+  /**
    * Validate domain format.
    */
   private isValidDomain(domain: string): boolean {
