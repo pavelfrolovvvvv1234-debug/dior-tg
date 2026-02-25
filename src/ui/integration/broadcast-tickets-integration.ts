@@ -1392,7 +1392,7 @@ Are you sure you want to proceed?`,
           { parse_mode: "HTML" }
         );
       } else {
-        await ctx.answerCallbackQuery(ctx.t("domain-import-not-found").substring(0, 200), { show_alert: true });
+        await ctx.answerCallbackQuery({ text: ctx.t("domain-import-not-found").substring(0, 200), show_alert: true });
         await safeEditMessageText(ctx, ctx.t("domain-import-not-found"), { parse_mode: "HTML" });
       }
     } catch (error: any) {
