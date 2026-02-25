@@ -409,7 +409,7 @@ export class AmperDomainsProvider implements DomainProvider {
         error.message ||
         "Unknown error";
       
-      // Проверяем, не занят ли домен
+      const domainIdFromError = this.getResp<string>(errData, "domainId", "domain_id");
       const errMsgLower = errMsg.toLowerCase();
       if (
         errMsgLower.includes("not available") ||
@@ -419,10 +419,12 @@ export class AmperDomainsProvider implements DomainProvider {
         errMsgLower.includes("недоступен") ||
         errMsgLower.includes("уже занят")
       ) {
-        return { success: false, error: "Domain is not available" };
+        return { success: false, error: "Domain is not available", domainId: domainIdFromError };
       }
-      
-      return { success: false, error: errMsg };
+      if (errMsgLower.includes("already owned by you") || errMsgLower.includes("owned by you")) {
+        return { success: false, error: errMsg, domainId: domainIdFromError };
+      }
+      return { success: false, error: errMsg, domainId: domainIdFromError };
     }
   }
 

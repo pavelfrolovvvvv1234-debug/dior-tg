@@ -186,17 +186,21 @@ export class AmperDomainService {
             await operationRepo.save(operation);
           }
         } else {
-          Logger.error(`[AmperDomainService] Registration failed for ${fullDomain}:`, {
-            result,
-            success: result.success,
-            error: result.error,
-            domainId: result.domainId,
-          });
-          savedDomain.status = DomainStatus.FAILED as any;
-          // Refund balance on failure
-          user.balance += price;
-          await userRepo.save(user);
-          await domainRepo.save(savedDomain);
+          const errLower = (result.error ?? "").toLowerCase();
+          const isAlreadyOwned = errLower.includes("already owned by you") || errLower.includes("owned by you");
+          if (isAlreadyOwned && result.domainId) {
+            savedDomain.providerDomainId = result.domainId;
+            savedDomain.status = DomainStatus.REGISTERED as any;
+            user.balance += price;
+            await userRepo.save(user);
+            await domainRepo.save(savedDomain);
+            Logger.info(`[AmperDomainService] Domain ${fullDomain} already owned, linked providerId ${result.domainId}`);
+          } else {
+            savedDomain.status = DomainStatus.FAILED as any;
+            user.balance += price;
+            await userRepo.save(user);
+            await domainRepo.save(savedDomain);
+          }
           throw new BusinessError(
             result.error || "Registrar rejected the registration"
           );
@@ -437,6 +441,22 @@ export class AmperDomainService {
 
     const saved = await this.domainRepository.getRepository().save(domainEntity);
     return saved;
+  }
+
+  /**
+   * Set Amper provider domain ID for a domain (e.g. when list doesn't return it).
+   * Admin can paste the ID from Amper dashboard.
+   */
+  async setProviderDomainId(domainId: number, providerDomainId: string): Promise<Domain> {
+    const domain = await this.getDomainById(domainId);
+    const trimmed = providerDomainId.trim();
+    if (!trimmed) {
+      throw new BusinessError("Amper Domain ID не может быть пустым");
+    }
+    domain.providerDomainId = trimmed;
+    await this.domainRepository.getRepository().save(domain);
+    Logger.info(`Set providerDomainId for domain ${domainId} (${domain.domain}) -> ${trimmed}`);
+    return domain;
   }
 
   /**

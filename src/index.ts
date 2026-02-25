@@ -1097,10 +1097,23 @@ async function index() {
     const text = `${ctx.t("admin-user-services-domains-title")}\n\n${lines.join("\n")}`;
     const keyboard = new InlineKeyboard();
     for (const d of domains) {
-      keyboard.text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`).row();
+      keyboard.text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`);
+      if (!d.providerDomainId) {
+        keyboard.text(ctx.t("button-admin-set-amper-id"), `admin-domain-set-amper-id-${d.id}`);
+      }
+      keyboard.row();
     }
     keyboard.text(ctx.t("button-admin-services-back"), `admin-user-services-back-${userId}`);
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^admin-domain-set-amper-id-(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
+    const domainId = parseInt(ctx.match[1]);
+    session.other.adminDomainSetAmperId = { domainId };
+    await ctx.reply(ctx.t("admin-domain-set-amper-id-prompt") + "\nОтмена: /cancel", { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^admin-user-services-back-(\d+)$/, async (ctx) => {
@@ -1360,6 +1373,55 @@ async function index() {
         const domain = await domainService.updateNameservers(adminDomainNs.domainId, ns1, ns2);
         delete session.other.adminDomainNs;
         await ctx.reply(ctx.t("admin-domain-ns-success", { domain: domain.domain }), { parse_mode: "HTML" });
+      } catch (err: any) {
+        await ctx.reply(
+          ctx.t("admin-domain-ns-failed", { error: String(err?.message || err).slice(0, 200) }),
+          { parse_mode: "HTML" }
+        );
+      }
+      return;
+    }
+
+    const adminDomainSetAmperId = session.other.adminDomainSetAmperId;
+    if (adminDomainSetAmperId) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+        delete session.other.adminDomainSetAmperId;
+        return next();
+      }
+      const input = ctx.message.text.trim();
+      if (input === "/cancel") {
+        delete session.other.adminDomainSetAmperId;
+        await ctx.reply(ctx.t("admin-domain-set-amper-id-cancelled"), { parse_mode: "HTML" });
+        return;
+      }
+      if (input.startsWith("/")) {
+        return next();
+      }
+      try {
+        const { DomainRepository } = await import("./infrastructure/db/repositories/DomainRepository.js");
+        const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+        const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+        const { BillingService } = await import("./domain/billing/BillingService.js");
+        const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
+        const { AmperDomainService } = await import("./domain/services/AmperDomainService.js");
+        const domainRepo = new DomainRepository(ctx.appDataSource);
+        const userRepo = new UserRepository(ctx.appDataSource);
+        const topUpRepo = new TopUpRepository(ctx.appDataSource);
+        const billingService = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+        const provider = new AmperDomainsProvider({
+          apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
+          apiToken: process.env.AMPER_API_TOKEN || "",
+          timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
+          defaultNs1: process.env.DEFAULT_NS1,
+          defaultNs2: process.env.DEFAULT_NS2,
+        });
+        const domainService = new AmperDomainService(ctx.appDataSource, domainRepo, billingService, provider);
+        const domain = await domainService.setProviderDomainId(adminDomainSetAmperId.domainId, input);
+        delete session.other.adminDomainSetAmperId;
+        await ctx.reply(ctx.t("admin-domain-set-amper-id-success", { domain: domain.domain }), { parse_mode: "HTML" });
       } catch (err: any) {
         await ctx.reply(
           ctx.t("admin-domain-ns-failed", { error: String(err?.message || err).slice(0, 200) }),

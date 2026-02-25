@@ -131,6 +131,10 @@ export interface OtherSessionData {
   adminDomainNs?: {
     domainId: number;
   };
+  /** Admin set Amper domain ID for stub domain: awaiting providerDomainId string */
+  adminDomainSetAmperId?: {
+    domainId: number;
+  };
   /** Withdraw: button was pressed, waiting for user to send amount */
   withdrawStart?: {
     awaitingAmount: true;
