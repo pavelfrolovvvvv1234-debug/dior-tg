@@ -314,6 +314,7 @@ export class AmperDomainService {
 
   /**
    * Update nameservers.
+   * If providerDomainId is missing (stub domain), tries to resolve it from Amper list before updating.
    */
   async updateNameservers(domainId: number, ns1: string, ns2: string): Promise<Domain> {
     const domain = await this.getDomainById(domainId);
@@ -323,7 +324,21 @@ export class AmperDomainService {
     }
 
     if (!domain.providerDomainId) {
-      throw new BusinessError("Domain provider ID not found");
+      let list = await this.domainProvider.listDomains("");
+      if (list.length === 0 && "listDomainsByDomain" in this.domainProvider) {
+        list = await (this.domainProvider as any).listDomainsByDomain(domain.domain);
+      }
+      const amper = list.find((d: any) => d.domain?.toLowerCase() === domain.domain.toLowerCase());
+      if (amper?.domainId) {
+        domain.providerDomainId = amper.domainId;
+        domain.ns1 = amper.ns1 ?? null;
+        domain.ns2 = amper.ns2 ?? null;
+        await this.domainRepository.getRepository().save(domain);
+      } else {
+        throw new BusinessError(
+          "Не удалось связать домен с Amper. Попробуйте позже или напишите в поддержку."
+        );
+      }
     }
 
     // Update in transaction
@@ -385,21 +400,16 @@ export class AmperDomainService {
     if (list.length === 0 && "listDomainsByDomain" in this.domainProvider) {
       list = await (this.domainProvider as any).listDomainsByDomain(normalized);
     }
-    const amperInfo = list.find((d) => d.domain.toLowerCase() === normalized);
-    if (!amperInfo?.domainId) {
-      return null;
-    }
-    const existing = await this.domainRepository.findByProviderDomainId(amperInfo.domainId);
-    if (existing) {
-      return existing;
-    }
     const existingByUser = await this.domainRepository.findByUserId(userId);
     const inDb = existingByUser.find((d) => d.domain.toLowerCase() === normalized);
     if (inDb) {
       return inDb;
     }
+
+    const amperInfo = list.find((d) => d.domain.toLowerCase() === normalized);
     const lastDot = normalized.lastIndexOf(".");
     const tld = lastDot >= 0 ? normalized.slice(lastDot) : "";
+
     const domainEntity = new Domain();
     domainEntity.userId = userId;
     domainEntity.domain = normalized;
@@ -407,12 +417,25 @@ export class AmperDomainService {
     domainEntity.period = 1;
     domainEntity.price = 0;
     domainEntity.status = DomainStatus.REGISTERED as any;
-    domainEntity.ns1 = amperInfo.ns1 ?? null;
-    domainEntity.ns2 = amperInfo.ns2 ?? null;
     domainEntity.provider = "amper";
-    domainEntity.providerDomainId = amperInfo.domainId;
+
+    if (amperInfo?.domainId) {
+      const existing = await this.domainRepository.findByProviderDomainId(amperInfo.domainId);
+      if (existing) {
+        return existing;
+      }
+      domainEntity.providerDomainId = amperInfo.domainId;
+      domainEntity.ns1 = amperInfo.ns1 ?? null;
+      domainEntity.ns2 = amperInfo.ns2 ?? null;
+      Logger.info(`Imported domain ${normalized} from Amper for user ${userId} (providerId: ${amperInfo.domainId})`);
+    } else {
+      domainEntity.providerDomainId = null;
+      domainEntity.ns1 = null;
+      domainEntity.ns2 = null;
+      Logger.info(`Added domain ${normalized} to user ${userId} (stub, Amper list empty — domainId will be resolved on NS update)`);
+    }
+
     const saved = await this.domainRepository.getRepository().save(domainEntity);
-    Logger.info(`Imported domain ${normalized} from Amper for user ${userId} (providerId: ${amperInfo.domainId})`);
     return saved;
   }
 
