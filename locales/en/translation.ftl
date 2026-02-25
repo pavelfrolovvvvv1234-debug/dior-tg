@@ -1,8 +1,8 @@
 -language-icon = 🇺🇸
 -language-name = English
 
-quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $</blockquote>
-strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $</strong>
+quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
+strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
 welcome = DiorHost • Bulletproof Infrastructure
  
@@ -34,7 +34,7 @@ profile = ┠💻 1REG PROFILE
 ┗✅ STATS:
     ┠ ID: {$userId}
     ┠ Status: {$userStatus}
-    ┗ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+    ┗ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
     ┠ 
     ┠👤 Contacts:
     ┠ WHOIS data: {$whoisStatus}
@@ -115,7 +115,7 @@ promoted-to-admin = You have been promoted to administrator
 promoted-to-user = You have been demoted to user
 
 admin-notification-about-promotion = User <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} has been promoted to {$role}
-admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 -users-list = Users list
 -users-list-empty = Users list is empty
@@ -127,14 +127,14 @@ control-panel-about-user = {-user-info}
 
  ID: {$id}
  Username: {$usernameDisplay}
- Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  Status: {$statusLabel}
  Prime subscription: {$primeStatusLabel}
  Level: {$userLevelLabel}
 
  💰 Finance
- Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
- Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+ Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  Top-ups: {$topupsCount}
  Last deposit: {$lastDepositStr}
 
@@ -265,10 +265,12 @@ topup-select-method = Select payment method
 topup-select-amount = Select top-up amount
 topup-method-manual = Manual payment
 topup-manual-support = Contact support to complete manual top-up.
+topup-manual-support-message = I want to top up my balance by {$amount} $. Please provide payment details.
+topup-manual-support-message-no-amount = I want to top up my balance. Please provide payment details.
 topup-manual-created = ✅ Manual top-up request created.
 topup-cryptobot-not-configured = Crypto Pay (CryptoBot) is not configured. Add PAYMENT_CRYPTOBOT_TOKEN to .env or choose another payment method.
  
-<blockquote>Amount: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+<blockquote>Amount: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 Ticket: #{$ticketId}
 
 domain-was-not-found = Domain was not found
@@ -277,7 +279,7 @@ domain-information = Domain <i>{$domain}</i>
 
  <strong>Expiration date</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
  <strong>Renewal date</strong>: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
- <strong>Price renewal</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ <strong>Price renewal</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
  <i>📌 Renewal is automatic, please top up your balance in advance</i>
 
@@ -285,7 +287,7 @@ domain-information = Domain <i>{$domain}</i>
 
 deposit-success-sum = ✅ Great, now all that's left to do is <u>pay</u> and we'll credit your balance.
  
- <blockquote>Top-up amount: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ <blockquote>Top-up amount: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 
  <strong>Select a payment method</strong>
 
@@ -293,9 +295,10 @@ payment-information = After payment wait a little, the system will automatically
 payment-next-url-label = Proceed to payment
 payment-await = Please wait...
 
-deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
-money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ short)
+money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ short)
+money-not-enough-go-topup = You need {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ more. Choose payment method:
 
 invalid-arguments = Invalid arguments
 
@@ -303,13 +306,13 @@ new-promo-created = New promo are added /promo_codes - for see
 
 promocode-already-exist = promocode with this name already exists
 
-promocode = {$id} <strong>{$name}</strong> (Uses: {$use}/{$maxUses}) : {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+promocode = {$id} <strong>{$name}</strong> (Uses: {$use}/{$maxUses}) : {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 promocode-deleted = Promocode <strong>{$name}</strong> successfully deleted
 
 promocode-not-found = Promocode was not found
 promocode-not-exist = This promocode does not exist
 promocode-input-question = Enter the promocode
-promocode-used = The promo code was successfully used and you are credited on your balance {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+promocode-used = The promo code was successfully used and you are credited on your balance {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 menu-service-for-buy-choose = 📃 <strong>Select the category of services to purchase</strong>
 
@@ -321,8 +324,8 @@ vds-menu-rate-select = test
 vds-bulletproof-mode-button-on = Bulletproof: ON
 vds-bulletproof-mode-button-off = Bulletproof: OFF
 
-vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $, {$cpu} cores, {$ram} gb ram, {$disk} gb disk
-dedicated-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $/mo, {$cpu} cores / {$cpuThreads} threads, {$ram} GB RAM, {$storage} GB
+vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $, {$cpu} cores, {$ram} gb ram, {$disk} gb disk
+dedicated-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $/mo, {$cpu} cores / {$cpuThreads} threads, {$ram} GB RAM, {$storage} GB
 
 dedicated-rate-full-view = <strong>«{$rateName}»</strong>
  
@@ -336,7 +339,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>OS: </strong> {$os}
 
- <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ / month
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
 
 bulletproof-on = ✅ Bulletproof rate
 bulletproof-off = ⚠️ Isn't bulletproof rate
@@ -354,7 +357,7 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>OS: </strong> Windows/Linux
 
- <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ / month
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
 
 vds-os-select = <strong>Select the OS to be installed</strong>
 
@@ -372,7 +375,7 @@ vds-creating = Machine is CREATING ⚠️
 vds-current-info = <strong>Manage VDS</strong>
 
  <strong>Expiration date</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
- <strong>Renewal Price</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ <strong>Renewal Price</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  
  {$abuse}
  
@@ -406,7 +409,7 @@ vds-expiration = Your VDS Expires. Refill your balance by {$amount} $
 
 no-vds-found = User don't have VDS
 
-vds-info-admin = {$id}. {$ip} {$expireAt} - Renewal price {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+vds-info-admin = {$id}. {$ip} {$expireAt} - Renewal price {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 vds-removed = VDS removed
 
@@ -623,15 +626,15 @@ dedicated-menu-header = <strong>Dedicated Servers</strong>
 Choose an option:
 dedicated-location-select-title = Start with location selection.
 dedicated-os-select-title = After selecting an operating system, the server is rented.
-dedicated-purchase-success-deducted = <strong>Purchase successful.</strong> {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $ has been deducted from your balance.
+dedicated-purchase-success-deducted = <strong>Purchase successful.</strong> {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $ has been deducted from your balance.
 dedicated-contact-support-message = To receive your dedicated server, contact our support.
 button-go-to-support = Go to support
 support-message-dedicated-paid = Hello! I paid for the service "{$serviceName}", location: {$location}, OS: {$os}. Can you provide it?
 # Dedicated locations (table: Germany, NL/USA/Turkey)
-dedicated-location-de-germany = Germany
-dedicated-location-nl-amsterdam = Netherlands
-dedicated-location-usa = USA
-dedicated-location-tr-istanbul = Turkey
+dedicated-location-de-germany = 🇩🇪 Germany
+dedicated-location-nl-amsterdam = 🇳🇱 Netherlands
+dedicated-location-usa = 🇺🇸 USA
+dedicated-location-tr-istanbul = 🇹🇷 Turkey
 # Dedicated OS (table: Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24; or Any)
 dedicated-os-winserver2019 = Windows Server 2019
 dedicated-os-winserver2025 = Windows Server 2025
@@ -663,21 +666,21 @@ referral-stat-active-30d = Active referrals (30 days): { $count }
 referral-stat-earned = Earned
 withdraw-enter-amount = <strong>Withdraw Balance</strong>
 
-Your balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
-Maximum amount: {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+Your balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+Maximum amount: {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 Enter the amount to withdraw:
-withdraw-enter-amount-short = Enter withdrawal amount (from $15 to {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $):
+withdraw-enter-amount-short = Enter withdrawal amount (from $15 to {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $):
 withdraw-insufficient-balance = You have insufficient balance.
 withdraw-minimum-not-met = Withdrawal is available from $15. Your balance: {$balance}$. Top up and try again.
 withdraw-minimum-alert = Withdrawal from $15. Your balance: {$balance}$
 
-Current balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+Current balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 withdraw-invalid-amount = Invalid amount. Please enter a positive number.
 withdraw-amount-exceeds-balance = Amount exceeds your balance.
 
-Requested: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
-Available: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+Requested: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+Available: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 withdraw-enter-details = Enter payment details (card number, wallet, etc.):
 withdraw-details-too-short = Details are too short. Please provide complete payment details.
 withdraw-enter-comment-optional = Enter a comment (optional, type /skip to skip):
@@ -889,7 +892,7 @@ admin-notes-coming-soon = User notes — coming soon.
 admin-user-tickets-summary = User tickets: {$count}
 admin-user-stats-screen = <strong>📊 User statistics</strong>
 
- 💰 Finance: deposit {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 2)} $, top-ups {$topupsCount}, last deposit {$lastDepositStr}
+ 💰 Finance: deposit {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $, top-ups {$topupsCount}, last deposit {$lastDepositStr}
  🛠 Services: active {$activeServicesCount}, total {$totalServicesCount}
  🎫 Tickets: {$ticketsCount} | Orders: {$ordersCount}
  📅 Registration: {DATETIME($createdAt, dateStyle: "long", timeStyle: "short")}
@@ -899,8 +902,8 @@ admin-balance-enter-amount = Enter amount for action "<i>{$action}</i>" (positiv
 admin-balance-action-add = add
 admin-balance-action-deduct = deduct
 admin-balance-invalid = Invalid amount. Enter a positive number.
-admin-balance-deduct-more-than-have = User balance is {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $; cannot deduct {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $.
-admin-balance-success = Done. Action: {$action}, amount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $. User's new balance: <b>{NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $</b>.
+admin-balance-deduct-more-than-have = User balance is {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $; cannot deduct {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $.
+admin-balance-success = Done. Action: {$action}, amount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $. User's new balance: <b>{NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</b>.
 
 button-message-to-user = ✉️ Message to user
 button-manage-user-services = 🛠 Manage services
@@ -909,7 +912,7 @@ admin-message-to-user-enter = Enter the message text for the user:
 admin-message-to-user-prefix = 📩 Message from administration:
 admin-message-to-user-sent = Message sent.
 admin-message-to-user-failed = Failed to send message: {$error}
-admin-user-services-summary = <strong>User services</strong>\n\n💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 2)} $\n🛠 Active services: {$activeServicesCount}\n🎫 Tickets: {$ticketsCount}\n\nVPS/VDS: {$vdsCount}\nDedicated: {$dedicatedCount}\nDomains: {$domainCount}
+admin-user-services-summary = <strong>User services</strong>\n\n💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Active services: {$activeServicesCount}\n🎫 Tickets: {$ticketsCount}\n\nVPS/VDS: {$vdsCount}\nDedicated: {$dedicatedCount}\nDomains: {$domainCount}
 admin-user-referrals-summary = <strong>Referral</strong>
 
  Referrals: {$count}
@@ -917,7 +920,7 @@ admin-user-referrals-summary = <strong>Referral</strong>
  Avg deposit per referral: {$avgDepositPerReferral} $
  Referral percentage: {$referralPercent}%
 
- 💰 Referral balance: {NUMBER($referralBalance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+ 💰 Referral balance: {NUMBER($referralBalance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  (profit from referral purchases per ref. %, available to withdraw)
 
  Referral link:

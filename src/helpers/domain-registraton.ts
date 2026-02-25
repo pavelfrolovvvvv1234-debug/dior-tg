@@ -13,6 +13,7 @@ import { UserRepository } from "@/infrastructure/db/repositories/UserRepository"
 import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepository";
 import { BusinessError, NotFoundError } from "@/shared/errors";
 import { Logger } from "@/app/logger";
+import { showTopupForMissingAmount } from "@helpers/deposit-money";
 
 export function registerDomainRegistrationMiddleware(
   bot: Bot<AppContext, Api<RawApi>>
@@ -277,11 +278,8 @@ export function registerDomainRegistrationMiddleware(
     const price = pricesList.domains[`.${domainExtension}`].price;
 
     if (session.main.user.balance < price) {
-      await ctx.answerCallbackQuery(
-        ctx.t("money-not-enough", {
-          amount: price - session.main.user.balance,
-        })
-      );
+      await ctx.answerCallbackQuery().catch(() => {});
+      await showTopupForMissingAmount(ctx, price - session.main.user.balance);
       return;
     }
 

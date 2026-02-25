@@ -137,6 +137,7 @@
     {
       "name": "Intel Core i7-6700 64GB",
       "category": "standard",
+      "locations": ["de-germany"],
       "cpu": 4,
       "cpuThreads": 8,
       "ram": 64,
@@ -149,6 +150,7 @@
     {
       "name": "Intel Core i7-8700 64GB",
       "category": "standard",
+      "locations": ["de-germany"],
       "cpu": 6,
       "cpuThreads": 12,
       "ram": 64,
@@ -161,6 +163,7 @@
     {
       "name": "Intel Xeon E3-1240v2 64GB",
       "category": "standard",
+      "locations": ["nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 4,
       "cpuThreads": 8,
       "ram": 64,
@@ -173,6 +176,7 @@
     {
       "name": "Ryzen 7 3700X 64GB",
       "category": "standard",
+      "locations": ["de-germany"],
       "cpu": 8,
       "cpuThreads": 16,
       "ram": 64,
@@ -185,6 +189,7 @@
     {
       "name": "Ryzen 9 3900 64GB",
       "category": "standard",
+      "locations": ["de-germany"],
       "cpu": 12,
       "cpuThreads": 24,
       "ram": 64,
@@ -197,6 +202,7 @@
     {
       "name": "Ryzen 9 5950X 128GB",
       "category": "standard",
+      "locations": ["de-germany"],
       "cpu": 16,
       "cpuThreads": 32,
       "ram": 128,
@@ -209,6 +215,7 @@
     {
       "name": "Intel Xeon E3-1240v2 32GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 4,
       "cpuThreads": 8,
       "ram": 32,
@@ -221,6 +228,7 @@
     {
       "name": "2x Intel Xeon X5670 64GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 12,
       "cpuThreads": 24,
       "ram": 64,
@@ -233,6 +241,7 @@
     {
       "name": "2x Intel Xeon X5670 144GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 12,
       "cpuThreads": 24,
       "ram": 144,
@@ -245,6 +254,7 @@
     {
       "name": "2x Intel Xeon E5-2690 256GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 16,
       "cpuThreads": 32,
       "ram": 256,
@@ -257,6 +267,7 @@
     {
       "name": "2x Intel Xeon E5-2697 v2 384GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 24,
       "cpuThreads": 48,
       "ram": 384,
@@ -269,6 +280,7 @@
     {
       "name": "2x Intel Xeon E5-2699 v4 512GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 44,
       "cpuThreads": 88,
       "ram": 512,
@@ -281,6 +293,7 @@
     {
       "name": "2x Platinum 8173M 768GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 52,
       "cpuThreads": 104,
       "ram": 768,
@@ -293,6 +306,7 @@
     {
       "name": "2x Platinum 8168 768GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 48,
       "cpuThreads": 96,
       "ram": 768,
@@ -305,6 +319,7 @@
     {
       "name": "2x Platinum 8168 1024GB",
       "category": "standard",
+      "locations": ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"],
       "cpu": 48,
       "cpuThreads": 96,
       "ram": 1024,

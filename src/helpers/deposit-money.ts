@@ -57,13 +57,16 @@ async function handleTopupByMethod(
   const { id: targetUser } = session.main.user;
 
   if (method === "manual") {
+    const amountWhole = Math.round(amount);
+    const supportMessage = ctx.t("topup-manual-support-message", { amount: amountWhole });
+    const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(supportMessage)}`;
     await ctx.editMessageText(
-      ctx.t("topup-manual-created", { amount, ticketId: "-" }),
+      ctx.t("topup-manual-created", { amount: amountWhole, ticketId: "-" }),
       {
         parse_mode: "HTML",
         reply_markup: new InlineKeyboard().url(
           ctx.t("button-support"),
-          "https://t.me/diorhost"
+          supportUrl
         ),
       }
     );
@@ -105,6 +108,10 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "crystalpay";
+    if (session.main.lastSumDepositsEntered > 0) {
+      await handleTopupByMethod(ctx, "crystalpay", session.main.lastSumDepositsEntered);
+      return;
+    }
     await ctx.editMessageText(renderTopupAmountsText(ctx), {
       reply_markup: depositMenu,
       parse_mode: "HTML",
@@ -115,6 +122,10 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "cryptobot";
+    if (session.main.lastSumDepositsEntered > 0) {
+      await handleTopupByMethod(ctx, "cryptobot", session.main.lastSumDepositsEntered);
+      return;
+    }
     await ctx.editMessageText(renderTopupAmountsText(ctx), {
       reply_markup: depositMenu,
       parse_mode: "HTML",
@@ -125,9 +136,15 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "manual";
+    if (session.main.lastSumDepositsEntered > 0) {
+      await handleTopupByMethod(ctx, "manual", session.main.lastSumDepositsEntered);
+      return;
+    }
+    const supportMessage = ctx.t("topup-manual-support-message-no-amount");
+    const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(supportMessage)}`;
     await ctx.editMessageText(ctx.t("topup-manual-support"), {
       reply_markup: new InlineKeyboard()
-        .url(ctx.t("button-support"), "https://t.me/diorhost")
+        .url(ctx.t("button-support"), supportUrl)
         .row()
         .text(ctx.t("button-back"), "topup_manual_back"),
       parse_mode: "HTML",
@@ -138,6 +155,19 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     await ctx.answerCallbackQuery().catch(() => {});
     await showProfileScreen(ctx);
   });
+
+/**
+ * Redirect to top-up flow with a pre-filled amount (e.g. when balance is insufficient for a purchase).
+ * Sets lastSumDepositsEntered and shows method menu; when user picks a method, payment is created for that amount.
+ */
+export async function showTopupForMissingAmount(ctx: AppContext, missingAmount: number): Promise<void> {
+  const session = await ctx.session;
+  session.main.lastSumDepositsEntered = Math.ceil(missingAmount * 100) / 100;
+  await ctx.reply(ctx.t("money-not-enough-go-topup", { amount: session.main.lastSumDepositsEntered }), {
+    reply_markup: topupMethodMenu,
+    parse_mode: "HTML",
+  });
+}
 
 export const depositMenu = new Menu<AppContext>("deposit-menu")
   .dynamic((_ctx, range) => {

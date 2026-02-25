@@ -14,6 +14,7 @@ import VirtualDedicatedServer, {
   generateRandomName,
 } from "@/entities/VirtualDedicatedServer";
 import ms from "@/lib/multims";
+import { showTopupForMissingAmount } from "@helpers/deposit-money";
 
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
@@ -204,11 +205,7 @@ async function createAndBuyVDS(
   const generatedPassword = generatePassword(12);
 
   if (user.balance - price < 0) {
-    await ctx.reply(
-      ctx.t("money-not-enough", {
-        amount: price - user.balance,
-      })
-    );
+    await showTopupForMissingAmount(ctx, price - user.balance);
     return "money-not-enough" as const;
   }
 
@@ -428,23 +425,8 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
           const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
 
           if (session.main.user.balance < price) {
-            ctx.reply(
-              ctx.t("money-not-enough", {
-                amount: price - session.main.user.balance,
-              })
-            );
-            // await ctx.deleteMessage();
             await ctx.menu.close();
-            await ctx.reply(
-              ctx.t("welcome", {
-                balance: session.main.user.balance,
-              }),
-              {
-                reply_markup: mainMenu,
-                parse_mode: "HTML",
-              }
-            );
-
+            await showTopupForMissingAmount(ctx, price - session.main.user.balance);
             return;
           }
         } else {
@@ -737,10 +719,23 @@ const editMessageDedicatedServer = async (
 
 /**
  * Dedicated location selection menu (after Make Order).
+ * Shows only locations allowed for the selected server (server.locations in prices.json).
  */
 export const dedicatedLocationMenu = new Menu<AppContext>("dedicated-location-menu")
   .dynamic(async (ctx, range) => {
-    for (const key of DEDICATED_LOCATION_KEYS) {
+    const session = await ctx.session;
+    const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
+    const pricesList = await prices();
+    const server = pricesList.dedicated_servers?.[selectedId] as { locations?: string[] } | undefined;
+    const locationKeys =
+      server?.locations?.length &&
+      DEDICATED_LOCATION_KEYS.filter((k) => server.locations!.includes(k)).length > 0
+        ? (server.locations as readonly string[]).filter((k) =>
+            (DEDICATED_LOCATION_KEYS as readonly string[]).includes(k)
+          )
+        : [...DEDICATED_LOCATION_KEYS];
+
+    for (const key of locationKeys) {
       const labelKey = `dedicated-location-${key}` as const;
       range
         .text((c) => c.t(labelKey), async (ctx) => {
@@ -807,7 +802,7 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
   const userId: number = user.id ?? 0;
   const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
   if (user.balance < price) {
-    await ctx.reply(ctx.t("money-not-enough", { amount: price - user.balance }));
+    await showTopupForMissingAmount(ctx, price - user.balance);
     return;
   }
   user.balance -= price;
@@ -940,11 +935,7 @@ export const domainsMenu = new Menu<AppContext>("domains-menu")
             basePrice
           );
           if (session.main.user.balance < priceForCheck) {
-            await ctx.reply(
-              ctx.t("money-not-enough", {
-                amount: priceForCheck - session.main.user.balance,
-              })
-            );
+            await showTopupForMissingAmount(ctx, priceForCheck - session.main.user.balance);
             return;
           }
           session.other.domains.pendingZone = zone;

@@ -1,8 +1,8 @@
 -language-icon = 🇷🇺
 -language-name = Русский
 
-quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $</blockquote>
-strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $</strong>
+quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
+strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
 welcome = DiorHost • Абузоустойчивая Инфраструктура
  
@@ -35,7 +35,7 @@ profile = ┠💻 1REG PROFILE
 ┗✅ STATS:
     ┠ ID: {$userId}
     ┠ Status: {$userStatus}
-    ┗ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+    ┗ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
     ┠ 
     ┠👤 Contacts:
     ┠ WHOIS data: {$whoisStatus}
@@ -116,7 +116,7 @@ promoted-to-admin = Вы были повышенны до администрат
 promoted-to-user = Вы были понижены до пользователя
 
 admin-notification-about-promotion = Пользователь <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} повышен до роли {$role}
-admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 -users-list = Список пользователей
 -users-list-empty = Список пользователей пуст
@@ -128,14 +128,14 @@ control-panel-about-user = {-user-info}
 
  ID: {$id}
  Username: {$usernameDisplay}
- Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+ Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  Статус: {$statusLabel}
  Прайм подписка: {$primeStatusLabel}
  Уровень: {$userLevelLabel}
 
  💰 Финансы
- Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
- Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+ Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+ Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  Пополнений: {$topupsCount}
  Последний депозит: {$lastDepositStr}
 
@@ -252,7 +252,7 @@ domain-information = Домен <i>{$domain}</i>
 
  <strong>Дата истечения</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
  <strong>Продление домена</strong>: {DATETIME($paydayAt, dateStyle: "long", timeStyle: "short")}
- <strong>Стоимость продления</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ <strong>Стоимость продления</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  
  <i>📌 Продление осуществляется в автоматическом режиме, пожалуйста пополняйте баланс заранее</i>
 
@@ -280,34 +280,37 @@ topup-select-method = Выберите способ оплаты
 topup-select-amount = Выберите сумму пополнения
 topup-method-manual = Ручное пополнение
 topup-manual-support = Для ручного пополнения обратитесь в поддержку.
+topup-manual-support-message = Хочу пополнить баланс на {$amount} $. Подскажите реквизиты, пожалуйста.
+topup-manual-support-message-no-amount = Хочу пополнить баланс. Подскажите реквизиты, пожалуйста.
 topup-manual-created = ✅ Создан запрос на ручное пополнение.
 topup-cryptobot-not-configured = Crypto Pay (CryptoBot) не настроен. Добавьте PAYMENT_CRYPTOBOT_TOKEN в .env или выберите другой способ пополнения.
  
-<blockquote>Сумма: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+<blockquote>Сумма: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 Тикет: #{$ticketId}
 deposit-money-is-so-low = Минимальная сумма пополнения 10$
 deposit-success-sum = ✅ Отлично, теперь осталось только <u>оплатить</u> и мы начислим средства на ваш баланс.
  
- <blockquote>Сумма пополнения: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $</blockquote>
+ <blockquote>Сумма пополнения: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
  
  <strong>Выберите способ оплаты</strong>
 
 payment-information = После оплаты подождите немного, система автоматически подтвердит оплату и средства автоматически поступят на ваш счёт, если же этого не произошло просим обратится в поддержку.
 payment-next-url-label = Перейти к оплате
 payment-await = Пожалуйста, подождите...
-deposit-by-sum = Ваш счёт пополнен на {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
-money-not-enough = Недостаточно средств на балансе, пополните его. (Не хватает: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $)
+deposit-by-sum = Ваш счёт пополнен на {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+money-not-enough = Недостаточно средств на балансе, пополните его. (Не хватает: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $)
+money-not-enough-go-topup = Не хватает {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $. Выберите способ пополнения:
 
 invalid-arguments = Аргументы не корректны
 
 promocode-already-exist = Промокод с этим названием уже существует
 new-promo-created = Новый промокод добавлен /promo_codes - чтобы посмотреть
-promocode = {$id} <strong>{$name}</strong> (Использований: {$use}/{$maxUses}) : {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+promocode = {$id} <strong>{$name}</strong> (Использований: {$use}/{$maxUses}) : {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 promocode-deleted = Промокод <strong>{$name}</strong> успешно удалён
 promocode-not-found = Промокод не найден
 promocode-not-exist = Такого промокода не существует
 promocode-input-question = Введите промокод
-promocode-used = Промокод успешно использован вам на баланс начисленно {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+promocode-used = Промокод успешно использован вам на баланс начисленно {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 menu-service-for-buy-choose = 📃 <strong>Выберите категорию услуг для приобретения</strong>
 
@@ -318,8 +321,8 @@ vds-menu-select = Выберете интересующий вас тариф
 vds-bulletproof-mode-button-on = Абузоустойчивые: ВКЛ
 vds-bulletproof-mode-button-off = Абузоустойчивые: ВЫКЛ
 
-vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $, {$cpu} ядер, {$ram} gb озу, {$disk} gb диск
-dedicated-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $/мес, {$cpu} ядер / {$cpuThreads} потоков, {$ram} GB RAM, {$storage} GB
+vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $, {$cpu} ядер, {$ram} gb озу, {$disk} gb диск
+dedicated-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $/мес, {$cpu} ядер / {$cpuThreads} потоков, {$ram} GB RAM, {$storage} GB
 
 dedicated-rate-full-view = <strong>«{$rateName}»</strong>
  
@@ -333,7 +336,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>OS: </strong> {$os}
 
- <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ / month
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
 
 bulletproof-on = ✅ Абузоустойчивый тариф
 bulletproof-off = ⚠️ Это не абузоустойчивый тариф
@@ -352,7 +355,7 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>ОС: </strong> Windows/Linux
 
- <strong>💰 Цена: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $ / месяц
+ <strong>💰 Цена: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / месяц
 
 vds-os-select = <strong>Выберете ОС которая будет установлена</strong>
 
@@ -371,7 +374,7 @@ vds-creating = Машина создаётся ⚠️
 vds-current-info = <strong>Управление VDS</strong>
 
  <strong>Дата истечения</strong>: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
- <strong>Стоимость продления</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+ <strong>Стоимость продления</strong>: {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  
  {$abuse}
  
@@ -405,7 +408,7 @@ vds-expiration = Ваша VDS Истекает. Пополните баланс 
 
 no-vds-found = У пользовтеля нет купленных VDS
 
-vds-info-admin = {$id}. {$ip} {$expireAt} - Цена продления {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 2)} $
+vds-info-admin = {$id}. {$ip} {$expireAt} - Цена продления {NUMBER($renewalPrice, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 vds-select-os-confirm = Вы выбрали {$osName}. Вы хотите продолжить?
 vds-select-os-next = Продолжить
@@ -620,15 +623,15 @@ dedicated-menu-header = <strong>Выделенные Серверы</strong>
 Выберите опцию:
 dedicated-location-select-title = Начните с выбора локации.
 dedicated-os-select-title = После выбора операционной системы арендуется сервер.
-dedicated-purchase-success-deducted = <strong>Покупка успешна.</strong> С вашего баланса списано {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $.
+dedicated-purchase-success-deducted = <strong>Покупка успешна.</strong> С вашего баланса списано {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $.
 dedicated-contact-support-message = Для выдачи dedicated свяжитесь с нашей поддержкой.
 button-go-to-support = Перейти в поддержку
 support-message-dedicated-paid = Здравствуйте! Я оплатил услугу «{$serviceName}», локация: {$location}, ОС: {$os}. Можете выдать?
 # Dedicated locations (таблица: Germany, NL/USA/Turkey)
-dedicated-location-de-germany = Германия
-dedicated-location-nl-amsterdam = Нидерланды
-dedicated-location-usa = США
-dedicated-location-tr-istanbul = Турция
+dedicated-location-de-germany = 🇩🇪 Германия
+dedicated-location-nl-amsterdam = 🇳🇱 Нидерланды
+dedicated-location-usa = 🇺🇸 США
+dedicated-location-tr-istanbul = 🇹🇷 Турция
 # Dedicated OS (таблица: Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24; или Любая на выбор)
 dedicated-os-winserver2019 = Windows Server 2019
 dedicated-os-winserver2025 = Windows Server 2025
@@ -660,21 +663,21 @@ referral-stat-active-30d = Активных рефералов за 30 дней:
 referral-stat-earned = Заработано
 withdraw-enter-amount = <strong>Вывод баланса</strong>
 
-Ваш баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
-Максимальная сумма: {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+Ваш баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+Максимальная сумма: {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
 Введите сумму для вывода:
-withdraw-enter-amount-short = Введите сумму вывода (от 15$ до {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $):
+withdraw-enter-amount-short = Введите сумму вывода (от 15$ до {NUMBER($maxAmount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $):
 withdraw-insufficient-balance = У вас недостаточно средств на балансе.
 withdraw-minimum-not-met = Вывод средств возможен от 15$. Ваш баланс: {$balance}$. Пополните баланс и попробуйте снова.
 withdraw-minimum-alert = Вывод от 15$. Ваш баланс: {$balance}$
 
-Текущий баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+Текущий баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 withdraw-invalid-amount = Неверная сумма. Пожалуйста, введите положительное число.
 withdraw-amount-exceeds-balance = Сумма превышает ваш баланс.
 
-Запрошено: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
-Доступно: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+Запрошено: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+Доступно: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 withdraw-enter-details = Введите реквизиты для вывода (номер карты, кошелек и т.д.):
 withdraw-details-too-short = Реквизиты слишком короткие. Пожалуйста, укажите полные реквизиты.
 withdraw-enter-comment-optional = Введите комментарий (опционально, нажмите /skip чтобы пропустить):
@@ -891,7 +894,7 @@ admin-notes-coming-soon = Заметки пользователя — в раз�
 admin-user-tickets-summary = Тикетов у пользователя: {$count}
 admin-user-stats-screen = <strong>📊 Статистика пользователя</strong>
 
- 💰 Финансы: депозит {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 2)} $, пополнений {$topupsCount}, последний депозит {$lastDepositStr}
+ 💰 Финансы: депозит {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $, пополнений {$topupsCount}, последний депозит {$lastDepositStr}
  🛠 Услуги: активных {$activeServicesCount}, всего {$totalServicesCount}
  🎫 Тикетов: {$ticketsCount} | Заказов: {$ordersCount}
  📅 Регистрация: {DATETIME($createdAt, dateStyle: "long", timeStyle: "short")}
@@ -901,8 +904,8 @@ admin-balance-enter-amount = Введите сумму для действия �
 admin-balance-action-add = пополнение
 admin-balance-action-deduct = списание
 admin-balance-invalid = Некорректная сумма. Введите положительное число.
-admin-balance-deduct-more-than-have = У пользователя баланс {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $, списать {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $ нельзя.
-admin-balance-success = Готово. Действие: {$action}, сумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 2)} $. Новый баланс пользователя: <b>{NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $</b>.
+admin-balance-deduct-more-than-have = У пользователя баланс {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $, списать {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $ нельзя.
+admin-balance-success = Готово. Действие: {$action}, сумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $. Новый баланс пользователя: <b>{NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</b>.
 
 button-message-to-user = ✉️ Сообщение пользователю
 button-manage-user-services = 🛠 Управление услугами
@@ -911,7 +914,7 @@ admin-message-to-user-enter = Введите текст сообщения дл�
 admin-message-to-user-prefix = 📩 Сообщение от администрации:
 admin-message-to-user-sent = Сообщение отправлено.
 admin-message-to-user-failed = Не удалось отправить сообщение: {$error}
-admin-user-services-summary = <strong>Услуги пользователя</strong>\n\n💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 2)} $\n🛠 Активных услуг: {$activeServicesCount}\n🎫 Тикетов: {$ticketsCount}\n\nVPS/VDS: {$vdsCount} | Dedicated: {$dedicatedCount} | Домены: {$domainCount}
+admin-user-services-summary = <strong>Услуги пользователя</strong>\n\n💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Активных услуг: {$activeServicesCount}\n🎫 Тикетов: {$ticketsCount}\n\nVPS/VDS: {$vdsCount} | Dedicated: {$dedicatedCount} | Домены: {$domainCount}
 admin-user-referrals-summary = <strong>Реферал</strong>
 
  Количество рефералов: {$count}
@@ -919,7 +922,7 @@ admin-user-referrals-summary = <strong>Реферал</strong>
  Средний депозит реферала: {$avgDepositPerReferral} $
  Реферальный процент: {$referralPercent}%
 
- 💰 Реферальный баланс: {NUMBER($referralBalance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+ 💰 Реферальный баланс: {NUMBER($referralBalance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
  (прибыль с покупок рефералов по реф. %, доступно к выводу)
 
  Реферальная ссылка:
