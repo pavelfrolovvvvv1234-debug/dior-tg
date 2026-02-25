@@ -17,6 +17,7 @@ import { UserRepository } from "@/infrastructure/db/repositories/UserRepository"
 import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepository";
 import { buildServiceInfoBlock } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
+import { getWelcomeTextRu } from "../shared/ru-texts.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -179,7 +180,7 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
       const session = await ctx.session;
 
       ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
+        getWelcomeTextRu(session.main.user.balance),
         {
           parse_mode: "HTML",
         }

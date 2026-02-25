@@ -105,21 +105,10 @@ import { ensureSessionUser } from "./shared/utils/session-user.js";
 import { getCachedOsList, startOsListBackgroundRefresh } from "./shared/vmmanager-os-cache.js";
 import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cache.js";
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
+import { getWelcomeTextRu } from "./shared/ru-texts.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
 dotenv.config({});
-
-/** Русское приветствие без FTL — всегда один и тот же текст. */
-function getWelcomeTextRu(balance: number): string {
-  const b = Number.isFinite(balance) ? Math.round(balance) : 0;
-  return `DiorHost • Абузоустойчивая Инфраструктура
-
-Покупка и управление услугами хостинга прямо в тг боте
-24/7 uptime • Абузостоустойчивость • Офшорность
-@diorhost
-
-<blockquote>Баланс: ${b} $</blockquote>`;
-}
 
 export const mainMenu = new Menu<AppContext>("main-menu")
   .submenu(
@@ -624,18 +613,17 @@ async function index() {
     useFluent({
       fluent,
       localeNegotiator: async (ctx) => {
-        const session = (await ctx.session) as SessionData;
-        const locale = session?.main?.locale;
-        if (locale === "ru" || locale === "en") return locale;
-        return "ru";
+        // Локаль для ТЕКСТА только из БД: если не "en" — всегда русский
+        const lang = (ctx as any).loadedUser?.lang;
+        return lang === "en" ? "en" : "ru";
       },
     })
   );
 
-  // Force locale and override ctx.t: welcome ВСЕГДА русский (хардкод), остальное по локали
+  // Локаль для всего текста сообщений из БД (loadedUser.lang), не из сессии — чтобы текст был на русском
   bot.use(async (ctx, next) => {
-    const session = (await ctx.session) as SessionData;
-    const locale = session?.main?.locale === "en" ? "en" : "ru";
+    const langForText = (ctx as any).loadedUser?.lang;
+    const locale = langForText === "en" ? "en" : "ru";
     const ctxFluent = (ctx as any).fluent;
     if (ctxFluent?.useLocale) ctxFluent.useLocale(locale);
     const sessionLocale = locale;
@@ -693,15 +681,11 @@ async function index() {
     return next();
   });
 
-  // Ensure ctx.t is always defined; welcome всегда русский
+  // Ensure ctx.t is always defined; локаль для текста из БД — иначе русский
   bot.use(async (ctx, next) => {
     if (typeof (ctx as any).t !== "function") {
-      const session = (await ctx.session) as SessionData;
       const fluent = (ctx as any).fluent;
-      const locale =
-        session?.main?.locale && session.main.locale !== "0"
-          ? session.main.locale
-          : "ru";
+      const locale = (ctx as any).loadedUser?.lang === "en" ? "en" : "ru";
       const wrapT = (fn: (k: string, v?: Record<string, string | number>) => string) =>
         (key: string, vars?: Record<string, string | number>) =>
           key === "welcome" ? getWelcomeTextRu(Number((vars as any)?.balance ?? 0)) : fn(key, vars);

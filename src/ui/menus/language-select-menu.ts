@@ -7,6 +7,7 @@
 import { Menu } from "@grammyjs/menu";
 import type { AppContext } from "../../shared/types/context.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
+import { getWelcomeTextRu } from "../../shared/ru-texts.js";
 
 /**
  * Language selection menu shown to new users.
@@ -30,7 +31,7 @@ export const languageSelectMenu = new Menu<AppContext>("language-select-menu", {
       ctx.fluent.useLocale("ru");
       const { mainMenu } = await import("./main-menu.js");
       await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
+        getWelcomeTextRu(session.main.user.balance),
         {
           reply_markup: mainMenu,
           parse_mode: "HTML",
@@ -55,7 +56,7 @@ export const languageSelectMenu = new Menu<AppContext>("language-select-menu", {
       ctx.fluent.useLocale("en");
       const { mainMenu } = await import("./main-menu.js");
       await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
+        getWelcomeTextRu(session.main.user.balance),
         {
           reply_markup: mainMenu,
           parse_mode: "HTML",

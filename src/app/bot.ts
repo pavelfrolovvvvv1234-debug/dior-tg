@@ -46,6 +46,7 @@ import {
   adminPromosMenu,
   registerAdminPromosHandlers,
 } from "../ui/menus/admin-promocodes-menu.js";
+import { getWelcomeTextRu } from "../shared/ru-texts.js";
 
 /**
  * Initialize and configure the Telegram bot.
@@ -204,13 +205,13 @@ export async function createBot(): Promise<{
   bot.use(databaseMiddleware);
   bot.use(localeMiddleware);
 
-  // Setup Fluent i18n
+  // Setup Fluent i18n — локаль для ТЕКСТА из БД (loadedUser.lang), иначе русский
   bot.use(
     useFluent({
       fluent,
       localeNegotiator: async (ctx) => {
-        const session = await ctx.session;
-        return session.main.locale === "en" ? "en" : "ru";
+        const lang = (ctx as any).loadedUser?.lang;
+        return lang === "en" ? "en" : "ru";
       },
     })
   );
@@ -333,7 +334,7 @@ export async function createBot(): Promise<{
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          ctx.t("welcome", { balance: session.main.user.balance }),
+          getWelcomeTextRu(session.main.user.balance),
           {
             parse_mode: "HTML",
           }
@@ -361,7 +362,7 @@ export async function createBot(): Promise<{
               }
               ctx.fluent.useLocale(lang);
               await ctx.editMessageText(
-                ctx.t("welcome", { balance: session.main.user.balance }),
+                getWelcomeTextRu(session.main.user.balance),
                 {
                   parse_mode: "HTML",
                 }
@@ -385,7 +386,7 @@ export async function createBot(): Promise<{
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          ctx.t("welcome", { balance: session.main.user.balance }),
+          getWelcomeTextRu(session.main.user.balance),
           {
             parse_mode: "HTML",
           }
@@ -410,7 +411,7 @@ export async function createBot(): Promise<{
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          ctx.t("welcome", { balance: session.main.user.balance }),
+          getWelcomeTextRu(session.main.user.balance),
           {
             parse_mode: "HTML",
           }

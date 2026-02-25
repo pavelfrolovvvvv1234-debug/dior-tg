@@ -8,6 +8,7 @@
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import type { RenderedScreen } from "./types.js";
+import { getWelcomeTextRu } from "../../shared/ru-texts.js";
 
 /**
  * Screen renderer options.
@@ -72,19 +73,11 @@ export class ScreenRenderer {
   }
 
   /**
-   * Render welcome screen.
-   * Language from DB (ctx.loadedUser.lang) only — session locale is ignored so RU is not overwritten by stale "en".
+   * Приветствие всегда по-русски (жёстко из shared/ru-texts), без Fluent — не переключается на EN.
    */
   renderWelcome(data: { balance: number; locale?: string }): RenderedScreen {
-    const userLang = (this.ctx as any).loadedUser?.lang;
-    const locale = userLang === "en" ? "en" : "ru";
-    if (typeof (this.ctx as any).fluent?.useLocale === "function") {
-      (this.ctx as any).fluent.useLocale(locale);
-    }
     return {
-      text: this.ctx.t("welcome", {
-        balance: data.balance,
-      }),
+      text: getWelcomeTextRu(data.balance),
       parse_mode: "HTML",
     };
   }

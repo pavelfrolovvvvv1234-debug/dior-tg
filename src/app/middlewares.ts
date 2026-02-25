@@ -49,9 +49,6 @@ export async function databaseMiddleware(ctx: AppContext, next: () => Promise<vo
 export async function localeMiddleware(ctx: AppContext, next: () => Promise<void>): Promise<void> {
   const session = await ctx.session;
 
-  if (session.main.locale !== "0" && session.main.locale) {
-    return next();
-  }
   if (session.main.user.id <= 0) {
     return next();
   }
@@ -60,6 +57,7 @@ export async function localeMiddleware(ctx: AppContext, next: () => Promise<void
     ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
       ? ctx.loadedUser
       : await getAppDataSource().then((ds) => new UserRepository(ds).findById(session.main.user.id)).catch(() => null);
+  // Всегда синхронизируем локаль с БД — чтобы текст был на русском, когда в БД не "en"
   if (user?.lang === "ru" || user?.lang === "en") {
     session.main.locale = user.lang;
   } else {

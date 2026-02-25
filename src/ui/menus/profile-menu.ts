@@ -9,27 +9,18 @@ import { Menu } from "@grammyjs/menu";
 import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
+import { getProfileTextRu } from "../../shared/ru-texts.js";
 
 /**
- * Build profile screen text including Prime subscription status (active until date or "no").
- * Language from DB (ctx.loadedUser.lang) only — session locale is ignored so RU is not overwritten by stale "en".
+ * Профиль всегда по-русски (жёстко из shared/ru-texts), без Fluent — не переключается на EN.
  */
 export async function getProfileText(ctx: AppContext): Promise<string> {
   const session = await ctx.session;
-  const userLang = (ctx as any).loadedUser?.lang;
-  const lang = userLang === "en" ? "en" : "ru";
-  if (typeof (ctx as any).fluent?.useLocale === "function") {
-    (ctx as any).fluent.useLocale(lang);
-  }
-
   const userId = ctx.from?.id ?? session.main.user.id;
-  const userStatus = ctx.t(`user-status-${session.main.user.status}`);
-  const idSafe = String(userId).split("").join("&#8203;");
   const balanceRaw = session.main.user.balance;
   const balanceFormatted = balanceRaw.toFixed(2);
-  const balance = balanceFormatted.endsWith(".00")
-    ? balanceFormatted.slice(0, -3)
-    : balanceFormatted;
+  const balanceStr =
+    balanceFormatted.endsWith(".00") ? balanceFormatted.slice(0, -3) : balanceFormatted;
 
   const userRepo = new UserRepository(ctx.appDataSource);
   const user = await userRepo.findById(session.main.user.id);
@@ -37,32 +28,20 @@ export async function getProfileText(ctx: AppContext): Promise<string> {
   const now = new Date();
   const hasActivePrime = primeActiveUntil && new Date(primeActiveUntil) > now;
 
-  const locale = session.main.locale === "en" ? "en-US" : "ru-RU";
   const primeLine = hasActivePrime && primeActiveUntil
-    ? ctx.t("profile-prime-until", {
-        date: new Date(primeActiveUntil).toLocaleDateString(locale, {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }),
-      })
-    : ctx.t("profile-prime-no");
+    ? `Prime: до ${new Date(primeActiveUntil).toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })}`
+    : "Prime: нет";
 
-  const labelId = ctx.t("profile-label-id");
-  const labelStatus = ctx.t("profile-label-status");
-  const labelBalance = ctx.t("profile-label-balance");
-  const title = ctx.t("profile-title");
-  const statsLabel = ctx.t("profile-stats");
-
-  return `<b>💻 ${title}</b>
-
-<b>✅ ${statsLabel}</b>
-• ${labelId}: ${idSafe}
-• ${labelStatus}: ${userStatus}
-• ${primeLine}
-• ${labelBalance}: ${balance} $
-
-${ctx.t("profile-links")}`;
+  return getProfileTextRu({
+    userId,
+    statusKey: session.main.user.status ?? "user",
+    balanceStr,
+    primeLine,
+  });
 }
 
 /**
