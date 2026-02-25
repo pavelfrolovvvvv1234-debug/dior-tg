@@ -400,12 +400,80 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
   })
   .back((ctx) => ctx.t("button-back"));
 
+/** Replace EN welcome text with RU when user.lang is ru. Runs at bot.api level so no code path can bypass. */
+function patchBotApiForRu(
+  bot: Bot<AppContext>,
+  fluent: Fluent,
+  appDataSource: DataSource
+) {
+  const rawEdit = bot.api.editMessageText.bind(bot.api);
+  const rawSend = bot.api.sendMessage.bind(bot.api);
+
+  (bot.api as any).editMessageText = async (
+    chatId: number,
+    messageId: number,
+    text: string,
+    ...rest: unknown[]
+  ) => {
+    if (typeof text === "string") {
+      try {
+        const user = await appDataSource.manager.findOneBy(User, {
+          telegramId: Number(chatId),
+        });
+        if (user?.lang === "ru") {
+          const isEnWelcome =
+            text.includes("Bulletproof Infrastructure") ||
+            text.includes("Abuse-Resistant") ||
+            text.includes("Order and manage hosting") ||
+            text.includes("Purchase and management of hosting") ||
+            (text.includes("DiorHost") && text.includes("Balance:"));
+          if (isEnWelcome && typeof fluent.translate === "function") {
+            const balance = user.balance ?? 0;
+            text = fluent.translate("ru", "welcome", { balance });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return rawEdit(chatId, messageId, text, ...(rest as Parameters<typeof rawEdit> extends [unknown, unknown, unknown, ...infer R] ? R : []));
+  };
+
+  (bot.api as any).sendMessage = async (chatId: number, text: string, ...rest: unknown[]) => {
+    if (typeof text === "string") {
+      try {
+        const user = await appDataSource.manager.findOneBy(User, {
+          telegramId: Number(chatId),
+        });
+        if (user?.lang === "ru") {
+          const isEnWelcome =
+            text.includes("Bulletproof Infrastructure") ||
+            text.includes("Abuse-Resistant") ||
+            text.includes("Order and manage hosting") ||
+            text.includes("Purchase and management of hosting") ||
+            (text.includes("DiorHost") && text.includes("Balance:"));
+          if (isEnWelcome && typeof fluent.translate === "function") {
+            const balance = user.balance ?? 0;
+            text = fluent.translate("ru", "welcome", { balance });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return rawSend(chatId, text, ...(rest as Parameters<typeof rawSend> extends [unknown, unknown, ...infer R] ? R : []));
+  };
+}
+
 async function index() {
   const { fluent, availableLocales } = await initFluent();
+  const appDataSource = await getAppDataSource();
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");
   const bot = new Bot<AppContext>(token, {});
+
+  patchBotApiForRu(bot, fluent, appDataSource);
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Must run before session.
   bot.use(async (ctx, next) => {
@@ -490,6 +558,7 @@ async function index() {
     if (ctx.hasChatType("private") && ctx.chatId != null) {
       const tid = Number(ctx.chatId);
       let user = getCachedUser(tid);
+      let usedCache = !!user;
 
       if (!user) {
         user = await ctx.appDataSource.manager.findOneBy(User, {
@@ -513,8 +582,13 @@ async function index() {
       session.main.user.role = user.role;
       session.main.user.status = user.status;
       session.main.user.isBanned = user.isBanned;
-      // DB is source of truth: always sync locale from user.lang so RU stays RU
-      session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
+      // When we used cache, read lang from DB so language switch applies immediately
+      if (usedCache) {
+        const dbUser = await ctx.appDataSource.manager.findOneBy(User, { telegramId: ctx.chatId });
+        session.main.locale = (dbUser?.lang === "ru" || dbUser?.lang === "en") ? dbUser.lang : "ru";
+      } else {
+        session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
+      }
       // Grant admin in session if ID is in ADMIN_TELEGRAM_IDS (and persist to DB once)
       const adminIds = getAdminTelegramIds();
       if (adminIds.length > 0 && adminIds.includes(tid)) {
@@ -565,14 +639,61 @@ async function index() {
   bot.use(async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
     const locale = session?.main?.locale === "en" ? "en" : "ru";
-    const fluent = (ctx as any).fluent;
-    if (fluent?.useLocale) fluent.useLocale(locale);
-    // Override ctx.t so delayed/second calls (e.g. menu refresh) always use session locale
+    const ctxFluent = (ctx as any).fluent;
+    if (ctxFluent?.useLocale) ctxFluent.useLocale(locale);
     const sessionLocale = locale;
-    if (fluent?.t) {
+    if (ctxFluent?.t) {
       (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
-        if (fluent.useLocale) fluent.useLocale(sessionLocale);
-        return fluent.t(key, vars);
+        if (ctxFluent.useLocale) ctxFluent.useLocale(sessionLocale);
+        return ctxFluent.t(key, vars);
+      };
+    }
+    // Replace EN welcome/profile with RU when user's lang in DB is RU (so it always sticks)
+    const replaceEnWithRu = async (text: string, currentCtx: typeof ctx): Promise<string> => {
+      if (typeof text !== "string") return text;
+      const chatId = currentCtx.chat?.id ?? currentCtx.from?.id;
+      if (chatId == null) return text;
+      let isRu = false;
+      try {
+        const dbUser = await currentCtx.appDataSource.manager.findOneBy(User, { telegramId: Number(chatId) });
+        isRu = dbUser?.lang === "ru";
+      } catch {
+        const currentSession = (await currentCtx.session) as SessionData;
+        isRu = currentSession?.main?.locale === "ru";
+      }
+      if (!isRu) return text;
+      const currentSession = (await currentCtx.session) as SessionData;
+      const balance = currentSession?.main?.user?.balance ?? 0;
+      const isEnWelcome = text.includes("Bulletproof Infrastructure") || text.includes("Abuse-Resistant") || text.includes("Order and manage hosting") || text.includes("Purchase and management of hosting") || (text.includes("DiorHost") && text.includes("Balance:"));
+      if (isEnWelcome && typeof fluent.translate === "function") {
+        return fluent.translate("ru", "welcome", { balance });
+      }
+      const isEnProfile = text.includes("STATISTICS") || text.includes("Prime: no") || (text.includes("Balance:") && (text.includes("Web Site") || text.includes("Support") || text.includes("Dior News") || text.includes("Site"))) || (text.includes("DIOR PROFILE") && text.includes("Status:"));
+      if (isEnProfile) {
+        const { getProfileText } = await import("./ui/menus/profile-menu.js");
+        return await getProfileText(currentCtx);
+      }
+      return text;
+    };
+    if (ctx.editMessageText) {
+      const origEdit = ctx.editMessageText.bind(ctx);
+      (ctx as any).editMessageText = async (text: string, extra?: object) => {
+        text = await replaceEnWithRu(text, ctx);
+        return origEdit(text, extra);
+      };
+    }
+    if (ctx.api?.editMessageText) {
+      const origApiEdit = ctx.api.editMessageText.bind(ctx.api);
+      (ctx.api as any).editMessageText = async (chatId: number, messageId: number, text: string, extra?: object) => {
+        text = await replaceEnWithRu(text, ctx);
+        return origApiEdit(chatId, messageId, text, extra);
+      };
+    }
+    if (ctx.reply) {
+      const origReply = ctx.reply.bind(ctx);
+      (ctx as any).reply = async (text: string, extra?: object) => {
+        text = await replaceEnWithRu(text, ctx);
+        return origReply(text, extra);
       };
     }
     return next();
@@ -802,44 +923,47 @@ async function index() {
       session.main.locale = lang;
       console.log(`[Lang] Session locale set to ${lang}`);
       
-      // Save to database
+      // Save to database (by telegramId so we never miss; fallback to session.main.user.id)
+      const telegramId = Number(ctx.chat?.id ?? ctx.from?.id ?? 0);
       const usersRepo = ctx.appDataSource.getRepository(User);
-      const user = await usersRepo.findOneBy({
-        id: session.main.user.id,
-      });
-      
+      let user = await usersRepo.findOneBy({ telegramId });
+      if (!user && session.main.user.id > 0) {
+        user = await usersRepo.findOneBy({ id: session.main.user.id });
+      }
       if (user) {
         user.lang = lang as "ru" | "en";
         await usersRepo.save(user);
+        invalidateUser(telegramId);
         console.log(`[Lang] Language saved to DB for user ${user.id}`);
       }
-      
-      // Update fluent locale
+
       ctx.fluent.useLocale(lang);
-      console.log(`[Lang] Fluent locale set to ${lang}`);
-      
-      // Generate welcome message
-      const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
-      console.log(`[Lang] Welcome text generated (${welcomeText.length} chars)`);
-      
-      // Try to edit message, fallback to new message if fails
+
+      const balance = session.main.user.balance;
+      const welcomeText = typeof fluent.translate === "function"
+        ? fluent.translate(lang, "welcome", { balance })
+        : ctx.t("welcome", { balance });
+
+      // Send via bot.api directly so nothing can override the text we built
+      const chatId = ctx.chat?.id;
+      const messageId = ctx.callbackQuery?.message && "message_id" in ctx.callbackQuery.message ? ctx.callbackQuery.message.message_id : undefined;
       try {
-        await ctx.editMessageText(welcomeText, {
-          reply_markup: mainMenu,
-          parse_mode: "HTML",
-        });
-        console.log("[Lang] Message edited successfully with welcome menu");
-      } catch (editError: any) {
-        console.error("[Lang] editMessageText failed:", editError?.message);
-        // Delete old message and send new one
+        if (chatId != null && messageId != null) {
+          await bot.api.editMessageText(chatId, messageId, welcomeText, {
+            reply_markup: mainMenu,
+            parse_mode: "HTML",
+          });
+        } else {
+          await ctx.reply(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
+        }
+      } catch (editErr: any) {
         try {
           await ctx.deleteMessage().catch(() => {});
         } catch {}
-        await ctx.reply(welcomeText, {
+        await bot.api.sendMessage(telegramId > 0 ? telegramId : (ctx.chat?.id ?? 0), welcomeText, {
           reply_markup: mainMenu,
           parse_mode: "HTML",
         });
-        console.log("[Lang] New message sent with welcome menu");
       }
       
       // Stop execution - don't pass to other handlers

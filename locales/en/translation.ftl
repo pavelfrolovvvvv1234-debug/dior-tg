@@ -1,13 +1,13 @@
 -language-icon = 🇺🇸
 -language-name = English
 
-quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
+quoted-balance = <blockquote>Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = DiorHost • Bulletproof Infrastructure
+welcome = DiorHost • Абузоустойчивая Инфраструктура
  
- Order and manage hosting services directly in this bot.
- 24/7 uptime • Bulletproof • Offshore
+ Покупка и управление услугами хостинга прямо в тг боте
+ 24/7 uptime • Абузостоустойчивость • Офшорность
  @diorhost
  
  {quoted-balance}
@@ -86,7 +86,7 @@ button-hide-password = 🙈 Hide password
 button-change-locale-en = 🇺🇸 English
 button-change-locale-ru = 🇷🇺 Русский
 
-select-language = Select interface language
+select-language = Выберите язык интерфейса
 
 button-go-to-site = Go to website
 button-user-agreement = User agreement
@@ -995,14 +995,14 @@ prime-channel-not-configured = Channel for free trial is not configured. Contact
 prime-discount-dedicated = 🔐 Prime Subscription −20% on Dedicated
 prime-discount-vds = 🔐 Prime Subscription −20% on VPS/VDS
 
-profile-prime-no = Prime: No
-profile-prime-until = Prime: until {$date}
-profile-label-status = Status
-profile-label-balance = Balance
+profile-prime-no = Prime: нет
+profile-prime-until = Prime: до {$date}
+profile-label-status = Статус
+profile-label-balance = Баланс
 profile-label-id = ID
-profile-title = DIOR PROFILE
-profile-stats = STATS
-profile-links = <a href="https://dior.host">Web Site</a> | <a href="tg://resolve?domain=diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
+profile-title = DIOR ПРОФИЛЬ
+profile-stats = СТАТИСТИКА
+profile-links = <a href="https://dior.host">Сайт</a> | <a href="tg://resolve?domain=diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
 
 nps-promoter = Thanks for the high rating! 🎉 Invite friends via your referral link — earn % from their deposits. Or use the yearly renewal discount in your profile.
 nps-detractor = Sorry something wasn't right. Contact support — we'll look into it and help. The «Ask question» button in the menu opens a chat with us.

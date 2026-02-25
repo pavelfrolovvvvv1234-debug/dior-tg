@@ -13,7 +13,7 @@ import { UserRepository } from "../../infrastructure/db/repositories/UserReposit
 /**
  * Build profile screen text including Prime subscription status (active until date or "no").
  * Date is formatted without time (locale-aware).
- * Forces session locale before any ctx.t() so profile never shows in wrong language.
+ * Uses ctx.t so Fluent resolves keys correctly.
  */
 export async function getProfileText(ctx: AppContext): Promise<string> {
   const session = await ctx.session;
