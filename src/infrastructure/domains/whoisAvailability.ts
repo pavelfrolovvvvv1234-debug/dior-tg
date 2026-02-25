@@ -74,11 +74,19 @@ export async function checkAvailabilityWhois(domain: string): Promise<DomainAvai
     Logger.warn(`[Whois] ${domain} — could not determine, treating as available`);
     return { available: true, domain };
   } catch (err: any) {
-    Logger.warn(`[Whois] ${domain} lookup failed:`, err?.message || err);
+    const msg = err?.message || String(err);
+    Logger.warn(`[Whois] ${domain} lookup failed:`, msg);
+    // Сетевые ошибки (VPS не может достучаться до WHOIS:43) — не блокируем регистрацию
+    const isNetworkError =
+      /EHOSTUNREACH|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|timeout|ECONNRESET|network/i.test(msg);
+    if (isNetworkError) {
+      Logger.info(`[Whois] ${domain} — network error, allowing registration attempt (Amper will check)`);
+      return { available: true, domain };
+    }
     return {
       available: false,
       domain,
-      reason: err?.message || "WHOIS check failed",
+      reason: msg || "WHOIS check failed",
     };
   }
 }
