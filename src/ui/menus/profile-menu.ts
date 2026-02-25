@@ -45,13 +45,17 @@ export async function getProfileText(ctx: AppContext): Promise<string> {
       })
     : ctx.t("profile-prime-no");
 
+  const labelId = ctx.t("profile-label-id");
+  const labelStatus = ctx.t("profile-label-status");
+  const labelBalance = ctx.t("profile-label-balance");
+
   return `<b>💻 DIOR PROFILE</b>
 
 <b>✅ STATS</b>
-• ID: ${idSafe}
-• Status: ${userStatus}
+• ${labelId}: ${idSafe}
+• ${labelStatus}: ${userStatus}
 • ${primeLine}
-• Balance: ${balance} $
+• ${labelBalance}: ${balance} $
 
 ${PROFILE_LINKS}`;
 }

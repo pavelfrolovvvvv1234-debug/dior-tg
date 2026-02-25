@@ -513,10 +513,8 @@ async function index() {
       session.main.user.role = user.role;
       session.main.user.status = user.status;
       session.main.user.isBanned = user.isBanned;
-      // Set locale from user so first render uses correct language (no flash ru → en)
-      if (!session.main.locale || session.main.locale === "0") {
-        session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
-      }
+      // DB is source of truth: always sync locale from user.lang so RU stays RU
+      session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
       // Grant admin in session if ID is in ADMIN_TELEGRAM_IDS (and persist to DB once)
       const adminIds = getAdminTelegramIds();
       if (adminIds.length > 0 && adminIds.includes(tid)) {
@@ -537,7 +535,7 @@ async function index() {
       return next();
     }
 
-    // If locale not set and user exists, use saved preference; otherwise default "ru" so language doesn't flip
+    // Fallback: if locale still "0" or empty (e.g. no user loaded), set from DB or default "ru"
     if (session.main.locale === "0" || !session.main.locale) {
       const user =
         ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
@@ -557,10 +555,8 @@ async function index() {
       localeNegotiator: async (ctx) => {
         const session = (await ctx.session) as SessionData;
         const locale = session?.main?.locale;
-        if (!locale || locale === "0") {
-          return "ru";
-        }
-        return locale;
+        if (locale === "ru" || locale === "en") return locale;
+        return "ru";
       },
     })
   );
