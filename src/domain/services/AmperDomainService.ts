@@ -381,6 +381,10 @@ export class AmperDomainService {
     if (list.length === 0) {
       list = await this.domainProvider.listDomains("");
     }
+    // Попытка по имени: GET /domains?domain=upgrader2.com (если API поддерживает)
+    if (list.length === 0 && "listDomainsByDomain" in this.domainProvider) {
+      list = await (this.domainProvider as any).listDomainsByDomain(normalized);
+    }
     const amperInfo = list.find((d) => d.domain.toLowerCase() === normalized);
     if (!amperInfo?.domainId) {
       return null;

@@ -437,10 +437,53 @@ export class AmperDomainsProvider implements DomainProvider {
         config.params = { userId };
       }
       const response = await this.client.get(`${this.apiPrefix}/domains`, config);
-      const list = response.data?.domains ?? [];
-      return Array.isArray(list) ? list.map((d: any) => this.mapDomainInfo(d)) : [];
+      const raw = response.data;
+      const list =
+        Array.isArray(raw?.domains) ? raw.domains
+        : Array.isArray(raw?.list) ? raw.list
+        : Array.isArray(raw) ? raw
+        : [];
+      if (list.length === 0 && raw && typeof raw === "object") {
+        Logger.warn(`[Amper] listDomains empty`, {
+          userId: userId || "(all)",
+          responseKeys: Object.keys(raw),
+          status: response.status,
+        });
+      }
+      return list.map((d: any) => this.mapDomainInfo(d));
     } catch (error: any) {
-      Logger.error(`Failed to list domains for user ${userId}:`, error);
+      Logger.error(`Failed to list domains for user ${userId}:`, {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Try to get a single domain by name (e.g. GET /domains?domain=example.com).
+   * Returns one-item array if found, else [].
+   */
+  async listDomainsByDomain(domainName: string): Promise<DomainInfo[]> {
+    try {
+      const response = await this.client.get(`${this.apiPrefix}/domains`, {
+        params: { domain: domainName },
+      });
+      const raw = response.data;
+      const list =
+        Array.isArray(raw?.domains) ? raw.domains
+        : Array.isArray(raw?.list) ? raw.list
+        : raw && typeof raw === "object" && !Array.isArray(raw) && (raw.domain || raw.domainId || raw.domain_id)
+          ? [raw]
+        : Array.isArray(raw) ? raw
+        : [];
+      return list.map((d: any) => this.mapDomainInfo(d));
+    } catch (error: any) {
+      Logger.error(`[Amper] listDomainsByDomain(${domainName}) failed:`, {
+        message: error.message,
+        status: error.response?.status,
+      });
       return [];
     }
   }
@@ -449,8 +492,8 @@ export class AmperDomainsProvider implements DomainProvider {
     const expireAt = this.getResp<string>(d, "expireAt", "expire_at");
     const registeredAt = this.getResp<string>(d, "registeredAt", "registered_at");
     return {
-      domain: this.getResp<string>(d, "domain") ?? "",
-      domainId: this.getResp<string>(d, "domainId", "domain_id") ?? "",
+      domain: this.getResp<string>(d, "domain", "name") ?? "",
+      domainId: this.getResp<string>(d, "domainId", "domain_id", "id") ?? "",
       status: this.getResp<string>(d, "status") ?? "unknown",
       expireAt: expireAt ? new Date(expireAt) : undefined,
       ns1: this.getResp<string>(d, "ns1"),
