@@ -470,6 +470,7 @@ async function index() {
   const bot = new Bot<AppContext>(token, {});
 
   patchBotApiForRu(bot, fluent, appDataSource);
+  console.log("[Bot] RU welcome: getWelcomeTextRu + API patch active. Sample: " + getWelcomeTextRu(0).slice(0, 50) + "...");
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Must run before session.
   bot.use(async (ctx, next) => {
@@ -988,7 +989,7 @@ async function index() {
   //   createConversation(confirmDomainRegistration, "confirmDomainRegistration")
   // );
 
-  // Register /start command
+  // Register /start command (welcome только русский через getWelcomeTextRu)
   bot.command("start", async (ctx) => {
     try {
       if (ctx.message) {
