@@ -659,7 +659,13 @@ async function index() {
       const isEnProfile = text.includes("STATISTICS") || text.includes("Prime: no") || (text.includes("Balance:") && (text.includes("Web Site") || text.includes("Support") || text.includes("Dior News") || text.includes("Site"))) || (text.includes("DIOR PROFILE") && text.includes("Status:"));
       if (isEnProfile) {
         const { getProfileText } = await import("./ui/menus/profile-menu.js");
-        return await getProfileText(currentCtx);
+        const prevLocale = currentSession?.main?.locale;
+        if (currentSession?.main) currentSession.main.locale = "ru";
+        try {
+          return await getProfileText(currentCtx);
+        } finally {
+          if (currentSession?.main && prevLocale !== undefined) currentSession.main.locale = prevLocale;
+        }
       }
       return text;
     };
@@ -1017,16 +1023,10 @@ async function index() {
 
       session.main.locale = "ru";
       const welcomeText = getWelcomeTextRu(session.main.user.balance ?? 0);
-      const chatId = ctx.chat?.id ?? ctx.from?.id;
-      if (chatId) {
-        console.log("[Start] Sending RU welcome, first 60 chars:", welcomeText.slice(0, 60));
-        await bot.api.sendMessage(chatId, welcomeText, {
-          reply_markup: mainMenu,
-          parse_mode: "HTML",
-        });
-      } else {
-        await ctx.reply(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
-      }
+      await ctx.reply(welcomeText, {
+        reply_markup: mainMenu,
+        parse_mode: "HTML",
+      });
     } catch (error: any) {
       console.error("[Start] Error in /start command:", error);
       await ctx.reply("Error: " + (error.message || "Unknown error")).catch(() => {});

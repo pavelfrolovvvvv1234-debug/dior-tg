@@ -60,8 +60,10 @@ export async function localeMiddleware(ctx: AppContext, next: () => Promise<void
     ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
       ? ctx.loadedUser
       : await getAppDataSource().then((ds) => new UserRepository(ds).findById(session.main.user.id)).catch(() => null);
-  if (user?.lang) {
+  if (user?.lang === "ru" || user?.lang === "en") {
     session.main.locale = user.lang;
+  } else {
+    session.main.locale = "ru";
   }
 
   return next();

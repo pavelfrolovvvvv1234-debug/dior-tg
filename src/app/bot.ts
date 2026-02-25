@@ -210,7 +210,7 @@ export async function createBot(): Promise<{
       fluent,
       localeNegotiator: async (ctx) => {
         const session = await ctx.session;
-        return session.main.locale || "en";
+        return session.main.locale === "en" ? "en" : "ru";
       },
     })
   );
