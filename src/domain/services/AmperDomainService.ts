@@ -377,6 +377,10 @@ export class AmperDomainService {
     if (list.length === 0 && telegramId != null) {
       list = await this.domainProvider.listDomains(String(telegramId));
     }
+    // Amper может не фильтровать по userId — тогда запрашиваем все домены по API-ключу
+    if (list.length === 0) {
+      list = await this.domainProvider.listDomains("");
+    }
     const amperInfo = list.find((d) => d.domain.toLowerCase() === normalized);
     if (!amperInfo?.domainId) {
       return null;

@@ -427,13 +427,16 @@ export class AmperDomainsProvider implements DomainProvider {
   }
 
   /**
-   * List domains for a user.
+   * List domains. If userId is non-empty, passes it as query param (Amper may filter by it).
+   * If userId is empty, requests without params — Amper often returns all domains for the API key.
    */
   async listDomains(userId: string): Promise<DomainInfo[]> {
     try {
-      const response = await this.client.get(`${this.apiPrefix}/domains`, {
-        params: { userId },
-      });
+      const config: { params?: Record<string, string> } = {};
+      if (userId !== "") {
+        config.params = { userId };
+      }
+      const response = await this.client.get(`${this.apiPrefix}/domains`, config);
       const list = response.data?.domains ?? [];
       return Array.isArray(list) ? list.map((d: any) => this.mapDomainInfo(d)) : [];
     } catch (error: any) {
