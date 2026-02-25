@@ -918,6 +918,14 @@ admin-message-to-user-prefix = 📩 Message from administration:
 admin-message-to-user-sent = Message sent.
 admin-message-to-user-failed = Failed to send message: {$error}
 admin-user-services-summary = <strong>User services</strong>\n\n💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Active services: {$activeServicesCount}\n🎫 Tickets: {$ticketsCount}\n\nVPS/VDS: {$vdsCount}\nDedicated: {$dedicatedCount}\nDomains: {$domainCount}
+admin-user-services-domains-title = <strong>User domains</strong>
+admin-domain-ns-prompt = Enter nameservers on one line, space-separated:\n<code>ns1.example.com ns2.example.com</code>\nCancel: /cancel
+admin-domain-ns-success = Nameservers for <b>{$domain}</b> updated.
+admin-domain-ns-cancelled = Cancelled.
+admin-domain-ns-failed = Failed to update NS: {$error}
+button-admin-domain-change-ns = Change NS
+button-admin-services-back = Back to summary
+button-admin-domains-list = 🌐 Domains ({$count})
 admin-user-referrals-summary = <strong>Referral</strong>
 
  Referrals: {$count}

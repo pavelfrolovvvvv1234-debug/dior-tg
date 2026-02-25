@@ -127,6 +127,10 @@ export interface OtherSessionData {
   referralPercentEdit?: {
     userId: number;
   };
+  /** Admin domain NS edit: awaiting ns1 ns2 for domainId */
+  adminDomainNs?: {
+    domainId: number;
+  };
   /** Withdraw: button was pressed, waiting for user to send amount */
   withdrawStart?: {
     awaitingAmount: true;

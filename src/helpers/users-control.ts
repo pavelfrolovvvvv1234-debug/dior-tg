@@ -467,17 +467,22 @@ export const controlUser = new Menu<AppContext>("control-user", {})
           ctx.appDataSource.manager.count(Ticket, { where: { userId: user.id } }),
         ]);
       const activeServicesCount = activeVds + activeDedicated + activeDomain;
-      await ctx.reply(
-        ctx.t("admin-user-services-summary", {
-          totalDeposit,
-          activeServicesCount,
-          ticketsCount,
-          vdsCount,
-          dedicatedCount,
-          domainCount,
-        }),
-        { parse_mode: "HTML" }
-      );
+      const summaryText = ctx.t("admin-user-services-summary", {
+        totalDeposit,
+        activeServicesCount,
+        ticketsCount,
+        vdsCount,
+        dedicatedCount,
+        domainCount,
+      });
+      const keyboard = new InlineKeyboard();
+      if (domainCount > 0) {
+        keyboard.text(ctx.t("button-admin-domains-list", { count: domainCount }), `admin-user-services-domains-${user.id}`).row();
+      }
+      await ctx.reply(summaryText, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
     });
     range.text((ctx) => ctx.t("button-tickets-short"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});

@@ -14,7 +14,7 @@ import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
-import { DataSource, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
+import { DataSource, LessThanOrEqual, MoreThan, MoreThanOrEqual } from "typeorm";
 import { getAppDataSource } from "./database";
 import { getAdminTelegramIds, getPrimeChannelForCheck } from "./app/config";
 import User, { Role, UserStatus } from "./entities/User";
@@ -85,6 +85,10 @@ import {
   vdsReinstallOs,
 } from "./helpers/manage-services";
 import DomainRequest, { DomainRequestStatus } from "./entities/DomainRequest";
+import Domain, { DomainStatus } from "./entities/Domain";
+import DedicatedServer, { DedicatedServerStatus } from "./entities/DedicatedServer";
+import TopUp, { TopUpStatus } from "./entities/TopUp";
+import Ticket, { TicketType } from "./entities/Ticket";
 import Promo from "./entities/Promo";
 import { handlePromocodeInput, promocodeQuestion } from "./helpers/promocode-input";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
@@ -1083,6 +1087,66 @@ async function index() {
     await ctx.reply(ctx.t("admin-referral-percent-enter"), { parse_mode: "HTML" });
   });
 
+  bot.callbackQuery(/^admin-user-services-domains-(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    if (ctx.session && (ctx.session as SessionData).main?.user?.role !== Role.Admin && (ctx.session as SessionData).main?.user?.role !== Role.Moderator) return;
+    const userId = parseInt(ctx.match[1]);
+    const domainRepo = ctx.appDataSource.getRepository(Domain);
+    const domains = await domainRepo.find({ where: { userId }, order: { createdAt: "DESC" } });
+    const lines = domains.map((d) => `• ${d.domain} — ${d.ns1 || "—"}, ${d.ns2 || "—"}`);
+    const text = `${ctx.t("admin-user-services-domains-title")}\n\n${lines.join("\n")}`;
+    const keyboard = new InlineKeyboard();
+    for (const d of domains) {
+      keyboard.text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`).row();
+    }
+    keyboard.text(ctx.t("button-admin-services-back"), `admin-user-services-back-${userId}`);
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^admin-user-services-back-(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const userId = parseInt(ctx.match[1]);
+    const now = new Date();
+    const totalDepositResult = await ctx.appDataSource.manager.getRepository(TopUp).createQueryBuilder("t")
+      .select("COALESCE(SUM(t.amount), 0)", "total")
+      .where("t.target_user_id = :uid", { uid: userId })
+      .andWhere("t.status = :status", { status: TopUpStatus.Completed })
+      .getRawOne<{ total: string }>();
+    const totalDeposit = Math.round(Number(totalDepositResult?.total ?? 0) * 100) / 100;
+    const [activeVds, activeDedicated, activeDomain, vdsCount, dedicatedCount, domainCount, ticketsCount] = await Promise.all([
+      ctx.appDataSource.manager.count(VirtualDedicatedServer, { where: { targetUserId: userId, expireAt: MoreThan(now) } }),
+      ctx.appDataSource.manager.count(DedicatedServer, { where: { userId, status: DedicatedServerStatus.ACTIVE } }),
+      ctx.appDataSource.manager.count(Domain, { where: { userId, status: DomainStatus.REGISTERED } }),
+      ctx.appDataSource.manager.count(VirtualDedicatedServer, { where: { targetUserId: userId } }),
+      ctx.appDataSource.manager.count(DedicatedServer, { where: { userId } }),
+      ctx.appDataSource.manager.count(Domain, { where: { userId } }),
+      ctx.appDataSource.manager.count(Ticket, { where: { userId } }),
+    ]);
+    const activeServicesCount = activeVds + activeDedicated + activeDomain;
+    const summaryText = ctx.t("admin-user-services-summary", {
+      totalDeposit,
+      activeServicesCount,
+      ticketsCount,
+      vdsCount,
+      dedicatedCount,
+      domainCount,
+    });
+    const keyboard = new InlineKeyboard();
+    if (domainCount > 0) {
+      keyboard.text(ctx.t("button-admin-domains-list", { count: domainCount }), `admin-user-services-domains-${userId}`).row();
+    }
+    await ctx.editMessageText(summaryText, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^admin-domain-ns-(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
+    const domainId = parseInt(ctx.match[1]);
+    session.other.adminDomainNs = { domainId };
+    await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
+  });
+
   bot.on("message:text", async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
     const messageToUser = session.other.messageToUser;
@@ -1242,6 +1306,66 @@ async function index() {
         ctx.t("admin-referral-percent-success", { percent: targetUser.referralPercent }),
         { parse_mode: "HTML" }
       );
+      return;
+    }
+
+    const adminDomainNs = session.other.adminDomainNs;
+    if (adminDomainNs) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+        delete session.other.adminDomainNs;
+        return next();
+      }
+      const input = ctx.message.text.trim();
+      if (input === "/cancel") {
+        delete session.other.adminDomainNs;
+        await ctx.reply(ctx.t("admin-domain-ns-cancelled"), { parse_mode: "HTML" });
+        return;
+      }
+      if (input.startsWith("/")) {
+        return next();
+      }
+      const parts = input.split(/\s+/).filter(Boolean);
+      if (parts.length < 2) {
+        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
+        return;
+      }
+      const [ns1, ns2] = [parts[0], parts[1]];
+      const nsRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i;
+      if (!nsRegex.test(ns1) || !nsRegex.test(ns2)) {
+        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
+        return;
+      }
+      try {
+        const { DomainRepository } = await import("./infrastructure/db/repositories/DomainRepository.js");
+        const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+        const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+        const { BillingService } = await import("./domain/billing/BillingService.js");
+        const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
+        const { AmperDomainService } = await import("./domain/services/AmperDomainService.js");
+        const domainRepo = new DomainRepository(ctx.appDataSource);
+        const userRepo = new UserRepository(ctx.appDataSource);
+        const topUpRepo = new TopUpRepository(ctx.appDataSource);
+        const billingService = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+        const provider = new AmperDomainsProvider({
+          apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
+          apiToken: process.env.AMPER_API_TOKEN || "",
+          timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
+          defaultNs1: process.env.DEFAULT_NS1,
+          defaultNs2: process.env.DEFAULT_NS2,
+        });
+        const domainService = new AmperDomainService(ctx.appDataSource, domainRepo, billingService, provider);
+        const domain = await domainService.updateNameservers(adminDomainNs.domainId, ns1, ns2);
+        delete session.other.adminDomainNs;
+        await ctx.reply(ctx.t("admin-domain-ns-success", { domain: domain.domain }), { parse_mode: "HTML" });
+      } catch (err: any) {
+        await ctx.reply(
+          ctx.t("admin-domain-ns-failed", { error: String(err?.message || err).slice(0, 200) }),
+          { parse_mode: "HTML" }
+        );
+      }
       return;
     }
 

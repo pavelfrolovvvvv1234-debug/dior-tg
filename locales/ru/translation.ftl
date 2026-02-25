@@ -920,6 +920,14 @@ admin-message-to-user-prefix = 📩 Сообщение от администра
 admin-message-to-user-sent = Сообщение отправлено.
 admin-message-to-user-failed = Не удалось отправить сообщение: {$error}
 admin-user-services-summary = <strong>Услуги пользователя</strong>\n\n💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Активных услуг: {$activeServicesCount}\n🎫 Тикетов: {$ticketsCount}\n\nVPS/VDS: {$vdsCount} | Dedicated: {$dedicatedCount} | Домены: {$domainCount}
+admin-user-services-domains-title = <strong>Домены пользователя</strong>
+admin-domain-ns-prompt = Введите неймсерверы в одну строку через пробел:\n<code>ns1.example.com ns2.example.com</code>\nОтмена: /cancel
+admin-domain-ns-success = NS для домена <b>{$domain}</b> обновлены.
+admin-domain-ns-cancelled = Отменено.
+admin-domain-ns-failed = Ошибка смены NS: {$error}
+button-admin-domain-change-ns = Изменить NS
+button-admin-services-back = Назад к сводке
+button-admin-domains-list = 🌐 Домены ({$count})
 admin-user-referrals-summary = <strong>Реферал</strong>
 
  Количество рефералов: {$count}
