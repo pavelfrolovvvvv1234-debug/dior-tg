@@ -245,6 +245,7 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
       const renderer = (await import("../screens/renderer.js")).ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
+        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {

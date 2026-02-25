@@ -561,6 +561,16 @@ async function index() {
     })
   );
 
+  // Force Fluent to use session locale so welcome/profile are never in wrong language
+  bot.use(async (ctx, next) => {
+    const session = (await ctx.session) as SessionData;
+    const locale = session?.main?.locale === "en" ? "en" : "ru";
+    if (typeof (ctx as any).fluent?.useLocale === "function") {
+      (ctx as any).fluent.useLocale(locale);
+    }
+    return next();
+  });
+
   // Ensure ctx.t is always defined (prefer Fluent translations)
   bot.use(async (ctx, next) => {
     if (typeof (ctx as any).t !== "function") {

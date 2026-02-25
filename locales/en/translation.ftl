@@ -1000,6 +1000,9 @@ profile-prime-until = Prime: until {$date}
 profile-label-status = Status
 profile-label-balance = Balance
 profile-label-id = ID
+profile-title = DIOR PROFILE
+profile-stats = STATS
+profile-links = <a href="https://dior.host">Web Site</a> | <a href="tg://resolve?domain=diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
 
 nps-promoter = Thanks for the high rating! 🎉 Invite friends via your referral link — earn % from their deposits. Or use the yearly renewal discount in your profile.
 nps-detractor = Sorry something wasn't right. Contact support — we'll look into it and help. The «Ask question» button in the menu opens a chat with us.

@@ -10,15 +10,18 @@ import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 
-const PROFILE_LINKS =
-  '<a href="https://dior.host">Web Site</a> | <a href="tg://resolve?domain=diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
-
 /**
  * Build profile screen text including Prime subscription status (active until date or "no").
  * Date is formatted without time (locale-aware).
+ * Forces session locale before any ctx.t() so profile never shows in wrong language.
  */
 export async function getProfileText(ctx: AppContext): Promise<string> {
   const session = await ctx.session;
+  const lang = session.main.locale === "en" ? "en" : "ru";
+  if (typeof (ctx as any).fluent?.useLocale === "function") {
+    (ctx as any).fluent.useLocale(lang);
+  }
+
   const userId = ctx.from?.id ?? session.main.user.id;
   const userStatus = ctx.t(`user-status-${session.main.user.status}`);
   const idSafe = String(userId).split("").join("&#8203;");
@@ -48,16 +51,18 @@ export async function getProfileText(ctx: AppContext): Promise<string> {
   const labelId = ctx.t("profile-label-id");
   const labelStatus = ctx.t("profile-label-status");
   const labelBalance = ctx.t("profile-label-balance");
+  const title = ctx.t("profile-title");
+  const statsLabel = ctx.t("profile-stats");
 
-  return `<b>💻 DIOR PROFILE</b>
+  return `<b>💻 ${title}</b>
 
-<b>✅ STATS</b>
+<b>✅ ${statsLabel}</b>
 • ${labelId}: ${idSafe}
 • ${labelStatus}: ${userStatus}
 • ${primeLine}
 • ${labelBalance}: ${balance} $
 
-${PROFILE_LINKS}`;
+${ctx.t("profile-links")}`;
 }
 
 /**
@@ -134,6 +139,7 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
       const renderer = ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
+        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {

@@ -140,6 +140,7 @@ export function registerCommands(bot: Bot<AppContext>): void {
     const renderer = ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
       balance: session.main.user.balance,
+      locale: session.main.locale,
     });
 
     // Send welcome message only once

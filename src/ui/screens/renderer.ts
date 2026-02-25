@@ -73,9 +73,13 @@ export class ScreenRenderer {
 
   /**
    * Render welcome screen.
+   * If locale is passed, forces Fluent to use it so welcome is never in wrong language.
    */
-  renderWelcome(data: { balance: number }): RenderedScreen {
-    // Fluent already handles formatting, so we pass raw balance
+  renderWelcome(data: { balance: number; locale?: string }): RenderedScreen {
+    const locale = data.locale === "en" ? "en" : "ru";
+    if (typeof (this.ctx as any).fluent?.useLocale === "function") {
+      (this.ctx as any).fluent.useLocale(locale);
+    }
     return {
       text: this.ctx.t("welcome", {
         balance: data.balance,

@@ -88,6 +88,7 @@ export const aboutUsMenu = new Menu<AppContext>("about-us-menu", {
       const renderer = ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
+        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {
@@ -118,6 +119,7 @@ export const supportMenu = new Menu<AppContext>("support-menu", {
       const renderer = ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
+        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {
@@ -155,6 +157,7 @@ export const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
             const renderer = ScreenRenderer.fromContext(ctx);
             const screen = renderer.renderWelcome({
               balance: session.main.user.balance,
+              locale: lang,
             });
 
             await ctx.editMessageText(screen.text, {

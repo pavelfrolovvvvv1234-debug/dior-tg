@@ -300,6 +300,7 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
     const renderer = ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
       balance: session.main.user.balance,
+      locale: session.main.locale,
     });
 
     await ctx.editMessageText(screen.text, {

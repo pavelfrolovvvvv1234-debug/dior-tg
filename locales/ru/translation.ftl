@@ -1,7 +1,7 @@
 -language-icon = 🇷🇺
 -language-name = Русский
 
-quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
+quoted-balance = <blockquote>Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
 welcome = DiorHost • Абузоустойчивая Инфраструктура
@@ -1002,6 +1002,9 @@ profile-prime-until = Prime: до {$date}
 profile-label-status = Статус
 profile-label-balance = Баланс
 profile-label-id = ID
+profile-title = DIOR ПРОФИЛЬ
+profile-stats = СТАТИСТИКА
+profile-links = <a href="https://dior.host">Сайт</a> | <a href="tg://resolve?domain=diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
 
 nps-promoter = Спасибо за высокую оценку! 🎉 Приглашайте друзей по реферальной ссылке — получайте % с их пополнений. Или воспользуйтесь скидкой на годовое продление в профиле.
 nps-detractor = Жаль, что что-то не понравилось. Напишите в поддержку — мы разберёмся и поможем. Кнопка «Задать вопрос» в меню откроет чат с нами.
