@@ -128,8 +128,7 @@ export function registerCommands(bot: Bot<AppContext>): void {
     
     // If locale is not set (first time user), show language selection
     if (session.main.locale === "0" || !session.main.locale) {
-      // Use default locale for the selection message
-      ctx.fluent.useLocale("en");
+      ctx.fluent.useLocale("ru");
       const { languageSelectMenu } = await import("../menus/language-select-menu.js");
       await ctx.reply(ctx.t("select-language"), {
         reply_markup: languageSelectMenu,

@@ -45,13 +45,13 @@ export async function getProfileText(ctx: AppContext): Promise<string> {
       })
     : ctx.t("profile-prime-no");
 
-  return `<b>┠💻 DIOR PROFILE
-┃
-┗✅ STATS:
-    ┠ ID: ${idSafe}
-    ┠ Status: ${userStatus}
-    ┠ ${primeLine}
-    ┗ Balance: ${balance} $</b>
+  return `<b>💻 DIOR PROFILE</b>
+
+<b>✅ STATS</b>
+• ID: ${idSafe}
+• Status: ${userStatus}
+• ${primeLine}
+• Balance: ${balance} $
 
 ${PROFILE_LINKS}`;
 }

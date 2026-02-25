@@ -893,8 +893,9 @@ async function index() {
         }
       }
 
-      // Always show language selection when /start is called
-      ctx.fluent.useLocale("en");
+      // Show language selection in user's current locale (no forced EN → no flash)
+      const currentLocale = session.main.locale === "en" ? "en" : "ru";
+      ctx.fluent.useLocale(currentLocale);
       const keyboard = new InlineKeyboard()
         .text(ctx.t("button-change-locale-ru"), "lang_ru")
         .text(ctx.t("button-change-locale-en"), "lang_en");
