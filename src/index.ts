@@ -1017,10 +1017,16 @@ async function index() {
 
       session.main.locale = "ru";
       const welcomeText = getWelcomeTextRu(session.main.user.balance ?? 0);
-      await ctx.reply(welcomeText, {
-        reply_markup: mainMenu,
-        parse_mode: "HTML",
-      });
+      const chatId = ctx.chat?.id ?? ctx.from?.id;
+      if (chatId) {
+        console.log("[Start] Sending RU welcome, first 60 chars:", welcomeText.slice(0, 60));
+        await bot.api.sendMessage(chatId, welcomeText, {
+          reply_markup: mainMenu,
+          parse_mode: "HTML",
+        });
+      } else {
+        await ctx.reply(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
+      }
     } catch (error: any) {
       console.error("[Start] Error in /start command:", error);
       await ctx.reply("Error: " + (error.message || "Unknown error")).catch(() => {});
