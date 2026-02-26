@@ -10,6 +10,8 @@ function pathToFtl(lang: string, name: string) {
 
 export async function initFluent(): Promise<{
   fluent: Fluent;
+  fluentRu: Fluent;
+  fluentEn: Fluent;
   availableLocales: string[];
 }> {
   const fluent = new Fluent();
@@ -38,5 +40,10 @@ export async function initFluent(): Promise<{
     },
   });
 
-  return { fluent, availableLocales: ["en", "ru"] };
+  return {
+    fluent,
+    fluentRu: fluent,
+    fluentEn: fluent,
+    availableLocales: ["en", "ru"],
+  };
 }
