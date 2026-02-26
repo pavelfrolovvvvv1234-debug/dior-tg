@@ -1528,27 +1528,33 @@ async function index() {
 
         const amperBaseUrl = process.env.AMPER_API_BASE_URL?.trim();
         const amperToken = process.env.AMPER_API_TOKEN?.trim();
+        let amperError: string | null = null;
         if (amperBaseUrl && amperToken) {
-          const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
-          const provider = new AmperDomainsProvider({
-            apiBaseUrl: amperBaseUrl,
-            apiToken: amperToken,
-            timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
-            defaultNs1: process.env.DEFAULT_NS1,
-            defaultNs2: process.env.DEFAULT_NS2,
-          });
-          const result = await provider.registerDomain({
-            domain: fullDomain,
-            period: 1,
-            ns1: defaultNs1,
-            ns2: defaultNs2,
-          });
-          if (result.success) {
-            providerDomainId = result.domainId || null;
-            if (defaultNs1) ns1 = defaultNs1;
-            if (defaultNs2) ns2 = defaultNs2;
+          try {
+            const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
+            const provider = new AmperDomainsProvider({
+              apiBaseUrl: amperBaseUrl,
+              apiToken: amperToken,
+              timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
+              defaultNs1: process.env.DEFAULT_NS1,
+              defaultNs2: process.env.DEFAULT_NS2,
+            });
+            const result = await provider.registerDomain({
+              domain: fullDomain,
+              period: 1,
+              ns1: defaultNs1,
+              ns2: defaultNs2,
+            });
+            if (result.success) {
+              providerDomainId = result.domainId || null;
+              if (defaultNs1) ns1 = defaultNs1;
+              if (defaultNs2) ns2 = defaultNs2;
+            } else {
+              amperError = result.error || "Unknown error";
+            }
+          } catch (err: any) {
+            amperError = err?.message || String(err);
           }
-          // при ошибке Amper не прерываем — сохраняем домен локально
         }
 
         const domain = new Domain();
@@ -1564,8 +1570,19 @@ async function index() {
         domain.providerDomainId = providerDomainId;
         await domainRepo.save(domain);
         delete session.other.adminRegisterDomain;
-        const msgKey = providerDomainId ? "admin-domain-register-success" : "admin-domain-register-success-local";
-        await ctx.reply(ctx.t(msgKey, { domain: domain.domain }), { parse_mode: "HTML" });
+        if (providerDomainId) {
+          await ctx.reply(ctx.t("admin-domain-register-success", { domain: domain.domain }), { parse_mode: "HTML" });
+        } else if (amperError) {
+          await ctx.reply(
+            ctx.t("admin-domain-register-success-local-amper-failed", { domain: domain.domain, error: amperError }),
+            { parse_mode: "HTML" }
+          );
+        } else {
+          await ctx.reply(
+            ctx.t("admin-domain-register-success-local-no-amper", { domain: domain.domain }),
+            { parse_mode: "HTML" }
+          );
+        }
       } catch (err: any) {
         await ctx.reply(
           ctx.t("admin-domain-register-failed", { error: String(err?.message || err).slice(0, 200) }),
