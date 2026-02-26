@@ -10,7 +10,7 @@ import {
   webhookCallback,
 } from "grammy";
 import dotenv from "dotenv";
-import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
+import { FluentContextFlavor } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
@@ -95,7 +95,7 @@ import { registerDomainRegistrationMiddleware } from "./helpers/domain-registrat
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
-import { Fluent } from "@moebius/fluent";
+import type { FluentTranslator } from "./fluent.js";
 import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
 import type { SessionData } from "./shared/types/session";
@@ -105,7 +105,7 @@ import { ensureSessionUser } from "./shared/utils/session-user.js";
 import { getCachedOsList, startOsListBackgroundRefresh } from "./shared/vmmanager-os-cache.js";
 import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cache.js";
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
-import { getWelcomeTextRu } from "./shared/ru-texts.js";
+import { createEarlyLocaleResolver, createI18nMiddleware } from "./app/i18n-middleware.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
 dotenv.config({});
@@ -186,7 +186,7 @@ const supportMenu = new Menu<AppContext>("support-menu", {
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
-        getWelcomeTextRu(session.main.user.balance),
+        ctx.t("welcome", { balance: session.main.user.balance }),
         { parse_mode: "HTML" }
       );
     }
@@ -282,10 +282,8 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
       await usersRepo.save(user);
     }
 
-    ctx.fluent.useLocale(nextLocale);
-
     const { getProfileText } = await import("./ui/menus/profile-menu.js");
-    const profileText = await getProfileText(ctx);
+    const profileText = await getProfileText(ctx, { locale: nextLocale });
     await ctx.editMessageText(profileText, {
       reply_markup: profileMenu,
       parse_mode: "HTML",
@@ -354,7 +352,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
-        getWelcomeTextRu(session.main.user.balance),
+        ctx.t("welcome", { balance: session.main.user.balance }),
         { parse_mode: "HTML" }
       );
     }
@@ -382,11 +380,11 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
               await usersRepo.save(user);
             }
 
-            ctx.fluent.useLocale(lang);
-            await ctx.editMessageText(
-              getWelcomeTextRu(session.main.user.balance),
-              { parse_mode: "HTML" }
-            );
+            const fluent = (ctx as any).fluent;
+            const welcomeText = fluent?.translateForLocale
+              ? fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
+              : ctx.t("welcome", { balance: session.main.user.balance });
+            await ctx.editMessageText(welcomeText, { parse_mode: "HTML" });
             ctx.menu.back();
           })
           .row();
@@ -395,71 +393,13 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
   })
   .back((ctx) => ctx.t("button-back"));
 
-/** Replace EN welcome text with RU when user.lang is ru. Runs at bot.api level so no code path can bypass. */
-function patchBotApiForRu(
-  bot: Bot<AppContext>,
-  fluent: Fluent,
-  appDataSource: DataSource
-) {
-  const rawEdit = bot.api.editMessageText.bind(bot.api);
-  const rawSend = bot.api.sendMessage.bind(bot.api);
-
-  (bot.api as any).editMessageText = async (
-    chatId: number,
-    messageId: number,
-    text: string,
-    ...rest: unknown[]
-  ) => {
-    if (typeof text === "string") {
-      try {
-        const isEnWelcome =
-          text.includes("Bulletproof Infrastructure") ||
-          text.includes("Abuse-Resistant") ||
-          text.includes("Order and manage hosting") ||
-          text.includes("Purchase and management of hosting") ||
-          (text.includes("DiorHost") && text.includes("Balance:"));
-        if (isEnWelcome) {
-          const user = await appDataSource.manager.findOneBy(User, { telegramId: Number(chatId) });
-          text = getWelcomeTextRu(user?.balance ?? 0);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return rawEdit(chatId, messageId, text, ...(rest as Parameters<typeof rawEdit> extends [unknown, unknown, unknown, ...infer R] ? R : []));
-  };
-
-  (bot.api as any).sendMessage = async (chatId: number, text: string, ...rest: unknown[]) => {
-    if (typeof text === "string") {
-      try {
-        const isEnWelcome =
-          text.includes("Bulletproof Infrastructure") ||
-          text.includes("Abuse-Resistant") ||
-          text.includes("Order and manage hosting") ||
-          text.includes("Purchase and management of hosting") ||
-          (text.includes("DiorHost") && text.includes("Balance:"));
-        if (isEnWelcome) {
-          const user = await appDataSource.manager.findOneBy(User, { telegramId: Number(chatId) });
-          text = getWelcomeTextRu(user?.balance ?? 0);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return rawSend(chatId, text, ...(rest as Parameters<typeof rawSend> extends [unknown, unknown, ...infer R] ? R : []));
-  };
-}
-
 async function index() {
-  const { fluent, availableLocales } = await initFluent();
+  const { fluentRu, fluentEn, fluent, availableLocales } = await initFluent();
   const appDataSource = await getAppDataSource();
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");
   const bot = new Bot<AppContext>(token, {});
-
-  patchBotApiForRu(bot, fluent, appDataSource);
-  console.log("[Bot] RU welcome: getWelcomeTextRu + API patch active. Sample: " + getWelcomeTextRu(0).slice(0, 50) + "...");
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Must run before session.
   bot.use(async (ctx, next) => {
@@ -589,117 +529,8 @@ async function index() {
     return next();
   });
 
-  bot.use(async (ctx, next) => {
-    const session = (await ctx.session) as SessionData;
-    if (!session?.main) {
-      return next();
-    }
-
-    // Fallback: if locale still "0" or empty (e.g. no user loaded), set from DB or default "ru"
-    if (session.main.locale === "0" || !session.main.locale) {
-      const user =
-        ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
-          ? ctx.loadedUser
-          : session.main.user.id > 0
-            ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
-            : null;
-      session.main.locale = user?.lang && (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
-    }
-
-    return next();
-  });
-
-  bot.use(
-    useFluent({
-      fluent,
-      localeNegotiator: async (ctx) => {
-        // Локаль для ТЕКСТА только из БД: если не "en" — всегда русский
-        const lang = (ctx as any).loadedUser?.lang;
-        return lang === "en" ? "en" : "ru";
-      },
-    })
-  );
-
-  // Локаль для всего текста сообщений из БД (loadedUser.lang), не из сессии — чтобы текст был на русском
-  bot.use(async (ctx, next) => {
-    const langForText = (ctx as any).loadedUser?.lang;
-    const locale = langForText === "en" ? "en" : "ru";
-    const ctxFluent = (ctx as any).fluent;
-    if (ctxFluent?.useLocale) ctxFluent.useLocale(locale);
-    const sessionLocale = locale;
-    if (ctxFluent?.t) {
-      const origT = ctxFluent.t.bind(ctxFluent);
-      (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
-        if (key === "welcome") {
-          return getWelcomeTextRu(Number((vars as any)?.balance ?? 0));
-        }
-        if (ctxFluent.useLocale) ctxFluent.useLocale(sessionLocale);
-        return origT(key, vars);
-      };
-    }
-    // Всегда подменять EN приветствие на русское (хардкод)
-    const replaceEnWithRu = async (text: string, currentCtx: typeof ctx): Promise<string> => {
-      if (typeof text !== "string") return text;
-      const currentSession = (await currentCtx.session) as SessionData;
-      const balance = currentSession?.main?.user?.balance ?? 0;
-      const isEnWelcome = text.includes("Bulletproof Infrastructure") || text.includes("Abuse-Resistant") || text.includes("Order and manage hosting") || text.includes("Purchase and management of hosting") || (text.includes("DiorHost") && text.includes("Balance:"));
-      if (isEnWelcome) return getWelcomeTextRu(balance);
-      const isEnProfile = text.includes("STATISTICS") || text.includes("Prime: no") || (text.includes("Balance:") && (text.includes("Web Site") || text.includes("Support") || text.includes("Dior News") || text.includes("Site"))) || (text.includes("DIOR PROFILE") && text.includes("Status:"));
-      if (isEnProfile) {
-        const { getProfileText } = await import("./ui/menus/profile-menu.js");
-        const prevLocale = currentSession?.main?.locale;
-        if (currentSession?.main) currentSession.main.locale = "ru";
-        try {
-          return await getProfileText(currentCtx);
-        } finally {
-          if (currentSession?.main && prevLocale !== undefined) currentSession.main.locale = prevLocale;
-        }
-      }
-      return text;
-    };
-    if (ctx.editMessageText) {
-      const origEdit = ctx.editMessageText.bind(ctx);
-      (ctx as any).editMessageText = async (text: string, extra?: object) => {
-        text = await replaceEnWithRu(text, ctx);
-        return origEdit(text, extra);
-      };
-    }
-    if (ctx.api?.editMessageText) {
-      const origApiEdit = ctx.api.editMessageText.bind(ctx.api);
-      (ctx.api as any).editMessageText = async (chatId: number, messageId: number, text: string, extra?: object) => {
-        text = await replaceEnWithRu(text, ctx);
-        return origApiEdit(chatId, messageId, text, extra);
-      };
-    }
-    if (ctx.reply) {
-      const origReply = ctx.reply.bind(ctx);
-      (ctx as any).reply = async (text: string, extra?: object) => {
-        text = await replaceEnWithRu(text, ctx);
-        return origReply(text, extra);
-      };
-    }
-    return next();
-  });
-
-  // Ensure ctx.t is always defined; локаль для текста из БД — иначе русский
-  bot.use(async (ctx, next) => {
-    if (typeof (ctx as any).t !== "function") {
-      const fluent = (ctx as any).fluent;
-      const locale = (ctx as any).loadedUser?.lang === "en" ? "en" : "ru";
-      const wrapT = (fn: (k: string, v?: Record<string, string | number>) => string) =>
-        (key: string, vars?: Record<string, string | number>) =>
-          key === "welcome" ? getWelcomeTextRu(Number((vars as any)?.balance ?? 0)) : fn(key, vars);
-      if (fluent && typeof fluent.translate === "function") {
-        (ctx as any).t = wrapT((k, v) => fluent.translate(locale, k, v));
-      } else if (fluent && typeof fluent.t === "function") {
-        (ctx as any).t = wrapT((k, v) => fluent.t(k, v));
-      } else {
-        (ctx as any).t = (key: string, vars?: Record<string, string | number>) =>
-          key === "welcome" ? getWelcomeTextRu(Number((vars as any)?.balance ?? 0)) : key;
-      }
-    }
-    return next();
-  });
+  bot.use(createEarlyLocaleResolver());
+  bot.use(createI18nMiddleware(fluentRu, fluentEn));
 
   // Setup conversations BEFORE menus so ctx.conversation is available
   bot.use(conversations());
@@ -769,7 +600,7 @@ async function index() {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
       await ctx.editMessageText(
-        getWelcomeTextRu(session.main.user.balance),
+        ctx.t("welcome", { balance: session.main.user.balance }),
         { parse_mode: "HTML", reply_markup: mainMenu }
       );
     } else {
@@ -855,7 +686,7 @@ async function index() {
     try {
       if (isPrimeBack) {
         const session = (await ctx.session) as SessionData;
-        const welcomeText = getWelcomeTextRu(session?.main?.user?.balance ?? 0);
+        const welcomeText = ctx.t("welcome", { balance: session?.main?.user?.balance ?? 0 });
         await ctx.editMessageText(welcomeText, {
           reply_markup: mainMenu,
           parse_mode: "HTML",
@@ -916,8 +747,10 @@ async function index() {
         console.log(`[Lang] Language saved to DB for user ${user.id}`);
       }
 
-      ctx.fluent.useLocale(lang);
-      const welcomeText = getWelcomeTextRu(session.main.user.balance);
+      const fluent = (ctx as any).fluent;
+      const welcomeText = fluent?.translateForLocale
+        ? fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
+        : ctx.t("welcome", { balance: session.main.user.balance });
 
       // Send via bot.api directly so nothing can override the text we built
       const chatId = ctx.chat?.id;
@@ -979,7 +812,7 @@ async function index() {
   //   createConversation(confirmDomainRegistration, "confirmDomainRegistration")
   // );
 
-  // Register /start command (welcome только русский через getWelcomeTextRu)
+  // Register /start command
   bot.command("start", async (ctx) => {
     try {
       if (ctx.message) {
@@ -1006,7 +839,7 @@ async function index() {
       }
 
       session.main.locale = "ru";
-      const welcomeText = getWelcomeTextRu(session.main.user.balance ?? 0);
+      const welcomeText = ctx.t("welcome", { balance: session.main.user.balance ?? 0 });
       await ctx.reply(welcomeText, {
         reply_markup: mainMenu,
         parse_mode: "HTML",
@@ -1034,7 +867,7 @@ async function index() {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = (await ctx.session) as SessionData;
     session.other.promocode.awaitingInput = false;
-    await ctx.reply(getWelcomeTextRu(session?.main?.user?.balance ?? 0), {
+    await ctx.reply(ctx.t("welcome", { balance: session?.main?.user?.balance ?? 0 }), {
       reply_markup: mainMenu,
       parse_mode: "HTML",
     });
@@ -2658,7 +2491,7 @@ index()
 async function startExpirationCheck(
   bot: Bot<AppContext, Api<RawApi>>,
   vmManager: VMManager,
-  fluent: Fluent
+  fluent: FluentTranslator
 ) {
   const appDataSource = await getAppDataSource();
 

@@ -15,7 +15,6 @@ import VirtualDedicatedServer, {
 } from "@/entities/VirtualDedicatedServer";
 import ms from "@/lib/multims";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
-import { getWelcomeTextRu } from "../shared/ru-texts.js";
 
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
@@ -158,8 +157,8 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
     async (ctx) => {
       const session = await ctx.session;
 
-      ctx.editMessageText(
-        getWelcomeTextRu(session.main.user.balance),
+      await ctx.editMessageText(
+        ctx.t("welcome", { balance: session.main.user.balance }),
         {
           parse_mode: "HTML",
         }
@@ -365,7 +364,7 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
           const session = await ctx.session;
 
           ctx.reply(
-            getWelcomeTextRu(session.main.user.balance),
+            ctx.t("welcome", { balance: session.main.user.balance }),
             {
               reply_markup: mainMenu,
               parse_mode: "HTML",
@@ -400,7 +399,7 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
           const session = await ctx.session;
 
           ctx.reply(
-            getWelcomeTextRu(session.main.user.balance),
+            ctx.t("welcome", { balance: session.main.user.balance }),
             {
               reply_markup: mainMenu,
               parse_mode: "HTML",
@@ -854,7 +853,7 @@ export const dedicatedOsMenu = new Menu<AppContext>("dedicated-os-menu")
   .text((ctx) => ctx.t("button-return-to-main"), async (ctx) => {
     const session = await ctx.session;
     await ctx.editMessageText(
-      getWelcomeTextRu(session.main.user.balance),
+      ctx.t("welcome", { balance: session.main.user.balance }),
       { parse_mode: "HTML", reply_markup: mainMenu }
     );
   });

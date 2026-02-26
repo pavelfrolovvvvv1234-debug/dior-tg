@@ -6,7 +6,7 @@
 
 import type { Bot, Api, RawApi } from "grammy";
 import { DataSource } from "typeorm";
-import { Fluent } from "@moebius/fluent";
+import type { FluentTranslator } from "../../fluent.js";
 import ms from "../../lib/multims.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
@@ -44,7 +44,7 @@ export class ExpirationService {
   constructor(
     private bot: Bot<any, Api<RawApi>>,
     private vmManager: VMManager,
-    private fluent: Fluent,
+    private fluent: FluentTranslator,
     private onGracePeriodStarted?: OnGracePeriodStarted,
     private onGraceDayCheck?: OnGraceDayCheck
   ) {}

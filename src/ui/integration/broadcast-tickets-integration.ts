@@ -25,7 +25,6 @@ import { InlineKeyboard } from "grammy";
 import { Role } from "../../entities/User";
 import Promo from "../../entities/Promo";
 import { Logger } from "../../app/logger";
-import { getWelcomeTextRu } from "../../shared/ru-texts.js";
 import { adminPromosMenu } from "../menus/admin-promocodes-menu.js";
 import {
   registerPromoConversations,
@@ -171,7 +170,7 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
     if (data === "prime-back-to-main") {
       const session = await ctx.session;
       const balance = session?.main?.user?.balance ?? 0;
-      const welcomeText = getWelcomeTextRu(balance);
+      const welcomeText = ctx.t("welcome", { balance });
       const { mainMenu } = await import("../menus/main-menu.js");
       await ctx.editMessageText(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
       return;
@@ -241,7 +240,7 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
     // Unknown prime-back-*: fallback to main menu so user is never stuck
     const session = await ctx.session;
     const balance = session?.main?.user?.balance ?? 0;
-    const welcomeText = getWelcomeTextRu(balance);
+    const welcomeText = ctx.t("welcome", { balance });
     const { mainMenu } = await import("../menus/main-menu.js");
     await ctx.editMessageText(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
   } catch (err: any) {

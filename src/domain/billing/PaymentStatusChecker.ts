@@ -11,7 +11,7 @@ import { BillingService } from "./BillingService.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { TopUpStatus } from "../../entities/TopUp.js";
 import { Logger } from "../../app/logger.js";
-import { Fluent } from "@moebius/fluent";
+import type { FluentTranslator } from "../../fluent.js";
 
 /**
  * Background service that periodically checks payment statuses.
@@ -23,7 +23,7 @@ export class PaymentStatusChecker {
   constructor(
     private bot: Bot<any, Api<RawApi>>,
     private billingService: BillingService,
-    private fluent: Fluent
+    private fluent: FluentTranslator
   ) {}
 
   /**

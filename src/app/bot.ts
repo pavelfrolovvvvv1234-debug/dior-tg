@@ -13,7 +13,6 @@ import {
   InlineKeyboard,
 } from "grammy";
 import { FileAdapter } from "@grammyjs/storage-file";
-import { useFluent } from "@grammyjs/fluent";
 import { conversations } from "@grammyjs/conversations";
 import { run as grammyRun } from "@grammyjs/runner";
 import express from "express";
@@ -46,7 +45,7 @@ import {
   adminPromosMenu,
   registerAdminPromosHandlers,
 } from "../ui/menus/admin-promocodes-menu.js";
-import { getWelcomeTextRu } from "../shared/ru-texts.js";
+import { createEarlyLocaleResolver, createI18nMiddleware } from "./i18n-middleware.js";
 
 /**
  * Initialize and configure the Telegram bot.
@@ -60,7 +59,7 @@ export async function createBot(): Promise<{
   Logger.info("Initializing bot...");
 
   // Initialize Fluent i18n
-  const { fluent, availableLocales } = await initFluent();
+  const { fluentRu, fluentEn, fluent, availableLocales } = await initFluent();
   Logger.info("Fluent i18n initialized");
 
   // Initialize database
@@ -205,24 +204,8 @@ export async function createBot(): Promise<{
   bot.use(databaseMiddleware);
   bot.use(localeMiddleware);
 
-  // Setup Fluent i18n — локаль для ТЕКСТА из БД (loadedUser.lang), иначе русский
-  bot.use(
-    useFluent({
-      fluent,
-      localeNegotiator: async (ctx) => {
-        const lang = (ctx as any).loadedUser?.lang;
-        return lang === "en" ? "en" : "ru";
-      },
-    })
-  );
-
-  // Ensure ctx.t is always defined (fallback to identity)
-  bot.use(async (ctx, next) => {
-    if (typeof (ctx as any).t !== "function") {
-      (ctx as any).t = (key: string) => key;
-    }
-    return next();
-  });
+  bot.use(createEarlyLocaleResolver());
+  bot.use(createI18nMiddleware(fluentRu, fluentEn));
 
   // Check if user is banned
   bot.use(banCheckMiddleware);
@@ -318,10 +301,8 @@ export async function createBot(): Promise<{
         // Ignore if user not found
       }
 
-      ctx.fluent.useLocale(nextLocale);
-
       const { getProfileText } = await import("../ui/menus/profile-menu.js");
-      const profileText = await getProfileText(ctx);
+      const profileText = await getProfileText(ctx, { locale: nextLocale });
       await ctx.editMessageText(profileText, {
         reply_markup: profileMenu,
         parse_mode: "HTML",
@@ -334,7 +315,7 @@ export async function createBot(): Promise<{
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          getWelcomeTextRu(session.main.user.balance),
+          ctx.t("welcome", { balance: session.main.user.balance }),
           {
             parse_mode: "HTML",
           }
@@ -360,9 +341,11 @@ export async function createBot(): Promise<{
               } catch (error) {
                 // Ignore if user not found
               }
-              ctx.fluent.useLocale(lang);
+              const welcomeText = (ctx as any).fluent?.translateForLocale
+                ? (ctx as any).fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
+                : ctx.t("welcome", { balance: session.main.user.balance });
               await ctx.editMessageText(
-                getWelcomeTextRu(session.main.user.balance),
+                welcomeText,
                 {
                   parse_mode: "HTML",
                 }
@@ -386,7 +369,7 @@ export async function createBot(): Promise<{
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          getWelcomeTextRu(session.main.user.balance),
+          ctx.t("welcome", { balance: session.main.user.balance }),
           {
             parse_mode: "HTML",
           }
@@ -411,7 +394,7 @@ export async function createBot(): Promise<{
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(
-          getWelcomeTextRu(session.main.user.balance),
+          ctx.t("welcome", { balance: session.main.user.balance }),
           {
             parse_mode: "HTML",
           }

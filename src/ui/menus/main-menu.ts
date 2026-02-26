@@ -153,16 +153,14 @@ export const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
               // Ignore if user not found
             }
 
-            ctx.fluent.useLocale(lang);
-            const renderer = ScreenRenderer.fromContext(ctx);
-            const screen = renderer.renderWelcome({
-              balance: session.main.user.balance,
-              locale: lang,
-            });
-
-            await ctx.editMessageText(screen.text, {
-              reply_markup: screen.keyboard || mainMenu,
-              parse_mode: screen.parse_mode,
+            const fluent = (ctx as any).fluent;
+            const welcomeText = fluent?.translateForLocale
+              ? fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
+              : ctx.t("welcome", { balance: session.main.user.balance });
+            const { mainMenu } = await import("./main-menu.js");
+            await ctx.editMessageText(welcomeText, {
+              reply_markup: mainMenu,
+              parse_mode: "HTML",
             });
             ctx.menu.back();
           })

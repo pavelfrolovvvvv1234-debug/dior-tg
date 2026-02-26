@@ -9,14 +9,20 @@ import { Menu } from "@grammyjs/menu";
 import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
-import { getProfileTextRu } from "../../shared/ru-texts.js";
 
 /**
- * Профиль всегда по-русски (жёстко из shared/ru-texts), без Fluent — не переключается на EN.
+ * Профиль. opts.locale — при смене языка в том же апдейте.
  */
-export async function getProfileText(ctx: AppContext): Promise<string> {
+export async function getProfileText(ctx: AppContext, opts?: { locale?: "ru" | "en" }): Promise<string> {
   const session = await ctx.session;
+  const lang = opts?.locale ?? (session.main.locale === "en" ? "en" : "ru");
+  const t = (key: string, vars?: Record<string, string | number>) =>
+    (ctx as any).fluent?.translateForLocale
+      ? (ctx as any).fluent.translateForLocale(lang, key, vars)
+      : ctx.t(key, vars);
+  const locale = lang === "en" ? "en-US" : "ru-RU";
   const userId = ctx.from?.id ?? session.main.user.id;
+  const idSafe = String(userId).split("").join("&#8203;");
   const balanceRaw = session.main.user.balance;
   const balanceFormatted = balanceRaw.toFixed(2);
   const balanceStr =
@@ -29,19 +35,24 @@ export async function getProfileText(ctx: AppContext): Promise<string> {
   const hasActivePrime = primeActiveUntil && new Date(primeActiveUntil) > now;
 
   const primeLine = hasActivePrime && primeActiveUntil
-    ? `Prime: до ${new Date(primeActiveUntil).toLocaleDateString("ru-RU", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })}`
-    : "Prime: нет";
+    ? t("profile-prime-until", {
+        date: new Date(primeActiveUntil).toLocaleDateString(locale, {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+      })
+    : t("profile-prime-no");
 
-  return getProfileTextRu({
-    userId,
-    statusKey: session.main.user.status ?? "user",
-    balanceStr,
-    primeLine,
-  });
+  return `<b>💻 ${t("profile-title")}</b>
+
+<b>✅ ${t("profile-stats")}</b>
+• ${t("profile-label-id")}: ${idSafe}
+• ${t("profile-label-status")}: ${t(`user-status-${session.main.user.status}`)}
+• ${primeLine}
+• ${t("profile-label-balance")}: ${balanceStr} $
+
+${t("profile-links")}`;
 }
 
 /**
@@ -101,9 +112,7 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
       // Ignore if user not found
     }
 
-    ctx.fluent.useLocale(nextLocale);
-
-    const profileText = await getProfileText(ctx);
+    const profileText = await getProfileText(ctx, { locale: nextLocale });
     await ctx.editMessageText(profileText, {
       reply_markup: profileMenu,
       parse_mode: "HTML",

@@ -130,7 +130,6 @@ export function registerCommands(bot: Bot<AppContext>): void {
     if (session.main.locale === "0" || !session.main.locale) {
       session.main.locale = "ru";
     }
-    ctx.fluent.useLocale(session.main.locale === "en" ? "en" : "ru");
 
     const renderer = ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
