@@ -1522,34 +1522,38 @@ async function index() {
         }
         const defaultNs1 = process.env.DEFAULT_NS1?.trim() || undefined;
         const defaultNs2 = process.env.DEFAULT_NS2?.trim() || undefined;
-        if (!defaultNs1 || !defaultNs2) {
-          await ctx.reply(
-            ctx.t("admin-domain-register-failed", { error: "DEFAULT_NS1 and DEFAULT_NS2 must be set in env for registration" }),
-            { parse_mode: "HTML" }
-          );
-          return;
+        let providerDomainId: string | null = null;
+        let ns1 = defaultNs1 ?? null;
+        let ns2 = defaultNs2 ?? null;
+
+        if (defaultNs1 && defaultNs2) {
+          const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
+          const provider = new AmperDomainsProvider({
+            apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
+            apiToken: process.env.AMPER_API_TOKEN || "",
+            timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
+            defaultNs1: process.env.DEFAULT_NS1,
+            defaultNs2: process.env.DEFAULT_NS2,
+          });
+          const result = await provider.registerDomain({
+            domain: fullDomain,
+            period: 1,
+            ns1: defaultNs1,
+            ns2: defaultNs2,
+          });
+          if (result.success) {
+            providerDomainId = result.domainId || null;
+            ns1 = defaultNs1;
+            ns2 = defaultNs2;
+          } else {
+            await ctx.reply(
+              ctx.t("admin-domain-register-failed", { error: result.error || "Registrar rejected" }),
+              { parse_mode: "HTML" }
+            );
+            return;
+          }
         }
-        const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
-        const provider = new AmperDomainsProvider({
-          apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
-          apiToken: process.env.AMPER_API_TOKEN || "",
-          timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
-          defaultNs1: process.env.DEFAULT_NS1,
-          defaultNs2: process.env.DEFAULT_NS2,
-        });
-        const result = await provider.registerDomain({
-          domain: fullDomain,
-          period: 1,
-          ns1: defaultNs1,
-          ns2: defaultNs2,
-        });
-        if (!result.success) {
-          await ctx.reply(
-            ctx.t("admin-domain-register-failed", { error: result.error || "Registrar rejected" }),
-            { parse_mode: "HTML" }
-          );
-          return;
-        }
+
         const domain = new Domain();
         domain.userId = adminRegisterDomain.userId;
         domain.domain = fullDomain;
@@ -1557,13 +1561,14 @@ async function index() {
         domain.period = 1;
         domain.price = 0;
         domain.status = DomainStatus.REGISTERED;
-        domain.ns1 = defaultNs1;
-        domain.ns2 = defaultNs2;
+        domain.ns1 = ns1;
+        domain.ns2 = ns2;
         domain.provider = "amper";
-        domain.providerDomainId = result.domainId || null;
+        domain.providerDomainId = providerDomainId;
         await domainRepo.save(domain);
         delete session.other.adminRegisterDomain;
-        await ctx.reply(ctx.t("admin-domain-register-success", { domain: domain.domain }), { parse_mode: "HTML" });
+        const msgKey = providerDomainId ? "admin-domain-register-success" : "admin-domain-register-success-local";
+        await ctx.reply(ctx.t(msgKey, { domain: domain.domain }), { parse_mode: "HTML" });
       } catch (err: any) {
         await ctx.reply(
           ctx.t("admin-domain-register-failed", { error: String(err?.message || err).slice(0, 200) }),
