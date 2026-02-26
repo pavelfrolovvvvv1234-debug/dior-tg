@@ -931,9 +931,10 @@ admin-user-services-domains-title = <strong>Домены пользовател�
 admin-domain-ns-prompt =
   Введите неймсерверы в одну строку через пробел:
   <code>ns1.example.com ns2.example.com</code>
-  Отмена: /cancel
+  Пропустить: /skip · Отмена: /cancel
 admin-domain-ns-success = NS для домена <b>{$domain}</b> обновлены.
 admin-domain-ns-cancelled = Отменено.
+admin-domain-ns-skipped = Неймсерверы пропущены. Изменений нет.
 admin-domain-ns-failed = Ошибка смены NS: {$error}
 admin-domain-set-amper-id-prompt = Введите Amper Domain ID (скопируйте из кабинета Amper или из ответа API):
 admin-domain-set-amper-id-success = Amper ID для домена <b>{$domain}</b> сохранён. Теперь можно сменить NS.

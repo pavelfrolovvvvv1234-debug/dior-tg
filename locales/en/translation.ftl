@@ -929,9 +929,10 @@ admin-user-services-domains-title = <strong>User domains</strong>
 admin-domain-ns-prompt =
   Enter nameservers on one line, space-separated:
   <code>ns1.example.com ns2.example.com</code>
-  Cancel: /cancel
+  Skip: /skip · Cancel: /cancel
 admin-domain-ns-success = Nameservers for <b>{$domain}</b> updated.
 admin-domain-ns-cancelled = Cancelled.
+admin-domain-ns-skipped = Nameservers skipped. No changes made.
 admin-domain-ns-failed = Failed to update NS: {$error}
 admin-domain-set-amper-id-prompt = Enter Amper Domain ID (copy from Amper dashboard or API response):
 admin-domain-set-amper-id-success = Amper ID for domain <b>{$domain}</b> saved. You can now change NS.

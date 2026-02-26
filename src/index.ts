@@ -1384,6 +1384,11 @@ async function index() {
         await ctx.reply(ctx.t("admin-domain-ns-cancelled"), { parse_mode: "HTML" });
         return;
       }
+      if (input === "/skip") {
+        delete session.other.adminDomainNs;
+        await ctx.reply(ctx.t("admin-domain-ns-skipped"), { parse_mode: "HTML" });
+        return;
+      }
       if (input.startsWith("/")) {
         return next();
       }
