@@ -135,6 +135,10 @@ export interface OtherSessionData {
   adminDomainSetAmperId?: {
     domainId: number;
   };
+  /** Admin register domain for user (no payment): awaiting domain name string */
+  adminRegisterDomain?: {
+    userId: number;
+  };
   /** Withdraw: button was pressed, waiting for user to send amount */
   withdrawStart?: {
     awaitingAmount: true;

@@ -917,9 +917,19 @@ admin-message-to-user-enter = Enter the message text for the user:
 admin-message-to-user-prefix = 📩 Message from administration:
 admin-message-to-user-sent = Message sent.
 admin-message-to-user-failed = Failed to send message: {$error}
-admin-user-services-summary = <strong>User services</strong>\n\n💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Active services: {$activeServicesCount}\n🎫 Tickets: {$ticketsCount}\n\nVPS/VDS: {$vdsCount}\nDedicated: {$dedicatedCount}\nDomains: {$domainCount}
+admin-user-services-summary =
+  <strong>User services</strong>
+
+  💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+  🛠 Active services: {$activeServicesCount}
+  🎫 Tickets: {$ticketsCount}
+
+  VPS/VDS: {$vdsCount} · Dedicated: {$dedicatedCount} · Domains: {$domainCount}
 admin-user-services-domains-title = <strong>User domains</strong>
-admin-domain-ns-prompt = Enter nameservers on one line, space-separated:\n<code>ns1.example.com ns2.example.com</code>\nCancel: /cancel
+admin-domain-ns-prompt =
+  Enter nameservers on one line, space-separated:
+  <code>ns1.example.com ns2.example.com</code>
+  Cancel: /cancel
 admin-domain-ns-success = Nameservers for <b>{$domain}</b> updated.
 admin-domain-ns-cancelled = Cancelled.
 admin-domain-ns-failed = Failed to update NS: {$error}
@@ -930,6 +940,11 @@ button-admin-domain-change-ns = Change NS
 button-admin-set-amper-id = Set Amper ID
 button-admin-services-back = Back to summary
 button-admin-domains-list = 🌐 Domains ({$count})
+button-admin-register-domain = ➕ Register domain
+admin-domain-register-prompt = Send domain name (e.g. <code>example.com</code>). The domain will be added to the user without payment. Cancel: /cancel
+admin-domain-register-success = Domain <b>{$domain}</b> added for user. You can set Amper ID and NS in the domains list.
+admin-domain-register-cancelled = Cancelled.
+admin-domain-register-failed = Failed: {$error}
 admin-user-referrals-summary = <strong>Referral</strong>
 
  Referrals: {$count}

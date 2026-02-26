@@ -1105,7 +1105,7 @@ async function index() {
     const domainRepo = ctx.appDataSource.getRepository(Domain);
     const domains = await domainRepo.find({ where: { userId }, order: { createdAt: "DESC" } });
     const lines = domains.map((d) => `• ${d.domain} — ${d.ns1 || "—"}, ${d.ns2 || "—"}`);
-    const text = `${ctx.t("admin-user-services-domains-title")}\n\n${lines.join("\n")}`;
+    const text = `${ctx.t("admin-user-services-domains-title")}\n\n${lines.length === 0 ? "—" : lines.join("\n")}`;
     const keyboard = new InlineKeyboard();
     for (const d of domains) {
       keyboard.text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`);
@@ -1114,8 +1114,18 @@ async function index() {
       }
       keyboard.row();
     }
+    keyboard.text(ctx.t("button-admin-register-domain"), `admin-register-domain-${userId}`).row();
     keyboard.text(ctx.t("button-admin-services-back"), `admin-user-services-back-${userId}`);
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^admin-register-domain-(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main?.user?.role !== Role.Admin && session.main?.user?.role !== Role.Moderator) return;
+    const userId = parseInt(ctx.match[1]);
+    session.other.adminRegisterDomain = { userId };
+    await ctx.reply(ctx.t("admin-domain-register-prompt"), { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^admin-domain-set-amper-id-(\d+)$/, async (ctx) => {
@@ -1436,6 +1446,68 @@ async function index() {
       } catch (err: any) {
         await ctx.reply(
           ctx.t("admin-domain-ns-failed", { error: String(err?.message || err).slice(0, 200) }),
+          { parse_mode: "HTML" }
+        );
+      }
+      return;
+    }
+
+    const adminRegisterDomain = session.other.adminRegisterDomain;
+    if (adminRegisterDomain) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+        delete session.other.adminRegisterDomain;
+        return next();
+      }
+      const input = ctx.message.text.trim();
+      if (input === "/cancel") {
+        delete session.other.adminRegisterDomain;
+        await ctx.reply(ctx.t("admin-domain-register-cancelled"), { parse_mode: "HTML" });
+        return;
+      }
+      if (input.startsWith("/")) {
+        return next();
+      }
+      const fullDomain = input.toLowerCase().replace(/^\s+|\s+$/g, "");
+      const lastDot = fullDomain.lastIndexOf(".");
+      if (lastDot <= 0 || lastDot === fullDomain.length - 1) {
+        await ctx.reply(ctx.t("admin-domain-register-failed", { error: "Invalid format (use example.com)" }), { parse_mode: "HTML" });
+        return;
+      }
+      const tld = fullDomain.slice(lastDot + 1);
+      const domainName = fullDomain.slice(0, lastDot);
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i.test(domainName) || !/^[a-z]{2,}$/i.test(tld)) {
+        await ctx.reply(ctx.t("admin-domain-register-failed", { error: "Invalid domain or TLD" }), { parse_mode: "HTML" });
+        return;
+      }
+      try {
+        const domainRepo = ctx.appDataSource.getRepository(Domain);
+        const existing = await domainRepo.findOne({ where: { userId: adminRegisterDomain.userId, domain: fullDomain } });
+        if (existing) {
+          await ctx.reply(ctx.t("admin-domain-register-failed", { error: "Domain already exists for this user" }), { parse_mode: "HTML" });
+          return;
+        }
+        const defaultNs1 = process.env.DEFAULT_NS1 || null;
+        const defaultNs2 = process.env.DEFAULT_NS2 || null;
+        const domain = new Domain();
+        domain.userId = adminRegisterDomain.userId;
+        domain.domain = fullDomain;
+        domain.tld = tld;
+        domain.period = 1;
+        domain.price = 0;
+        domain.status = DomainStatus.REGISTERED;
+        domain.ns1 = defaultNs1;
+        domain.ns2 = defaultNs2;
+        domain.provider = "amper";
+        domain.providerDomainId = null;
+        await domainRepo.save(domain);
+        delete session.other.adminRegisterDomain;
+        await ctx.reply(ctx.t("admin-domain-register-success", { domain: domain.domain }), { parse_mode: "HTML" });
+      } catch (err: any) {
+        await ctx.reply(
+          ctx.t("admin-domain-register-failed", { error: String(err?.message || err).slice(0, 200) }),
           { parse_mode: "HTML" }
         );
       }

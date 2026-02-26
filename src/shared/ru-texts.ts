@@ -24,7 +24,7 @@ const PROFILE_STATUS_RU: Record<string, string> = {
 };
 
 const PROFILE_LINKS_RU =
-  '<a href="https://dior.host">Сайт</a> | <a href="https://t.me/diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Новости Dior</a>';
+  '<a href="https://dior.host">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
 
 export interface ProfileTextRuParams {
   userId: number;

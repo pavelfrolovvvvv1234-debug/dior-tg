@@ -479,6 +479,7 @@ export const controlUser = new Menu<AppContext>("control-user", {})
       if (domainCount > 0) {
         keyboard.text(ctx.t("button-admin-domains-list", { count: domainCount }), `admin-user-services-domains-${user.id}`).row();
       }
+      keyboard.text(ctx.t("button-admin-register-domain"), `admin-register-domain-${user.id}`);
       await ctx.reply(summaryText, {
         parse_mode: "HTML",
         reply_markup: keyboard,

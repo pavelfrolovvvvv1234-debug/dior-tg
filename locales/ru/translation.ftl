@@ -25,7 +25,7 @@ support = Мы всегда здесь, чтобы помочь! 🤝
 
  Напишите нашему саппорту прямо сейчас!
 
- <a href="https://dior.host/">Сайт</a> | <a href="https://t.me/diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Новости Dior</a>
+ <a href="https://dior.host/">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
 
 support-message-template = Здравствуйте!
  У меня есть вопрос.
@@ -919,9 +919,19 @@ admin-message-to-user-enter = Введите текст сообщения дл�
 admin-message-to-user-prefix = 📩 Сообщение от администрации:
 admin-message-to-user-sent = Сообщение отправлено.
 admin-message-to-user-failed = Не удалось отправить сообщение: {$error}
-admin-user-services-summary = <strong>Услуги пользователя</strong>\n\n💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Активных услуг: {$activeServicesCount}\n🎫 Тикетов: {$ticketsCount}\n\nVPS/VDS: {$vdsCount} | Выделенные: {$dedicatedCount} | Домены: {$domainCount}
+admin-user-services-summary =
+  <strong>Услуги пользователя</strong>
+
+  💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+  🛠 Активных услуг: {$activeServicesCount}
+  🎫 Тикетов: {$ticketsCount}
+
+  VPS/VDS: {$vdsCount} · Выделенные: {$dedicatedCount} · Домены: {$domainCount}
 admin-user-services-domains-title = <strong>Домены пользователя</strong>
-admin-domain-ns-prompt = Введите неймсерверы в одну строку через пробел:\n<code>ns1.example.com ns2.example.com</code>\nОтмена: /cancel
+admin-domain-ns-prompt =
+  Введите неймсерверы в одну строку через пробел:
+  <code>ns1.example.com ns2.example.com</code>
+  Отмена: /cancel
 admin-domain-ns-success = NS для домена <b>{$domain}</b> обновлены.
 admin-domain-ns-cancelled = Отменено.
 admin-domain-ns-failed = Ошибка смены NS: {$error}
@@ -932,6 +942,11 @@ button-admin-domain-change-ns = Изменить NS
 button-admin-set-amper-id = Указать Amper ID
 button-admin-services-back = Назад к сводке
 button-admin-domains-list = 🌐 Домены ({$count})
+button-admin-register-domain = ➕ Зарегистрировать домен
+admin-domain-register-prompt = Отправьте имя домена (например <code>example.com</code>). Домен будет добавлен пользователю без списания средств. Отмена: /cancel
+admin-domain-register-success = Домен <b>{$domain}</b> добавлен пользователю. Amper ID и NS можно указать в списке доменов.
+admin-domain-register-cancelled = Отменено.
+admin-domain-register-failed = Ошибка: {$error}
 admin-user-referrals-summary = <strong>Реферал</strong>
 
  Количество рефералов: {$count}
