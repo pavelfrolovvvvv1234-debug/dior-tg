@@ -194,7 +194,7 @@ const supportMenu = new Menu<AppContext>("support-menu", {
     }
   );
 
-const profileMenu = new Menu<AppContext>("profile-menu", {})
+const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
   .submenu((ctx) => ctx.t("button-deposit"), "topup-method-menu")
   .row()
   .text(
@@ -273,6 +273,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
   )
   .row()
   .text((ctx) => ctx.t("button-change-locale"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const session = (await ctx.session) as SessionData;
     const nextLocale = session.main.locale === "ru" ? "en" : "ru";
     session.main.locale = nextLocale;
@@ -288,12 +289,21 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
     ctx.fluent.useLocale(nextLocale);
 
     const { getProfileText } = await import("./ui/menus/profile-menu.js");
-    const profileText = await getProfileText(ctx);
-    await ctx.editMessageText(profileText, {
-      reply_markup: profileMenu,
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
+    const profileText = await getProfileText(ctx, { locale: nextLocale });
+    try {
+      await ctx.editMessageText(profileText, {
+        reply_markup: profileMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      });
+    } catch (err: any) {
+      if (err?.message?.includes("message is not modified") || err?.description?.includes("message is not modified")) return;
+      await ctx.reply(profileText, {
+        reply_markup: profileMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      }).catch(() => {});
+    }
   })
   .row()
   .text(

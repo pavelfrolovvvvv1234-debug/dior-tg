@@ -294,7 +294,7 @@ export async function createBot(): Promise<{
   const { Menu } = await import("@grammyjs/menu");
   
   // Create profile menu
-  const profileMenu = new Menu<AppContext>("profile-menu", {})
+  const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
     .submenu((ctx) => ctx.t("button-deposit"), "deposit-menu")
     .text(
       (ctx) => ctx.t("button-promocode"),
@@ -313,9 +313,11 @@ export async function createBot(): Promise<{
     )
     .row()
     .text((ctx) => ctx.t("button-change-locale"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
       const nextLocale = session.main.locale === "ru" ? "en" : "ru";
       session.main.locale = nextLocale;
+      (ctx as any)._requestLocale = nextLocale;
 
       const userRepo = new UserRepository(ctx.appDataSource);
       try {
@@ -327,12 +329,22 @@ export async function createBot(): Promise<{
       ctx.fluent.useLocale(nextLocale);
 
       const { getProfileText } = await import("../ui/menus/profile-menu.js");
-      const profileText = await getProfileText(ctx);
-      await ctx.editMessageText(profileText, {
-        reply_markup: profileMenu,
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-      });
+      const profileText = await getProfileText(ctx, { locale: nextLocale });
+      try {
+        await ctx.editMessageText(profileText, {
+          reply_markup: profileMenu,
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        });
+      } catch (err: unknown) {
+        const msg = String((err as any)?.message ?? (err as any)?.description ?? "");
+        if (msg.includes("message is not modified")) return;
+        await ctx.reply(profileText, {
+          reply_markup: profileMenu,
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        }).catch(() => {});
+      }
     })
     .row()
     .back(

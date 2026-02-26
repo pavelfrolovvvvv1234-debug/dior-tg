@@ -75,9 +75,9 @@ ${PROFILE_LINKS_EN}`;
 }
 
 /**
- * Profile menu.
+ * Profile menu. onMenuOutdated: false — при смене языка кнопки меняются, не показывать "Menu was outdated".
  */
-export const profileMenu = new Menu<AppContext>("profile-menu")
+export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
   .submenu((ctx) => ctx.t("button-deposit"), "deposit-menu")
   .text(
     (ctx) => ctx.t("button-subscription"),
@@ -117,6 +117,7 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
   )
   .row()
   .text((ctx) => ctx.t("button-change-locale"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     const nextLocale = session.main.locale === "ru" ? "en" : "ru";
     session.main.locale = nextLocale;
@@ -134,12 +135,22 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
 
     ctx.fluent.useLocale(nextLocale);
 
-    const profileText = await getProfileText(ctx);
-    await ctx.editMessageText(profileText, {
-      reply_markup: profileMenu,
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
+    const profileText = await getProfileText(ctx, { locale: nextLocale });
+    try {
+      await ctx.editMessageText(profileText, {
+        reply_markup: profileMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      });
+    } catch (err: unknown) {
+      const msg = (err as any)?.message ?? (err as any)?.description ?? "";
+      if (String(msg).includes("message is not modified")) return;
+      await ctx.reply(profileText, {
+        reply_markup: profileMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      }).catch(() => {});
+    }
   })
   .row()
   .back(
