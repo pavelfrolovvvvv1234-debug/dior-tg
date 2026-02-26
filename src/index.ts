@@ -1108,11 +1108,10 @@ async function index() {
     const text = `${ctx.t("admin-user-services-domains-title")}\n\n${lines.length === 0 ? "—" : lines.join("\n")}`;
     const keyboard = new InlineKeyboard();
     for (const d of domains) {
-      keyboard.text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`);
-      if (!d.providerDomainId) {
-        keyboard.text(ctx.t("button-admin-set-amper-id"), `admin-domain-set-amper-id-${d.id}`);
-      }
-      keyboard.row();
+      keyboard
+        .text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`)
+        .text(ctx.t("button-admin-delete-domain"), `admin-domain-delete-${d.id}`)
+        .row();
     }
     keyboard.text(ctx.t("button-admin-register-domain"), `admin-register-domain-${userId}`).row();
     keyboard.text(ctx.t("button-admin-services-back"), `admin-user-services-back-${userId}`);
@@ -1126,6 +1125,33 @@ async function index() {
     const userId = parseInt(ctx.match[1]);
     session.other.adminRegisterDomain = { userId };
     await ctx.reply(ctx.t("admin-domain-register-prompt"), { parse_mode: "HTML" });
+  });
+
+  bot.callbackQuery(/^admin-domain-delete-(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    if (ctx.session && (ctx.session as SessionData).main?.user?.role !== Role.Admin && (ctx.session as SessionData).main?.user?.role !== Role.Moderator) return;
+    const domainId = parseInt(ctx.match[1]);
+    const domainRepo = ctx.appDataSource.getRepository(Domain);
+    const domain = await domainRepo.findOne({ where: { id: domainId } });
+    if (!domain) {
+      await ctx.reply(ctx.t("admin-domain-delete-not-found"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    const userId = domain.userId;
+    await domainRepo.remove(domain);
+    const domains = await domainRepo.find({ where: { userId }, order: { createdAt: "DESC" } });
+    const lines = domains.map((d) => `• ${d.domain} — ${d.ns1 || "—"}, ${d.ns2 || "—"}`);
+    const text = `${ctx.t("admin-user-services-domains-title")}\n\n${lines.length === 0 ? "—" : lines.join("\n")}`;
+    const keyboard = new InlineKeyboard();
+    for (const d of domains) {
+      keyboard
+        .text(`${d.domain} → ${ctx.t("button-admin-domain-change-ns")}`, `admin-domain-ns-${d.id}`)
+        .text(ctx.t("button-admin-delete-domain"), `admin-domain-delete-${d.id}`)
+        .row();
+    }
+    keyboard.text(ctx.t("button-admin-register-domain"), `admin-register-domain-${userId}`).row();
+    keyboard.text(ctx.t("button-admin-services-back"), `admin-user-services-back-${userId}`);
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
   });
 
   bot.callbackQuery(/^admin-domain-set-amper-id-(\d+)$/, async (ctx) => {
@@ -1489,8 +1515,36 @@ async function index() {
           await ctx.reply(ctx.t("admin-domain-register-failed", { error: "Domain already exists for this user" }), { parse_mode: "HTML" });
           return;
         }
-        const defaultNs1 = process.env.DEFAULT_NS1 || null;
-        const defaultNs2 = process.env.DEFAULT_NS2 || null;
+        const defaultNs1 = process.env.DEFAULT_NS1?.trim() || undefined;
+        const defaultNs2 = process.env.DEFAULT_NS2?.trim() || undefined;
+        if (!defaultNs1 || !defaultNs2) {
+          await ctx.reply(
+            ctx.t("admin-domain-register-failed", { error: "DEFAULT_NS1 and DEFAULT_NS2 must be set in env for registration" }),
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+        const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
+        const provider = new AmperDomainsProvider({
+          apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
+          apiToken: process.env.AMPER_API_TOKEN || "",
+          timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
+          defaultNs1: process.env.DEFAULT_NS1,
+          defaultNs2: process.env.DEFAULT_NS2,
+        });
+        const result = await provider.registerDomain({
+          domain: fullDomain,
+          period: 1,
+          ns1: defaultNs1,
+          ns2: defaultNs2,
+        });
+        if (!result.success) {
+          await ctx.reply(
+            ctx.t("admin-domain-register-failed", { error: result.error || "Registrar rejected" }),
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
         const domain = new Domain();
         domain.userId = adminRegisterDomain.userId;
         domain.domain = fullDomain;
@@ -1501,7 +1555,7 @@ async function index() {
         domain.ns1 = defaultNs1;
         domain.ns2 = defaultNs2;
         domain.provider = "amper";
-        domain.providerDomainId = null;
+        domain.providerDomainId = result.domainId || null;
         await domainRepo.save(domain);
         delete session.other.adminRegisterDomain;
         await ctx.reply(ctx.t("admin-domain-register-success", { domain: domain.domain }), { parse_mode: "HTML" });
