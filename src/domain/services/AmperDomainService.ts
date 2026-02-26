@@ -327,9 +327,7 @@ export class AmperDomainService {
       throw new BusinessError(`Cannot update nameservers for domain with status: ${domain.status}`);
     }
 
-    // Amper API: PUT /domains/{domain}/nameservers — в пути имя домена, не внутренний ID
-    const domainIdOrName = domain.providerDomainId ?? domain.domain;
-
+    // Amper API: PUT /domains/{domainId}/nameservers — в пути Amper domain ID или имя домена
     if (!domain.providerDomainId) {
       let list = await this.domainProvider.listDomains("");
       if (list.length === 0 && "listDomainsByDomain" in this.domainProvider) {
@@ -342,8 +340,8 @@ export class AmperDomainService {
         domain.ns2 = amper.ns2 ?? null;
         await this.domainRepository.getRepository().save(domain);
       }
-      // иначе вызываем API по имени домена (Amper: PUT /domains/upgrader2.com/nameservers)
     }
+    const domainIdOrName = domain.providerDomainId ?? domain.domain;
 
     // Update in transaction
     return await this.dataSource.transaction(async (manager) => {
@@ -351,7 +349,7 @@ export class AmperDomainService {
       const operationRepo = manager.getRepository(DomainOperation);
 
       const result = await this.domainProvider.updateNameservers({
-        domainId: domainIdOrName,
+        domainId: String(domainIdOrName),
         ns1,
         ns2,
       });

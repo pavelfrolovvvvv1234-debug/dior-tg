@@ -43,6 +43,13 @@ export async function domainUpdateNsConversation(
     return;
   }
 
+  const apiBaseUrl = process.env.AMPER_API_BASE_URL?.trim();
+  const apiToken = process.env.AMPER_API_TOKEN?.trim();
+  if (!apiBaseUrl || !apiToken) {
+    await ctx.reply(ctx.t("domain-api-not-configured"));
+    return;
+  }
+
   try {
     const domainRepo = new DomainRepository(ctx.appDataSource);
     const userRepo = new UserRepository(ctx.appDataSource);
@@ -109,9 +116,10 @@ export async function domainUpdateNsConversation(
       });
     } catch (error: any) {
       Logger.error(`Failed to update nameservers for domain ${domainId}:`, error);
-      await ctx.reply(ctx.t("error-unknown", {
-        error: error.message || "Unknown error",
-      }));
+      const msg = error?.message || String(error);
+      await ctx.reply(ctx.t("error-unknown", { error: msg.slice(0, 300) }), {
+        parse_mode: "HTML",
+      });
     }
   } catch (error: any) {
     Logger.error("Domain update NS conversation error:", error);
