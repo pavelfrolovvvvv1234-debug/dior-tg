@@ -17,8 +17,12 @@ const PROFILE_LINKS_EN =
 /**
  * Build profile screen text including Prime subscription status (active until date or "no").
  * Date is formatted without time (locale-aware).
+ * @param options.locale — если передан, профиль в этом языке (для смены языка в меню).
  */
-export async function getProfileText(ctx: AppContext): Promise<string> {
+export async function getProfileText(
+  ctx: AppContext,
+  options?: { locale?: string }
+): Promise<string> {
   const session = await ctx.session;
   const userId = ctx.from?.id ?? session.main.user.id;
   const userStatus = ctx.t(`user-status-${session.main.user.status}`);
@@ -35,8 +39,8 @@ export async function getProfileText(ctx: AppContext): Promise<string> {
   const now = new Date();
   const hasActivePrime = primeActiveUntil && new Date(primeActiveUntil) > now;
 
-  // Язык профиля из БД (user.lang), по умолчанию русский
-  const locale = user?.lang === "en" ? "en" : "ru";
+  // Язык профиля: из options (смена языка) или из БД (user.lang), по умолчанию русский
+  const locale = options?.locale ?? (user?.lang === "en" ? "en" : "ru");
   const dateLocale = locale === "en" ? "en-US" : "ru-RU";
   // Строка подписки в том же языке, что и профиль (иначе в RU-профиле было "Prime:")
   ctx.fluent.useLocale(locale);
