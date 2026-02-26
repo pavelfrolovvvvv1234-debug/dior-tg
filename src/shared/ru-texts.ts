@@ -11,7 +11,7 @@ export function getWelcomeTextRu(balance: number): string {
   return `DiorHost • Абузоустойчивая Инфраструктура
 
 Покупка и управление услугами хостинга прямо в тг боте
-24/7 uptime • Абузостоустойчивость • Офшорность
+24/7 работа • Абузоустойчивость • Офшорность
 @diorhost
 
 <blockquote>Баланс: ${b} $</blockquote>`;
@@ -24,7 +24,7 @@ const PROFILE_STATUS_RU: Record<string, string> = {
 };
 
 const PROFILE_LINKS_RU =
-  '<a href="https://dior.host">Сайт</a> | <a href="tg://resolve?domain=diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
+  '<a href="https://dior.host">Сайт</a> | <a href="https://t.me/diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Новости Dior</a>';
 
 export interface ProfileTextRuParams {
   userId: number;
@@ -33,18 +33,18 @@ export interface ProfileTextRuParams {
   primeLine: string;
 }
 
-/** Профиль по-русски (всегда). */
+/** Профиль по-русски. Символы │ ├ └ — рамка, отображаются в Telegram. */
 export function getProfileTextRu(params: ProfileTextRuParams): string {
   const { userId, statusKey, balanceStr, primeLine } = params;
   const idSafe = String(userId).split("").join("&#8203;");
   const userStatus = PROFILE_STATUS_RU[statusKey] ?? "👤 Пользователь";
-  return `<b>💻 DIOR ПРОФИЛЬ</b>
-
-<b>✅ СТАТИСТИКА</b>
-• ID: ${idSafe}
-• Статус: ${userStatus}
-• ${primeLine}
-• Баланс: ${balanceStr} $
+  return `<b>├💻 DIOR ПРОФИЛЬ</b>
+│
+└<b>✅ СТАТИСТИКА</b>
+    ├ ID: ${idSafe}
+    ├ Статус: ${userStatus}
+    ├ ${primeLine}
+    └ Баланс: ${balanceStr} $
 
 ${PROFILE_LINKS_RU}`;
 }

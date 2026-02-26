@@ -8,6 +8,7 @@
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import type { RenderedScreen } from "./types.js";
+import { getWelcomeTextRu } from "../../shared/ru-texts.js";
 
 /**
  * Screen renderer options.
@@ -72,11 +73,11 @@ export class ScreenRenderer {
   }
 
   /**
-   * Приветствие — ctx.t уже в нужной локали (ранний resolver + i18n).
+   * Render welcome screen. Всегда на русском в RU-версии.
    */
   renderWelcome(data: { balance: number; locale?: string }): RenderedScreen {
     return {
-      text: this.ctx.t("welcome", { balance: data.balance }),
+      text: getWelcomeTextRu(data.balance),
       parse_mode: "HTML",
     };
   }

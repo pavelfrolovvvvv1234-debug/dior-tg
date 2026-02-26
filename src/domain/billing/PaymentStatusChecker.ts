@@ -105,7 +105,7 @@ export class PaymentStatusChecker {
         return;
       }
 
-      const locale = user.lang || "en";
+      const locale = user.lang || "ru";
       const message = this.fluent.translate(locale, "payment-success", {
         amount: new Intl.NumberFormat("en-US", {
           style: "currency",

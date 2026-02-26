@@ -20,14 +20,33 @@ function walk(dir, callback) {
   }
 }
 
+const ALIAS_TO_DIR = {
+  entities: "entities",
+  helpers: "helpers",
+  api: "api",
+  lib: "lib",
+};
+
+function toRelativeRequire(fileDir, targetPath) {
+  let rel = path.relative(fileDir, targetPath);
+  if (!rel.startsWith(".")) rel = "./" + rel;
+  return rel.replace(/\\/g, "/").replace(/\.js$/, "");
+}
+
 function fixRequireAlias(content, fileDir) {
-  return content.replace(/require\s*\(\s*["']@\/([^"']+)["']\s*\)/g, (_, p) => {
+  let out = content;
+  // @/... -> src/...
+  out = out.replace(/require\s*\(\s*["']@\/([^"']+)["']\s*\)/g, (_, p) => {
     const target = path.join(distDir, p.replace(/\.js$/, "") + ".js");
-    let rel = path.relative(fileDir, target);
-    if (!rel.startsWith(".")) rel = "./" + rel;
-    rel = rel.replace(/\\/g, "/").replace(/\.js$/, "");
-    return "require(\"" + rel + "\")";
+    return "require(\"" + toRelativeRequire(fileDir, target) + "\")";
   });
+  // @entities/..., @helpers/..., @api/..., @lib/...
+  out = out.replace(/require\s*\(\s*["']@(entities|helpers|api|lib)\/([^"']+)["']\s*\)/g, (_, alias, p) => {
+    const dir = ALIAS_TO_DIR[alias];
+    const target = path.join(distDir, dir, p.replace(/\.js$/, "") + ".js");
+    return "require(\"" + toRelativeRequire(fileDir, target) + "\")";
+  });
+  return out;
 }
 
 let count = 0;

@@ -1,50 +1,42 @@
 import { Fluent } from "@moebius/fluent";
 import { join } from "node:path";
 
+/** Type for Fluent instance used for translations (e.g. in PaymentStatusChecker, ExpirationService). */
+export type FluentTranslator = Fluent;
+
 function pathToFtl(lang: string, name: string) {
   return join(process.cwd(), "locales", lang, name);
 }
 
-/** Обёртка для сервисов: translate(locale, key, vars) без useLocale. */
-export type FluentTranslator = {
-  translate(locale: string, key: string, vars?: Record<string, string | number>): string;
-};
-
-/** Два изолированных инстанса — нет useLocale/гонок. fluent — обёртка для сервисов (translate с locale). */
 export async function initFluent(): Promise<{
-  fluentRu: Fluent;
-  fluentEn: Fluent;
-  fluent: FluentTranslator;
+  fluent: Fluent;
   availableLocales: string[];
 }> {
-  const fluentRu = new Fluent();
-  await fluentRu.addTranslation({
+  const fluent = new Fluent();
+
+  await fluent.addTranslation({
     locales: "ru",
     filePath: [
       pathToFtl("ru", "translation.ftl"),
       pathToFtl("ru", "services.ftl"),
     ],
     isDefault: true,
-    bundleOptions: { useIsolating: false },
+    bundleOptions: {
+      useIsolating: false,
+    },
   });
 
-  const fluentEn = new Fluent();
-  await fluentEn.addTranslation({
+  await fluent.addTranslation({
     locales: "en",
     filePath: [
       pathToFtl("en", "translation.ftl"),
       pathToFtl("en", "services.ftl"),
     ],
-    isDefault: true,
-    bundleOptions: { useIsolating: false },
+    isDefault: false,
+    bundleOptions: {
+      useIsolating: false,
+    },
   });
 
-  const fluent = {
-    translate(locale: string, key: string, vars?: Record<string, string | number>) {
-      const f = locale === "en" ? fluentEn : fluentRu;
-      return f.translate(locale, key, vars ?? {});
-    },
-  };
-
-  return { fluentRu, fluentEn, fluent, availableLocales: ["en", "ru"] };
+  return { fluent, availableLocales: ["en", "ru"] };
 }

@@ -134,7 +134,7 @@ export class ExpirationService {
             await vdsRepo.save(vds);
 
             // Notify user
-            await this.notifyUser(user.telegramId, user.lang || "en", "vds-expiration", {
+            await this.notifyUser(user.telegramId, user.lang || "ru", "vds-expiration", {
               amount: vds.renewalPrice,
             });
             if (this.onGracePeriodStarted) {
