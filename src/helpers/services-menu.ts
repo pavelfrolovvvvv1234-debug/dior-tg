@@ -157,7 +157,7 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
     async (ctx) => {
       const session = await ctx.session;
 
-      await ctx.editMessageText(
+      ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
         {
           parse_mode: "HTML",

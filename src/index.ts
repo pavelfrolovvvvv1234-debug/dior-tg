@@ -10,7 +10,7 @@ import {
   webhookCallback,
 } from "grammy";
 import dotenv from "dotenv";
-import { FluentContextFlavor } from "@grammyjs/fluent";
+import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
@@ -95,7 +95,7 @@ import { registerDomainRegistrationMiddleware } from "./helpers/domain-registrat
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
-import type { FluentTranslator } from "./fluent.js";
+import { Fluent } from "@moebius/fluent";
 import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
 import type { SessionData } from "./shared/types/session";
@@ -105,7 +105,6 @@ import { ensureSessionUser } from "./shared/utils/session-user.js";
 import { getCachedOsList, startOsListBackgroundRefresh } from "./shared/vmmanager-os-cache.js";
 import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cache.js";
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
-import { createEarlyLocaleResolver, createI18nMiddleware } from "./app/i18n-middleware.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
 dotenv.config({});
@@ -187,7 +186,10 @@ const supportMenu = new Menu<AppContext>("support-menu", {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
-        { parse_mode: "HTML" }
+        {
+          parse_mode: "HTML",
+          reply_markup: mainMenu,
+        }
       );
     }
   );
@@ -274,6 +276,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
     const session = (await ctx.session) as SessionData;
     const nextLocale = session.main.locale === "ru" ? "en" : "ru";
     session.main.locale = nextLocale;
+    (ctx as any)._requestLocale = nextLocale;
 
     const usersRepo = ctx.appDataSource.getRepository(User);
     const user = await usersRepo.findOneBy({ id: session.main.user.id });
@@ -282,8 +285,10 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
       await usersRepo.save(user);
     }
 
+    ctx.fluent.useLocale(nextLocale);
+
     const { getProfileText } = await import("./ui/menus/profile-menu.js");
-    const profileText = await getProfileText(ctx, { locale: nextLocale });
+    const profileText = await getProfileText(ctx);
     await ctx.editMessageText(profileText, {
       reply_markup: profileMenu,
       parse_mode: "HTML",
@@ -353,7 +358,9 @@ const profileMenu = new Menu<AppContext>("profile-menu", {})
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
-        { parse_mode: "HTML" }
+        {
+          parse_mode: "HTML",
+        }
       );
     }
   );
@@ -369,6 +376,7 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
         range
           .text(ctx.t(`button-change-locale-${lang}`), async (ctx) => {
             session.main.locale = lang;
+            (ctx as any)._requestLocale = lang;
             const usersRepo = ctx.appDataSource.getRepository(User);
 
             const user = await usersRepo.findOneBy({
@@ -380,11 +388,13 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
               await usersRepo.save(user);
             }
 
-            const fluent = (ctx as any).fluent;
-            const welcomeText = fluent?.translateForLocale
-              ? fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
-              : ctx.t("welcome", { balance: session.main.user.balance });
-            await ctx.editMessageText(welcomeText, { parse_mode: "HTML" });
+            ctx.fluent.useLocale(lang);
+            await ctx.editMessageText(
+              ctx.t("welcome", { balance: session.main.user.balance }),
+              {
+                parse_mode: "HTML",
+              }
+            );
             ctx.menu.back();
           })
           .row();
@@ -394,8 +404,7 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
   .back((ctx) => ctx.t("button-back"));
 
 async function index() {
-  const { fluentRu, fluentEn, fluent, availableLocales } = await initFluent();
-  const appDataSource = await getAppDataSource();
+  const { fluent, availableLocales } = await initFluent();
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");
@@ -484,7 +493,6 @@ async function index() {
     if (ctx.hasChatType("private") && ctx.chatId != null) {
       const tid = Number(ctx.chatId);
       let user = getCachedUser(tid);
-      let usedCache = !!user;
 
       if (!user) {
         user = await ctx.appDataSource.manager.findOneBy(User, {
@@ -508,13 +516,6 @@ async function index() {
       session.main.user.role = user.role;
       session.main.user.status = user.status;
       session.main.user.isBanned = user.isBanned;
-      // When we used cache, read lang from DB so language switch applies immediately
-      if (usedCache) {
-        const dbUser = await ctx.appDataSource.manager.findOneBy(User, { telegramId: ctx.chatId });
-        session.main.locale = (dbUser?.lang === "ru" || dbUser?.lang === "en") ? dbUser.lang : "ru";
-      } else {
-        session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
-      }
       // Grant admin in session if ID is in ADMIN_TELEGRAM_IDS (and persist to DB once)
       const adminIds = getAdminTelegramIds();
       if (adminIds.length > 0 && adminIds.includes(tid)) {
@@ -529,8 +530,66 @@ async function index() {
     return next();
   });
 
-  bot.use(createEarlyLocaleResolver());
-  bot.use(createI18nMiddleware(fluentRu, fluentEn));
+  bot.use(async (ctx, next) => {
+    const session = (await ctx.session) as SessionData;
+    if (!session?.main) {
+      return next();
+    }
+
+    // ВСЕГДА синхронизируем локаль из user.lang (БД) — сессия может быть устаревшей
+    // user.lang — единственный источник истины, иначе текст en + кнопки ru
+    const user =
+      ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
+        ? ctx.loadedUser
+        : session.main.user.id > 0
+          ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
+          : null;
+    if (user?.lang === "en") {
+      session.main.locale = "en";
+    } else {
+      // user.lang === "ru" | null — всегда русский
+      session.main.locale = "ru";
+    }
+
+    return next();
+  });
+
+  bot.use(
+    useFluent({
+      fluent,
+      defaultLocale: "ru",
+      localeNegotiator: async (ctx) => {
+        const session = (await ctx.session) as SessionData;
+        return session?.main?.locale === "en" ? "en" : "ru";
+      },
+    })
+  );
+
+  bot.use(async (ctx, next) => {
+    const fluentObj = (ctx as any).fluent;
+    if (!fluentObj) return next();
+    const session = (await ctx.session) as SessionData;
+    // Фиксируем локаль на весь запрос — иначе текст и кнопки (меню) рендерятся с разной локалью
+    const requestLocale = session?.main?.locale === "en" ? "en" : "ru";
+    (ctx as any)._requestLocale = requestLocale;
+    const fluentInstance = fluentObj.instance ?? fluentObj;
+    const originalT = (ctx as any).t;
+    const tFn = (key: string, vars?: Record<string, string | number>) => {
+      const locale = (ctx as any)._requestLocale ?? requestLocale;
+      // Приветствие в текущей локали (en/ru)
+      if (key === "welcome") {
+        return String(fluent.translate(locale, "welcome", vars ?? {}));
+      }
+      fluentObj.useLocale?.(locale);
+      return typeof fluentInstance.translate === "function"
+        ? String(fluentInstance.translate(locale, key, vars ?? {}))
+        : typeof originalT === "function"
+          ? String(originalT(key, vars))
+          : key;
+    };
+    (ctx as any).t = tFn;
+    return next();
+  });
 
   // Setup conversations BEFORE menus so ctx.conversation is available
   bot.use(conversations());
@@ -686,7 +745,8 @@ async function index() {
     try {
       if (isPrimeBack) {
         const session = (await ctx.session) as SessionData;
-        const welcomeText = ctx.t("welcome", { balance: session?.main?.user?.balance ?? 0 });
+        const balance = session?.main?.user?.balance ?? 0;
+        const welcomeText = ctx.t("welcome", { balance });
         await ctx.editMessageText(welcomeText, {
           reply_markup: mainMenu,
           parse_mode: "HTML",
@@ -720,55 +780,39 @@ async function index() {
       return next(); // Let other handlers process this
     }
     
-    console.log(`[Lang] Language callback detected: ${data}`);
     const lang = data === "lang_ru" ? "ru" : "en";
     
     try {
-      // Answer callback query first
       await ctx.answerCallbackQuery();
-      console.log(`[Lang] Callback answered for ${lang}`);
       
-      // Get session and update locale
       const session = (await ctx.session) as SessionData;
       session.main.locale = lang;
-      console.log(`[Lang] Session locale set to ${lang}`);
+      (ctx as any)._requestLocale = lang;
       
-      // Save to database (by telegramId so we never miss; fallback to session.main.user.id)
-      const telegramId = Number(ctx.chat?.id ?? ctx.from?.id ?? 0);
       const usersRepo = ctx.appDataSource.getRepository(User);
-      let user = await usersRepo.findOneBy({ telegramId });
-      if (!user && session.main.user.id > 0) {
-        user = await usersRepo.findOneBy({ id: session.main.user.id });
-      }
+      const user = await usersRepo.findOneBy({
+        id: session.main.user.id,
+      });
+      
       if (user) {
         user.lang = lang as "ru" | "en";
         await usersRepo.save(user);
-        invalidateUser(telegramId);
-        console.log(`[Lang] Language saved to DB for user ${user.id}`);
       }
-
-      const fluent = (ctx as any).fluent;
-      const welcomeText = fluent?.translateForLocale
-        ? fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
-        : ctx.t("welcome", { balance: session.main.user.balance });
-
-      // Send via bot.api directly so nothing can override the text we built
-      const chatId = ctx.chat?.id;
-      const messageId = ctx.callbackQuery?.message && "message_id" in ctx.callbackQuery.message ? ctx.callbackQuery.message.message_id : undefined;
+      
+      ctx.fluent.useLocale(lang);
+      
+      const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
+      
       try {
-        if (chatId != null && messageId != null) {
-          await bot.api.editMessageText(chatId, messageId, welcomeText, {
-            reply_markup: mainMenu,
-            parse_mode: "HTML",
-          });
-        } else {
-          await ctx.reply(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
-        }
-      } catch (editErr: any) {
+        await ctx.editMessageText(welcomeText, {
+          reply_markup: mainMenu,
+          parse_mode: "HTML",
+        });
+      } catch (editError: any) {
         try {
           await ctx.deleteMessage().catch(() => {});
         } catch {}
-        await bot.api.sendMessage(telegramId > 0 ? telegramId : (ctx.chat?.id ?? 0), welcomeText, {
+        await ctx.reply(welcomeText, {
           reply_markup: mainMenu,
           parse_mode: "HTML",
         });
@@ -838,10 +882,23 @@ async function index() {
         }
       }
 
-      session.main.locale = "ru";
-      const welcomeText = ctx.t("welcome", { balance: session.main.user.balance ?? 0 });
-      await ctx.reply(welcomeText, {
-        reply_markup: mainMenu,
+      // Локаль уже выбрана — сразу показываем welcome (без моргания)
+      const hasLocale = session.main.locale && session.main.locale !== "0" && (session.main.locale === "ru" || session.main.locale === "en");
+      if (hasLocale) {
+        const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
+        await ctx.reply(welcomeText, {
+          reply_markup: mainMenu,
+          parse_mode: "HTML",
+        });
+        return;
+      }
+
+      // Только для новых пользователей без локали — выбор языка
+      const keyboard = new InlineKeyboard()
+        .text(ctx.t("button-change-locale-ru"), "lang_ru")
+        .text(ctx.t("button-change-locale-en"), "lang_en");
+      await ctx.reply(ctx.t("select-language"), {
+        reply_markup: keyboard,
         parse_mode: "HTML",
       });
     } catch (error: any) {
@@ -867,7 +924,8 @@ async function index() {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = (await ctx.session) as SessionData;
     session.other.promocode.awaitingInput = false;
-    await ctx.reply(ctx.t("welcome", { balance: session?.main?.user?.balance ?? 0 }), {
+    const balance = session?.main?.user?.balance ?? 0;
+    await ctx.reply(ctx.t("welcome", { balance }), {
       reply_markup: mainMenu,
       parse_mode: "HTML",
     });
@@ -1056,8 +1114,7 @@ async function index() {
     if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
     const domainId = parseInt(ctx.match[1]);
     session.other.adminDomainSetAmperId = { domainId };
-    const kb = new InlineKeyboard().text(ctx.t("button-cancel"), "admin-cancel-input");
-    await ctx.reply(ctx.t("admin-domain-set-amper-id-prompt"), { parse_mode: "HTML", reply_markup: kb });
+    await ctx.reply(ctx.t("admin-domain-set-amper-id-prompt") + "\nОтмена: /cancel", { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^admin-user-services-back-(\d+)$/, async (ctx) => {
@@ -1101,20 +1158,7 @@ async function index() {
     if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
     const domainId = parseInt(ctx.match[1]);
     session.other.adminDomainNs = { domainId };
-    const kbNs = new InlineKeyboard().text(ctx.t("button-cancel"), "admin-cancel-input");
-    await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML", reply_markup: kbNs });
-  });
-
-  bot.callbackQuery("admin-cancel-input", async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    const session = (await ctx.session) as SessionData;
-    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
-    const hadNs = !!session.other.adminDomainNs;
-    const hadAmperId = !!session.other.adminDomainSetAmperId;
-    delete session.other.adminDomainNs;
-    delete session.other.adminDomainSetAmperId;
-    const msg = hadNs ? ctx.t("admin-domain-ns-cancelled") : ctx.t("admin-domain-set-amper-id-cancelled");
-    await ctx.reply(msg, { parse_mode: "HTML" });
+    await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
   });
 
   bot.on("message:text", async (ctx, next) => {
@@ -1298,15 +1342,14 @@ async function index() {
         return next();
       }
       const parts = input.split(/\s+/).filter(Boolean);
-      const cancelKb = new InlineKeyboard().text(ctx.t("button-cancel"), "admin-cancel-input");
       if (parts.length < 2) {
-        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML", reply_markup: cancelKb });
+        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
         return;
       }
       const [ns1, ns2] = [parts[0], parts[1]];
       const nsRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i;
       if (!nsRegex.test(ns1) || !nsRegex.test(ns2)) {
-        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML", reply_markup: cancelKb });
+        await ctx.reply(ctx.t("admin-domain-ns-prompt"), { parse_mode: "HTML" });
         return;
       }
       try {
@@ -2491,7 +2534,7 @@ index()
 async function startExpirationCheck(
   bot: Bot<AppContext, Api<RawApi>>,
   vmManager: VMManager,
-  fluent: FluentTranslator
+  fluent: Fluent
 ) {
   const appDataSource = await getAppDataSource();
 
@@ -2529,7 +2572,7 @@ async function startExpirationCheck(
 
           await bot.api.sendMessage(
             user.telegramId,
-            fluent.translate(user.lang || "en", "vds-expiration", {
+            fluent.translate(user.lang || "ru", "vds-expiration", {
               amount: vds.renewalPrice,
             })
           );

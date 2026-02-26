@@ -1481,7 +1481,6 @@ Are you sure you want to proceed?`,
     const renderer = (await import("../screens/renderer.js")).ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
       balance: session.main.user.balance,
-      locale: session.main.locale,
     });
 
     await ctx.editMessageText(screen.text, {
@@ -1540,7 +1539,6 @@ Are you sure you want to proceed?`,
     const renderer = (await import("../screens/renderer.js")).ScreenRenderer.fromContext(ctx);
     const screen = renderer.renderWelcome({
       balance: session.main.user.balance,
-      locale: session.main.locale,
     });
 
     await ctx.editMessageText(screen.text, {

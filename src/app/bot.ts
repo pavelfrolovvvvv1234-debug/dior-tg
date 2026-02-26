@@ -13,6 +13,7 @@ import {
   InlineKeyboard,
 } from "grammy";
 import { FileAdapter } from "@grammyjs/storage-file";
+import { useFluent } from "@grammyjs/fluent";
 import { conversations } from "@grammyjs/conversations";
 import { run as grammyRun } from "@grammyjs/runner";
 import express from "express";
@@ -45,7 +46,6 @@ import {
   adminPromosMenu,
   registerAdminPromosHandlers,
 } from "../ui/menus/admin-promocodes-menu.js";
-import { createEarlyLocaleResolver, createI18nMiddleware } from "./i18n-middleware.js";
 
 /**
  * Initialize and configure the Telegram bot.
@@ -59,7 +59,7 @@ export async function createBot(): Promise<{
   Logger.info("Initializing bot...");
 
   // Initialize Fluent i18n
-  const { fluentRu, fluentEn, fluent, availableLocales } = await initFluent();
+  const { fluent, availableLocales } = await initFluent();
   Logger.info("Fluent i18n initialized");
 
   // Initialize database
@@ -204,8 +204,31 @@ export async function createBot(): Promise<{
   bot.use(databaseMiddleware);
   bot.use(localeMiddleware);
 
-  bot.use(createEarlyLocaleResolver());
-  bot.use(createI18nMiddleware(fluentRu, fluentEn));
+  // Setup Fluent i18n — defaultLocale "ru" чтобы при ошибках не переключало на английский
+  bot.use(
+    useFluent({
+      fluent,
+      defaultLocale: "ru",
+      localeNegotiator: async (ctx) => {
+        const session = await ctx.session;
+        const loc = session.main.locale;
+        return loc === "en" ? "en" : "ru";
+      },
+    })
+  );
+
+  // Ensure ctx.t is always defined; приветствие в текущей локали (en/ru)
+  bot.use(async (ctx, next) => {
+    const origT = (ctx as any).t;
+    (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
+      const locale = (ctx as any)._requestLocale ?? "ru";
+      if (key === "welcome") {
+        return String(fluent.translate(locale, "welcome", vars ?? {}));
+      }
+      return typeof origT === "function" ? origT(key, vars) : key;
+    };
+    return next();
+  });
 
   // Check if user is banned
   bot.use(banCheckMiddleware);
@@ -301,8 +324,10 @@ export async function createBot(): Promise<{
         // Ignore if user not found
       }
 
+      ctx.fluent.useLocale(nextLocale);
+
       const { getProfileText } = await import("../ui/menus/profile-menu.js");
-      const profileText = await getProfileText(ctx, { locale: nextLocale });
+      const profileText = await getProfileText(ctx);
       await ctx.editMessageText(profileText, {
         reply_markup: profileMenu,
         parse_mode: "HTML",
@@ -341,11 +366,9 @@ export async function createBot(): Promise<{
               } catch (error) {
                 // Ignore if user not found
               }
-              const welcomeText = (ctx as any).fluent?.translateForLocale
-                ? (ctx as any).fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
-                : ctx.t("welcome", { balance: session.main.user.balance });
+              ctx.fluent.useLocale(lang);
               await ctx.editMessageText(
-                welcomeText,
+                ctx.t("welcome", { balance: session.main.user.balance }),
                 {
                   parse_mode: "HTML",
                 }

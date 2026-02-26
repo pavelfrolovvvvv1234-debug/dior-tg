@@ -27,10 +27,7 @@ export const languageSelectMenu = new Menu<AppContext>("language-select-menu", {
         // Ignore if user not found
       }
 
-      const fluent = (ctx as any).fluent;
-      const welcomeText = fluent?.translateForLocale
-        ? fluent.translateForLocale("ru", "welcome", { balance: session.main.user.balance })
-        : ctx.t("welcome", { balance: session.main.user.balance });
+      const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
       const { mainMenu } = await import("./main-menu.js");
       await ctx.editMessageText(welcomeText, {
         reply_markup: mainMenu,
