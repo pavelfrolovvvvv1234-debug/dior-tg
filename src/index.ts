@@ -1526,11 +1526,13 @@ async function index() {
         let ns1 = defaultNs1 ?? null;
         let ns2 = defaultNs2 ?? null;
 
-        if (defaultNs1 && defaultNs2) {
+        const amperBaseUrl = process.env.AMPER_API_BASE_URL?.trim();
+        const amperToken = process.env.AMPER_API_TOKEN?.trim();
+        if (amperBaseUrl && amperToken) {
           const { AmperDomainsProvider } = await import("./infrastructure/domains/AmperDomainsProvider.js");
           const provider = new AmperDomainsProvider({
-            apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
-            apiToken: process.env.AMPER_API_TOKEN || "",
+            apiBaseUrl: amperBaseUrl,
+            apiToken: amperToken,
             timeoutMs: parseInt(process.env.AMPER_API_TIMEOUT_MS || "8000"),
             defaultNs1: process.env.DEFAULT_NS1,
             defaultNs2: process.env.DEFAULT_NS2,
@@ -1543,15 +1545,10 @@ async function index() {
           });
           if (result.success) {
             providerDomainId = result.domainId || null;
-            ns1 = defaultNs1;
-            ns2 = defaultNs2;
-          } else {
-            await ctx.reply(
-              ctx.t("admin-domain-register-failed", { error: result.error || "Registrar rejected" }),
-              { parse_mode: "HTML" }
-            );
-            return;
+            if (defaultNs1) ns1 = defaultNs1;
+            if (defaultNs2) ns2 = defaultNs2;
           }
+          // при ошибке Amper не прерываем — сохраняем домен локально
         }
 
         const domain = new Domain();
