@@ -9,24 +9,25 @@ import { Menu } from "@grammyjs/menu";
 import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
+import { getProfileTextRu } from "../../shared/ru-texts.js";
+
+const PROFILE_LINKS_EN =
+  '<a href="https://dior.host">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
 
 /**
- * Профиль. opts.locale — при смене языка в том же апдейте.
+ * Build profile screen text including Prime subscription status (active until date or "no").
+ * Date is formatted without time (locale-aware).
  */
-export async function getProfileText(ctx: AppContext, opts?: { locale?: "ru" | "en" }): Promise<string> {
+export async function getProfileText(ctx: AppContext): Promise<string> {
   const session = await ctx.session;
-  const lang = opts?.locale ?? (session.main.locale === "en" ? "en" : "ru");
-  const t = (key: string, vars?: Record<string, string | number>) =>
-    (ctx as any).fluent?.translateForLocale
-      ? (ctx as any).fluent.translateForLocale(lang, key, vars)
-      : ctx.t(key, vars);
-  const locale = lang === "en" ? "en-US" : "ru-RU";
   const userId = ctx.from?.id ?? session.main.user.id;
+  const userStatus = ctx.t(`user-status-${session.main.user.status}`);
   const idSafe = String(userId).split("").join("&#8203;");
   const balanceRaw = session.main.user.balance;
   const balanceFormatted = balanceRaw.toFixed(2);
-  const balanceStr =
-    balanceFormatted.endsWith(".00") ? balanceFormatted.slice(0, -3) : balanceFormatted;
+  const balance = balanceFormatted.endsWith(".00")
+    ? balanceFormatted.slice(0, -3)
+    : balanceFormatted;
 
   const userRepo = new UserRepository(ctx.appDataSource);
   const user = await userRepo.findById(session.main.user.id);
@@ -34,25 +35,39 @@ export async function getProfileText(ctx: AppContext, opts?: { locale?: "ru" | "
   const now = new Date();
   const hasActivePrime = primeActiveUntil && new Date(primeActiveUntil) > now;
 
+  // Язык профиля из БД (user.lang), по умолчанию русский
+  const locale = user?.lang === "en" ? "en" : "ru";
+  const dateLocale = locale === "en" ? "en-US" : "ru-RU";
+  // Строка подписки в том же языке, что и профиль (иначе в RU-профиле было "Prime:")
+  ctx.fluent.useLocale(locale);
   const primeLine = hasActivePrime && primeActiveUntil
-    ? t("profile-prime-until", {
-        date: new Date(primeActiveUntil).toLocaleDateString(locale, {
+    ? ctx.t("profile-prime-until", {
+        date: new Date(primeActiveUntil).toLocaleDateString(dateLocale, {
           day: "numeric",
           month: "long",
           year: "numeric",
         }),
       })
-    : t("profile-prime-no");
+    : ctx.t("profile-prime-no");
 
-  return `<b>💻 ${t("profile-title")}</b>
+  if (locale === "ru") {
+    return getProfileTextRu({
+      userId,
+      statusKey: session.main.user.status,
+      balanceStr: balance,
+      primeLine,
+    });
+  }
 
-<b>✅ ${t("profile-stats")}</b>
-• ${t("profile-label-id")}: ${idSafe}
-• ${t("profile-label-status")}: ${t(`user-status-${session.main.user.status}`)}
-• ${primeLine}
-• ${t("profile-label-balance")}: ${balanceStr} $
+  return `<b>┠💻 DIOR PROFILE
+┃
+┗✅ STATS:
+    ┠ ID: ${idSafe}
+    ┠ Status: ${userStatus}
+    ┠ ${primeLine}
+    ┗ Balance: ${balance} $</b>
 
-${t("profile-links")}`;
+${PROFILE_LINKS_EN}`;
 }
 
 /**
@@ -101,6 +116,7 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
     const session = await ctx.session;
     const nextLocale = session.main.locale === "ru" ? "en" : "ru";
     session.main.locale = nextLocale;
+    (ctx as any)._requestLocale = nextLocale;
 
     try {
       const { UserRepository } = await import(
@@ -112,7 +128,9 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
       // Ignore if user not found
     }
 
-    const profileText = await getProfileText(ctx, { locale: nextLocale });
+    ctx.fluent.useLocale(nextLocale);
+
+    const profileText = await getProfileText(ctx);
     await ctx.editMessageText(profileText, {
       reply_markup: profileMenu,
       parse_mode: "HTML",
@@ -127,7 +145,6 @@ export const profileMenu = new Menu<AppContext>("profile-menu")
       const renderer = ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
-        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {
