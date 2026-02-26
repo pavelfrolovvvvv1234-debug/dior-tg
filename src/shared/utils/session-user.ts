@@ -62,7 +62,7 @@ export const ensureSessionUser = async (ctx: AppContext): Promise<boolean> => {
   };
 
   if (!session.main.locale || session.main.locale === "0") {
-    session.main.locale = (user.lang === "ru" || user.lang === "en") ? user.lang : "ru";
+    session.main.locale = user.lang === "en" ? "en" : "ru";
   }
 
   return true;

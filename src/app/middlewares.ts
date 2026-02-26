@@ -7,6 +7,7 @@
 import type { AppContext } from "../shared/types/context.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
 import { UserRepository } from "../infrastructure/db/repositories/UserRepository.js";
+import User from "../entities/User.js";
 import { getCachedOsList } from "../shared/vmmanager-os-cache.js";
 import { getCachedUser, setCachedUser } from "../shared/user-cache.js";
 import { Logger } from "./logger.js";
@@ -44,7 +45,7 @@ export async function databaseMiddleware(ctx: AppContext, next: () => Promise<vo
 
 /**
  * Middleware to initialize locale from user settings.
- * Uses ctx.loadedUser when available to avoid duplicate DB query.
+ * Всегда читаем user.lang из БД, чтобы после смены языка не использовать старый кэш.
  */
 export async function localeMiddleware(ctx: AppContext, next: () => Promise<void>): Promise<void> {
   const session = await ctx.session;
@@ -53,15 +54,23 @@ export async function localeMiddleware(ctx: AppContext, next: () => Promise<void
     return next();
   }
 
-  const user =
-    ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
-      ? ctx.loadedUser
-      : await getAppDataSource().then((ds) => new UserRepository(ds).findById(session.main.user.id)).catch(() => null);
-  // Всегда синхронизируем локаль с БД — чтобы текст был на русском, когда в БД не "en"
-  if (user?.lang === "ru" || user?.lang === "en") {
-    session.main.locale = user.lang;
+  const ds = await getAppDataSource();
+  const user = await ds.getRepository(User).findOneBy({ id: session.main.user.id }).catch(() => null);
+  if (user?.lang === "en") {
+    session.main.locale = "en";
   } else {
+    // user.lang === "ru" | null — всегда русский по умолчанию
     session.main.locale = "ru";
+    if (user && !user.lang) {
+      try {
+        const ds = await getAppDataSource();
+        await ds.getRepository(User).update(user.id, { lang: "ru" });
+        user.lang = "ru";
+        if (ctx.loadedUser?.id === user.id) ctx.loadedUser.lang = "ru";
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   return next();

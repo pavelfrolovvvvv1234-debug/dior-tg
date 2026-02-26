@@ -1,13 +1,13 @@
 -language-icon = 🇺🇸
 -language-name = English
 
-quoted-balance = <blockquote>Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
+quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = DiorHost • Абузоустойчивая Инфраструктура
+welcome = DiorHost • Bulletproof Infrastructure
  
- Покупка и управление услугами хостинга прямо в тг боте
- 24/7 uptime • Абузостоустойчивость • Офшорность
+ Order and manage hosting services directly in this bot.
+ 24/7 uptime • Bulletproof • Offshore
  @diorhost
  
  {quoted-balance}
@@ -24,7 +24,7 @@ support = We are always here to help! 🤝
 
  Write our support right now!
 
- <a href="https://dior.host/">Web Site</a> | <a href="tg://resolve?domain=diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
+ <a href="https://dior.host/">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
 
 support-message-template = Hello!
  I have a question.
@@ -86,7 +86,7 @@ button-hide-password = 🙈 Hide password
 button-change-locale-en = 🇺🇸 English
 button-change-locale-ru = 🇷🇺 Русский
 
-select-language = Выберите язык интерфейса
+select-language = Select interface language
 
 button-go-to-site = Go to website
 button-user-agreement = User agreement
@@ -917,17 +917,9 @@ admin-message-to-user-enter = Enter the message text for the user:
 admin-message-to-user-prefix = 📩 Message from administration:
 admin-message-to-user-sent = Message sent.
 admin-message-to-user-failed = Failed to send message: {$error}
-admin-user-services-summary =
-    <strong>User services</strong>
-
-    💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
-    🛠 Active services: {$activeServicesCount}
-    🎫 Tickets: {$ticketsCount}
-
-    VPS/VDS: {$vdsCount} · Dedicated: {$dedicatedCount} · Domains: {$domainCount}
+admin-user-services-summary = <strong>User services</strong>\n\n💰 Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Active services: {$activeServicesCount}\n🎫 Tickets: {$ticketsCount}\n\nVPS/VDS: {$vdsCount}\nDedicated: {$dedicatedCount}\nDomains: {$domainCount}
 admin-user-services-domains-title = <strong>User domains</strong>
-admin-domain-ns-prompt = Enter nameservers on one line, space-separated:
-    <code>ns1.example.com ns2.example.com</code>
+admin-domain-ns-prompt = Enter nameservers on one line, space-separated:\n<code>ns1.example.com ns2.example.com</code>\nCancel: /cancel
 admin-domain-ns-success = Nameservers for <b>{$domain}</b> updated.
 admin-domain-ns-cancelled = Cancelled.
 admin-domain-ns-failed = Failed to update NS: {$error}
@@ -995,14 +987,8 @@ prime-channel-not-configured = Channel for free trial is not configured. Contact
 prime-discount-dedicated = 🔐 Prime Subscription −20% on Dedicated
 prime-discount-vds = 🔐 Prime Subscription −20% on VPS/VDS
 
-profile-prime-no = Prime: нет
-profile-prime-until = Prime: до {$date}
-profile-label-status = Статус
-profile-label-balance = Баланс
-profile-label-id = ID
-profile-title = DIOR ПРОФИЛЬ
-profile-stats = СТАТИСТИКА
-profile-links = <a href="https://dior.host">Сайт</a> | <a href="tg://resolve?domain=diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
+profile-prime-no = Prime: No
+profile-prime-until = Prime: until {$date}
 
 nps-promoter = Thanks for the high rating! 🎉 Invite friends via your referral link — earn % from their deposits. Or use the yearly renewal discount in your profile.
 nps-detractor = Sorry something wasn't right. Contact support — we'll look into it and help. The «Ask question» button in the menu opens a chat with us.

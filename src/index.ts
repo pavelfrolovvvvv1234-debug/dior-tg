@@ -284,6 +284,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
     if (user) {
       user.lang = nextLocale as "ru" | "en";
       await usersRepo.save(user);
+      invalidateUser(user.telegramId);
     }
 
     ctx.fluent.useLocale(nextLocale);
@@ -396,6 +397,7 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
             if (user) {
               user.lang = lang as "ru" | "en";
               await usersRepo.save(user);
+              invalidateUser(user.telegramId);
             }
 
             ctx.fluent.useLocale(lang);
@@ -546,14 +548,11 @@ async function index() {
       return next();
     }
 
-    // ВСЕГДА синхронизируем локаль из user.lang (БД) — сессия может быть устаревшей
-    // user.lang — единственный источник истины, иначе текст en + кнопки ru
+    // ВСЕГДА синхронизируем локаль из user.lang (БД) — не используем кэш, иначе после смены языка остаётся старый lang
     const user =
-      ctx.loadedUser && ctx.loadedUser.id === session.main.user.id
-        ? ctx.loadedUser
-        : session.main.user.id > 0
-          ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
-          : null;
+      session.main.user.id > 0
+        ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
+        : null;
     if (user?.lang === "en") {
       session.main.locale = "en";
     } else {
@@ -807,8 +806,9 @@ async function index() {
       if (user) {
         user.lang = lang as "ru" | "en";
         await usersRepo.save(user);
+        invalidateUser(user.telegramId);
       }
-      
+
       ctx.fluent.useLocale(lang);
       
       const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });

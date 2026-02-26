@@ -27,15 +27,15 @@ export function createEarlyLocaleResolver(): (ctx: AppContext, next: () => Promi
     const currentLocale = session.main.locale;
     let locale: "ru" | "en";
 
-    if (currentLocale === "ru" || currentLocale === "en") {
-      locale = currentLocale;
-    } else if (loadedUser?.lang === "ru" || loadedUser?.lang === "en") {
+    // Приоритет: loadedUser.lang (БД) > session.main.locale > ctx.from.language_code
+    if (loadedUser?.lang === "ru" || loadedUser?.lang === "en") {
       locale = loadedUser.lang as "ru" | "en";
       session.main.locale = locale;
+    } else if (currentLocale === "ru" || currentLocale === "en") {
+      locale = currentLocale;
     } else {
-      // Новый юзер без lang — берём ctx.from?.language_code, сохраняем в DB
-      const code = (ctx.from as { language_code?: string })?.language_code ?? "";
-      locale = code === "ru" || code.startsWith("ru") ? "ru" : "en";
+      // По умолчанию русский — чтобы в RU-версии бота не было английского приветствия
+      locale = "ru";
       session.main.locale = locale;
       if (loadedUser && ctx.appDataSource && session.main.user.id > 0) {
         try {

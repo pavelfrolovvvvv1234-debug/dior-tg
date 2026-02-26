@@ -10,6 +10,7 @@ import { ScreenRenderer } from "../screens/renderer.js";
 import { topupMethodMenu } from "../../helpers/deposit-money.js";
 import { UserStatus } from "../../entities/User.js";
 import { Role } from "../../entities/User.js";
+import { invalidateUser } from "../../shared/user-cache.js";
 
 /**
  * Main menu of the bot.
@@ -88,7 +89,6 @@ export const aboutUsMenu = new Menu<AppContext>("about-us-menu", {
       const renderer = ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
-        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {
@@ -119,7 +119,6 @@ export const supportMenu = new Menu<AppContext>("support-menu", {
       const renderer = ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,
-        locale: session.main.locale,
       });
 
       await ctx.editMessageText(screen.text, {
@@ -142,25 +141,30 @@ export const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
       if (lang !== session.main.locale) {
         range
           .text(ctx.t(`button-change-locale-${lang}`), async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             session.main.locale = lang;
+            (ctx as any)._requestLocale = lang;
             const userRepo = new (await import("../../infrastructure/db/repositories/UserRepository.js")).UserRepository(
               ctx.appDataSource
             );
 
             try {
               await userRepo.updateLanguage(session.main.user.id, lang as "ru" | "en");
+              if (ctx.chatId) invalidateUser(Number(ctx.chatId));
             } catch (error) {
               // Ignore if user not found
             }
 
-            const fluent = (ctx as any).fluent;
-            const welcomeText = fluent?.translateForLocale
-              ? fluent.translateForLocale(lang, "welcome", { balance: session.main.user.balance })
-              : ctx.t("welcome", { balance: session.main.user.balance });
-            const { mainMenu } = await import("./main-menu.js");
-            await ctx.editMessageText(welcomeText, {
-              reply_markup: mainMenu,
-              parse_mode: "HTML",
+            ctx.fluent.useLocale(lang);
+            const renderer = ScreenRenderer.fromContext(ctx);
+            const screen = renderer.renderWelcome({
+              balance: session.main.user.balance,
+              locale: lang,
+            });
+
+            await ctx.editMessageText(screen.text, {
+              reply_markup: screen.keyboard || mainMenu,
+              parse_mode: screen.parse_mode,
             });
             ctx.menu.back();
           })

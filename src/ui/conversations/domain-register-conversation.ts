@@ -14,8 +14,20 @@ import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepos
 import { AmperDomainsProvider } from "../../infrastructure/domains/AmperDomainsProvider.js";
 import { Logger } from "../../app/logger.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
+import { initFluent } from "../../fluent.js";
 import { InlineKeyboard } from "grammy";
+import type { Fluent } from "@moebius/fluent";
 import DomainChecker from "../../api/domain-checker.js";
+
+let cachedFluent: Fluent | null = null;
+
+const getFluentInstance = async (): Promise<Fluent> => {
+  if (!cachedFluent) {
+    const { fluent } = await initFluent();
+    cachedFluent = fluent;
+  }
+  return cachedFluent;
+};
 
 const resolveLocale = (locale?: string): string => {
   if (locale && locale !== "0") {
@@ -82,6 +94,12 @@ export async function domainRegisterConversation(
     ? session.main.locale
     : user.lang || "ru";
 
+  if (!(ctx as any).fluent) {
+    (ctx as any).fluent = await getFluentInstance();
+  }
+  if ((ctx as any).fluent?.useLocale) {
+    (ctx as any).fluent.useLocale(locale);
+  }
   ensureTranslator(ctx, locale);
   const apiBaseUrl = process.env.AMPER_API_BASE_URL || "";
   const apiToken = process.env.AMPER_API_TOKEN || "";

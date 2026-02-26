@@ -7,7 +7,7 @@ strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", m
 welcome = DiorHost • Абузоустойчивая Инфраструктура
  
  Покупка и управление услугами хостинга прямо в тг боте
- 24/7 uptime • Абузостоустойчивость • Офшорность
+ 24/7 работа • Абузоустойчивость • Офшорность
  @diorhost
  
  {quoted-balance}
@@ -25,23 +25,23 @@ support = Мы всегда здесь, чтобы помочь! 🤝
 
  Напишите нашему саппорту прямо сейчас!
 
- <a href="https://dior.host/">Web Site</a> | <a href="tg://resolve?domain=diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
+ <a href="https://dior.host/">Сайт</a> | <a href="https://t.me/diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Новости Dior</a>
 
 support-message-template = Здравствуйте!
  У меня есть вопрос.
 
-profile = ┠💻 1REG PROFILE
+profile = ┠💻 ПРОФИЛЬ DIOR
 ┃
-┗✅ STATS:
+┗✅ СТАТИСТИКА:
     ┠ ID: {$userId}
-    ┠ Status: {$userStatus}
-    ┗ Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+    ┠ Статус: {$userStatus}
+    ┗ Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
     ┠ 
-    ┠👤 Contacts:
-    ┠ WHOIS data: {$whoisStatus}
+    ┠👤 Контакты:
+    ┠ WHOIS: {$whoisStatus}
     ┗ Почта: {$emailStatus}
 
-Terms of service (https://telegra.ph/Pravila-i-Usloviya-ispolzovaniya-servisa-1REG-05-26) | Support (https://t.me/one_reg_talk) | 1REG News (https://t.me/+kOkatN8cTig1ZGRk)
+Правила (https://telegra.ph/Pravila-i-Usloviya-ispolzovaniya-servisa-1REG-05-26) | Поддержка (https://t.me/one_reg_talk) | Новости (https://t.me/+kOkatN8cTig1ZGRk)
 
 button-purchase = 💳 Приобрести услугу
 button-manage-services = 🛠 Управление услугами
@@ -54,21 +54,21 @@ button-tp = Поддержка
 button-deposit = 💸 Пополнить баланс
 button-promocode = 🎁 Промокод
 button-subscription = 🔐 Подписка
-button-website = Web Site
+button-website = Сайт
 button-support-profile = 🔔 Поддержка
-button-dior-news = Dior News
+button-dior-news = Новости Dior
 button-contact-with-client = Связаться с клиентом
-button-domains = 🌐 Bulletproof Domains
+button-domains = 🌐 Абузоустойчивые домены
 button-vds = 🖥 VPS/VDS
-button-bundle-manage = 🚀 Infrastructure Bundle
-bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
+button-bundle-manage = 🚀 Инфраструктурный пакет
+bundle-manage-header = <strong>🚀 Инфраструктурный пакет</strong>
 
     Услуги, купленные пакетом (домен + VPS):
 bundle-manage-empty = У вас пока нет услуг по пакетам
-button-dedicated-server = 🖥 Dedicated Server
+button-dedicated-server = 🖥 Выделенный сервер
 button-balance = 💸 Баланс
-button-standard = 🛡 Standard
-button-bulletproof = ⚜️ Bulletproof
+button-standard = 🛡 Стандарт
+button-bulletproof = ⚜️ Абузоустойчивый
 button-agree = ✅ Согласен
 update-button = 🔄 Обновить
 
@@ -535,7 +535,7 @@ ticket-moderator-notification = <strong>Вам поступил тикет</stro
 Пользователь: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})
 {$amountLine}
 withdraw-notification-amount = Сумма: {$amount} $
-ticket-type-dedicated_order = Заказ Dedicated
+ticket-type-dedicated_order = Заказ выделенного сервера
 ticket-type-dedicated_reinstall = Переустановка ОС
 ticket-type-dedicated_reboot = Перезагрузка
 ticket-type-dedicated_reset = Сброс пароля
@@ -546,24 +546,24 @@ ticket-type-manual_topup = Ручное пополнение
 ticket-request-what = Что нужно сделать
 ticket-request-server = Сервер
 
-# Dedicated Servers
-button-order-dedicated = 💳 Make Order
-button-my-dedicated = 🖥 Dedicated
-button-my-tickets = 🎫 Мои Запросы
+# Выделенные серверы
+button-order-dedicated = 💳 Оформить заказ
+button-my-dedicated = 🖥 Выделенные
+button-my-tickets = 🎫 Мои запросы
 dedicated-none = У вас нет выделенных серверов
-dedicated-status-requested = <strong>Запрос Dedicated Сервера</strong>
+dedicated-status-requested = <strong>Запрос выделенного сервера</strong>
 
 Тикет #{ticketId}
 Статус: {$status}
 
 Пожалуйста, подождите пока модератор обработает ваш запрос.
-dedicated-status-requested-no-ticket = <strong>Запрос Dedicated Сервера</strong>
+dedicated-status-requested-no-ticket = <strong>Запрос выделенного сервера</strong>
 
-Статус: REQUESTED
+Статус: Ожидает
 
 Пожалуйста, подождите пока модератор обработает ваш запрос.
-dedicated-no-credentials = Данные для доступа к dedicated серверу ещё не доступны
-dedicated-info = <strong>Мой Dedicated Сервер</strong>
+dedicated-no-credentials = Данные для доступа к выделенному серверу ещё не доступны
+dedicated-info = <strong>Мой выделенный сервер</strong>
 
 <strong>IP:</strong> {$ip}
 <strong>Логин:</strong> {$login}
@@ -596,7 +596,7 @@ dedicated-operation-requested = <strong>Запрос отправлен в по�
  Тикет #{$ticketId}. Ожидайте ответа модератора.
 tickets-none-user = У вас нет тикетов
 tickets-list-user = <strong>Мои Тикеты ({$count})</strong>
-ticket-dedicated-ready = <strong>Ваш Dedicated Сервер Готов!</strong>
+ticket-dedicated-ready = <strong>Ваш выделенный сервер готов!</strong>
 
 Тикет #{ticketId}
 
@@ -646,9 +646,9 @@ dedicated-os-ubuntu2204 = Ubuntu 22.04
 dedicated-os-ubuntu2404 = Ubuntu 24.04
 dedicated-os-os-any = Любая на выбор
 button-return-to-main = Вернуться на главную
-dedicated-not-active = Dedicated сервер не активен
-dedicated-not-suspended = Dedicated сервер не выключен
-dedicated-price-not-set = Цена для Dedicated не указана. Обратитесь в поддержку.
+dedicated-not-active = Выделенный сервер не активен
+dedicated-not-suspended = Выделенный сервер не выключен
+dedicated-price-not-set = Цена для выделенного сервера не указана. Обратитесь в поддержку.
 ticket-credentials-invalid = Неверные данные. Пожалуйста, укажите IP, логин и пароль.
 
 # Withdraw Request
@@ -919,17 +919,9 @@ admin-message-to-user-enter = Введите текст сообщения дл�
 admin-message-to-user-prefix = 📩 Сообщение от администрации:
 admin-message-to-user-sent = Сообщение отправлено.
 admin-message-to-user-failed = Не удалось отправить сообщение: {$error}
-admin-user-services-summary =
-    <strong>Услуги пользователя</strong>
-
-    💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
-    🛠 Активных услуг: {$activeServicesCount}
-    🎫 Тикетов: {$ticketsCount}
-
-    VPS/VDS: {$vdsCount} · Dedicated: {$dedicatedCount} · Домены: {$domainCount}
+admin-user-services-summary = <strong>Услуги пользователя</strong>\n\n💰 Общий депозит: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\n🛠 Активных услуг: {$activeServicesCount}\n🎫 Тикетов: {$ticketsCount}\n\nVPS/VDS: {$vdsCount} | Выделенные: {$dedicatedCount} | Домены: {$domainCount}
 admin-user-services-domains-title = <strong>Домены пользователя</strong>
-admin-domain-ns-prompt = Введите неймсерверы в одну строку через пробел:
-    <code>ns1.example.com ns2.example.com</code>
+admin-domain-ns-prompt = Введите неймсерверы в одну строку через пробел:\n<code>ns1.example.com ns2.example.com</code>\nОтмена: /cancel
 admin-domain-ns-success = NS для домена <b>{$domain}</b> обновлены.
 admin-domain-ns-cancelled = Отменено.
 admin-domain-ns-failed = Ошибка смены NS: {$error}
@@ -994,29 +986,23 @@ prime-trial-already-used = Вы уже использовали бесплатн
 prime-trial-subscribe-first = Сначала подпишитесь на канал, затем нажмите «Я подписался».
 prime-trial-subscribe-first-retry = Подписка не обнаружена. Подпишитесь на канал по кнопке выше, подождите 5–10 секунд и нажмите «Я подписался» снова. Убедитесь, что бот добавлен в канал как администратор.
 prime-channel-not-configured = Проверка подписки пока не настроена. Напишите в поддержку.
-prime-discount-dedicated = 🔐 Prime Подписка −20% на Dedicated
+prime-discount-dedicated = 🔐 Prime Подписка −20% на выделенные
 prime-discount-vds = 🔐 Prime Подписка −20% на VPS/VDS
 
-profile-prime-no = Prime: нет
-profile-prime-until = Prime: до {$date}
-profile-label-status = Статус
-profile-label-balance = Баланс
-profile-label-id = ID
-profile-title = DIOR ПРОФИЛЬ
-profile-stats = СТАТИСТИКА
-profile-links = <a href="https://dior.host">Сайт</a> | <a href="tg://resolve?domain=diorhost">Поддержка</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
+profile-prime-no = Подписка: нет
+profile-prime-until = Подписка: до {$date}
 
 nps-promoter = Спасибо за высокую оценку! 🎉 Приглашайте друзей по реферальной ссылке — получайте % с их пополнений. Или воспользуйтесь скидкой на годовое продление в профиле.
 nps-detractor = Жаль, что что-то не понравилось. Напишите в поддержку — мы разберёмся и поможем. Кнопка «Задать вопрос» в меню откроет чат с нами.
 nps-neutral = Спасибо за отзыв. Если появится идея, как нам стать лучше — напишите в поддержку. Мы всегда на связи.
 
-# Infrastructure Bundles
-button-infrastructure-bundle = 🚀 Infrastructure Bundle
+# Инфраструктурные пакеты
+button-infrastructure-bundle = 🚀 Инфраструктурный пакет
 bundle-infrastructure-bundles = 🚀 Пакеты инфраструктуры (Domain + VPS)
 bundle-select-type = Выберите тип пакета:
-bundle-starter-shield = Starter Shield
+bundle-starter-shield = Стартовый щит
 bundle-launch-pack = Launch Pack
-bundle-infrastructure = Infrastructure Bundle
+bundle-infrastructure = Инфраструктурный пакет
 bundle-secure-launch = Secure Launch Kit
 bundle-full-stack = Full Stack Deploy Pack
 bundle-pro-infrastructure = Pro Infrastructure Pack
@@ -1026,8 +1012,8 @@ bundle-starter-shield-intro = Базовый инфраструктурный п
 bundle-starter-shield-tagline = Готовое решение: bulletproof домен + сервер + базовая защита в одном комплекте.
     Минимум ручных действий — максимум скорости запуска.
 bundle-starter-shield-includes-title = В пакет входит
-bundle-starter-shield-includes-list = ✔️ Bulletproof Domain
-    ✔️ Bulletproof VPS
+bundle-starter-shield-includes-list = ✔️ Абузоустойчивый домен
+    ✔️ Абузоустойчивый VPS
     ✔️ Бесплатная настройка DNS
     ✔️ Привязка домена к VPS
     ✔️ Pre-config Firewall
@@ -1052,7 +1038,7 @@ bundle-pro-infrastructure-intro = Профессиональный стек по
 bundle-pro-infrastructure-tagline = Комплексное инфраструктурное решение: усиленный VPS, расширенная сеть и базовый мониторинг.
     Формат — готовый production-набор без донастройки вручную.
 bundle-pro-infrastructure-includes-title = В пакет входит
-bundle-pro-infrastructure-includes-list = ✔️ Bulletproof Domain
+bundle-pro-infrastructure-includes-list = ✔️ Абузоустойчивый домен
     ✔️ Мощный VPS/VDS
     ✔️ Бесплатная настройка DNS
     ✔️ Привязка домена к VPS
@@ -1086,7 +1072,7 @@ bundle-period-semi-annual = 6 месяцев
 bundle-discount-12 = -12%
 bundle-discount-17 = -17%
 bundle-discount-20 = -20%
-bundle-feature-domain = Bulletproof Domain
+bundle-feature-domain = Абузоустойчивый домен
 bundle-feature-vps = VPS/VDS
 bundle-feature-dns-setup = Бесплатная настройка DNS
 bundle-feature-domain-binding = Привязка домена к VPS
@@ -1101,7 +1087,7 @@ bundle-feature-monitoring = Базовый мониторинг
 bundle-feature-extra-ip = Extra IP
 bundle-upsell-domain = 🔥 Добавьте VPS — сэкономьте до 20%!
 bundle-upsell-vps = 🔥 Добавьте домен — сэкономьте до 20%!
-bundle-button-upgrade = Upgrade to Launch Pack
+bundle-button-upgrade = Перейти на Launch Pack
 bundle-back-to-types = Назад к типам
 bundle-enter-domain-name = Введите домен (с зоной или без): example или example.com
 bundle-confirm-purchase-text = Домен: <b>{ $domain }</b>

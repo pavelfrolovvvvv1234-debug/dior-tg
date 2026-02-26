@@ -10,6 +10,7 @@ import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { getProfileTextRu } from "../../shared/ru-texts.js";
+import { invalidateUser } from "../../shared/user-cache.js";
 
 const PROFILE_LINKS_EN =
   '<a href="https://dior.host">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
@@ -129,6 +130,7 @@ export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated
       );
       const userRepo = new UserRepository(ctx.appDataSource);
       await userRepo.updateLanguage(session.main.user.id, nextLocale as "ru" | "en");
+      if (ctx.chatId) invalidateUser(Number(ctx.chatId));
     } catch {
       // Ignore if user not found
     }

@@ -39,6 +39,7 @@ import { PaymentStatusChecker } from "../domain/billing/PaymentStatusChecker.js"
 import { ServicePaymentStatusChecker } from "../domain/billing/ServicePaymentStatusChecker.js";
 import { BillingService } from "../domain/billing/BillingService.js";
 import { UserRepository } from "../infrastructure/db/repositories/UserRepository.js";
+import { invalidateUser } from "../shared/user-cache.js";
 import { TopUpRepository } from "../infrastructure/db/repositories/TopUpRepository.js";
 import { ExpirationService } from "../domain/services/ExpirationService.js";
 import { handleCryptoPayWebhook } from "../infrastructure/payments/cryptopay-webhook.js";
@@ -217,8 +218,10 @@ export async function createBot(): Promise<{
     })
   );
 
-  // Ensure ctx.t is always defined; приветствие в текущей локали (en/ru)
+  // Фиксируем локаль на весь запрос и переопределяем ctx.t для приветствия
   bot.use(async (ctx, next) => {
+    const session = await ctx.session;
+    (ctx as any)._requestLocale = session.main.locale === "en" ? "en" : "ru";
     const origT = (ctx as any).t;
     (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
       const locale = (ctx as any)._requestLocale ?? "ru";
@@ -322,6 +325,7 @@ export async function createBot(): Promise<{
       const userRepo = new UserRepository(ctx.appDataSource);
       try {
         await userRepo.updateLanguage(session.main.user.id, nextLocale as "ru" | "en");
+        if (ctx.chatId) invalidateUser(Number(ctx.chatId));
       } catch {
         // Ignore if user not found
       }
@@ -375,6 +379,7 @@ export async function createBot(): Promise<{
               const userRepo = new UserRepository(ctx.appDataSource);
               try {
                 await userRepo.updateLanguage(session.main.user.id, lang as "ru" | "en");
+                if (ctx.chatId) invalidateUser(Number(ctx.chatId));
               } catch (error) {
                 // Ignore if user not found
               }
