@@ -64,7 +64,7 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
 
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
-button-dedicated-server = 🖥 Dedicated Server
+button-dedicated-server = 🖥 Dedicated Servers
 button-balance = 💸 Balance
 button-standard = 🛡 Standard
 button-bulletproof = ⚜️ Bulletproof
@@ -548,7 +548,7 @@ ticket-request-server = Server
 
 # Dedicated Servers
 button-order-dedicated = 💳 Make Order
-button-my-dedicated = 🖥 Dedicated
+button-my-dedicated = 🖥 Dedicated Servers
 button-my-tickets = 🎫 My Requests
 dedicated-none = You don't have any dedicated servers
 dedicated-status-requested = <strong>Dedicated Server Request</strong>
