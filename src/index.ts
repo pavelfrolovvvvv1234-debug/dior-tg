@@ -611,8 +611,44 @@ async function index() {
   bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
   bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
   bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
+  try {
+    const { cdnAddProxyConversation } = await import("./ui/menus/cdn-menu.js");
+    bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
+  } catch (error: any) {
+    console.error("[Bot] Failed to register CDN conversation:", error);
+  }
   registerBroadcastAndTickets(bot);
   registerAdminPromosHandlers(bot);
+
+  // Register servicesMenu submenus BEFORE bot.use(servicesMenu) so navigation works
+  let cdnMenu: Menu<AppContext> | null = null;
+  try {
+    const cdnModule = await import("./ui/menus/cdn-menu.js");
+    cdnMenu = cdnModule.cdnMenu;
+    servicesMenu.register(cdnMenu, "services-menu");
+  } catch (error: any) {
+    console.error("[Bot] Failed to register CDN submenu:", error);
+  }
+
+  // Fallback: open CDN menu when user taps the 2nd button (row 1, col 0) in services menu.
+  // Callback data format is "services-menu/1/0/..." so we match it and handle manually.
+  if (cdnMenu) {
+    bot.callbackQuery(/^services-menu\/1\/0\//, async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      if (!session.other.cdn) session.other.cdn = { step: "idle" };
+      session.other.cdn.fromManage = false;
+      try {
+        await ctx.editMessageText(ctx.t("cdn-service"), {
+          parse_mode: "HTML",
+          reply_markup: cdnMenu!,
+        });
+      } catch (err: unknown) {
+        console.error("[Bot] CDN fallback open error:", err);
+        await ctx.reply(ctx.t("cdn-error", { error: String(err) })).catch(() => {});
+      }
+    });
+  }
 
   // Register all menus FIRST, before language handler and commands
   // This ensures menus are available when we try to use them
@@ -640,6 +676,12 @@ async function index() {
   bot.use(vdsManageServiceMenu);
   bot.use(bundleManageServicesMenu);
   bot.use(domainOrderMenu);
+  try {
+    const { cdnMenu } = await import("./ui/menus/cdn-menu.js");
+    bot.use(cdnMenu);
+  } catch (error: any) {
+    console.error("[Bot] Failed to register CDN menu:", error);
+  }
   bot.use(controlUser);
   bot.use(controlUserBalance);
   bot.use(controlUserSubscription);
@@ -2040,6 +2082,12 @@ async function index() {
   manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
   manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");
   manageSerivcesMenu.register(bundleManageServicesMenu, "manage-services-menu");
+  try {
+    const { cdnMenu } = await import("./ui/menus/cdn-menu.js");
+    manageSerivcesMenu.register(cdnMenu, "manage-services-menu");
+  } catch (error: any) {
+    console.error("[Bot] Failed to register CDN menu in manage services:", error);
+  }
   // Register bundles menu
   try {
     const { bundleTypeMenu, bundlePeriodMenu } = await import("./ui/menus/bundles-menu.js");

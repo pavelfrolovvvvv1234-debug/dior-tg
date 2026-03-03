@@ -50,6 +50,10 @@ const envSchema = z.object({
   PRIME_CHANNEL_USERNAME: z.string().optional(),
   PRIME_CHANNEL_INVITE: z.string().url().optional().or(z.literal("")),
 
+  // CDN / Proxy service (optional) — Bot API for creating reverse proxies from bot
+  CDN_BASE_URL: z.union([z.string().url(), z.literal("")]).optional(),
+  CDN_BOT_API_KEY: z.string().optional(),
+
   // Environment
   NODE_ENV: z
     .enum(["development", "production", "test"])
@@ -131,6 +135,13 @@ function trimQuotes(s: string): string {
   }
   return t;
 }
+
+/** Whether CDN (proxy) service is configured and available from the bot. */
+export const isCdnEnabled = (): boolean => {
+  const base = config.CDN_BASE_URL ?? process.env.CDN_BASE_URL ?? "";
+  const key = config.CDN_BOT_API_KEY ?? process.env.CDN_BOT_API_KEY ?? "";
+  return base.length > 0 && key.length >= 16;
+};
 
 export const getPrimeChannelForCheck = (): number | string | null => {
   const idRaw = trimQuotes(config.PRIME_CHANNEL_ID ?? process.env.PRIME_CHANNEL_ID ?? "");

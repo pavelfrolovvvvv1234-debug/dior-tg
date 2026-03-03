@@ -16,6 +16,9 @@ import User from "../../entities/User";
 import { PaymentError, BusinessError, NotFoundError } from "../../shared/errors/index";
 import { Logger } from "../../app/logger";
 import { retry } from "../../shared/utils/retry";
+import type { ReferralRewardApplied } from "../referral/ReferralService.js";
+
+export type ApplyPaymentResult = { amount: number; referralNotify?: ReferralRewardApplied };
 
 /**
  * Billing service for managing payments, invoices, and balance operations.
@@ -150,7 +153,7 @@ export class BillingService {
    * @throws {NotFoundError} If TopUp or User not found
    * @throws {BusinessError} If payment not completed
    */
-  async applyPayment(topUpId: number): Promise<number> {
+  async applyPayment(topUpId: number): Promise<ApplyPaymentResult> {
     return await this.dataSource.transaction(async (manager) => {
       // Use transaction repositories
       const topUpRepo = manager.getRepository(TopUp);
@@ -191,29 +194,31 @@ export class BillingService {
       Logger.info(`Applied payment ${topUpId} of ${topUp.amount} to user ${user.id}`);
 
       // Apply referral reward if applicable (outside transaction to avoid deadlocks)
+      let referralNotify: ReferralRewardApplied | undefined;
       try {
         const { ReferralService } = await import("../referral/ReferralService.js");
         const referralService = new ReferralService(
           this.dataSource,
           this.userRepository
         );
-        const rewardAmount = await referralService.applyReferralRewardOnTopup(
+        const referralResult = await referralService.applyReferralRewardOnTopup(
           topUp.target_user_id,
           topUpId,
           topUp.amount
         );
 
-        if (rewardAmount > 0) {
+        if (referralResult && typeof referralResult === "object") {
           Logger.info(
-            `Applied referral reward ${rewardAmount} for topUp ${topUpId}`
+            `Applied referral reward ${referralResult.rewardAmount} for topUp ${topUpId}`
           );
+          referralNotify = referralResult;
         }
       } catch (error: any) {
         Logger.error(`Failed to apply referral reward:`, error);
         // Don't fail payment if referral reward fails
       }
 
-      return topUp.amount;
+      return { amount: topUp.amount, referralNotify };
     });
   }
 

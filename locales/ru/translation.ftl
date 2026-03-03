@@ -60,6 +60,9 @@ button-dior-news = Новости Dior
 button-contact-with-client = Связаться с клиентом
 button-domains = 🌐 Абузоустойчивые домены
 button-vds = 🖥 VPS/VDS
+button-cdn = 🌍 Аналог Cloudflare
+button-cdn-add-proxy = ➕ Добавить прокси
+button-cdn-my-proxies = 📋 Мои прокси
 button-bundle-manage = 🚀 Инфраструктурный пакет
 bundle-manage-header = <strong>🚀 Инфраструктурный пакет</strong>
 
@@ -198,6 +201,8 @@ button-referrals = 💲 Рефералы
 button-share-link = 📤 Поделиться ссылкой
 referrals-screen = 🚀 Партнёрская программа DiorHost\n\nМонетизируйте свой трафик на VPS, дедиках и абузоустойчивых доменах.\n\n💰 Условия:\n\n• До 30% от каждого пополнения привлечённого клиента\n• Lifetime — процент со всех будущих оплат\n• Начисление при первом пополнении от $10+\n• Без ограничений по количеству рефералов\n• Автоматический учёт в системе\n\n🔗 Ваша реферальная ссылка:\n{$link}\n\nРефералов: {$count}\nЗаработано: {$profit} $\n\nПривлекайте трафик — получайте пассивный доход на инфраструктуре.
 referrals-share-text = Присоединяйся ко мне на Dior Host! Используй мою реферальную ссылку, чтобы начать.
+referral-new-joined = 👋 По вашей реферальной ссылке зарегистрировался новый пользователь.
+referral-topup-notify = 💰 Ваш реферал пополнил баланс на <b>{ $amount }</b>.\nВаш процент: <b>{ $percent }%</b> — на реферальный баланс зачислено <b>{ $reward }</b>.
 
 Выберите действие:
 
@@ -216,6 +221,24 @@ domain-invalid = Введенный домен некорректен <i>{$domai
 domain-not-available = 🚫 Домен <i>{$domain}</i>, уже занят. Попробуйте подобрать другой.
 domain-available = ✅ Домен <i>{$domain}</i>, доступен для регистрации. Вы хотите его приобрести?
 domain-registration-in-progress = 🔄 Регистрация домена <i>{$domain}</i> в процессе. (С вашего баланса списанны средства) За статусом можете следить в меню управления услугами
+
+cdn-service = 🌍 <strong>Аналог Cloudflare</strong> — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.
+
+cdn-enter-domain = Введите <strong>домен</strong> для проксирования (например: <code>cdn.example.com</code>):
+cdn-enter-target = Введите <strong>целевой URL</strong> (куда проксировать, например: <code>https://origin.example.com</code>):
+cdn-confirm = Прокси: <code>{$domainName}</code> → <code>{$targetUrl}</code>
+
+Стоимость: <b>{$price}$</b> за 30 дней. Списать с баланса?
+cdn-created = ✅ Прокси создан: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Настройте DNS по инструкции в панели CDN.
+cdn-error = Ошибка CDN: {$error}
+cdn-not-configured = Услуга CDN пока не подключена.
+cdn-invalid-domain = Некорректное имя домена. Введите только домен без http:// (например: cdn.example.com).
+cdn-invalid-url = Некорректный URL. Введите полный адрес с http:// или https://.
+cdn-my-proxies-empty = У вас пока нет прокси. Добавьте первый через кнопку «Добавить прокси».
+cdn-my-proxies-list = <strong>Ваши прокси:</strong>
+cdn-proxy-item = • {$domain} → {$target} ({$status})
+button-cdn-confirm = ✅ Подтвердить
+button-cdn-cancel = ❌ Отмена
 
 domains-manage = <strong>Управление доменами</strong>
 

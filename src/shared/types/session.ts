@@ -154,6 +154,17 @@ export interface OtherSessionData {
     domainName?: string;
     vpsOsId?: number;
   };
+  /** CDN proxy: conversation state */
+  cdn?: {
+    step?: "idle" | "domain" | "target" | "confirm";
+    domainName?: string;
+    targetUrl?: string;
+    price?: number;
+    /** Telegram user id for CDN API */
+    telegramId?: number;
+    /** true when opened from "Управление услугами" (back goes to manage menu) */
+    fromManage?: boolean;
+  };
 }
 
 /**

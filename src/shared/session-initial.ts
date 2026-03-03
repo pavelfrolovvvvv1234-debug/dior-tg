@@ -34,6 +34,7 @@ export function createInitialOtherSession(): SessionData["other"] {
     manageDedicated: { expandedId: null, showPassword: false },
     domains: { lastPickDomain: "", page: 0, pendingZone: undefined },
     dedicatedOrder: { step: "idle", requirements: undefined },
+    cdn: { step: "idle" },
     ticketsView: { list: null, currentTicketId: null, pendingAction: null, pendingTicketId: null, pendingData: {} },
     deposit: { awaitingAmount: false },
     promocode: { awaitingInput: false },

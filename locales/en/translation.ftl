@@ -59,6 +59,9 @@ button-dior-news = Dior News
 button-contact-with-client = Contact with client
 button-domains = 🌐 Bulletproof Domains
 button-vds = 🖥 VPS/VDS
+button-cdn = 🌍 Cloudflare alternative
+button-cdn-add-proxy = ➕ Add proxy
+button-cdn-my-proxies = 📋 My proxies
 button-bundle-manage = 🚀 Infrastructure Bundle
 bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
 
@@ -197,6 +200,8 @@ button-referrals = 💲 Referrals
 button-share-link = 📤 Share link
 referrals-screen = 🚀 DiorHost Partner Program\n\nMonetize your traffic on VPS, dedicated servers and abuse-resistant domains.\n\n💰 Terms:\n\n• Up to 30% of each referred client's top-up\n• Lifetime — percentage from all future payments\n• Credited on first top-up from $10+\n• No limit on number of referrals\n• Automatic tracking in the system\n\n🔗 Your referral link:\n{$link}\n\nReferrals: {$count}\nEarned: {$profit} $\n\nDrive traffic — earn passive income on infrastructure.
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
+referral-new-joined = 👋 A new user has signed up via your referral link.
+referral-topup-notify = 💰 Your referral topped up their balance by <b>{ $amount }</b>.\nYour percentage: <b>{ $percent }%</b> — <b>{ $reward }</b> has been added to your referral balance.
 
 Select an action:
 
@@ -215,6 +220,24 @@ domain-invalid = The entered domain is incorrect <i>{$domain}</i> try again
 domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
 domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
 domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$domain}</i> (Your balance has been debited) You can follow the status in the service management menu
+
+cdn-service = 🌍 <strong>Cloudflare alternative</strong> — proxy your site through our domain with SSL. Enter domain and target URL.
+
+cdn-enter-domain = Enter the <strong>domain</strong> for proxying (e.g. <code>cdn.example.com</code>):
+cdn-enter-target = Enter the <strong>target URL</strong> (e.g. <code>https://origin.example.com</code>):
+cdn-confirm = Proxy: <code>{$domainName}</code> → <code>{$targetUrl}</code>
+
+Cost: <b>{$price}$</b> for 30 days. Deduct from balance?
+cdn-created = ✅ Proxy created: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Configure DNS as per CDN panel instructions.
+cdn-error = CDN error: {$error}
+cdn-not-configured = CDN service is not configured.
+cdn-invalid-domain = Invalid domain name. Enter domain only without http:// (e.g. cdn.example.com).
+cdn-invalid-url = Invalid URL. Enter full address with http:// or https://.
+cdn-my-proxies-empty = You have no proxies yet. Add one via «Add proxy».
+cdn-my-proxies-list = <strong>Your proxies:</strong>
+cdn-proxy-item = • {$domain} → {$target} ({$status})
+button-cdn-confirm = ✅ Confirm
+button-cdn-cancel = ❌ Cancel
 
 empty = Empty
 list-empty = The list is empty

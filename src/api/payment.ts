@@ -7,7 +7,7 @@ import { Api, Bot, RawApi } from "grammy";
 import type { AppContext } from "../shared/types/context";
 import { invalidateUser } from "../shared/user-cache.js";
 import axios from "axios";
-import { getAdminTelegramIds } from "../app/config.js";
+import { notifyAdminsAboutTopUp, notifyReferrerAboutReferralTopUp } from "../helpers/notifier.js";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 
@@ -240,20 +240,21 @@ async function paymentSuccess(
   await usersRepo.save(user);
   invalidateUser(user.telegramId);
 
-  // Apply referral reward if applicable
+  // Apply referral reward if applicable and notify referrer
   try {
     const { ReferralService } = await import("../domain/referral/ReferralService.js");
     const { UserRepository } = await import("../infrastructure/db/repositories/UserRepository.js");
     const userRepo = new UserRepository(datasource);
     const referralService = new ReferralService(datasource, userRepo);
-    const rewardAmount = await referralService.applyReferralRewardOnTopup(
+    const referralResult = await referralService.applyReferralRewardOnTopup(
       targetUser,
       topUpId,
       topUp.amount
     );
 
-    if (rewardAmount > 0) {
-      console.log(`[Referral] Applied reward ${rewardAmount} for topUp ${topUpId}`);
+    if (referralResult && typeof referralResult === "object") {
+      console.log(`[Referral] Applied reward ${referralResult.rewardAmount} for topUp ${topUpId}`);
+      await notifyReferrerAboutReferralTopUp(bot, referralResult, topUp.amount);
     }
   } catch (error: any) {
     console.error(`[Referral] Failed to apply referral reward:`, error);
@@ -285,32 +286,7 @@ async function paymentSuccess(
 
   bot.api.sendMessage(user.telegramId, balanceMessage).then();
 
-  // Notify admins in their bot chat: buyer username and amount
-  try {
-    const adminIds = getAdminTelegramIds();
-    if (adminIds.length > 0) {
-      let buyerLabel: string;
-      try {
-        const chat = await bot.api.getChat(user.telegramId);
-        const un = (chat as { username?: string }).username;
-        buyerLabel = un ? `@${un}` : `ID ${user.id} (TG: ${user.telegramId})`;
-      } catch {
-        buyerLabel = `ID ${user.id} (TG: ${user.telegramId})`;
-      }
-      const amountFormatted = new Intl.NumberFormat("en-US", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      }).format(topUp.amount);
-      const adminText = `💳 <b>Пополнение баланса</b>\nПокупатель: ${buyerLabel}\nСумма: ${amountFormatted} $`;
-      for (const adminTelegramId of adminIds) {
-        await bot.api
-          .sendMessage(adminTelegramId, adminText, { parse_mode: "HTML" })
-          .catch(() => {});
-      }
-    }
-  } catch (e) {
-    // Don't fail payment flow if admin notify fails
-  }
+  await notifyAdminsAboutTopUp(bot, user, topUp.amount);
 
   // Emit automation event for deposit.completed
   try {

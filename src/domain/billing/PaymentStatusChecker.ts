@@ -12,6 +12,8 @@ import { UserRepository } from "../../infrastructure/db/repositories/UserReposit
 import { TopUpStatus } from "../../entities/TopUp.js";
 import { Logger } from "../../app/logger.js";
 import type { FluentTranslator } from "../../fluent.js";
+import { notifyAdminsAboutTopUp, notifyReferrerAboutReferralTopUp } from "../../helpers/notifier.js";
+import { invalidateUser } from "../../shared/user-cache.js";
 
 /**
  * Background service that periodically checks payment statuses.
@@ -80,10 +82,49 @@ export class PaymentStatusChecker {
 
         // If completed, apply to balance
         if (updatedTopUp.status === TopUpStatus.Completed) {
-          const amount = await this.billingService.applyPayment(topUp.id);
+          const result = await this.billingService.applyPayment(topUp.id);
+          const amount = result.amount;
+
+          const userRepo = new UserRepository(dataSource);
+          const user = await userRepo.findById(topUp.target_user_id);
+          if (user) {
+            invalidateUser(user.telegramId);
+          }
+
+          // Notify referrer if referral reward was applied
+          if (result.referralNotify) {
+            try {
+              await notifyReferrerAboutReferralTopUp(this.bot, result.referralNotify, topUp.amount);
+            } catch (refErr) {
+              Logger.error("Failed to notify referrer about referral top-up", refErr);
+            }
+          }
 
           // Notify user
           await this.notifyUser(topUp.target_user_id, amount);
+
+          // Notify admins (same as in api/payment.ts paymentSuccess)
+          if (user) {
+            try {
+              await notifyAdminsAboutTopUp(this.bot, user, amount);
+            } catch (adminErr) {
+              Logger.error("Failed to notify admins about top-up", adminErr);
+            }
+          }
+
+          try {
+            const { emit } = await import("../../modules/automations/engine/event-bus.js");
+            emit({
+              event: "deposit.completed",
+              userId: topUp.target_user_id,
+              timestamp: new Date(),
+              topUpId: topUp.id,
+              amount,
+              targetUserId: topUp.target_user_id,
+            });
+          } catch {
+            // Ignore if automations module not available
+          }
         }
       } catch (error) {
         Logger.error(`Failed to check payment ${topUp.id}`, error);

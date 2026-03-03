@@ -254,6 +254,8 @@ export async function createBot(): Promise<{
   const { createConversation } = await import("@grammyjs/conversations");
   bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
   bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
+  const { cdnAddProxyConversation } = await import("../ui/menus/cdn-menu.js");
+  bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
 
   // Register menus - using old menus temporarily to preserve functionality
   // TODO: Gradually migrate to new menu structure (ui/menus/)
@@ -450,6 +452,8 @@ export async function createBot(): Promise<{
   bot.use(mainMenu);
   // languageSelectMenu will be registered dynamically in /start command
   bot.use(servicesMenu);
+  const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
+  bot.use(cdnMenu);
   bot.use(adminPromosMenu);
   bot.use(domainOrderMenu);
   bot.use(depositPaymentSystemChoose);
@@ -492,6 +496,12 @@ export async function createBot(): Promise<{
   manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
   manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");
   manageSerivcesMenu.register(bundleManageServicesMenu, "manage-services-menu");
+  try {
+    const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
+    manageSerivcesMenu.register(cdnMenu, "manage-services-menu");
+  } catch (error: any) {
+    Logger.warn("Failed to register CDN menu in manage services:", error);
+  }
 
   try {
     const { dedicatedMenu } = await import("../ui/menus/dedicated-menu");
@@ -513,6 +523,7 @@ export async function createBot(): Promise<{
   }
 
   servicesMenu.register(domainsMenu, "services-menu");
+  servicesMenu.register(cdnMenu, "services-menu");
   servicesMenu.register(dedicatedTypeMenu, "services-menu");
   servicesMenu.register(vdsTypeMenu, "services-menu");
   servicesMenu.register(vdsMenu, "services-menu");

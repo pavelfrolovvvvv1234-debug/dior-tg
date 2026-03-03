@@ -15,6 +15,7 @@ import VirtualDedicatedServer, {
 } from "@/entities/VirtualDedicatedServer";
 import ms from "@/lib/multims";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
+import { cdnMenu } from "../ui/menus/cdn-menu.js";
 
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
@@ -139,6 +140,26 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
       await ctx.editMessageText(ctx.t("abuse-domains-service"), {
         parse_mode: "HTML",
       });
+    }
+  )
+  .row()
+  .text(
+    (ctx) => ctx.t("button-cdn"),
+    async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      if (!session.other.cdn) session.other.cdn = { step: "idle" };
+      session.other.cdn.fromManage = false;
+      try {
+        await ctx.editMessageText(ctx.t("cdn-service"), {
+          parse_mode: "HTML",
+          reply_markup: cdnMenu,
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[Bot] CDN menu open error:", msg);
+        await ctx.reply(ctx.t("cdn-error", { error: msg })).catch(() => {});
+      }
     }
   )
   .row()

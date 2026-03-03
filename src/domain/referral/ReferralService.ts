@@ -12,6 +12,14 @@ import { NotFoundError, BusinessError } from "../../shared/errors/index.js";
 import { Logger } from "../../app/logger.js";
 import { config } from "../../app/config.js";
 
+/** Result when referral reward was applied (for notifying referrer). */
+export type ReferralRewardApplied = {
+  rewardAmount: number;
+  referrerTelegramId: number;
+  percent: number;
+  referrerLang: string;
+};
+
 /**
  * Referral service for managing referrals and rewards.
  */
@@ -151,13 +159,13 @@ export class ReferralService {
    * @param refereeId - User ID who made the top-up
    * @param topUpId - TopUp ID
    * @param amount - Top-up amount
-   * @returns Reward amount if applied, 0 if not applicable
+   * @returns Reward amount if applied, or object with referrer info for notification; 0 if not applicable
    */
   async applyReferralRewardOnTopup(
     refereeId: number,
     topUpId: number,
     amount: number
-  ): Promise<number> {
+  ): Promise<number | ReferralRewardApplied> {
     // Check amount threshold
     if (amount <= 10) {
       Logger.debug(
@@ -197,9 +205,10 @@ export class ReferralService {
         return 0;
       }
 
-      // Get referrer
+      // Get referrer (need telegramId and lang for notification)
       const referrer = await userRepo.findOne({
         where: { id: referee.referrerId },
+        select: ["id", "telegramId", "referralPercent", "referralBalance", "lang"],
       });
 
       if (!referrer) {
@@ -230,7 +239,13 @@ export class ReferralService {
         `Applied referral reward: ${rewardAmount} to referrer ${referrer.id} for topUp ${topUpId} (amount: ${amount})`
       );
 
-      return rewardAmount;
+      const referrerLang = referrer.lang === "en" ? "en" : "ru";
+      return {
+        rewardAmount,
+        referrerTelegramId: referrer.telegramId,
+        percent,
+        referrerLang,
+      };
     });
   }
 }

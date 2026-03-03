@@ -173,6 +173,19 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
     }
   )
   .row()
+  .submenu(
+    (ctx) => ctx.t("button-cdn"),
+    "cdn-menu",
+    async (ctx) => {
+      const session = await ctx.session;
+      if (!session.other.cdn) session.other.cdn = { step: "idle" };
+      session.other.cdn.fromManage = true;
+      await ctx.editMessageText(ctx.t("cdn-service"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .row()
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {

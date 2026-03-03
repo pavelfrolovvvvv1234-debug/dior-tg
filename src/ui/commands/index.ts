@@ -116,8 +116,27 @@ export function registerCommands(bot: Bot<AppContext>): void {
           // Only bind if user is new (doesn't have referrer yet)
           const user = await userRepo.findById(session.main.user.id);
           if (user && !user.referrerId) {
-            await referralService.bindReferrer(user.id, ctx.match);
-            console.log(`[Referral] Bound referrer for user ${user.id} with refCode ${ctx.match}`);
+            const bound = await referralService.bindReferrer(user.id, ctx.match);
+            if (bound) {
+              console.log(`[Referral] Bound referrer for user ${user.id} with refCode ${ctx.match}`);
+              const referrerTelegramId = parseInt(ctx.match, 10);
+              if (!Number.isNaN(referrerTelegramId)) {
+                try {
+                  const referrer = await userRepo.findByTelegramId(referrerTelegramId);
+                  const referrerLocale = referrer?.lang === "en" ? "en" : "ru";
+                  const message = (ctx as any).fluent?.translateForLocale?.(
+                    referrerLocale,
+                    "referral-new-joined",
+                    {}
+                  );
+                  if (message) {
+                    await ctx.api.sendMessage(referrerTelegramId, message, { parse_mode: "HTML" });
+                  }
+                } catch (notifyErr: any) {
+                  console.error("[Referral] Failed to notify referrer:", notifyErr?.message ?? notifyErr);
+                }
+              }
+            }
           }
         } catch (error: any) {
           console.error(`[Referral] Failed to bind referrer:`, error);
