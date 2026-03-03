@@ -7,7 +7,7 @@
 
 import { Menu } from "@grammyjs/menu";
 import { InlineKeyboard } from "grammy";
-import type { AppContext, AppConversation } from "../shared/types/context";
+import type { AppContext, AppConversation } from "../../shared/types/context";
 import { isCdnEnabled } from "../../app/config";
 import {
   cdnGetPrice,

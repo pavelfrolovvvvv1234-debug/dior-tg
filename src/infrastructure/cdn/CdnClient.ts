@@ -57,7 +57,7 @@ export interface CdnListProxiesResponse {
  */
 async function cdnFetch<T>(
   path: string,
-  options: RequestInit & { method?: string; body?: object } = {}
+  options: { method?: string; body?: Record<string, unknown>; headers?: Record<string, string> } = {}
 ): Promise<T> {
   const base = getBaseUrl();
   const key = getApiKey();
@@ -65,18 +65,17 @@ async function cdnFetch<T>(
     throw new Error("CDN_BASE_URL and CDN_BOT_API_KEY must be set");
   }
 
-  const { method = "GET", body, ...rest } = options;
+  const { method = "GET", body, headers: customHeaders } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Bot-Api-Key": key,
-    ...((rest.headers as Record<string, string>) ?? {}),
+    ...((customHeaders as Record<string, string>) ?? {}),
   };
 
   const res = await fetch(`${base}${path}`, {
     method,
     headers,
     ...(body != null ? { body: JSON.stringify(body) } : {}),
-    ...rest,
   });
 
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };

@@ -56,7 +56,7 @@ const formatUsd = (n: number) =>
   new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n) + " $";
 
 /** API-like object for sending messages (bot.api or ctx.api). */
-type SendMessageApi = { sendMessage: (chatId: number, text: string, opts?: { parse_mode?: string }) => Promise<unknown> };
+type SendMessageApi = { sendMessage: (chatId: number, text: string, opts?: object) => Promise<unknown> };
 
 /**
  * Notify referrer that a new user signed up via their referral link.
