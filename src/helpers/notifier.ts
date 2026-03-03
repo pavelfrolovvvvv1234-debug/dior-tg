@@ -55,6 +55,28 @@ export async function notifyAdminsAboutTopUp(
 const formatUsd = (n: number) =>
   new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n) + " $";
 
+/** API-like object for sending messages (bot.api or ctx.api). */
+type SendMessageApi = { sendMessage: (chatId: number, text: string, opts?: { parse_mode?: string }) => Promise<unknown> };
+
+/**
+ * Notify referrer that a new user signed up via their referral link.
+ * Uses shared fluent so it works even when ctx.fluent has no translateForLocale (e.g. useFluent).
+ */
+export async function notifyReferrerAboutNewSignup(
+  api: SendMessageApi,
+  referrerTelegramId: number,
+  referrerLang: string
+): Promise<void> {
+  try {
+    const fluent = await getFluentForNotify();
+    const message = fluent.translate(referrerLang === "en" ? "en" : "ru", "referral-new-joined", {});
+    if (!message?.trim()) throw new Error("Empty referral-new-joined message");
+    await api.sendMessage(referrerTelegramId, message, { parse_mode: "HTML" });
+  } catch (e) {
+    console.error("[Referral] Failed to notify referrer about new signup:", e);
+  }
+}
+
 /**
  * Notify referrer that their referral topped up balance.
  * Called from api/payment.ts and PaymentStatusChecker when referral reward was applied.
@@ -71,6 +93,7 @@ export async function notifyReferrerAboutReferralTopUp(
       percent: data.percent,
       reward: formatUsd(data.rewardAmount),
     });
+    if (!message?.trim()) throw new Error("Empty referral-topup-notify message");
     await bot.api.sendMessage(data.referrerTelegramId, message, { parse_mode: "HTML" });
   } catch (e) {
     console.error("[Referral] Failed to notify referrer about referral top-up:", e);

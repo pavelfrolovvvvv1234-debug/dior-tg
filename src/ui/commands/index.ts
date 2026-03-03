@@ -121,20 +121,10 @@ export function registerCommands(bot: Bot<AppContext>): void {
               console.log(`[Referral] Bound referrer for user ${user.id} with refCode ${ctx.match}`);
               const referrerTelegramId = parseInt(ctx.match, 10);
               if (!Number.isNaN(referrerTelegramId)) {
-                try {
-                  const referrer = await userRepo.findByTelegramId(referrerTelegramId);
-                  const referrerLocale = referrer?.lang === "en" ? "en" : "ru";
-                  const message = (ctx as any).fluent?.translateForLocale?.(
-                    referrerLocale,
-                    "referral-new-joined",
-                    {}
-                  );
-                  if (message) {
-                    await ctx.api.sendMessage(referrerTelegramId, message, { parse_mode: "HTML" });
-                  }
-                } catch (notifyErr: any) {
-                  console.error("[Referral] Failed to notify referrer:", notifyErr?.message ?? notifyErr);
-                }
+                const referrer = await userRepo.findByTelegramId(referrerTelegramId);
+                const referrerLang = referrer?.lang === "en" ? "en" : "ru";
+                const { notifyReferrerAboutNewSignup } = await import("../../helpers/notifier.js");
+                await notifyReferrerAboutNewSignup(ctx.api, referrerTelegramId, referrerLang);
               }
             }
           }
