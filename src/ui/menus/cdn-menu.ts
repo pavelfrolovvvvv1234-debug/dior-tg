@@ -17,6 +17,7 @@ import {
 import { showTopupForMissingAmount } from "../../helpers/deposit-money";
 import { getAppDataSource } from "../../database";
 import User from "../../entities/User";
+import { createInitialOtherSession } from "../../shared/session-initial";
 
 const DOMAIN_REGEX =
   /^(?!https?:\/\/)(?!www\.$)(?!.*\/$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -112,6 +113,7 @@ export async function cdnAddProxyConversation(
   ctx: AppContext
 ) {
   const session = await ctx.session;
+  if (!session.other) (session as any).other = createInitialOtherSession();
   if (!session.other.cdn) session.other.cdn = { step: "idle" };
   const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
   if (telegramId == null) {
