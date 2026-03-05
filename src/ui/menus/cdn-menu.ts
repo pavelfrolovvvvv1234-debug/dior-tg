@@ -88,6 +88,8 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       const session = await ctx.session;
+      if (!session) return;
+      if (!session.other) (session as any).other = createInitialOtherSession();
       const fromManage = session.other?.cdn?.fromManage;
       if (fromManage) {
         const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");
