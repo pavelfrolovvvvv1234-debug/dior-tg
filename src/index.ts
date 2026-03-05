@@ -2083,12 +2083,7 @@ async function index() {
   manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
   manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");
   manageSerivcesMenu.register(bundleManageServicesMenu, "manage-services-menu");
-  try {
-    const { cdnMenu } = await import("./ui/menus/cdn-menu.js");
-    manageSerivcesMenu.register(cdnMenu, "manage-services-menu");
-  } catch (error: any) {
-    console.error("[Bot] Failed to register CDN menu in manage services:", error);
-  }
+  // CDN menu is registered under services-menu only; manage services opens it via .text() + reply_markup
   // Register bundles menu
   try {
     const { bundleTypeMenu, bundlePeriodMenu } = await import("./ui/menus/bundles-menu.js");
