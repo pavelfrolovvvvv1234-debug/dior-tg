@@ -40,9 +40,12 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
         return;
       }
       try {
+        const session = (await ctx.session) as any;
+        if (session && !session.other) (session as any).other = createInitialOtherSession();
         await ctx.conversation.enter("cdnAddProxyConversation");
       } catch (e: any) {
-        await ctx.reply(ctx.t("error-unknown", { error: e?.message ?? "Error" }));
+        const msg = e?.message ?? "Error";
+        await ctx.reply(ctx.t("cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
       }
     }
   )
@@ -60,7 +63,7 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
         return;
       }
       try {
-          const list = await cdnListProxies(telegramId);
+        const list = await cdnListProxies(telegramId);
           if (list.length === 0) {
             await ctx.reply(ctx.t("cdn-my-proxies-empty"), { parse_mode: "HTML" });
             return;
@@ -110,13 +113,24 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
 /**
  * Conversation: add CDN proxy — domain → target URL → confirm → pay → create.
  */
+function ensureCdnSession(session: any): void {
+  if (!session) return;
+  if (!session.other) (session as any).other = createInitialOtherSession();
+  if (!session.other!.cdn) session.other!.cdn = { step: "idle" };
+}
+
 export async function cdnAddProxyConversation(
   conversation: AppConversation,
   ctx: AppContext
 ) {
-  const session = await ctx.session;
-  if (!session.other) (session as any).other = createInitialOtherSession();
-  if (!session.other.cdn) session.other.cdn = { step: "idle" };
+  let session = (await ctx.session) as any;
+  if (!session) {
+    await ctx.reply(ctx.t("cdn-error", { error: "Session not ready. Try again." }), {
+      parse_mode: "HTML",
+    });
+    return;
+  }
+  ensureCdnSession(session);
   const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
   if (telegramId == null) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
@@ -127,6 +141,8 @@ export async function cdnAddProxyConversation(
   await ctx.reply(ctx.t("cdn-enter-domain"), { parse_mode: "HTML" });
 
   const domainCtx = await conversation.waitFor("message:text");
+  session = (await domainCtx.session) as any;
+  ensureCdnSession(session);
   const domainName = domainCtx.message.text?.trim() ?? "";
 
   if (!domainName) {
@@ -142,6 +158,8 @@ export async function cdnAddProxyConversation(
   await ctx.reply(ctx.t("cdn-enter-target"), { parse_mode: "HTML" });
 
   const targetCtx = await conversation.waitFor("message:text");
+  session = (await targetCtx.session) as any;
+  ensureCdnSession(session);
   const targetUrl = targetCtx.message.text?.trim() ?? "";
 
   if (!targetUrl || !isValidTargetUrl(targetUrl)) {
@@ -177,6 +195,8 @@ export async function cdnAddProxyConversation(
   );
 
   const confirmCtx = await conversation.waitForCallbackQuery(/^cdn_(confirm|cancel)$/);
+  session = (await confirmCtx.session) as any;
+  ensureCdnSession(session);
   if (!confirmCtx.callbackQuery?.data) {
     return;
   }
@@ -195,7 +215,13 @@ export async function cdnAddProxyConversation(
 
   const dataSource = await getAppDataSource();
   const userRepo = dataSource.getRepository(User);
-  const user = await userRepo.findOneBy({ id: session.main.user.id });
+  const userId = session?.main?.user?.id;
+  if (!userId) {
+    await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+  const user = await userRepo.findOneBy({ id: userId });
   if (!user || user.balance < price) {
     await showTopupForMissingAmount(ctx, price - (user?.balance ?? 0));
     session.other.cdn = { step: "idle" };
