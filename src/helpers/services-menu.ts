@@ -16,6 +16,7 @@ import VirtualDedicatedServer, {
 import ms from "@/lib/multims";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
 import { cdnMenu } from "../ui/menus/cdn-menu.js";
+import { createInitialOtherSession } from "../shared/session-initial.js";
 
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
@@ -148,6 +149,7 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
+      if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = false;
       try {

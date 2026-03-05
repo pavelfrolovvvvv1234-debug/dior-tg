@@ -636,6 +636,7 @@ async function index() {
     bot.callbackQuery(/^services-menu\/1\/0\//, async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
+      if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = false;
       try {

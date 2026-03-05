@@ -17,6 +17,7 @@ import { UserRepository } from "@/infrastructure/db/repositories/UserRepository"
 import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepository";
 import { buildServiceInfoBlock } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
+import { createInitialOtherSession } from "@/shared/session-initial.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -178,6 +179,7 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
     "cdn-menu",
     async (ctx) => {
       const session = await ctx.session;
+      if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = true;
       await ctx.editMessageText(ctx.t("cdn-service"), {
