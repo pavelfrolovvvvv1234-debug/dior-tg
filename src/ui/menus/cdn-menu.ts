@@ -141,7 +141,7 @@ export async function cdnAddProxyConversation(
   await ctx.reply(ctx.t("cdn-enter-domain"), { parse_mode: "HTML" });
 
   const domainCtx = await conversation.waitFor("message:text");
-  session = (await domainCtx.session) as any;
+  session = (await (domainCtx as any).session) as any;
   ensureCdnSession(session);
   const domainName = domainCtx.message.text?.trim() ?? "";
 
@@ -158,7 +158,7 @@ export async function cdnAddProxyConversation(
   await ctx.reply(ctx.t("cdn-enter-target"), { parse_mode: "HTML" });
 
   const targetCtx = await conversation.waitFor("message:text");
-  session = (await targetCtx.session) as any;
+  session = (await (targetCtx as any).session) as any;
   ensureCdnSession(session);
   const targetUrl = targetCtx.message.text?.trim() ?? "";
 
@@ -195,7 +195,7 @@ export async function cdnAddProxyConversation(
   );
 
   const confirmCtx = await conversation.waitForCallbackQuery(/^cdn_(confirm|cancel)$/);
-  session = (await confirmCtx.session) as any;
+  session = (await (confirmCtx as any).session) as any;
   ensureCdnSession(session);
   if (!confirmCtx.callbackQuery?.data) {
     return;
