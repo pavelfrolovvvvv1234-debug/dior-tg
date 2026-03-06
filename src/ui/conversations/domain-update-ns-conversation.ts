@@ -13,6 +13,7 @@ import { UserRepository } from "../../infrastructure/db/repositories/UserReposit
 import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository.js";
 import { AmperDomainsProvider } from "../../infrastructure/domains/AmperDomainsProvider.js";
 import { Logger } from "../../app/logger.js";
+import { ensureSessionUser } from "../../shared/utils/session-user.js";
 
 /**
  * Domain nameserver update conversation.
@@ -22,7 +23,8 @@ export async function domainUpdateNsConversation(
   ctx: AppContext
 ) {
   const session = await ctx.session;
-  
+  await ensureSessionUser(ctx);
+
   // Try to get domainId from callback query data or session
   let domainId: number | undefined;
   if (ctx.callbackQuery && "data" in ctx.callbackQuery) {
@@ -33,7 +35,7 @@ export async function domainUpdateNsConversation(
       (session.other as any).currentDomainId = domainId;
     }
   }
-  
+
   if (!domainId) {
     domainId = (session.other as any)?.currentDomainId as number;
   }
@@ -74,7 +76,8 @@ export async function domainUpdateNsConversation(
 
     const domain = await domainService.getDomainById(domainId);
 
-    if (domain.userId !== session.main.user.id) {
+    const currentUserId = session?.main?.user?.id ?? 0;
+    if (!currentUserId || domain.userId !== currentUserId) {
       await ctx.reply(ctx.t("error-access-denied"));
       return;
     }

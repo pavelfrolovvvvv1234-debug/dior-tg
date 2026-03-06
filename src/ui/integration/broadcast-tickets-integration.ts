@@ -1324,28 +1324,24 @@ Are you sure you want to proceed?`,
     }
   });
 
-  // Handle domain update NS button
+  // Handle domain update NS button (from manage services or amper domains menu)
   bot.callbackQuery(/^domain_update_ns_(\d+)$/, async (ctx) => {
+    const domainId = parseInt(ctx.match[1]);
     try {
-      const session = await ctx.session;
-      const hasSessionUser = await ensureSessionUser(ctx);
-      if (!session || !hasSessionUser) {
-        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = (await ctx.session) as any;
+      if (!session) {
+        await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
         return;
       }
-      const domainId = parseInt(ctx.match[1]);
+      await ensureSessionUser(ctx);
       session.other = session.other || {};
-      (session.other as any).currentDomainId = domainId;
-      
-      try {
-        await ctx.conversation.enter("domainUpdateNsConversation");
-      } catch (error: any) {
-        Logger.error(`Failed to start update NS conversation for domain ${domainId}:`, error);
-        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Unknown error" }).substring(0, 200));
-      }
+      session.other.currentDomainId = domainId;
+
+      await ctx.conversation.enter("domainUpdateNsConversation");
     } catch (error: any) {
       Logger.error("Failed to handle domain update NS:", error);
-      await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Unknown error" }).substring(0, 200));
+      await ctx.reply(ctx.t("error-unknown", { error: error?.message ?? "Unknown error" })).catch(() => {});
     }
   });
 
