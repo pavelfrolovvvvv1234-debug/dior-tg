@@ -1,8 +1,8 @@
 import { Middleware } from "grammy";
 import type { AppContext } from "../shared/types/context";
-import TempLink from "@entities/TempLink";
-import User, { Role } from "@entities/User";
-import { notifyAllAdminsAboutPromotedUser } from "@helpers/notifier";
+import TempLink from "../entities/TempLink";
+import User, { Role } from "../entities/User";
+import { notifyAllAdminsAboutPromotedUser } from "./notifier";
 
 export const PREFIX_PROMOTE = "promote_";
 
