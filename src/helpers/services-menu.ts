@@ -61,7 +61,7 @@ async function getPriceWithPrimeDiscount(
   return hasPrime ? Math.round(basePrice * 0.8 * 100) / 100 : basePrice;
 }
 
-export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu")
+export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { autoAnswer: false, onMenuOutdated: false })
   .submenu(
     (ctx) => ctx.t("button-standard"),
     "dedicated-servers-menu",
@@ -103,7 +103,7 @@ export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu")
 /**
  * VDS type selection menu (Standard/Bulletproof).
  */
-export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu")
+export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: false, onMenuOutdated: false })
   .submenu(
     (ctx) => ctx.t("button-standard"),
     "vds-menu",
@@ -133,7 +133,7 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu")
     });
   });
 
-export const servicesMenu = new Menu<AppContext>("services-menu")
+export const servicesMenu = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
   .submenu(
     (ctx) => ctx.t("button-domains"),
     "domains-menu",
@@ -145,22 +145,24 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
   )
   .row()
   .text(
-    (ctx) => ctx.t("button-cdn"),
+    (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
       if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = false;
+      const t = typeof (ctx as any).t === "function" ? (ctx as any).t.bind(ctx) : ((k: string, v?: { error?: string }) => (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-service" ? "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL." : k));
       try {
-        await ctx.editMessageText(ctx.t("cdn-service"), {
+        const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-service") : "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.";
+        await ctx.editMessageText(text, {
           parse_mode: "HTML",
           reply_markup: cdnMenu,
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[Bot] CDN menu open error:", msg);
-        await ctx.reply(ctx.t("cdn-error", { error: msg })).catch(() => {});
+        await ctx.reply(t("cdn-error", { error: msg })).catch(() => {});
       }
     }
   )
@@ -179,8 +181,7 @@ export const servicesMenu = new Menu<AppContext>("services-menu")
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       const session = await ctx.session;
-
-      ctx.editMessageText(
+      await ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
         {
           parse_mode: "HTML",
@@ -252,7 +253,7 @@ async function createAndBuyVDS(
   }
 
   if (result == false) {
-    ctx.reply(ctx.t("bad-error"));
+    await ctx.reply(ctx.t("bad-error"));
     return "error-when-creating" as const;
   }
 
@@ -288,7 +289,7 @@ async function createAndBuyVDS(
 
   await usersRepo.save(user);
 
-  ctx.reply(ctx.t("vds-created"), {
+  await ctx.reply(ctx.t("vds-created"), {
     reply_markup: mainMenu,
   });
 }
@@ -300,7 +301,7 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
     const osList = ctx.osList;
 
     if (!osList) {
-      ctx.reply(ctx.t("bad-error"));
+      await ctx.reply(ctx.t("bad-error"));
       return;
     }
 
@@ -309,7 +310,7 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
         const session = await ctx.session;
 
         ctx.menu.close();
-        ctx.editMessageText(ctx.t("await-please"));
+        await ctx.editMessageText(ctx.t("await-please"));
 
         const result = await createAndBuyVDS(
           ctx,
@@ -332,8 +333,6 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
         await ctx.editMessageText(ctx.t("vds-os-select"), {
           parse_mode: "HTML",
         });
-
-        // ctx.menu.update();
       });
       return;
     }
@@ -386,7 +385,7 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
 
           const session = await ctx.session;
 
-          ctx.reply(
+          await ctx.reply(
             ctx.t("welcome", { balance: session.main.user.balance }),
             {
               reply_markup: mainMenu,
@@ -421,7 +420,7 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
 
           const session = await ctx.session;
 
-          ctx.reply(
+          await ctx.reply(
             ctx.t("welcome", { balance: session.main.user.balance }),
             {
               reply_markup: mainMenu,
@@ -455,7 +454,7 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
 
         session.other.vdsRate.selectedRateId = Number(ctx.match);
 
-        ctx.editMessageText(ctx.t("vds-os-select"), {
+        await ctx.editMessageText(ctx.t("vds-os-select"), {
           parse_mode: "HTML",
         });
       }
@@ -464,8 +463,8 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
   .row()
   .back(
     (ctx) => ctx.t("button-back"),
-    (ctx) => {
-      ctx.editMessageText(ctx.t("vds-service"), {
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("vds-service"), {
         parse_mode: "HTML",
       });
     }
@@ -505,7 +504,7 @@ const editMessageVdsRate = async (ctx: AppContext, rateId: number) => {
   );
 };
 
-export const vdsMenu = new Menu<AppContext>("vds-menu")
+export const vdsMenu = new Menu<AppContext>("vds-menu", { autoAnswer: false, onMenuOutdated: false })
   .dynamic(async (ctx, range) => {
     const pricesList = await prices();
     const session = await ctx.session;
@@ -572,7 +571,7 @@ export const vdsMenu = new Menu<AppContext>("vds-menu")
 /**
  * Dedicated servers list menu (shows after selecting Standard/Bulletproof).
  */
-export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu")
+export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu", { autoAnswer: false, onMenuOutdated: false })
   .dynamic(async (ctx, range) => {
     const pricesList = await prices();
     const session = await ctx.session;
@@ -910,7 +909,7 @@ export const dedicatedSelectedServerMenu = new Menu<AppContext>("dedicated-selec
     }
   );
 
-export const domainsMenu = new Menu<AppContext>("domains-menu")
+export const domainsMenu = new Menu<AppContext>("domains-menu", { autoAnswer: false, onMenuOutdated: false })
   .text(
     (ctx) => ctx.t("button-register-domain"),
     async (ctx) => {
@@ -1046,7 +1045,7 @@ export const domainQuestion = new StatelessQuestion<AppContext>(
     if (status === "Available") {
       session.other.domains.lastPickDomain = domain;
 
-      ctx.reply(
+      await ctx.reply(
         ctx.t("domain-available", {
           domain: `${escapeUserInput(domain)}`,
         }),

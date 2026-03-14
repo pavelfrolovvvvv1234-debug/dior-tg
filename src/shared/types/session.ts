@@ -123,9 +123,17 @@ export interface OtherSessionData {
   subscriptionEdit?: {
     userId: number;
   };
-  /** Admin referral percent edit: awaiting percentage 0-100 */
+  /** Admin referral percent edit: awaiting percentage 0-100. key = which service column to set. */
   referralPercentEdit?: {
     userId: number;
+    key?:
+      | "default"
+      | "domains"
+      | "dedicated_standard"
+      | "dedicated_bulletproof"
+      | "vds_standard"
+      | "vds_bulletproof"
+      | "cdn";
   };
   /** Admin domain NS edit: awaiting ns1 ns2 for domainId */
   adminDomainNs?: {

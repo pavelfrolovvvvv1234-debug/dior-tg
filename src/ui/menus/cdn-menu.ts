@@ -31,12 +31,32 @@ function isValidTargetUrl(url: string): boolean {
   return u.startsWith("http://") || u.startsWith("https://");
 }
 
-export const cdnMenu = new Menu<AppContext>("cdn-menu")
+/** Безопасный вызов перевода: если ctx.t недоступен (например при рендере меню), возвращаем fallback. */
+function safeT(ctx: AppContext, key: string, vars?: Record<string, string | number>): string {
+  if (typeof (ctx as any).t === "function") {
+    return (ctx as any).t(key, vars);
+  }
+  const ru: Record<string, string> = {
+    "button-cdn-add-proxy": "➕ Добавить прокси",
+    "button-cdn-my-proxies": "Мои прокси",
+    "button-back": "Назад",
+    "cdn-not-configured": "Услуга CDN пока не подключена.",
+    "cdn-error": "Ошибка CDN: " + (vars?.error ?? ""),
+    "cdn-my-proxies-empty": "У вас пока нет прокси.",
+    "cdn-my-proxies-list": "Ваши прокси",
+    "cdn-proxy-item": `${vars?.domain ?? ""} → ${vars?.target ?? ""} (${vars?.status ?? ""})`,
+    "manage-services-header": "Управление услугами",
+    "menu-service-for-buy-choose": "Выберите категорию услуг для приобретения",
+  };
+  return ru[key] ?? key;
+}
+
+export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onMenuOutdated: false })
   .text(
-    (ctx) => ctx.t("button-cdn-add-proxy"),
+    (ctx) => safeT(ctx, "button-cdn-add-proxy"),
     async (ctx) => {
       if (!isCdnEnabled()) {
-        await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+        await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
         return;
       }
       try {
@@ -45,42 +65,42 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
         await ctx.conversation.enter("cdnAddProxyConversation");
       } catch (e: any) {
         const msg = e?.message ?? "Error";
-        await ctx.reply(ctx.t("cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
+        await ctx.reply(safeT(ctx, "cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
       }
     }
   )
   .row()
   .text(
-    (ctx) => ctx.t("button-cdn-my-proxies"),
+    (ctx) => safeT(ctx, "button-cdn-my-proxies"),
     async (ctx) => {
       if (!isCdnEnabled()) {
-        await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+        await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
         return;
       }
       const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
       if (telegramId == null) {
-        await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
+        await ctx.reply(safeT(ctx, "cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
         return;
       }
       try {
         const list = await cdnListProxies(telegramId);
           if (list.length === 0) {
-            await ctx.reply(ctx.t("cdn-my-proxies-empty"), { parse_mode: "HTML" });
+            await ctx.reply(safeT(ctx, "cdn-my-proxies-empty"), { parse_mode: "HTML" });
             return;
           }
           const lines = list.map((p) =>
-            ctx.t("cdn-proxy-item", {
+            safeT(ctx, "cdn-proxy-item", {
               domain: p.domain_name,
               target: p.target_url || "—",
               status: p.lifecycle_status || p.status,
             })
           );
           await ctx.reply(
-            `${ctx.t("cdn-my-proxies-list")}\n\n${lines.join("\n")}`,
+            `${safeT(ctx, "cdn-my-proxies-list")}\n\n${lines.join("\n")}`,
             { parse_mode: "HTML" }
           );
       } catch (e: any) {
-        await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Unknown" }), {
+        await ctx.reply(safeT(ctx, "cdn-error", { error: e?.message ?? "Unknown" }), {
           parse_mode: "HTML",
         });
       }
@@ -88,7 +108,7 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
   )
   .row()
   .back(
-    (ctx) => ctx.t("button-back"),
+    (ctx) => safeT(ctx, "button-back"),
     async (ctx) => {
       const session = await ctx.session;
       if (!session) return;
@@ -96,13 +116,13 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu")
       const fromManage = session.other?.cdn?.fromManage;
       if (fromManage) {
         const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");
-        await ctx.editMessageText(ctx.t("manage-services-header"), {
+        await ctx.editMessageText(safeT(ctx, "manage-services-header"), {
           parse_mode: "HTML",
           reply_markup: manageSerivcesMenu,
         });
       } else {
         const { servicesMenu } = await import("../../helpers/services-menu.js");
-        await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+        await ctx.editMessageText(safeT(ctx, "menu-service-for-buy-choose"), {
           parse_mode: "HTML",
           reply_markup: servicesMenu,
         });

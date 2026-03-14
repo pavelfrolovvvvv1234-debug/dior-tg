@@ -311,7 +311,7 @@ export function registerDomainRegistrationMiddleware(
         isDomain.status == DomainRequestStatus.Completed ||
         isDomain.status == DomainRequestStatus.InProgress
       ) {
-        ctx.answerCallbackQuery(ctx.t("domain-already-pending-registration"));
+        await ctx.answerCallbackQuery(ctx.t("domain-already-pending-registration"));
         return;
       }
     }

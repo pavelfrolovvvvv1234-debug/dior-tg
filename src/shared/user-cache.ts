@@ -7,7 +7,7 @@
 
 import type User from "../entities/User.js";
 
-const TTL_MS = 12 * 1000; // 12 seconds
+const TTL_MS = 5 * 60 * 1000; // 5 минут — меньше обращений к БД, кнопки реагируют быстрее
 
 interface Entry {
   user: User;

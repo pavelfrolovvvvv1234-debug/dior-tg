@@ -52,6 +52,30 @@ export default class User {
   @Column({ nullable: true, type: "real" })
   referralPercent!: number | null;
 
+  /** Referral % for domain sales. Null = use referralPercent. */
+  @Column({ nullable: true, type: "real" })
+  referralPercentDomains!: number | null;
+
+  /** Referral % for dedicated standard. Null = use referralPercent. */
+  @Column({ nullable: true, type: "real" })
+  referralPercentDedicatedStandard!: number | null;
+
+  /** Referral % for dedicated bulletproof. Null = use referralPercent. */
+  @Column({ nullable: true, type: "real" })
+  referralPercentDedicatedBulletproof!: number | null;
+
+  /** Referral % for VDS standard. Null = use referralPercent. */
+  @Column({ nullable: true, type: "real" })
+  referralPercentVdsStandard!: number | null;
+
+  /** Referral % for VDS bulletproof. Null = use referralPercent. */
+  @Column({ nullable: true, type: "real" })
+  referralPercentVdsBulletproof!: number | null;
+
+  /** Referral % for CDN. Null = use referralPercent. */
+  @Column({ nullable: true, type: "real" })
+  referralPercentCdn!: number | null;
+
   /** Prime subscription active until (null = not active). */
   @Column({ nullable: true, type: "datetime" })
   primeActiveUntil!: Date | null;

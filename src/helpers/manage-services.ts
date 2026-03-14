@@ -157,8 +157,8 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
   .submenu(
     (ctx) => ctx.t("button-domains"),
     "domain-manage-services-menu",
-    (ctx) => {
-      ctx.editMessageText(ctx.t("domains-manage"), {
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("domains-manage"), {
         parse_mode: "HTML",
       });
     }
@@ -167,22 +167,23 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
   .submenu(
     (ctx) => ctx.t("button-my-dedicated"),
     "dedicated-menu",
-    (ctx) => {
-      ctx.editMessageText(ctx.t("dedicated-menu-header"), {
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
         parse_mode: "HTML",
       });
     }
   )
   .row()
   .text(
-    (ctx) => ctx.t("button-cdn"),
+    (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
     async (ctx) => {
       const session = await ctx.session;
       if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = true;
       const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-      await ctx.editMessageText(ctx.t("cdn-service"), {
+      const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-service") : "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.";
+      await ctx.editMessageText(text, {
         parse_mode: "HTML",
         reply_markup: cdnMenu,
       });
@@ -193,8 +194,7 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       const session = await ctx.session;
-
-      ctx.editMessageText(
+      await ctx.editMessageText(
         ctx.t("welcome", { balance: session.main.user.balance }),
         {
           parse_mode: "HTML",
@@ -221,7 +221,7 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
     const osList = ctx.osList;
 
     if (!osList) {
-      ctx.reply(ctx.t("bad-error"));
+      await ctx.reply(ctx.t("bad-error"));
       return;
     }
 
@@ -251,11 +251,11 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
 
           if (vds) {
             if (vds.targetUserId != session.main.user.id) {
-              ctx.reply(ctx.t("bad-error"));
+              await ctx.reply(ctx.t("bad-error"));
               return;
             }
 
-            await ctx.editMessageText("await-please");
+            await ctx.editMessageText(ctx.t("await-please"));
             ctx.menu.close();
 
             let reinstall;
@@ -265,7 +265,7 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
             }
 
             if (!reinstall) {
-              ctx.reply(ctx.t("bad-error"));
+              await ctx.reply(ctx.t("bad-error"));
               return;
             }
 
@@ -309,11 +309,11 @@ export const vdsManageSpecific = new Menu<AppContext>(
   });
 
   if (!vds) {
-    ctx.reply(ctx.t("bad-error"));
+    await ctx.reply(ctx.t("bad-error"));
     return;
   }
 
-  if (session.main.user.id != vds?.targetUserId) {
+  if (session.main.user.id != vds.targetUserId) {
     return;
   }
 
@@ -330,7 +330,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
   }
 
   if (!info) {
-    ctx.reply(ctx.t("failed-to-retrieve-info"));
+    await ctx.reply(ctx.t("failed-to-retrieve-info"));
     return;
   }
 
@@ -382,7 +382,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
           }
 
           if (!info) {
-            ctx.reply(ctx.t("failed-to-retrieve-info"));
+            await ctx.reply(ctx.t("failed-to-retrieve-info"));
             return;
           }
 
@@ -833,7 +833,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             });
 
             if (!vds) {
-              ctx.reply(ctx.t("bad-error"));
+              await ctx.reply(ctx.t("bad-error"));
               return;
             }
 
@@ -1078,8 +1078,7 @@ export const domainManageServicesMenu = new Menu<AppContext>(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       const session = await ctx.session;
-
-      ctx.editMessageText(
+      await ctx.editMessageText(
         ctx.t("manage-services-header"),
         {
           parse_mode: "HTML",

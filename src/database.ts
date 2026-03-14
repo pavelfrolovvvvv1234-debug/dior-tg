@@ -20,6 +20,7 @@ import UserNotificationState from "./entities/automations/UserNotificationState"
 import OfferInstance from "./entities/automations/OfferInstance";
 import AutomationEventLog from "./entities/automations/AutomationEventLog";
 import ScenarioMetric from "./entities/automations/ScenarioMetric";
+import AdminSetting from "./entities/AdminSetting";
 
 const AppDataSource = new DataSource({
   type: "better-sqlite3",
@@ -47,6 +48,7 @@ const AppDataSource = new DataSource({
     OfferInstance,
     AutomationEventLog,
     ScenarioMetric,
+    AdminSetting,
   ],
   enableWAL: true,
 });

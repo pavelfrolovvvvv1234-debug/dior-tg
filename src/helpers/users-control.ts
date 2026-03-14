@@ -178,6 +178,77 @@ function getControlUserMenu(): Menu<AppContext> {
   return _controlUserMenu;
 }
 
+/** Build referral summary message and keyboard (for admin "Партнёрка" and "back to summary"). */
+export async function buildReferralSummaryReply(
+  ctx: AppContext,
+  user: User
+): Promise<{ text: string; reply_markup: InlineKeyboard }> {
+  const referralService = new ReferralService(ctx.appDataSource, new UserRepository(ctx.appDataSource));
+  const link = await referralService.getReferralLink(user.id);
+  const count = await referralService.countReferrals(user.id);
+  const referees = await ctx.appDataSource.manager.find(User, {
+    where: { referrerId: user.id },
+    select: ["id"],
+  });
+  const refereeIds = referees.map((r) => r.id);
+  let conversionPercent = 0;
+  let avgDepositPerReferral = 0;
+  let activeReferrals30d = 0;
+  if (refereeIds.length > 0) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const refereesWithDeposit = await ctx.appDataSource.manager
+      .getRepository(TopUp)
+      .createQueryBuilder("t")
+      .select("DISTINCT t.target_user_id", "uid")
+      .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
+      .andWhere("t.status = :status", { status: TopUpStatus.Completed })
+      .getRawMany<{ uid: number }>();
+    const countWithDeposit = refereesWithDeposit.length;
+    conversionPercent = count > 0 ? Math.round((countWithDeposit / count) * 100) : 0;
+    const depositSumResult = await ctx.appDataSource.manager
+      .getRepository(TopUp)
+      .createQueryBuilder("t")
+      .select("COALESCE(SUM(t.amount), 0)", "total")
+      .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
+      .andWhere("t.status = :status", { status: TopUpStatus.Completed })
+      .getRawOne<{ total: string }>();
+    const depositSum = Number(depositSumResult?.total ?? 0);
+    avgDepositPerReferral = countWithDeposit > 0 ? Math.round((depositSum / countWithDeposit) * 100) / 100 : 0;
+    const active30Result = await ctx.appDataSource.manager
+      .getRepository(TopUp)
+      .createQueryBuilder("t")
+      .select("COUNT(DISTINCT t.target_user_id)", "cnt")
+      .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
+      .andWhere("t.status = :status", { status: TopUpStatus.Completed })
+      .andWhere("t.createdAt >= :since", { since: thirtyDaysAgo })
+      .getRawOne<{ cnt: string }>();
+    activeReferrals30d = Number(active30Result?.cnt ?? 0);
+  }
+  const referralKeyboard = new InlineKeyboard()
+    .text(ctx.t("button-ref-topup-percent"), "admin-referrals-change-percent")
+    .row()
+    .text(`${ctx.t("ref-percent-label-domains")} %`, "admin-referrals-percent-domains")
+    .text(`${ctx.t("ref-percent-label-vds")} %`, "admin-referrals-percent-vds-menu")
+    .row()
+    .text(`${ctx.t("ref-percent-label-dedicated")} %`, "admin-referrals-percent-dedicated-menu")
+    .text(`${ctx.t("ref-percent-label-cdn")} %`, "admin-referrals-percent-cdn")
+    .row()
+    .text(ctx.t("button-back"), "admin-referrals-back");
+  const referralPercent = user.referralPercent != null ? user.referralPercent : 5;
+  const referralBalance = Math.round((user.referralBalance ?? 0) * 100) / 100;
+  const text = ctx.t("admin-user-referrals-summary", {
+    link,
+    count,
+    conversionPercent,
+    avgDepositPerReferral,
+    referralPercent,
+    activeReferrals30d,
+    referralBalance,
+  });
+  return { text, reply_markup: referralKeyboard };
+}
+
 export const controlUsers = new Menu<AppContext>("control-users", {})
   .text(
     async (ctx) => {
@@ -290,7 +361,7 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
                 }
                 const menu = getControlUserMenu();
                 const { text, reply_markup } = await buildControlPanelUserReply(ctx, fullUser, username, menu);
-                await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+                await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
               } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
                 await ctx.reply(ctx.t("error-unknown", { error: msg })).catch(() => {});
@@ -343,13 +414,15 @@ export const controlUser = new Menu<AppContext>("control-user", {})
   .dynamic(
   async (ctx, range) => {
     const session = await ctx.session;
-    const hasSessionUser = await ensureSessionUser(ctx);
-    if (!session || !hasSessionUser) {
+    if (!session?.other?.controlUsersPage?.pickedUserData) {
       range.text(ctx.t("button-back"), (ctx) => ctx.menu.back());
       return;
     }
-
-    if (!session.other.controlUsersPage.pickedUserData) return;
+    const hasSessionUser = session.main?.user?.id != null && session.main.user.id > 0 ? true : await ensureSessionUser(ctx);
+    if (!hasSessionUser) {
+      range.text(ctx.t("button-back"), (ctx) => ctx.menu.back());
+      return;
+    }
 
     const user = await ctx.appDataSource.manager.findOne(User, {
       where: {
@@ -369,66 +442,8 @@ export const controlUser = new Menu<AppContext>("control-user", {})
     range.text((ctx) => ctx.t("button-partnership-short"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       try {
-        const referralService = new ReferralService(ctx.appDataSource, new UserRepository(ctx.appDataSource));
-        const link = await referralService.getReferralLink(user.id);
-        const count = await referralService.countReferrals(user.id);
-        const referees = await ctx.appDataSource.manager.find(User, {
-          where: { referrerId: user.id },
-          select: ["id"],
-        });
-        const refereeIds = referees.map((r) => r.id);
-        let conversionPercent = 0;
-        let avgDepositPerReferral = 0;
-        let activeReferrals30d = 0;
-        if (refereeIds.length > 0) {
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          const refereesWithDeposit = await ctx.appDataSource.manager
-            .getRepository(TopUp)
-            .createQueryBuilder("t")
-            .select("DISTINCT t.target_user_id", "uid")
-            .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
-            .andWhere("t.status = :status", { status: TopUpStatus.Completed })
-            .getRawMany<{ uid: number }>();
-          const countWithDeposit = refereesWithDeposit.length;
-          conversionPercent = count > 0 ? Math.round((countWithDeposit / count) * 100) : 0;
-          const depositSumResult = await ctx.appDataSource.manager
-            .getRepository(TopUp)
-            .createQueryBuilder("t")
-            .select("COALESCE(SUM(t.amount), 0)", "total")
-            .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
-            .andWhere("t.status = :status", { status: TopUpStatus.Completed })
-            .getRawOne<{ total: string }>();
-          const depositSum = Number(depositSumResult?.total ?? 0);
-          avgDepositPerReferral = countWithDeposit > 0 ? Math.round((depositSum / countWithDeposit) * 100) / 100 : 0;
-          const active30Result = await ctx.appDataSource.manager
-            .getRepository(TopUp)
-            .createQueryBuilder("t")
-            .select("COUNT(DISTINCT t.target_user_id)", "cnt")
-            .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
-            .andWhere("t.status = :status", { status: TopUpStatus.Completed })
-            .andWhere("t.createdAt >= :since", { since: thirtyDaysAgo })
-            .getRawOne<{ cnt: string }>();
-          activeReferrals30d = Number(active30Result?.cnt ?? 0);
-        }
-        const referralKeyboard = new InlineKeyboard()
-          .text(ctx.t("button-change-percent"), "admin-referrals-change-percent")
-          .row()
-          .text(ctx.t("button-back"), "admin-referrals-back");
-        const referralPercent = user.referralPercent != null ? user.referralPercent : 5;
-        const referralBalance = Math.round((user.referralBalance ?? 0) * 100) / 100;
-        await ctx.reply(
-          ctx.t("admin-user-referrals-summary", {
-            link,
-            count,
-            conversionPercent,
-            avgDepositPerReferral,
-            referralPercent,
-            activeReferrals30d,
-            referralBalance,
-          }),
-          { parse_mode: "HTML", reply_markup: referralKeyboard }
-        );
+        const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
+        await ctx.reply(text, { parse_mode: "HTML", reply_markup });
       } catch (e: any) {
         await ctx.reply(ctx.t("error-unknown", { error: String(e?.message || e).slice(0, 200) }), {
           parse_mode: "HTML",
@@ -587,7 +602,7 @@ export const controlUserSubscription = new Menu<AppContext>("control-user-subscr
       targetUser.primeActiveUntil = null;
       await ctx.appDataSource.manager.save(targetUser);
       const { text, reply_markup } = await buildControlPanelUserReply(ctx, targetUser, undefined, controlUser);
-      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup });
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
     });
     range.row();
     range.back((ctx) => ctx.t("button-back"));

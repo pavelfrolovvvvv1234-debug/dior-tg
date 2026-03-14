@@ -68,6 +68,15 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
+button-dev-po = 💻 Software Development
+button-dev-po-discuss = 💬 Discuss project
+button-crypto-exchange = 💱 Crypto Exchange
+button-crypto-exchange-go = 💱 Go to exchanger
+service-crypto-exchange = <b>💱 Crypto Exchange</b><br><br>Fast cryptocurrency exchange in our DiorChange bot — no extra registration or delays. Choose a pair, enter the amount (from $2) and get the exchange at a competitive rate.<br><br>Press the button below to open the DiorChange exchanger bot.
+service-dev-po = <b>💻 Software Development</b><br><br>Our team develops IT solutions:<br><br>🤖 Telegram bots<br>🌐 Web services<br>⚙️ Custom software<br>📊 Business automation<br>🚀 Project launch and support<br><br>Press the button below to open a chat with support. Describe your requirements in as much detail as possible: what to develop, features, deadlines and wishes. Our team will review your request and contact you.
+support-dev-po-template = Software development request.
+
+Describe your requirements: what to develop, features, deadlines and wishes:
 button-balance = 💸 Balance
 button-standard = 🛡 Standard
 button-bulletproof = ⚜️ Bulletproof
@@ -76,6 +85,7 @@ update-button = 🔄 Update
 
 button-back = 🔙 Back
 button-change-percent = 📊 Change percentage
+button-change-referral-percent = 📊 Referral %
 button-close = ❌ Close
 button-open = ✅ Open
 button-pay = ✅ Pay
@@ -187,6 +197,17 @@ admin-statistics-24h = Last 24 hours
 admin-statistics-7d = Last 7 days
 admin-statistics-30d = Last 30 days
 admin-statistics-all = All time
+admin-service-percents-header = <strong>📊 Service percentages</strong>
+admin-service-percent-all = Overall (all services)
+admin-service-percent-line = • {$name}: {$percent}%
+admin-service-percent-vds-block = <b>VDS</b>: Standard {$standard}%, Bulletproof {$bulletproof}%
+admin-service-percent-dedicated-block = <b>Dedicated</b>: Standard {$standard}%, Bulletproof {$bulletproof}%
+admin-service-percents-prompt = Tap a button and enter percentage (0–100).
+admin-service-percents-submenu = percentages
+admin-service-percents-vds-header = <strong>🖥 VDS percentages</strong>
+admin-service-percents-dedicated-header = <strong>🖥 Dedicated percentages</strong>
+admin-service-percent-enter = Enter percentage (0–100) for «{$name}»:
+admin-service-percent-success = Percentage for «{$name}» set to {$percent}%.
 button-delete = 🗑 Delete
 admin-panel-header = <strong>⚙️ Admin Panel</strong>
 admin-promoted-notification = You have been granted administrator status. Tap the button below or use the /admin command. The Admin Panel button will also appear in your Profile.
@@ -230,7 +251,7 @@ cdn-confirm = Proxy: <code>{$domainName}</code> → <code>{$targetUrl}</code>
 Cost: <b>{$price}$</b> for 30 days. Deduct from balance?
 cdn-created = ✅ Proxy created: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Configure DNS as per CDN panel instructions.
 cdn-error = CDN error: {$error}
-cdn-not-configured = CDN service is not configured.
+cdn-not-configured = CDN service is not configured. To enable: set CDN_BASE_URL and CDN_BOT_API_KEY in .env (proxy service URL and API key).
 cdn-invalid-domain = Invalid domain name. Enter domain only without http:// (e.g. cdn.example.com).
 cdn-invalid-url = Invalid URL. Enter full address with http:// or https://.
 cdn-my-proxies-empty = You have no proxies yet. Add one via «Add proxy».
@@ -909,6 +930,16 @@ admin-subscription-invalid-days = Invalid number. Enter days from 1 to 3650.
 admin-referral-percent-enter = Enter referral percentage for this user (0–100):
 admin-referral-percent-invalid = Invalid value. Enter a number from 0 to 100.
 admin-referral-percent-success = Referral percentage set to {$percent}%.
+button-referral-percent-by-service = 📋 Ref. % by service
+admin-referral-percent-by-service-title = <b>Ref. % by service</b>\nCurrent values (empty = general %):
+admin-referral-percent-enter-for = Enter ref. percentage 0–100 for «{$name}»:
+admin-referral-percent-success-for = Ref. % for «{$name}» set to {$percent}%.
+button-ref-topup-percent = ⚡ Top-up %
+ref-percent-label-domains = Domains
+ref-percent-label-dedicated = Dedicated
+ref-percent-label-vds = VDS
+ref-percent-label-cdn = CDN
+admin-referral-percent-back-to-list = Back to list
 button-block-short = ⛔ Block
 button-status-short = 🏷 Status
 button-operations-history = 📜 Operations history

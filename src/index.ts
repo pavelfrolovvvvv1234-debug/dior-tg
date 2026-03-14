@@ -24,7 +24,7 @@ import {
   PREFIX_PROMOTE,
   promotePermissions,
 } from "./helpers/promote-permissions";
-import { buildControlPanelUserReply, controlUser, controlUserBalance, controlUsers, controlUserStatus, controlUserSubscription } from "./helpers/users-control";
+import { buildControlPanelUserReply, buildReferralSummaryReply, controlUser, controlUserBalance, controlUsers, controlUserStatus, controlUserSubscription } from "./helpers/users-control";
 import express from "express";
 import { run as grammyRun } from "@grammyjs/runner";
 import { adminMenu } from "./ui/menus/admin-menu";
@@ -114,7 +114,7 @@ if (!process.env.AMPER_API_BASE_URL?.trim() || !process.env.AMPER_API_TOKEN?.tri
   dotenv.config({ path: path.join(process.cwd(), "..", ".env") });
 }
 
-export const mainMenu = new Menu<AppContext>("main-menu")
+export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, onMenuOutdated: false })
   .submenu(
     (ctx) => ctx.t("button-purchase"),
     "services-menu",
@@ -130,8 +130,7 @@ export const mainMenu = new Menu<AppContext>("main-menu")
     "manage-services-menu",
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
-      
-      ctx.editMessageText(ctx.t("manage-services-header"), {
+      await ctx.editMessageText(ctx.t("manage-services-header"), {
         parse_mode: "HTML",
       });
     }
@@ -170,6 +169,45 @@ export const mainMenu = new Menu<AppContext>("main-menu")
       await ctx.editMessageText(ctx.t("support"), {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
+      });
+    }
+  )
+  .row()
+  .text(
+    (ctx) => ctx.t("button-dev-po"),
+    async (ctx) => {
+      const session = (await ctx.session) as SessionData;
+      const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(ctx.t("support-dev-po-template"))}`;
+      const keyboard = new InlineKeyboard()
+        .url(ctx.t("button-dev-po-discuss"), supportUrl)
+        .row()
+        .text(ctx.t("button-back"), "dev-po-back-to-main");
+      const isRu = session?.main?.locale !== "en";
+      const textDevPo = isRu
+        ? "<b>💻 Разработка ПО</b>\n\nНаша команда занимается разработкой IT-решений:\n\n🤖 Telegram-боты\n🌐 Веб-сервисы\n⚙️ Кастомное ПО\n📊 Автоматизация бизнеса\n🚀 Запуск и сопровождение проектов\n\nДля обсуждения проекта нажмите кнопку ниже — откроется чат с саппортом. Опишите в сообщении ТЗ максимально подробно: что нужно разработать, какие функции, сроки и пожелания. Наша команда рассмотрит запрос и свяжется с вами."
+        : "<b>💻 Software Development</b>\n\nOur team develops IT solutions:\n\n🤖 Telegram bots\n🌐 Web services\n⚙️ Custom software\n📊 Business automation\n🚀 Project launch and support\n\nPress the button below to open a chat with support. Describe your requirements in as much detail as possible: what to develop, features, deadlines and wishes. Our team will review your request and contact you.";
+      await ctx.editMessageText(textDevPo, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    }
+  )
+  .text(
+    (ctx) => ctx.t("button-crypto-exchange"),
+    async (ctx) => {
+      const session = (await ctx.session) as SessionData;
+      const exchangerUrl = "https://t.me/diorchange_bot";
+      const keyboard = new InlineKeyboard()
+        .url(ctx.t("button-crypto-exchange-go"), exchangerUrl)
+        .row()
+        .text(ctx.t("button-back"), "crypto-back-to-main");
+      const isRu = session?.main?.locale !== "en";
+      const textCrypto = isRu
+        ? "<b>💱 Криптообменник</b>\n\nБыстрый обмен криптовалюты в нашем боте DiorChange — без лишних регистраций и задержек. Выберите пару, укажите сумму (от 2$) и получите обмен по выгодному курсу.\n\nНажмите кнопку ниже, чтобы открыть бот-обменник DiorChange."
+        : "<b>💱 Crypto Exchange</b>\n\nFast cryptocurrency exchange in our DiorChange bot — no extra registration or delays. Choose a pair, enter the amount (from $2) and get the exchange at a competitive rate.\n\nPress the button below to open the DiorChange exchanger bot.";
+      await ctx.editMessageText(textCrypto, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
       });
     }
   );
@@ -422,10 +460,19 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
 
 async function index() {
   const { fluent, availableLocales } = await initFluent();
+  const appDataSource = await getAppDataSource();
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");
   const bot = new Bot<AppContext>(token, {});
+
+  // Ответ на callback первым делом — убирает "загрузку" в клиенте до любых других действий.
+  bot.use(async (ctx, next) => {
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery().catch(() => {});
+    }
+    return next();
+  });
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Must run before session.
   bot.use(async (ctx, next) => {
@@ -454,6 +501,7 @@ async function index() {
     }
   });
 
+  // Память для сессий — без диска, моментальный отклик. Перезапуск бота сбрасывает сессии.
   bot.use(
     session({
       type: "multi",
@@ -463,9 +511,7 @@ async function index() {
       },
       main: {
         initial: createInitialMainSession,
-        storage: new FileAdapter({
-          dirName: "sessions",
-        }),
+        storage: new MemorySessionStorage<SessionData["main"]>(),
       },
     })
   );
@@ -495,12 +541,13 @@ async function index() {
     return next();
   });
 
-  // Add the available languages to the context
+  // Add the available languages to the context (appDataSource уже инициализирован — без await на каждый запрос)
+  // Для callback_query при промахе кэша не ждём БД — используем сессию и подгружаем юзера в фоне.
   bot.use(async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
 
     ctx.availableLanguages = availableLocales;
-    ctx.appDataSource = await getAppDataSource();
+    ctx.appDataSource = appDataSource;
     ctx.loadedUser = null;
 
     if (!session?.main) {
@@ -512,35 +559,69 @@ async function index() {
       let user = getCachedUser(tid);
 
       if (!user) {
-        user = await ctx.appDataSource.manager.findOneBy(User, {
-          telegramId: ctx.chatId,
-        });
-
-        if (!user) {
-          const newUser = new User();
-          newUser.telegramId = ctx.chatId;
-          newUser.status = UserStatus.Newbie;
-          newUser.referrerId = null;
-          user = await ctx.appDataSource.manager.save(newUser);
-        }
-        setCachedUser(tid, user);
-      }
-
-      ctx.loadedUser = user;
-      session.main.user.balance = user.balance;
-      session.main.user.referralBalance = user.referralBalance ?? 0;
-      session.main.user.id = user.id;
-      session.main.user.role = user.role;
-      session.main.user.status = user.status;
-      session.main.user.isBanned = user.isBanned;
-      // Grant admin in session if ID is in ADMIN_TELEGRAM_IDS (and persist to DB once)
-      const adminIds = getAdminTelegramIds();
-      if (adminIds.length > 0 && adminIds.includes(tid)) {
-        session.main.user.role = Role.Admin;
-        if (user.role !== Role.Admin) {
-          user.role = Role.Admin;
-          await ctx.appDataSource.manager.save(user);
+        const isCallback = !!ctx.callbackQuery;
+        const hasSessionUser = session.main.user.id > 0;
+        if (isCallback && hasSessionUser) {
+          // Быстрый путь: не ждём БД, используем данные из сессии, подгрузку делаем в фоне.
+          ctx.loadedUser = Object.assign(new User(), {
+            id: session.main.user.id,
+            telegramId: tid,
+            balance: session.main.user.balance,
+            referralBalance: session.main.user.referralBalance ?? 0,
+            role: session.main.user.role,
+            status: session.main.user.status,
+            isBanned: session.main.user.isBanned,
+            lang: session.main.locale === "en" ? "en" : "ru",
+          }) as User;
+          void appDataSource.manager.findOneBy(User, { telegramId: ctx.chatId }).then((fresh) => {
+            if (fresh) {
+              setCachedUser(tid, fresh);
+            }
+          });
+        } else {
+          user = await appDataSource.manager.findOneBy(User, {
+            telegramId: ctx.chatId,
+          });
+          if (!user) {
+            const newUser = new User();
+            newUser.telegramId = ctx.chatId;
+            newUser.status = UserStatus.Newbie;
+            newUser.referrerId = null;
+            user = await appDataSource.manager.save(newUser);
+          }
           setCachedUser(tid, user);
+          ctx.loadedUser = user;
+          session.main.user.balance = user.balance;
+          session.main.user.referralBalance = user.referralBalance ?? 0;
+          session.main.user.id = user.id;
+          session.main.user.role = user.role;
+          session.main.user.status = user.status;
+          session.main.user.isBanned = user.isBanned;
+          const adminIds = getAdminTelegramIds();
+          if (adminIds.length > 0 && adminIds.includes(tid)) {
+            session.main.user.role = Role.Admin;
+            if (user.role !== Role.Admin) {
+              user.role = Role.Admin;
+              void appDataSource.manager.save(user).then(() => setCachedUser(tid, user!));
+            }
+          }
+          return next();
+        }
+      } else if (user) {
+        ctx.loadedUser = user;
+        session.main.user.balance = user.balance;
+        session.main.user.referralBalance = user.referralBalance ?? 0;
+        session.main.user.id = user.id;
+        session.main.user.role = user.role;
+        session.main.user.status = user.status;
+        session.main.user.isBanned = user.isBanned;
+        const adminIds = getAdminTelegramIds();
+        if (adminIds.length > 0 && adminIds.includes(tid)) {
+          session.main.user.role = Role.Admin;
+          if (user.role !== Role.Admin) {
+            user.role = Role.Admin;
+            void appDataSource.manager.save(user).then(() => setCachedUser(tid, user!));
+          }
         }
       }
     }
@@ -552,19 +633,15 @@ async function index() {
     if (!session?.main) {
       return next();
     }
-
-    // ВСЕГДА синхронизируем локаль из user.lang (БД) — не используем кэш, иначе после смены языка остаётся старый lang
-    const user =
-      session.main.user.id > 0
-        ? await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id })
-        : null;
+    // Берём lang из уже загруженного user (ctx.loadedUser), без второго запроса в БД.
+    const user = ctx.loadedUser ?? (session.main.user.id > 0 ? await ctx.appDataSource.getRepository(User).findOne({ where: { id: session.main.user.id }, select: ["lang"] }) : null);
     if (user?.lang === "en") {
       session.main.locale = "en";
-    } else {
-      // user.lang === "ru" | null — всегда русский
+    } else if (user?.lang === "ru") {
       session.main.locale = "ru";
+    } else {
+      session.main.locale = "0";
     }
-
     return next();
   });
 
@@ -605,55 +682,86 @@ async function index() {
     return next();
   });
 
-  // Setup conversations BEFORE menus so ctx.conversation is available
-  bot.use(conversations());
-  registerPromoConversations(bot);
-  bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
-  bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
-  bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
-  try {
-    const { cdnAddProxyConversation } = await import("./ui/menus/cdn-menu.js");
-    bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
-  } catch (error: any) {
-    console.error("[Bot] Failed to register CDN conversation:", error);
-  }
-  registerBroadcastAndTickets(bot);
-  registerAdminPromosHandlers(bot);
+  // mainMenu обязательно регистрируем до /start: иначе при ctx.reply(..., mainMenu) плагин меню выдаёт "Cannot send menu 'main-menu'!"
+  bot.use(mainMenu);
 
-  // Register servicesMenu submenus BEFORE bot.use(servicesMenu) so navigation works
+  // /start и promote — сразу после mainMenu, чтобы команда и ссылки работали
+  bot.use(promotePermissions());
+  bot.command("start", async (ctx) => {
+    try {
+      if (ctx.message) {
+        await ctx.deleteMessage().catch(() => {});
+      }
+      const session = (await ctx.session) as SessionData;
+      const payload = ctx.match && typeof ctx.match === "string" ? ctx.match.trim() : "";
+      if (payload.length > 0 && !payload.startsWith("promote_")) {
+        try {
+          const { ReferralService } = await import("./domain/referral/ReferralService.js");
+          const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+          const userRepo = new UserRepository(ctx.appDataSource);
+          const referralService = new ReferralService(ctx.appDataSource, userRepo);
+          const user = await userRepo.findById(session.main.user.id);
+          if (user && user.referrerId == null) {
+            await referralService.bindReferrer(user.id, payload);
+            Logger.info(`[Referral] Bound referrer for user ${user.id} with refCode ${payload}`);
+          }
+        } catch (err: any) {
+          Logger.error("[Referral] Failed to bind referrer:", err);
+        }
+      }
+      const hasLocale = session.main.locale && session.main.locale !== "0" && (session.main.locale === "ru" || session.main.locale === "en");
+      if (hasLocale) {
+        const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
+        await ctx.reply(welcomeText, {
+          reply_markup: mainMenu,
+          parse_mode: "HTML",
+        });
+        return;
+      }
+      const keyboard = new InlineKeyboard()
+        .text(ctx.t("button-change-locale-ru"), "lang_ru")
+        .text(ctx.t("button-change-locale-en"), "lang_en");
+      await ctx.reply(ctx.t("select-language"), {
+        reply_markup: keyboard,
+        parse_mode: "HTML",
+      });
+    } catch (error: any) {
+      console.error("[Start] Error in /start command:", error);
+      await ctx.reply("Error: " + (error.message || "Unknown error")).catch(() => {});
+    }
+  });
+
+  // === Меню и callback сразу после /start — кнопки не проходят через conversations/broadcast ===
   let cdnMenu: Menu<AppContext> | null = null;
   try {
     const cdnModule = await import("./ui/menus/cdn-menu.js");
     cdnMenu = cdnModule.cdnMenu;
     servicesMenu.register(cdnMenu, "services-menu");
   } catch (error: any) {
-    console.error("[Bot] Failed to register CDN submenu:", error);
+    console.error("[Bot] Failed to register CDN submenu:", error?.stack ?? error);
   }
 
-  // Fallback: open CDN menu when user taps the 2nd button (row 1, col 0) in services menu.
-  // Callback data format is "services-menu/1/0/..." so we match it and handle manually.
+  // mainMenu уже зарегистрирован выше (до /start)
   if (cdnMenu) {
-    bot.callbackQuery(/^services-menu\/1\/0\//, async (ctx) => {
+    bot.callbackQuery(/^services-menu\/1\/0($|\/)/, async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
       if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = false;
+      const t = (k: string, v?: { error?: string }) => (typeof (ctx as any).t === "function" ? (ctx as any).t(k, v) : (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-service" ? "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL." : k));
       try {
-        await ctx.editMessageText(ctx.t("cdn-service"), {
+        await ctx.editMessageText(t("cdn-service"), {
           parse_mode: "HTML",
           reply_markup: cdnMenu!,
         });
       } catch (err: unknown) {
         console.error("[Bot] CDN fallback open error:", err);
-        await ctx.reply(ctx.t("cdn-error", { error: String(err) })).catch(() => {});
+        await ctx.reply(t("cdn-error", { error: String(err) })).catch(() => {});
       }
     });
   }
 
-  // Register all menus FIRST, before language handler and commands
-  // This ensures menus are available when we try to use them
-  bot.use(mainMenu);
   bot.use(adminMenu);
   bot.use(moderatorMenu);
   bot.use(ticketViewMenu);
@@ -678,10 +786,10 @@ async function index() {
   bot.use(bundleManageServicesMenu);
   bot.use(domainOrderMenu);
   try {
-    const { cdnMenu } = await import("./ui/menus/cdn-menu.js");
-    bot.use(cdnMenu);
+    const { cdnMenu: cdnMenuRef } = await import("./ui/menus/cdn-menu.js");
+    bot.use(cdnMenuRef);
   } catch (error: any) {
-    console.error("[Bot] Failed to register CDN menu:", error);
+    console.error("[Bot] Failed to register CDN menu:", error?.stack ?? error);
   }
   bot.use(controlUser);
   bot.use(controlUserBalance);
@@ -689,7 +797,6 @@ async function index() {
   bot.use(controlUsers);
   bot.use(controlUserStatus);
 
-  // Register admin menu hierarchy
   adminMenu.register(controlUsers, "admin-menu");
   adminMenu.register(moderatorMenu, "admin-menu");
 
@@ -709,7 +816,6 @@ async function index() {
     });
   });
 
-  // Dedicated OS selection (manual keyboard after location) — "dedicated-os:osKey" or "dedicated-os:back"
   bot.callbackQuery(/^dedicated-os:(.+)$/, async (ctx) => {
     const payload = ctx.match[1];
     if (payload === "back") {
@@ -724,7 +830,6 @@ async function index() {
     }
   });
 
-  // Register referrals menu
   try {
     const { referralsMenu } = await import("./ui/menus/referrals-menu");
     bot.use(referralsMenu);
@@ -764,8 +869,7 @@ async function index() {
       reply_markup: referralsMenu,
     });
   });
-  
-  // Register amper domains menu
+
   try {
     const { amperDomainsMenu } = await import("./ui/menus/amper-domains-menu");
     bot.use(amperDomainsMenu);
@@ -774,8 +878,7 @@ async function index() {
   } catch (error: any) {
     console.error("[Bot] Failed to register amper domains menu:", error);
   }
-  
-  // Import and register dedicatedMenu
+
   try {
     const dedicatedModule = await import("./ui/menus/dedicated-menu");
     if (dedicatedModule?.dedicatedMenu) {
@@ -788,7 +891,6 @@ async function index() {
     console.error("[Bot] Failed to import dedicated menu:", error);
   }
 
-  // Prime subscription: Back → main menu, Activate trial, I subscribed (runs AFTER menus so mainMenu is valid)
   bot.use(async (ctx, next) => {
     if (!ctx.callbackQuery?.data) return next();
     const data = ctx.callbackQuery.data;
@@ -827,40 +929,28 @@ async function index() {
     }
   });
 
-  // Register language selection callbacks AFTER menus are registered
-  // This ensures maximum priority for language selection
   bot.on("callback_query", async (ctx, next) => {
     const data = ctx.callbackQuery?.data;
-    
-    // Only handle language selection callbacks
     if (data !== "lang_ru" && data !== "lang_en") {
-      return next(); // Let other handlers process this
+      return next();
     }
-    
     const lang = data === "lang_ru" ? "ru" : "en";
-    
     try {
       await ctx.answerCallbackQuery();
-      
       const session = (await ctx.session) as SessionData;
       session.main.locale = lang;
       (ctx as any)._requestLocale = lang;
-      
       const usersRepo = ctx.appDataSource.getRepository(User);
       const user = await usersRepo.findOneBy({
         id: session.main.user.id,
       });
-      
       if (user) {
         user.lang = lang as "ru" | "en";
         await usersRepo.save(user);
         invalidateUser(user.telegramId);
       }
-
       ctx.fluent.useLocale(lang);
-      
       const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
-      
       try {
         await ctx.editMessageText(welcomeText, {
           reply_markup: mainMenu,
@@ -875,29 +965,39 @@ async function index() {
           parse_mode: "HTML",
         });
       }
-      
-      // Stop execution - don't pass to other handlers
       return;
     } catch (error: any) {
       console.error(`[Lang] Error processing lang_${lang} callback:`, error);
       const errorText = lang === "ru" ? "Ошибка при выборе языка" : "Error selecting language";
       await ctx.answerCallbackQuery({ text: errorText, show_alert: true }).catch(() => {});
-      // Don't pass to next handler on error
       return;
     }
   });
 
   bot.use(async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
-
     if (session.main.user.isBanned) {
       await ctx.reply(ctx.t("message-about-block"));
       await ctx.deleteMessage();
       return;
     }
-
     return next();
   });
+
+  // Setup conversations (меню и /start уже выше)
+  bot.use(conversations());
+  registerPromoConversations(bot);
+  bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
+  bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
+  bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
+  try {
+    const { cdnAddProxyConversation } = await import("./ui/menus/cdn-menu.js");
+    bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
+  } catch (error: any) {
+    console.error("[Bot] Failed to register CDN conversation:", error?.stack ?? error);
+  }
+  registerBroadcastAndTickets(bot);
+  registerAdminPromosHandlers(bot);
 
   bot.use(depositPaymentSystemChoose);
   bot.use(
@@ -914,58 +1014,6 @@ async function index() {
   //   createConversation(confirmDomainRegistration, "confirmDomainRegistration")
   // );
 
-  // Register /start command
-  bot.command("start", async (ctx) => {
-    try {
-      if (ctx.message) {
-        await ctx.deleteMessage().catch(() => {});
-      }
-
-      const session = (await ctx.session) as SessionData;
-      // Referral: bind referrer when user opens bot via ?start=REFERRER_TELEGRAM_ID
-      const payload = ctx.match && typeof ctx.match === "string" ? ctx.match.trim() : "";
-      if (payload.length > 0 && !payload.startsWith("promote_")) {
-        try {
-          const { ReferralService } = await import("./domain/referral/ReferralService.js");
-          const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
-          const userRepo = new UserRepository(ctx.appDataSource);
-          const referralService = new ReferralService(ctx.appDataSource, userRepo);
-          const user = await userRepo.findById(session.main.user.id);
-          if (user && user.referrerId == null) {
-            await referralService.bindReferrer(user.id, payload);
-            Logger.info(`[Referral] Bound referrer for user ${user.id} with refCode ${payload}`);
-          }
-        } catch (err: any) {
-          Logger.error("[Referral] Failed to bind referrer:", err);
-        }
-      }
-
-      // Локаль уже выбрана — сразу показываем welcome (без моргания)
-      const hasLocale = session.main.locale && session.main.locale !== "0" && (session.main.locale === "ru" || session.main.locale === "en");
-      if (hasLocale) {
-        const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
-        await ctx.reply(welcomeText, {
-          reply_markup: mainMenu,
-          parse_mode: "HTML",
-        });
-        return;
-      }
-
-      // Только для новых пользователей без локали — выбор языка
-      const keyboard = new InlineKeyboard()
-        .text(ctx.t("button-change-locale-ru"), "lang_ru")
-        .text(ctx.t("button-change-locale-en"), "lang_en");
-      await ctx.reply(ctx.t("select-language"), {
-        reply_markup: keyboard,
-        parse_mode: "HTML",
-      });
-    } catch (error: any) {
-      console.error("[Start] Error in /start command:", error);
-      await ctx.reply("Error: " + (error.message || "Unknown error")).catch(() => {});
-    }
-  });
-  
-  bot.use(promotePermissions());
   bot.use(promocodeQuestion.middleware());
   bot.use(vdsManageSpecific);
 
@@ -1086,6 +1134,40 @@ async function index() {
     }
   });
 
+  bot.callbackQuery("dev-po-back", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
+  });
+
+  bot.callbackQuery("crypto-exchange-back", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
+  });
+
+  bot.callbackQuery("dev-po-back-to-main", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+      parse_mode: "HTML",
+      reply_markup: mainMenu,
+    });
+  });
+
+  bot.callbackQuery("crypto-back-to-main", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+      parse_mode: "HTML",
+      reply_markup: mainMenu,
+    });
+  });
+
   bot.callbackQuery("admin-open-panel", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const telegramId = ctx.chatId ?? ctx.from?.id;
@@ -1145,6 +1227,137 @@ async function index() {
     session.other.referralPercentEdit = { userId: session.other.controlUsersPage.pickedUserData.id };
     await ctx.reply(ctx.t("admin-referral-percent-enter"), { parse_mode: "HTML" });
   });
+
+  async function buildReferralPercentByServiceReply(ctx: AppContext, userId: number) {
+    const user = await ctx.appDataSource.manager.findOne(User, {
+      where: { id: userId },
+      select: [
+        "id",
+        "referralPercent",
+        "referralPercentDomains",
+        "referralPercentDedicatedStandard",
+        "referralPercentDedicatedBulletproof",
+        "referralPercentVdsStandard",
+        "referralPercentVdsBulletproof",
+        "referralPercentCdn",
+      ],
+    });
+    const fmt = (v: number | null | undefined) => (v != null ? `${v}%` : "—");
+    const text = [
+      ctx.t("admin-referral-percent-by-service-title"),
+      "",
+      `${ctx.t("ref-percent-label-domains")}: ${fmt(user?.referralPercentDomains ?? undefined)}`,
+      `${ctx.t("ref-percent-label-dedicated")}: ${ctx.t("button-standard")} ${fmt(user?.referralPercentDedicatedStandard)}, ${ctx.t("button-bulletproof")} ${fmt(user?.referralPercentDedicatedBulletproof)}`,
+      `${ctx.t("ref-percent-label-vds")}: ${ctx.t("button-standard")} ${fmt(user?.referralPercentVdsStandard)}, ${ctx.t("button-bulletproof")} ${fmt(user?.referralPercentVdsBulletproof)}`,
+      `${ctx.t("ref-percent-label-cdn")}: ${fmt(user?.referralPercentCdn ?? undefined)}`,
+    ].join("\n");
+    const keyboard = new InlineKeyboard()
+      .text(`${ctx.t("ref-percent-label-domains")} →`, "admin-referrals-percent-domains")
+      .row()
+      .text(`${ctx.t("ref-percent-label-dedicated")} →`, "admin-referrals-percent-dedicated-menu")
+      .row()
+      .text(`${ctx.t("ref-percent-label-vds")} →`, "admin-referrals-percent-vds-menu")
+      .row()
+      .text(`${ctx.t("ref-percent-label-cdn")} →`, "admin-referrals-percent-cdn")
+      .row()
+      .text(ctx.t("button-back"), "admin-referrals-back-to-summary");
+    return { text, reply_markup: keyboard };
+  }
+
+  bot.callbackQuery("admin-referrals-percent-by-service", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (!session.other.controlUsersPage?.pickedUserData) return;
+    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
+    const userId = session.other.controlUsersPage.pickedUserData.id;
+    const { text, reply_markup } = await buildReferralPercentByServiceReply(ctx, userId);
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+  });
+
+  bot.callbackQuery("admin-referrals-percent-back-to-list", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (!session.other.controlUsersPage?.pickedUserData) return;
+    const user = await ctx.appDataSource.manager.findOne(User, { where: { id: session.other.controlUsersPage.pickedUserData.id } });
+    if (!user) return;
+    const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
+  });
+
+  bot.callbackQuery("admin-referrals-back-to-summary", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (!session.other.controlUsersPage?.pickedUserData) return;
+    const user = await ctx.appDataSource.manager.findOne(User, {
+      where: { id: session.other.controlUsersPage.pickedUserData.id },
+    });
+    if (!user) return;
+    const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+  });
+
+  bot.callbackQuery("admin-referrals-percent-dedicated-menu", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (!session.other.controlUsersPage?.pickedUserData) return;
+    const user = await ctx.appDataSource.manager.findOne(User, {
+      where: { id: session.other.controlUsersPage.pickedUserData.id },
+      select: ["referralPercent", "referralPercentDedicatedStandard", "referralPercentDedicatedBulletproof"],
+    });
+    const fmt = (v: number | null | undefined) => (v != null ? `${v}%` : "—");
+    const text = `${ctx.t("ref-percent-label-dedicated")}\n${ctx.t("button-standard")}: ${fmt(user?.referralPercentDedicatedStandard ?? undefined)}\n${ctx.t("button-bulletproof")}: ${fmt(user?.referralPercentDedicatedBulletproof ?? undefined)}`;
+    const keyboard = new InlineKeyboard()
+      .text(`${ctx.t("button-standard")} →`, "admin-referrals-percent-dedicated-standard")
+      .row()
+      .text(`${ctx.t("button-bulletproof")} →`, "admin-referrals-percent-dedicated-bulletproof")
+      .row()
+      .text(ctx.t("admin-referral-percent-back-to-list"), "admin-referrals-percent-back-to-list");
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
+  });
+
+  bot.callbackQuery("admin-referrals-percent-vds-menu", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (!session.other.controlUsersPage?.pickedUserData) return;
+    const user = await ctx.appDataSource.manager.findOne(User, {
+      where: { id: session.other.controlUsersPage.pickedUserData.id },
+      select: ["referralPercent", "referralPercentVdsStandard", "referralPercentVdsBulletproof"],
+    });
+    const fmt = (v: number | null | undefined) => (v != null ? `${v}%` : "—");
+    const text = `${ctx.t("ref-percent-label-vds")}\n${ctx.t("button-standard")}: ${fmt(user?.referralPercentVdsStandard)}\n${ctx.t("button-bulletproof")}: ${fmt(user?.referralPercentVdsBulletproof)}`;
+    const keyboard = new InlineKeyboard()
+      .text(`${ctx.t("button-standard")} →`, "admin-referrals-percent-vds-standard")
+      .row()
+      .text(`${ctx.t("button-bulletproof")} →`, "admin-referrals-percent-vds-bulletproof")
+      .row()
+      .text(ctx.t("admin-referral-percent-back-to-list"), "admin-referrals-percent-back-to-list");
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
+  });
+
+  const REFERRAL_PERCENT_KEYS: Array<{
+    callback: string;
+    key: "domains" | "dedicated_standard" | "dedicated_bulletproof" | "vds_standard" | "vds_bulletproof" | "cdn";
+    nameKey: string;
+  }> = [
+    { callback: "admin-referrals-percent-domains", key: "domains", nameKey: "ref-percent-label-domains" },
+    { callback: "admin-referrals-percent-dedicated-standard", key: "dedicated_standard", nameKey: "ref-percent-label-dedicated" },
+    { callback: "admin-referrals-percent-dedicated-bulletproof", key: "dedicated_bulletproof", nameKey: "ref-percent-label-dedicated" },
+    { callback: "admin-referrals-percent-vds-standard", key: "vds_standard", nameKey: "ref-percent-label-vds" },
+    { callback: "admin-referrals-percent-vds-bulletproof", key: "vds_bulletproof", nameKey: "ref-percent-label-vds" },
+    { callback: "admin-referrals-percent-cdn", key: "cdn", nameKey: "ref-percent-label-cdn" },
+  ];
+
+  for (const { callback, key, nameKey } of REFERRAL_PERCENT_KEYS) {
+    bot.callbackQuery(callback, async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = (await ctx.session) as SessionData;
+      if (!session.other.controlUsersPage?.pickedUserData) return;
+      if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) return;
+      session.other.referralPercentEdit = { userId: session.other.controlUsersPage.pickedUserData.id, key };
+      const name = key.includes("standard") ? `${ctx.t(nameKey)} — ${ctx.t("button-standard")}` : key.includes("bulletproof") ? `${ctx.t(nameKey)} — ${ctx.t("button-bulletproof")}` : ctx.t(nameKey);
+      await ctx.reply(ctx.t("admin-referral-percent-enter-for", { name }), { parse_mode: "HTML" });
+    });
+  }
 
   bot.callbackQuery(/^admin-user-services-domains-(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
@@ -1377,7 +1590,7 @@ async function index() {
       await ctx.appDataSource.manager.save(targetUser);
       delete session.other.subscriptionEdit;
       const { text, reply_markup } = await buildControlPanelUserReply(ctx, targetUser, undefined, controlUser);
-      await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+      await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
       return;
     }
 
@@ -1407,13 +1620,36 @@ async function index() {
         await ctx.reply(ctx.t("error-user-not-found"), { parse_mode: "HTML" });
         return;
       }
-      targetUser.referralPercent = Math.round(value * 100) / 100;
-      await ctx.appDataSource.manager.save(targetUser);
+      const rounded = Math.round(value * 100) / 100;
+      const key = referralPercentEdit.key;
+      if (key === "default" || !key) {
+        targetUser.referralPercent = rounded;
+        delete session.other.referralPercentEdit;
+        await ctx.reply(ctx.t("admin-referral-percent-success", { percent: rounded }), { parse_mode: "HTML" });
+        await ctx.appDataSource.manager.save(targetUser);
+        return;
+      }
+      const columnMap: Record<string, keyof User> = {
+        domains: "referralPercentDomains",
+        dedicated_standard: "referralPercentDedicatedStandard",
+        dedicated_bulletproof: "referralPercentDedicatedBulletproof",
+        vds_standard: "referralPercentVdsStandard",
+        vds_bulletproof: "referralPercentVdsBulletproof",
+        cdn: "referralPercentCdn",
+      };
+      const col = columnMap[key];
+      if (col) {
+        (targetUser as any)[col] = rounded;
+        await ctx.appDataSource.manager.save(targetUser);
+      }
+      const name =
+        key.startsWith("dedicated_")
+          ? `${ctx.t("ref-percent-label-dedicated")} — ${ctx.t(key === "dedicated_standard" ? "button-standard" : "button-bulletproof")}`
+          : key.startsWith("vds_")
+            ? `${ctx.t("ref-percent-label-vds")} — ${ctx.t(key === "vds_standard" ? "button-standard" : "button-bulletproof")}`
+            : ctx.t(key === "domains" ? "ref-percent-label-domains" : "ref-percent-label-cdn");
       delete session.other.referralPercentEdit;
-      await ctx.reply(
-        ctx.t("admin-referral-percent-success", { percent: targetUser.referralPercent }),
-        { parse_mode: "HTML" }
-      );
+      await ctx.reply(ctx.t("admin-referral-percent-success-for", { name, percent: rounded }), { parse_mode: "HTML" });
       return;
     }
 
@@ -2635,6 +2871,7 @@ async function index() {
 
   const run = async () => {
     console.info("[Dior Host Bot]: Starting");
+    await getAppDataSource();
     if (isWebhookEnabled()) {
       console.info("[Dior Host Bot]: Starting in webhook mode");
       const app = express();
