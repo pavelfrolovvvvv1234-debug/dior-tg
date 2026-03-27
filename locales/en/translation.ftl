@@ -259,6 +259,30 @@ cdn-my-proxies-list = <strong>Your proxies:</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})
 button-cdn-confirm = ✅ Confirm
 button-cdn-cancel = ❌ Cancel
+cdn-proxy-manage-title = <strong>{$domain}</strong> ({$status})
+cdn-proxy-detail = <strong>CDN proxy</strong>
+    
+    Domain: <code>{$domain}</code>
+    Origin: <code>{$target}</code>
+    Status: {$status}
+    Expires: {$expiresAt}
+    Auto-renew: {$autoRenew}
+button-cdn-renew = 📅 Renew 30d
+button-cdn-autorenew-on = 🔄 Auto-renew ON
+button-cdn-autorenew-off = ⏸ Auto-renew OFF
+button-cdn-retry-ssl = ♻️ Retry SSL
+button-cdn-delete = 🗑 Delete
+button-cdn-refresh = 🔁 Refresh
+cdn-renew-success = ✅ Renewal started.
+cdn-renew-failed = ❌ Failed to renew proxy.
+cdn-autorenew-on-success = ✅ Auto-renew enabled.
+cdn-autorenew-off-success = ✅ Auto-renew disabled.
+cdn-autorenew-failed = ❌ Failed to change auto-renew state.
+cdn-retry-ssl-success = ✅ SSL re-issuance started.
+cdn-retry-ssl-failed = ❌ Failed to start SSL re-issuance.
+cdn-delete-success = ✅ Proxy deleted.
+cdn-delete-failed = ❌ Failed to delete proxy.
+cdn-delete-confirm = <b>Delete this proxy permanently?</b>
 
 empty = Empty
 list-empty = The list is empty
@@ -411,6 +435,72 @@ vds-created = The status can be monitored in the main menu. > Manage services
 
 vds-manage-title = Manage VDS
 vds-manage-list-item = «{$rateName}» - {$ip} 🖥
+button-my-vds = 🖥 My VPS/VDS
+
+vds-autorenew-line = <strong>Auto-renew:</strong> {$state}
+vds-autorenew-on = on
+vds-autorenew-off = off
+vds-ipv4-count-line = <strong>IPv4:</strong> {$count} (max 10)
+vds-admin-blocked-notice = ⚠️ This service is blocked by the administrator. Only renewal and support are available.
+vds-management-locked-notice = ⚠️ Subscription expired: management disabled. Renew or top up for auto-renewal.
+
+vds-renew-period-label = 📅 {$months} mo — {NUMBER($total, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+vds-renew-confirm-ask = Renew for <strong>{$months}</strong> mo. for <strong>{NUMBER($total, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $</strong>?
+vds-renew-success = ✅ Subscription renewed for {$months} mo.
+
+vds-autorenew-enable = 🔄 Enable auto-renewal
+vds-autorenew-disable = ⏸ Disable auto-renewal
+
+vds-buy-extra-ip = ➕ Add IPv4
+vds-extra-ip-buy-success = Charged {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $. Extra IP recorded in billing (panel attach — contact support if needed).
+
+vds-password-generate = 🔁 Generate password
+vds-password-manual = ✏️ Set password manually
+vds-password-manual-prompt = Send the new root password (8+ chars).
+vds-password-manual-invalid = Password must be 8–128 characters.
+vds-password-manual-success = Password updated.
+
+vds-button-rename = ✏️ Rename
+
+# Admin VDS
+button-admin-vds = 🖥 VDS (admin)
+button-admin-cdn = 🌍 CDN (admin)
+admin-vds-title = <strong>VDS — admin</strong>
+Search: ID, IP, name. Page {$page} / {$totalPages}
+admin-vds-empty = No records.
+admin-vds-row = #{$id} — {$ip} — {$rate}
+admin-vds-detail = <strong>VDS #{$id}</strong>
+VM ID: {$vmId}
+IP: {$ip}
+User: {NUMBER($userId)}
+Plan: {$rate}
+{$flags}
+Expires: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
+admin-vds-flag-blocked = 🔒 Blocked by admin
+admin-vds-flag-locked = ⛔ Management locked (overdue)
+admin-vds-search-prompt = Send the search string (ID, IP or name) or «clear» to reset.
+admin-vds-search-done = Filter: «{$query}»
+admin-vds-extended = Extended by {$days} days.
+admin-vds-transferred = Owner changed to user id {$userId}
+admin-vds-deleted = VDS removed
+admin-vds-delete-confirm = <b>Delete this VDS and VM permanently?</b>
+admin-vds-transfer-prompt = Send the new owner’s <b>internal user id</b> (DB id, number):
+
+admin-cdn-title = <strong>CDN — admin</strong>
+Search: proxyId, domain, origin. Page {$page} / {$totalPages}
+admin-cdn-empty = No CDN records.
+admin-cdn-row = #{$id} {$domain} ({$status})
+admin-cdn-detail = <strong>CDN #{$id}</strong>
+Proxy ID: <code>{$proxyId}</code>
+Domain: <code>{$domain}</code>
+Origin: <code>{$target}</code>
+Status: {$status}
+Expires: {$expiresAt}
+Deleted: {$deleted}
+admin-cdn-search-prompt = Send search query (proxyId, domain, origin) or “clear”.
+admin-cdn-sync-success = ✅ CDN records synchronized.
+
+vds-autorenew-notify = ✅ VDS #{$vdsId}: renewed for one month. Charged {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ from balance.
 
 vds-stopped = Machine is DISABLED ⛔️
 vds-work = Machine is ENABLED ✳️
@@ -449,7 +539,13 @@ vds-reinstall-started = Reinstallation is running, please wait. You can monitor 
 
 dedicated-servers = This section will be available soon. In the meantime, you can get information about dedicated servers via DM in tech support.
 
-vds-expiration = Your VDS Expires. Refill your balance by {$amount} $
+vds-expiration = VDS #{$vdsId}: subscription expired. Top up {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ (or renew manually).
+
+vds-grace-insufficient = ⚠️ VDS #{$vdsId}: expired — auto-renew failed (short by {NUMBER($missing, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $; need {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $/mo). VM stopped. <strong>3 days</strong> grace, then removal.
+
+vds-grace-autorenew-off = ⚠️ VDS #{$vdsId}: expired — auto-renew is <strong>off</strong>. VM stopped. Renew manually within <strong>3 days</strong> or the service will be deleted.
+
+vds-deleted-after-grace = ❌ VDS #{$vdsId} removed: grace period ended without payment.
 
 no-vds-found = User don't have VDS
 

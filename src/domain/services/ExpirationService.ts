@@ -126,103 +126,146 @@ export class ExpirationService {
           continue;
         }
 
-        // If user has insufficient balance
-        if (user.balance < vds.renewalPrice) {
-          // Set payday (grace period of 3 days)
-          if (!vds.payDayAt) {
-            vds.payDayAt = new Date(Date.now() + ms("3d"));
-            await vdsRepo.save(vds);
+        const autoRenewOn = vds.autoRenewEnabled !== false;
+        const canAutoRenew =
+          autoRenewOn && user.balance >= vds.renewalPrice;
 
-            // Notify user
-            await this.notifyUser(user.telegramId, user.lang || "ru", "vds-expiration", {
-              amount: vds.renewalPrice,
-            });
-            if (this.onGracePeriodStarted) {
-              this.onGracePeriodStarted(user.id, vds.id, "vds").catch((e) =>
-                Logger.error(`[Expiration] onGracePeriodStarted failed`, e)
-              );
-            }
-            // Emit automation events for service.expiring and service.grace_start
-            try {
-              const { emit } = await import("../../modules/automations/engine/event-bus.js");
-              const ts = new Date();
-              emit({
-                event: "service.expiring",
-                userId: user.id,
-                timestamp: ts,
-                serviceType: "vds",
-                serviceId: vds.id,
-                payDayAt: vds.payDayAt,
-                graceDay: 1,
-              });
-              emit({
-                event: "service.grace_start",
-                userId: user.id,
-                timestamp: ts,
-                serviceType: "vds",
-                serviceId: vds.id,
-                payDayAt: vds.payDayAt,
-                graceDay: 1,
-              });
-            } catch {
-              // Ignore if automations module not available
-            }
-            Logger.info(`VDS ${vds.id} marked for deletion in 3 days (user ${user.id})`);
-            continue;
-          }
+        if (canAutoRenew) {
+          await dataSource.transaction(async (manager) => {
+            const vdsManager = manager.getRepository(VirtualDedicatedServer);
+            const userManager = manager.getRepository(User);
 
-          // Check if grace period expired (payDayAt is in the past or now)
-          if (vds.payDayAt && new Date(vds.payDayAt).getTime() <= Date.now()) {
-            // Delete VDS
+            const updatedUser = await userManager.findOne({ where: { id: user.id } });
+            const updatedVds = await vdsManager.findOne({ where: { id: vds.id } });
+
+            if (!updatedUser || !updatedVds) {
+              throw new Error("User or VDS not found during renewal");
+            }
+
+            updatedUser.balance -= vds.renewalPrice;
+            const base = Math.max(Date.now(), updatedVds.expireAt.getTime());
+            updatedVds.expireAt = new Date(base + ms("30d"));
+            updatedVds.payDayAt = null;
+            updatedVds.managementLocked = false;
+
+            await userManager.save(updatedUser);
+            await vdsManager.save(updatedVds);
+          });
+
+          try {
             await retry(
-              () => this.vmManager.deleteVM(vds.vdsId),
-              {
-                maxAttempts: 3,
-                delayMs: 2000,
-                exponentialBackoff: true,
-              }
-            ).catch((error) => {
-              Logger.error(`Failed to delete VM ${vds.vdsId} for VDS ${vds.id}`, error);
-            });
-
-            await vdsRepo.deleteById(vds.id);
-            Logger.info(`VDS ${vds.id} deleted (grace period expired)`);
-            continue;
-          }
-
-          // Still in grace period: maybe send Day 2 / Day 3 retarget
-          if (this.onGraceDayCheck && vds.payDayAt) {
-            this.onGraceDayCheck(vds.id, user.id, user.telegramId, vds.payDayAt).catch((e) =>
-              Logger.error(`[Expiration] onGraceDayCheck failed`, e)
+              () => this.vmManager.startVM(vds.vdsId),
+              { maxAttempts: 2, delayMs: 1500, exponentialBackoff: true }
             );
+          } catch {
+            Logger.warn(`Could not start VM ${vds.vdsId} after auto-renew`);
           }
+
+          await this.notifyUser(user.telegramId, user.lang || "ru", "vds-autorenew-notify", {
+            vdsId: vds.id,
+            amount: vds.renewalPrice,
+          });
+
+          Logger.info(`VDS ${vds.id} auto-renewed for user ${user.id}`);
           continue;
         }
 
-        // User has sufficient balance - auto-renew
-        await dataSource.transaction(async (manager) => {
-          const vdsManager = manager.getRepository(VirtualDedicatedServer);
-          const userManager = manager.getRepository(User);
+        // No auto-renew: lock management, stop VM once, grace period
+        if (!vds.managementLocked) {
+          vds.managementLocked = true;
+          try {
+            await retry(
+              () => this.vmManager.stopVM(vds.vdsId),
+              { maxAttempts: 3, delayMs: 2000, exponentialBackoff: true }
+            );
+          } catch (error) {
+            Logger.error(`Failed to stop VM ${vds.vdsId} on expiry for VDS ${vds.id}`, error);
+          }
+        }
 
-          const updatedUser = await userManager.findOne({ where: { id: user.id } });
-          const updatedVds = await vdsManager.findOne({ where: { id: vds.id } });
+        if (!vds.payDayAt) {
+          vds.payDayAt = new Date(Date.now() + ms("3d"));
+          await vdsRepo.save(vds);
 
-          if (!updatedUser || !updatedVds) {
-            throw new Error("User or VDS not found during renewal");
+          const missing = Math.max(0, Math.round((vds.renewalPrice - user.balance) * 100) / 100);
+          let graceKey: "vds-grace-insufficient" | "vds-grace-autorenew-off" | "vds-expiration" =
+            "vds-expiration";
+          const graceArgs: Record<string, string | number> = {
+            amount: vds.renewalPrice,
+            vdsId: vds.id,
+          };
+          if (autoRenewOn && user.balance < vds.renewalPrice) {
+            graceKey = "vds-grace-insufficient";
+            graceArgs.missing = missing;
+          } else if (!autoRenewOn) {
+            graceKey = "vds-grace-autorenew-off";
           }
 
-          updatedUser.balance -= vds.renewalPrice;
-          updatedVds.expireAt = new Date(Date.now() + ms("30d"));
-          updatedVds.payDayAt = null;
+          await this.notifyUser(user.telegramId, user.lang || "ru", graceKey, graceArgs);
+          if (this.onGracePeriodStarted) {
+            this.onGracePeriodStarted(user.id, vds.id, "vds").catch((e) =>
+              Logger.error(`[Expiration] onGracePeriodStarted failed`, e)
+            );
+          }
+          try {
+            const { emit } = await import("../../modules/automations/engine/event-bus.js");
+            const ts = new Date();
+            emit({
+              event: "service.expiring",
+              userId: user.id,
+              timestamp: ts,
+              serviceType: "vds",
+              serviceId: vds.id,
+              payDayAt: vds.payDayAt,
+              graceDay: 1,
+            });
+            emit({
+              event: "service.grace_start",
+              userId: user.id,
+              timestamp: ts,
+              serviceType: "vds",
+              serviceId: vds.id,
+              payDayAt: vds.payDayAt,
+              graceDay: 1,
+            });
+          } catch {
+            // automations optional
+          }
+          Logger.info(`VDS ${vds.id} expired: VM stopped, grace 3d (user ${user.id})`);
+          continue;
+        }
 
-          await userManager.save(updatedUser);
-          await vdsManager.save(updatedVds);
-        });
+        await vdsRepo.save(vds);
 
-        Logger.info(`VDS ${vds.id} auto-renewed for user ${user.id}`);
+        if (vds.payDayAt && new Date(vds.payDayAt).getTime() <= Date.now()) {
+          const deletedId = vds.id;
+          await retry(
+            () => this.vmManager.deleteVM(vds.vdsId),
+            {
+              maxAttempts: 3,
+              delayMs: 2000,
+              exponentialBackoff: true,
+            }
+          ).catch((error) => {
+            Logger.error(`Failed to delete VM ${vds.vdsId} for VDS ${vds.id}`, error);
+          });
+
+          await this.notifyUser(user.telegramId, user.lang || "ru", "vds-deleted-after-grace", {
+            vdsId: deletedId,
+          });
+
+          await vdsRepo.deleteById(vds.id);
+          Logger.info(`VDS ${vds.id} deleted (grace period expired)`);
+          continue;
+        }
+
+        if (this.onGraceDayCheck && vds.payDayAt) {
+          this.onGraceDayCheck(vds.id, user.id, user.telegramId, vds.payDayAt).catch((e) =>
+            Logger.error(`[Expiration] onGraceDayCheck failed`, e)
+          );
+        }
       } catch (error) {
         Logger.error(`Failed to process expired VDS ${vds.id}`, error);
-        // Continue with other VDS
       }
     }
   }

@@ -53,6 +53,16 @@ export interface OtherSessionData {
     lastPickedId: number;
     expandedId: number | null;
     showPassword: boolean;
+    /** Pending renewal period until user confirms (callback). */
+    pendingRenewMonths?: 1 | 3 | 6 | 12 | null;
+  };
+  /** Admin: VDS list / search / actions */
+  adminVds: {
+    page: number;
+    searchQuery: string;
+    selectedVdsId: number | null;
+    awaitingSearch: boolean;
+    awaitingTransferUserId: boolean;
   };
   manageDedicated: {
     expandedId: number | null;
@@ -172,6 +182,12 @@ export interface OtherSessionData {
     telegramId?: number;
     /** true when opened from "Управление услугами" (back goes to manage menu) */
     fromManage?: boolean;
+  };
+  adminCdn?: {
+    page: number;
+    searchQuery: string;
+    selectedProxyId: string | null;
+    awaitingSearch: boolean;
   };
 }
 

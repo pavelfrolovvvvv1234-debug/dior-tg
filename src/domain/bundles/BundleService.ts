@@ -186,6 +186,10 @@ export class BundleService {
         vds.ipv4Addr = ipv4Addrs.list[0].ip_addr;
         vds.renewalPrice = pricing.finalPrice / config.periodMonths;
         vds.bundleType = context.bundleType;
+        vds.autoRenewEnabled = true;
+        vds.adminBlocked = false;
+        vds.managementLocked = false;
+        vds.extraIpv4Count = 0;
 
         await vdsRepo.save(vds);
       }

@@ -14,6 +14,8 @@ import TopUp, { TopUpStatus } from "../../entities/TopUp";
 import ServiceInvoice, { ServiceInvoiceStatus } from "../../entities/ServiceInvoice";
 import { Logger } from "../../app/logger";
 import { controlUsers } from "../../helpers/users-control";
+import { openAdminVdsPanel } from "./admin-vds-menu.js";
+import { openAdminCdnPanel } from "./admin-cdn-menu.js";
 import { moderatorMenu } from "./moderator-menu";
 import { adminPromosMenu, buildAdminPromosText } from "./admin-promocodes-menu.js";
 import { adminAutomationsMenu, buildAdminAutomationsText } from "./admin-automations-menu.js";
@@ -149,6 +151,44 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
           parse_mode: "HTML",
         });
         ctx.menu.nav("control-users");
+      });
+    }
+  )
+  .row()
+  .text(
+    (ctx) => ctx.t("button-admin-vds"),
+    async (ctx) => {
+      const session = await ctx.session;
+      const hasSessionUser = await ensureSessionUser(ctx);
+      if (!session || !hasSessionUser) {
+        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
+        return;
+      }
+      if (session.main.user.role !== Role.Admin) {
+        await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+        return;
+      }
+      await safeAdminAction(ctx, async () => {
+        await openAdminVdsPanel(ctx);
+      });
+    }
+  )
+  .row()
+  .text(
+    (ctx) => ctx.t("button-admin-cdn"),
+    async (ctx) => {
+      const session = await ctx.session;
+      const hasSessionUser = await ensureSessionUser(ctx);
+      if (!session || !hasSessionUser) {
+        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
+        return;
+      }
+      if (session.main.user.role !== Role.Admin) {
+        await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+        return;
+      }
+      await safeAdminAction(ctx, async () => {
+        await openAdminCdnPanel(ctx);
       });
     }
   )

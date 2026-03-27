@@ -14,6 +14,8 @@ import Domain from "./entities/Domain";
 import DomainOperation from "./entities/DomainOperation";
 import ReferralReward from "./entities/ReferralReward";
 import ServiceInvoice from "./entities/ServiceInvoice";
+import CdnProxyService from "./entities/CdnProxyService";
+import CdnProxyAudit from "./entities/CdnProxyAudit";
 import AutomationScenario from "./entities/automations/AutomationScenario";
 import ScenarioVersion from "./entities/automations/ScenarioVersion";
 import UserNotificationState from "./entities/automations/UserNotificationState";
@@ -42,6 +44,8 @@ const AppDataSource = new DataSource({
     DomainOperation,
     ReferralReward,
     ServiceInvoice,
+    CdnProxyService,
+    CdnProxyAudit,
     AutomationScenario,
     ScenarioVersion,
     UserNotificationState,

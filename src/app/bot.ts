@@ -143,6 +143,14 @@ export async function createBot(): Promise<{
             lastPickedId: -1,
             expandedId: null,
             showPassword: false,
+            pendingRenewMonths: null,
+          },
+          adminVds: {
+            page: 0,
+            searchQuery: "",
+            selectedVdsId: null,
+            awaitingSearch: false,
+            awaitingTransferUserId: false,
           },
           manageDedicated: {
             expandedId: null,
@@ -176,6 +184,12 @@ export async function createBot(): Promise<{
             createStep: null,
             createDraft: {},
             editStep: null,
+          },
+          adminCdn: {
+            page: 0,
+            searchQuery: "",
+            selectedProxyId: null,
+            awaitingSearch: false,
           },
         }),
       },
@@ -554,6 +568,14 @@ export async function createBot(): Promise<{
   bot.use(promocodeQuestion.middleware());
   bot.use(domainQuestion.middleware());
   bot.use(vdsManageSpecific);
+  bot.callbackQuery(/^cdn_(open|renew|autorenew|retryssl|delask|delok):/, async (ctx) => {
+    const { handleCdnActionCallback } = await import("../ui/menus/cdn-menu.js");
+    await handleCdnActionCallback(ctx as AppContext);
+  });
+  bot.callbackQuery(/^acdn:/, async (ctx) => {
+    const { handleAdminCdnCallback } = await import("../ui/menus/admin-cdn-menu.js");
+    await handleAdminCdnCallback(ctx as AppContext);
+  });
 
   bot.callbackQuery("promocode-cancel", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});

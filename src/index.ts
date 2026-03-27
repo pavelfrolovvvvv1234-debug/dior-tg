@@ -15,7 +15,7 @@ import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
-import { DataSource, LessThanOrEqual, MoreThan, MoreThanOrEqual } from "typeorm";
+import { DataSource, MoreThan, MoreThanOrEqual } from "typeorm";
 import { getAppDataSource } from "./database";
 import { getAdminTelegramIds, getPrimeChannelForCheck } from "./app/config";
 import User, { Role, UserStatus } from "./entities/User";
@@ -57,7 +57,7 @@ import {
   dedicatedOsMenu,
   handleDedicatedOsSelect,
 } from "./helpers/services-menu";
-import { renameVdsConversation } from "./helpers/manage-services";
+import { renameVdsConversation, vdsPasswordManualConversation } from "./helpers/manage-services";
 import {
   depositMenu,
   depositMoneyConversation,
@@ -96,7 +96,6 @@ import { registerDomainRegistrationMiddleware } from "./helpers/domain-registrat
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
-import { Fluent } from "@moebius/fluent";
 import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
 import type { SessionData } from "./shared/types/session";
@@ -532,7 +531,39 @@ async function index() {
     process.env["VMM_PASSWORD"] ?? ""
   );
 
-  startExpirationCheck(bot, vmmanager, fluent);
+  {
+    const { ExpirationService } = await import("./domain/services/ExpirationService.js");
+    let onGracePeriodStarted: import("./domain/services/ExpirationService.js").OnGracePeriodStarted | undefined;
+    try {
+      const dataSource = await getAppDataSource();
+      const { GrowthService } = await import("./modules/growth/growth.service.js");
+      const growthService = new GrowthService(dataSource);
+      const triggerEngine = growthService.getTriggerEngine();
+      onGracePeriodStarted = async (userId, serviceId, serviceType) => {
+        await triggerEngine.handleServiceExpiration(userId, serviceId, serviceType);
+      };
+    } catch {
+      /* growth optional */
+    }
+    let onGraceDayCheck: import("./domain/services/ExpirationService.js").OnGraceDayCheck | undefined;
+    try {
+      const { maybeSendGraceDay2OrDay3 } = await import("./modules/growth/campaigns/index.js");
+      const sendGrowthMessage = (telegramId: number, text: string): Promise<void> =>
+        bot.api.sendMessage(telegramId, text, { parse_mode: "HTML" }).then(() => {});
+      onGraceDayCheck = (vdsId, userId, telegramId, payDayAt) =>
+        maybeSendGraceDay2OrDay3(vdsId, userId, telegramId, payDayAt, sendGrowthMessage);
+    } catch {
+      /* optional */
+    }
+    const expirationService = new ExpirationService(
+      bot as any,
+      vmmanager,
+      fluent as any,
+      onGracePeriodStarted,
+      onGraceDayCheck
+    );
+    expirationService.start();
+  }
   startOsListBackgroundRefresh(vmmanager);
 
   bot.use((ctx, next) => {
@@ -1006,7 +1037,10 @@ async function index() {
   bot.use(
     createConversation(renameVdsConversation as any, "renameVdsConversation")
   );
-  
+  bot.use(
+    createConversation(vdsPasswordManualConversation as any, "vdsPasswordManualConversation")
+  );
+
   // Register domain registration conversation
   // Note: This is also registered in broadcast-tickets-integration, so we skip it here to avoid duplicates
   // The conversation will be registered by registerBroadcastAndTickets() below
@@ -1016,6 +1050,55 @@ async function index() {
 
   bot.use(promocodeQuestion.middleware());
   bot.use(vdsManageSpecific);
+
+  bot.callbackQuery(/^vds-renew-yes:(\d+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const vdsId = Number(ctx.match![1]);
+    const months = Number(ctx.match![2]) as 1 | 3 | 6 | 12;
+    if (![1, 3, 6, 12].includes(months)) return;
+    session.other.manageVds.pendingRenewMonths = null;
+    const { VdsService } = await import("./domain/services/VdsService.js");
+    const { VdsRepository } = await import("./infrastructure/db/repositories/VdsRepository.js");
+    const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+    const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+    const { BillingService } = await import("./domain/billing/BillingService.js");
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    const userRepo = new UserRepository(ctx.appDataSource);
+    const topUpRepo = new TopUpRepository(ctx.appDataSource);
+    const billing = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+    const vdsService = new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
+    try {
+      await vdsService.renewVdsWithMonths(vdsId, session.main.user.id, months);
+      const u = await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id });
+      if (u) session.main.user.balance = u.balance;
+      await ctx.reply(ctx.t("vds-renew-success", { months }), { parse_mode: "HTML" });
+    } catch (e: any) {
+      await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
+    }
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^vds-renew-no:\d+$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    session.other.manageVds.pendingRenewMonths = null;
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^adv:/, async (ctx) => {
+    const { handleAdminVdsCallback } = await import("./ui/menus/admin-vds-menu.js");
+    await handleAdminVdsCallback(ctx as AppContext);
+  });
+
+  bot.callbackQuery(/^cdn_(open|renew|autorenew|retryssl|delask|delok):/, async (ctx) => {
+    const { handleCdnActionCallback } = await import("./ui/menus/cdn-menu.js");
+    await handleCdnActionCallback(ctx as AppContext);
+  });
+  bot.callbackQuery(/^acdn:/, async (ctx) => {
+    const { handleAdminCdnCallback } = await import("./ui/menus/admin-cdn-menu.js");
+    await handleAdminCdnCallback(ctx as AppContext);
+  });
 
   bot.callbackQuery("promocode-cancel", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
@@ -1492,6 +1575,83 @@ async function index() {
           parse_mode: "HTML",
         });
       }
+      return;
+    }
+
+    const adminVds = session.other.adminVds;
+    if (adminVds?.awaitingSearch && session.main.user.role === Role.Admin) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      const input = ctx.message.text.trim();
+      if (input.startsWith("/")) {
+        return next();
+      }
+      adminVds.awaitingSearch = false;
+      const low = input.toLowerCase();
+      if (low === "очистить" || low === "clear") {
+        adminVds.searchQuery = "";
+      } else {
+        adminVds.searchQuery = input;
+      }
+      adminVds.page = 0;
+      const { replyAdminVdsList } = await import("./ui/menus/admin-vds-menu.js");
+      await replyAdminVdsList(ctx as AppContext);
+      return;
+    }
+
+    if (adminVds?.awaitingTransferUserId && session.main.user.role === Role.Admin) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      const input = ctx.message.text.trim();
+      if (input.startsWith("/")) {
+        return next();
+      }
+      adminVds.awaitingTransferUserId = false;
+      const newUserId = parseInt(input.replace(/\D/g, ""), 10);
+      if (Number.isNaN(newUserId) || newUserId <= 0) {
+        await ctx.reply(ctx.t("bad-error"));
+        return;
+      }
+      const vid = adminVds.selectedVdsId;
+      if (!vid) {
+        return next();
+      }
+      const { VdsService } = await import("./domain/services/VdsService.js");
+      const { VdsRepository } = await import("./infrastructure/db/repositories/VdsRepository.js");
+      const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+      const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+      const { BillingService } = await import("./domain/billing/BillingService.js");
+      const vdsRepo = new VdsRepository(ctx.appDataSource);
+      const userRepo = new UserRepository(ctx.appDataSource);
+      const topUpRepo = new TopUpRepository(ctx.appDataSource);
+      const billing = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+      const vdsService = new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
+      try {
+        await vdsService.adminTransferVds(vid, newUserId);
+        await ctx.reply(ctx.t("admin-vds-transferred", { userId: newUserId }), { parse_mode: "HTML" });
+      } catch (e: any) {
+        await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
+      }
+      return;
+    }
+
+    const adminCdn = session.other.adminCdn;
+    if (adminCdn?.awaitingSearch && session.main.user.role === Role.Admin) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      const input = ctx.message.text.trim();
+      if (input.startsWith("/")) {
+        return next();
+      }
+      adminCdn.awaitingSearch = false;
+      const low = input.toLowerCase();
+      adminCdn.searchQuery = low === "очистить" || low === "clear" ? "" : input;
+      adminCdn.page = 0;
+      const { openAdminCdnPanel } = await import("./ui/menus/admin-cdn-menu.js");
+      await openAdminCdnPanel(ctx as AppContext);
       return;
     }
 
@@ -2977,96 +3137,3 @@ index()
     }
   });
 
-async function startExpirationCheck(
-  bot: Bot<AppContext, Api<RawApi>>,
-  vmManager: VMManager,
-  fluent: Fluent
-) {
-  const appDataSource = await getAppDataSource();
-
-  setInterval(async () => {
-    const vdsRepo = appDataSource.getRepository(VirtualDedicatedServer);
-    const usersRepo = appDataSource.getRepository(User);
-    const domainsRepo = appDataSource.getRepository(DomainRequest);
-
-    const domains = await domainsRepo.find({
-      where: {
-        payday_at: LessThanOrEqual(new Date()),
-        status: DomainRequestStatus.Completed,
-      },
-    });
-
-    const vdsList = await vdsRepo.find({
-      where: {
-        expireAt: LessThanOrEqual(new Date()),
-      },
-    });
-
-    vdsList.forEach(async (vds) => {
-      const user = await usersRepo.findOneBy({
-        id: vds.targetUserId,
-      });
-
-      if (!user) {
-        return;
-      }
-
-      if (user.balance < vds.renewalPrice) {
-        if (!vds.payDayAt) {
-          vds.payDayAt = new Date(Date.now() + ms("3d"));
-          vdsRepo.save(vds);
-
-          await bot.api.sendMessage(
-            user.telegramId,
-            fluent.translate(user.lang || "ru", "vds-expiration", {
-              amount: vds.renewalPrice,
-            })
-          );
-
-          return;
-        }
-
-        if (new Date(vds.payDayAt).getTime() > Date.now()) {
-          let deleted;
-          while (deleted == undefined) {
-            deleted = await vmManager.deleteVM(vds.vdsId);
-          }
-
-          await vdsRepo.delete(vds.id);
-        }
-      } else {
-        user.balance -= vds.renewalPrice;
-
-        vds.expireAt = new Date(Date.now() + ms("30d"));
-        // @ts-ignore
-        vds.payDayAt = null;
-
-        await usersRepo.save(user);
-        await vdsRepo.save(vds);
-      }
-    });
-
-    domains.forEach(async (domain) => {
-      const user = await usersRepo.findOneBy({
-        id: domain.target_user_id,
-      });
-
-      if (!user) {
-        return;
-      }
-
-      if (user.balance < domain.price) {
-        domain.status = DomainRequestStatus.Expired;
-        domainsRepo.save(domain);
-      } else {
-        user.balance -= domain.price;
-        const now = Date.now();
-        domain.expireAt = new Date(now + ms("1y"));
-        domain.payday_at = new Date(now + ms("360d"));
-
-        usersRepo.save(user);
-        domainsRepo.save(domain);
-      }
-    });
-  }, ms("1d"));
-}

@@ -200,6 +200,10 @@ export class VdsService {
       vds.isBulletproof = bulletproof;
       vds.renewalPrice = price;
       vds.ipv4Addr = ipv4Addrs.list[0].ip_addr;
+      vds.autoRenewEnabled = true;
+      vds.adminBlocked = false;
+      vds.managementLocked = false;
+      vds.extraIpv4Count = 0;
 
       // Deduct balance
       const user = await userRepo.findOne({ where: { id: userId } });
@@ -259,6 +263,12 @@ export class VdsService {
    */
   async reinstallOs(vdsId: number, osId: number): Promise<boolean> {
     const vds = await this.getVdsById(vdsId);
+    if (vds.managementLocked) {
+      throw new BusinessError("VDS management is locked (subscription expired). Renew first.");
+    }
+    if (vds.adminBlocked) {
+      throw new BusinessError("VDS is blocked by administrator.");
+    }
 
     const result = await retry(
       () => this.vmManager.reinstallOS(vds.vdsId, osId),
@@ -346,6 +356,12 @@ export class VdsService {
     if (vds.targetUserId !== userId) {
       throw new BusinessError("You don't own this VDS");
     }
+    if (vds.managementLocked) {
+      throw new BusinessError("VDS management is locked (subscription expired). Renew first.");
+    }
+    if (vds.adminBlocked) {
+      throw new BusinessError("VDS is blocked by administrator.");
+    }
 
     // Validate display name
     const trimmed = displayName.trim();
@@ -376,26 +392,38 @@ export class VdsService {
    */
   async renewVds(vdsId: number): Promise<boolean> {
     const vds = await this.getVdsById(vdsId);
+    return this.renewVdsWithMonths(vdsId, vds.targetUserId, 1);
+  }
 
-    // Check balance
-    if (
-      !(await this.billingService.hasSufficientBalance(
-        vds.targetUserId,
-        vds.renewalPrice
-      ))
-    ) {
+  /**
+   * Renew VDS for N months (`renewalPrice` is per month). Clears grace and management lock.
+   */
+  async renewVdsWithMonths(
+    vdsId: number,
+    userIdForOwnershipCheck: number,
+    months: 1 | 3 | 6 | 12
+  ): Promise<boolean> {
+    const vds = await this.getVdsById(vdsId);
+
+    if (vds.targetUserId !== userIdForOwnershipCheck) {
+      throw new BusinessError("You don't own this VDS");
+    }
+
+    const total = Math.round(vds.renewalPrice * months * 100) / 100;
+
+    if (!(await this.billingService.hasSufficientBalance(vds.targetUserId, total))) {
       const balance = await this.billingService.getBalance(vds.targetUserId);
       throw new BusinessError(
-        `Insufficient balance for renewal. Required: ${vds.renewalPrice}, Available: ${balance}`
+        `Insufficient balance for renewal. Required: ${total}, Available: ${balance}`
       );
     }
 
-    // Renew in transaction
+    const extendMs = months * ms("30d");
+
     await this.dataSource.transaction(async (manager) => {
       const vdsRepo = manager.getRepository(VirtualDedicatedServer);
       const userRepo = manager.getRepository(User);
 
-      // Deduct balance
       const user = await userRepo.findOne({
         where: { id: vds.targetUserId },
       });
@@ -403,18 +431,129 @@ export class VdsService {
         throw new NotFoundError("User", vds.targetUserId);
       }
 
-      user.balance -= vds.renewalPrice;
+      user.balance -= total;
 
-      // Extend expiration
-      vds.expireAt = new Date(Date.now() + ms("30d"));
+      const base =
+        vds.expireAt.getTime() > Date.now() ? vds.expireAt.getTime() : Date.now();
+      vds.expireAt = new Date(base + extendMs);
       vds.payDayAt = null;
+      vds.managementLocked = false;
 
       await userRepo.save(user);
       await vdsRepo.save(vds);
     });
 
-    Logger.info(`Renewed VDS ${vdsId} for user ${vds.targetUserId}`);
+    try {
+      await retry(
+        () => this.vmManager.startVM(vds.vdsId),
+        { maxAttempts: 2, delayMs: 1500, exponentialBackoff: true }
+      );
+    } catch {
+      Logger.warn(`Could not start VM ${vds.vdsId} after renewal`);
+    }
+
+    Logger.info(`Renewed VDS ${vdsId} for ${months} mo, user ${vds.targetUserId}`);
 
     return true;
+  }
+
+  /** Toggle auto-renewal flag (owner). */
+  async setAutoRenewEnabled(
+    vdsId: number,
+    userId: number,
+    enabled: boolean
+  ): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+    if (vds.targetUserId !== userId) {
+      throw new BusinessError("You don't own this VDS");
+    }
+    vds.autoRenewEnabled = enabled;
+    await this.vdsRepository.save(vds);
+    return vds;
+  }
+
+  /** Price per extra IPv4 (USD) from env, default 2. */
+  getExtraIpv4UnitPrice(): number {
+    const raw = process.env.VDS_EXTRA_IPV4_PRICE_USD;
+    const n = raw != null && raw !== "" ? parseFloat(raw) : 2;
+    return Number.isFinite(n) && n > 0 ? n : 2;
+  }
+
+  /**
+   * Purchase one extra IPv4 (billing + DB). VM attach may require manual/API follow-up.
+   */
+  async purchaseExtraIpv4(vdsId: number, userId: number): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+    if (vds.targetUserId !== userId) {
+      throw new BusinessError("You don't own this VDS");
+    }
+    if (vds.managementLocked) {
+      throw new BusinessError("Management is locked for this VDS; renew first.");
+    }
+    if (vds.adminBlocked) {
+      throw new BusinessError("This VDS is blocked by administrator.");
+    }
+    if (vds.extraIpv4Count >= 9) {
+      throw new BusinessError("Maximum extra IPv4 count reached (10 IPs total).");
+    }
+
+    const price = this.getExtraIpv4UnitPrice();
+    if (!(await this.billingService.hasSufficientBalance(userId, price))) {
+      throw new BusinessError("Insufficient balance for extra IPv4.");
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const vdsRepo = manager.getRepository(VirtualDedicatedServer);
+      const userRepo = manager.getRepository(User);
+      const user = await userRepo.findOne({ where: { id: userId } });
+      if (!user) throw new NotFoundError("User", userId);
+      user.balance -= price;
+      vds.extraIpv4Count += 1;
+      await userRepo.save(user);
+      await vdsRepo.save(vds);
+    });
+
+    const apiOk = await this.vmManager.addIpv4ToHost(vds.vdsId);
+    if (!apiOk) {
+      Logger.warn(
+        `VDS ${vdsId}: extra IPv4 billed in DB; VMmanager addIpv4 API failed — check panel or API version`
+      );
+    }
+
+    Logger.info(`VDS ${vdsId}: extra IPv4 purchased, count=${vds.extraIpv4Count}`);
+    return await this.getVdsById(vdsId);
+  }
+
+  /** Admin: transfer VDS to another user (DB only). */
+  async adminTransferVds(vdsId: number, newUserId: number): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+    const userRepo = this.dataSource.getRepository(User);
+    const target = await userRepo.findOne({ where: { id: newUserId } });
+    if (!target) {
+      throw new NotFoundError("User", newUserId);
+    }
+    vds.targetUserId = newUserId;
+    await this.vdsRepository.save(vds);
+    return vds;
+  }
+
+  /** Admin: block or unblock user actions. */
+  async adminSetBlocked(vdsId: number, blocked: boolean): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+    vds.adminBlocked = blocked;
+    await this.vdsRepository.save(vds);
+    return vds;
+  }
+
+  /** Admin: extend paid-until by days from now (or from current expire if later). */
+  async adminExtendByDays(vdsId: number, days: number): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+    const add = days * ms("1d");
+    const base = Math.max(Date.now(), vds.expireAt.getTime());
+    vds.expireAt = new Date(base + add);
+    vds.payDayAt = null;
+    vds.managementLocked = false;
+    await this.vdsRepository.save(vds);
+    return vds;
   }
 }

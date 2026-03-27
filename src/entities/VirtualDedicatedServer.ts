@@ -70,6 +70,22 @@ export default class VirtualDedicatedServer {
   @Column({ nullable: true, type: "varchar" })
   bundleType!: string | null;
 
+  /** Monthly auto-renewal from balance when the period ends. */
+  @Column({ default: true, type: "boolean" })
+  autoRenewEnabled!: boolean;
+
+  /** Admin blocked: user cannot start/stop/manage until cleared. */
+  @Column({ default: false, type: "boolean" })
+  adminBlocked!: boolean;
+
+  /** Set when subscription expired without renewal: user actions disabled until renewal. */
+  @Column({ default: false, type: "boolean" })
+  managementLocked!: boolean;
+
+  /** Extra IPv4 slots purchased (0–9); total IPs = 1 + extraIpv4Count, max 10. */
+  @Column({ default: 0, type: "integer" })
+  extraIpv4Count!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 

@@ -13,11 +13,18 @@ import {
   cdnGetPrice,
   cdnCreateProxy,
   cdnListProxies,
+  cdnDeleteProxy,
+  cdnRenewProxy,
+  cdnRetrySsl,
+  cdnToggleAutoRenew,
+  type CdnProxyItem,
 } from "../../infrastructure/cdn/CdnClient";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money";
 import { getAppDataSource } from "../../database";
 import User from "../../entities/User";
 import { createInitialOtherSession } from "../../shared/session-initial";
+import CdnProxyService from "../../entities/CdnProxyService";
+import CdnProxyAudit from "../../entities/CdnProxyAudit";
 
 const DOMAIN_REGEX =
   /^(?!https?:\/\/)(?!www\.$)(?!.*\/$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -99,6 +106,19 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
             `${safeT(ctx, "cdn-my-proxies-list")}\n\n${lines.join("\n")}`,
             { parse_mode: "HTML" }
           );
+          for (const p of list) {
+            await syncProxyRecordByItem(ctx, p, false);
+            await ctx.reply(
+              ctx.t("cdn-proxy-manage-title", {
+                domain: p.domain_name,
+                status: p.lifecycle_status || p.status,
+              }),
+              {
+                parse_mode: "HTML",
+                reply_markup: buildProxyActionKeyboard(ctx, p),
+              }
+            );
+          }
       } catch (e: any) {
         await ctx.reply(safeT(ctx, "cdn-error", { error: e?.message ?? "Unknown" }), {
           parse_mode: "HTML",
@@ -291,6 +311,23 @@ export async function cdnAddProxyConversation(
       }),
       { parse_mode: "HTML" }
     );
+    if (result.data?.id) {
+      await syncProxyRecordByItem(
+        ctx,
+        {
+          id: result.data.id,
+          domain_name: result.data.domain_name,
+          target_url: result.data.target_url,
+          status: result.data.status || "active",
+          lifecycle_status: result.data.status || "active",
+          server_ip: result.data.server_ip || null,
+          expires_at: result.data.expires_at || null,
+          created_at: new Date().toISOString(),
+          auto_renew: false,
+        },
+        false
+      );
+    }
   } catch (e: any) {
     user.balance += price;
     await userRepo.save(user);
@@ -301,4 +338,238 @@ export async function cdnAddProxyConversation(
   }
 
   session.other.cdn = { step: "idle" };
+}
+
+function buildProxyActionKeyboard(ctx: AppContext, proxy: CdnProxyItem): InlineKeyboard {
+  const isAutoRenew = proxy.auto_renew === true;
+  return new InlineKeyboard()
+    .text(ctx.t("button-cdn-renew"), `cdn_renew:${proxy.id}`)
+    .text(
+      isAutoRenew ? ctx.t("button-cdn-autorenew-off") : ctx.t("button-cdn-autorenew-on"),
+      `cdn_autorenew:${proxy.id}:${isAutoRenew ? "0" : "1"}`
+    )
+    .row()
+    .text(ctx.t("button-cdn-retry-ssl"), `cdn_retryssl:${proxy.id}`)
+    .text(ctx.t("button-cdn-delete"), `cdn_delask:${proxy.id}`)
+    .row()
+    .text(ctx.t("button-cdn-refresh"), `cdn_open:${proxy.id}`);
+}
+
+function buildDeleteConfirmKeyboard(ctx: AppContext, proxyId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(ctx.t("button-confirm"), `cdn_delok:${proxyId}`)
+    .text(ctx.t("button-cancel"), `cdn_open:${proxyId}`);
+}
+
+async function getProxyById(telegramId: number, proxyId: string): Promise<CdnProxyItem | null> {
+  const list = await cdnListProxies(telegramId);
+  return list.find((p) => p.id === proxyId) ?? null;
+}
+
+async function syncProxyRecordByItem(ctx: AppContext, p: CdnProxyItem, markDeleted = false): Promise<void> {
+  const dataSource = await getAppDataSource();
+  const repo = dataSource.getRepository(CdnProxyService);
+  const session = await ctx.session;
+  const userId = session.main.user.id;
+  const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId ?? 0;
+  if (!telegramId || !userId) return;
+
+  let rec = await repo.findOne({ where: { proxyId: p.id } });
+  if (!rec) {
+    rec = new CdnProxyService();
+    rec.proxyId = p.id;
+    rec.targetUserId = userId;
+    rec.telegramId = telegramId;
+  }
+  rec.domainName = p.domain_name;
+  rec.targetUrl = p.target_url ?? null;
+  rec.status = p.status ?? null;
+  rec.lifecycleStatus = p.lifecycle_status ?? null;
+  rec.serverIp = p.server_ip ?? null;
+  rec.expiresAt = p.expires_at ? new Date(p.expires_at) : null;
+  rec.autoRenew = p.auto_renew === true;
+  rec.isDeleted = markDeleted;
+  rec.deletedAt = markDeleted ? new Date() : null;
+  await repo.save(rec);
+}
+
+async function addAudit(
+  ctx: AppContext,
+  proxyId: string,
+  action: string,
+  success: boolean,
+  note?: string
+): Promise<void> {
+  const dataSource = await getAppDataSource();
+  const repo = dataSource.getRepository(CdnProxyAudit);
+  const session = await ctx.session;
+  const row = new CdnProxyAudit();
+  row.proxyId = proxyId;
+  row.actorUserId = session.main?.user?.id ?? null;
+  row.actorTelegramId = (ctx.from?.id ?? ctx.loadedUser?.telegramId ?? null) as number | null;
+  row.action = action;
+  row.success = success;
+  row.note = note ?? null;
+  await repo.save(row);
+}
+
+async function showProxyCard(ctx: AppContext, proxy: CdnProxyItem, notice?: string): Promise<void> {
+  const text = ctx.t("cdn-proxy-detail", {
+    domain: proxy.domain_name,
+    target: proxy.target_url || "—",
+    status: proxy.lifecycle_status || proxy.status,
+    expiresAt: proxy.expires_at || "—",
+    autoRenew: proxy.auto_renew ? ctx.t("vds-autorenew-on") : ctx.t("vds-autorenew-off"),
+  });
+  const full = notice ? `${text}\n\n${notice}` : text;
+  try {
+    await ctx.editMessageText(full, {
+      parse_mode: "HTML",
+      reply_markup: buildProxyActionKeyboard(ctx, proxy),
+    });
+  } catch {
+    await ctx.reply(full, {
+      parse_mode: "HTML",
+      reply_markup: buildProxyActionKeyboard(ctx, proxy),
+    });
+  }
+}
+
+export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
+  const data = ctx.callbackQuery?.data ?? "";
+  if (!data.startsWith("cdn_")) return;
+  await ctx.answerCallbackQuery().catch(() => {});
+
+  if (!isCdnEnabled()) {
+    await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+    return;
+  }
+
+  const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
+  if (!telegramId) {
+    await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
+    return;
+  }
+
+  const [action, p1, p2] = data.split(":");
+  const proxyId = p1 || "";
+  if (!proxyId) return;
+
+  try {
+    if (action === "cdn_open") {
+      const proxy = await getProxyById(telegramId, proxyId);
+      if (!proxy) {
+        await ctx.reply(ctx.t("cdn-error", { error: "Proxy not found" }), { parse_mode: "HTML" });
+        return;
+      }
+      await showProxyCard(ctx, proxy);
+      await syncProxyRecordByItem(ctx, proxy, false);
+      await addAudit(ctx, proxyId, "open", true);
+      return;
+    }
+
+    if (action === "cdn_renew") {
+      const ok = await cdnRenewProxy(proxyId, telegramId);
+      const proxy = await getProxyById(telegramId, proxyId);
+      if (proxy) {
+        await syncProxyRecordByItem(ctx, proxy, false);
+        await showProxyCard(ctx, proxy, ok ? ctx.t("cdn-renew-success") : ctx.t("cdn-renew-failed"));
+      } else {
+        await ctx.reply(ok ? ctx.t("cdn-renew-success") : ctx.t("cdn-renew-failed"), {
+          parse_mode: "HTML",
+        });
+      }
+      await addAudit(ctx, proxyId, "renew", ok);
+      return;
+    }
+
+    if (action === "cdn_autorenew") {
+      const enabled = p2 === "1";
+      const ok = await cdnToggleAutoRenew(proxyId, telegramId, enabled);
+      const proxy = await getProxyById(telegramId, proxyId);
+      const note = ok
+        ? enabled
+          ? ctx.t("cdn-autorenew-on-success")
+          : ctx.t("cdn-autorenew-off-success")
+        : ctx.t("cdn-autorenew-failed");
+      if (proxy) {
+        await syncProxyRecordByItem(ctx, proxy, false);
+        await showProxyCard(ctx, proxy, note);
+      } else {
+        await ctx.reply(note, { parse_mode: "HTML" });
+      }
+      await addAudit(ctx, proxyId, enabled ? "autorenew_on" : "autorenew_off", ok);
+      return;
+    }
+
+    if (action === "cdn_retryssl") {
+      const ok = await cdnRetrySsl(proxyId, telegramId);
+      const proxy = await getProxyById(telegramId, proxyId);
+      if (proxy) {
+        await syncProxyRecordByItem(ctx, proxy, false);
+        await showProxyCard(
+          ctx,
+          proxy,
+          ok ? ctx.t("cdn-retry-ssl-success") : ctx.t("cdn-retry-ssl-failed")
+        );
+      } else {
+        await ctx.reply(ok ? ctx.t("cdn-retry-ssl-success") : ctx.t("cdn-retry-ssl-failed"), {
+          parse_mode: "HTML",
+        });
+      }
+      await addAudit(ctx, proxyId, "retry_ssl", ok);
+      return;
+    }
+
+    if (action === "cdn_delask") {
+      const proxy = await getProxyById(telegramId, proxyId);
+      if (!proxy) {
+        await ctx.reply(ctx.t("cdn-error", { error: "Proxy not found" }), { parse_mode: "HTML" });
+        return;
+      }
+      try {
+        await ctx.editMessageText(ctx.t("cdn-delete-confirm"), {
+          parse_mode: "HTML",
+          reply_markup: buildDeleteConfirmKeyboard(ctx, proxyId),
+        });
+      } catch {
+        await ctx.reply(ctx.t("cdn-delete-confirm"), {
+          parse_mode: "HTML",
+          reply_markup: buildDeleteConfirmKeyboard(ctx, proxyId),
+        });
+      }
+      return;
+    }
+
+    if (action === "cdn_delok") {
+      const ok = await cdnDeleteProxy(proxyId, telegramId);
+      if (ok) {
+        const dataSource = await getAppDataSource();
+        const repo = dataSource.getRepository(CdnProxyService);
+        const rec = await repo.findOne({ where: { proxyId } });
+        if (rec) {
+          rec.isDeleted = true;
+          rec.deletedAt = new Date();
+          await repo.save(rec);
+        }
+        await addAudit(ctx, proxyId, "delete", true);
+        try {
+          await ctx.editMessageText(ctx.t("cdn-delete-success"), {
+            parse_mode: "HTML",
+          });
+        } catch {
+          await ctx.reply(ctx.t("cdn-delete-success"), { parse_mode: "HTML" });
+        }
+      } else {
+        await addAudit(ctx, proxyId, "delete", false);
+        await ctx.reply(ctx.t("cdn-delete-failed"), { parse_mode: "HTML" });
+      }
+      return;
+    }
+  } catch (e: any) {
+    await addAudit(ctx, proxyId, action, false, e?.message ?? "Unknown");
+    await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Unknown" }), {
+      parse_mode: "HTML",
+    });
+  }
 }

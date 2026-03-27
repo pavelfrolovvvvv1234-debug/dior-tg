@@ -44,12 +44,19 @@ export interface CdnProxyItem {
   server_ip: string | null;
   expires_at: string | null;
   created_at: string;
+  auto_renew?: boolean;
 }
 
 export interface CdnListProxiesResponse {
   success: boolean;
   data?: CdnProxyItem[];
   error?: string;
+}
+
+export interface CdnActionResponse {
+  success: boolean;
+  error?: string;
+  code?: string;
 }
 
 /**
@@ -138,4 +145,90 @@ export async function cdnListProxies(telegramId: number): Promise<CdnProxyItem[]
     throw new Error(out.error ?? "Failed to list CDN proxies");
   }
   return out.data ?? [];
+}
+
+async function tryAction(
+  attempts: Array<{
+    path: string;
+    method?: string;
+    body?: Record<string, unknown>;
+  }>
+): Promise<boolean> {
+  for (const attempt of attempts) {
+    try {
+      const out = await cdnFetch<CdnActionResponse>(attempt.path, {
+        method: attempt.method ?? "POST",
+        body: attempt.body,
+      });
+      if (out.success) return true;
+    } catch {
+      // Try next variant.
+    }
+  }
+  return false;
+}
+
+export async function cdnRenewProxy(proxyId: string, telegramId: number): Promise<boolean> {
+  return tryAction([
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}/renew`,
+      method: "POST",
+      body: { telegramId },
+    },
+    {
+      path: `/api/bot/renew-proxy`,
+      method: "POST",
+      body: { proxyId, telegramId },
+    },
+  ]);
+}
+
+export async function cdnToggleAutoRenew(
+  proxyId: string,
+  telegramId: number,
+  enabled: boolean
+): Promise<boolean> {
+  return tryAction([
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}/auto-renew`,
+      method: "POST",
+      body: { enabled, telegramId },
+    },
+    {
+      path: `/api/bot/toggle-auto-renew`,
+      method: "POST",
+      body: { proxyId, enabled, telegramId },
+    },
+  ]);
+}
+
+export async function cdnRetrySsl(proxyId: string, telegramId: number): Promise<boolean> {
+  return tryAction([
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}/retry-ssl`,
+      method: "POST",
+      body: { telegramId },
+    },
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}/retry-issuance`,
+      method: "POST",
+      body: { telegramId },
+    },
+  ]);
+}
+
+export async function cdnDeleteProxy(proxyId: string, telegramId: number): Promise<boolean> {
+  return tryAction([
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}?telegramId=${encodeURIComponent(
+        telegramId
+      )}`,
+      method: "DELETE",
+    },
+    {
+      path: `/api/bot/delete-proxy`,
+      method: "POST",
+      body: { proxyId, telegramId },
+    },
+  ]);
 }

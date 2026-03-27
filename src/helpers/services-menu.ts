@@ -168,6 +168,16 @@ export const servicesMenu = new Menu<AppContext>("services-menu", { autoAnswer: 
   )
   .row()
   .submenu(
+    (ctx) => ctx.t("button-vds"),
+    "vds-type-menu",
+    async (ctx) => {
+      await ctx.editMessageText(buildServiceHeader(ctx, "button-vds"), {
+        parse_mode: "HTML",
+      });
+    }
+  )
+  .row()
+  .submenu(
     (ctx) => ctx.t("button-dedicated-server"),
     "dedicated-type-menu",
     async (ctx) => {
@@ -282,6 +292,10 @@ async function createAndBuyVDS(
 
   newVds.ipv4Addr = ipv4Addrs.list[0].ip_addr;
   newVds.renewalPrice = price;
+  newVds.autoRenewEnabled = true;
+  newVds.adminBlocked = false;
+  newVds.managementLocked = false;
+  newVds.extraIpv4Count = 0;
 
   await vdsRepo.save(newVds);
 

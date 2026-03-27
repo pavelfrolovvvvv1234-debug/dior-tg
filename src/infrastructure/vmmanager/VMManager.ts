@@ -272,6 +272,35 @@ export class VMManager {
   }
 
   /**
+   * Try to order an additional IPv4 for a VM (ISPsystem VMmanager; exact body may vary by build).
+   * Returns false if the endpoint is missing or returns an error — billing may still be done separately.
+   */
+  async addIpv4ToHost(id: number): Promise<boolean> {
+    const variants: Array<{ url: string; body: Record<string, number> }> = [
+      { url: `${this.baseUrl}vm/v3/host/${id}/ipv4`, body: { add: 1 } },
+      { url: `${this.baseUrl}vm/v3/host/${id}/ipv4`, body: { ipv4_number: 1 } },
+      { url: `${this.baseUrl}vm/v3/host/${id}/ipv4/add`, body: { count: 1 } },
+    ];
+
+    return this.handleApiCall(async () => {
+      for (const variant of variants) {
+        try {
+          const { status } = await axios.post(variant.url, variant.body, {
+            headers: this.getHeaders(),
+            timeout: 20000,
+          });
+          if (status === 200 || status === 201 || status === 202) {
+            return true;
+          }
+        } catch {
+          // Try the next API variant silently.
+        }
+      }
+      return false;
+    }, "addIpv4ToHost").catch(() => false);
+  }
+
+  /**
    * Start VM.
    */
   async startVM(id: number) {
@@ -389,5 +418,26 @@ export class VMManager {
     }, "changePasswordVM");
 
     return newPassword;
+  }
+
+  /**
+   * Set VM password to a user-provided value (min length enforced by API).
+   */
+  async changePasswordVMCustom(id: number, password: string): Promise<boolean> {
+    return this.handleApiCall(async () => {
+      const { status } = await axios.post(
+        `${this.baseUrl}vm/v3/host/${id}/password`,
+        { password },
+        {
+          headers: this.getHeaders(),
+          timeout: 10000,
+        }
+      );
+
+      if (status === 200) {
+        return true;
+      }
+      throw new Error(`Unexpected status: ${status}`);
+    }, "changePasswordVMCustom");
   }
 }

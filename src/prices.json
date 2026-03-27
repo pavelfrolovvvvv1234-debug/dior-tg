@@ -7,7 +7,7 @@
       "ssd": 20,
       "network": 150,
       "price": {
-        "bulletproof": 17.29,
+        "bulletproof": 18.99,
         "default": 3.69
       }
     },
@@ -18,7 +18,7 @@
       "ssd": 40,
       "network": 150,
       "price": {
-        "bulletproof": 32.29,
+        "bulletproof": 33.33,
         "default": 5.99
       }
     },
@@ -29,7 +29,7 @@
       "ssd": 40,
       "network": 150,
       "price": {
-        "bulletproof": 37.29,
+        "bulletproof": 39.99,
         "default": 7.49
       }
     },
@@ -40,7 +40,7 @@
       "ssd": 40,
       "network": 150,
       "price": {
-        "bulletproof": 57.29,
+        "bulletproof": 55.55,
         "default": 9.49
       }
     },
@@ -51,7 +51,7 @@
       "ssd": 80,
       "network": 150,
       "price": {
-        "bulletproof": 66.66,
+        "bulletproof": 65.65,
         "default": 16.66
       }
     },
@@ -62,7 +62,7 @@
       "ssd": 100,
       "network": 150,
       "price": {
-        "bulletproof": 76.29,
+        "bulletproof": 79.88,
         "default": 23.79
       }
     },
@@ -73,7 +73,7 @@
       "ssd": 150,
       "network": 150,
       "price": {
-        "bulletproof": 95.29,
+        "bulletproof": 99.99,
         "default": 37.79
       }
     },
@@ -84,7 +84,7 @@
       "ssd": 200,
       "network": 150,
       "price": {
-        "bulletproof": 115.29,
+        "bulletproof": 119.24,
         "default": 42.29
       }
     },
@@ -95,7 +95,7 @@
       "ssd": 300,
       "network": 150,
       "price": {
-        "bulletproof": 145.29,
+        "bulletproof": 149.24,
         "default": 69.29
       }
     },
@@ -106,7 +106,7 @@
       "ssd": 320,
       "network": 150,
       "price": {
-        "bulletproof": 175.29,
+        "bulletproof": 199.24,
         "default": 87.29
       }
     },
@@ -114,11 +114,11 @@
       "name": "Mega 3",
       "cpu": 16,
       "ram": 48,
-      "ssd": 320,
+      "ssd": 500,
       "network": 150,
       "price": {
-        "bulletproof": 199.99,
-        "default": 119.29
+        "bulletproof": 239.99,
+        "default": 129.29
       }
     },
     {
@@ -128,7 +128,7 @@
       "ssd": 1000,
       "network": 150,
       "price": {
-        "bulletproof": 265.29,
+        "bulletproof": 249.27,
         "default": 195.29
       }
     }

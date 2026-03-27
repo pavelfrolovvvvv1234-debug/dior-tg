@@ -14,6 +14,7 @@ import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepos
 import { AmperDomainsProvider } from "../../infrastructure/domains/AmperDomainsProvider.js";
 import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
+import { createInitialOtherSession } from "../../shared/session-initial.js";
 
 /**
  * Domain nameserver update conversation.
@@ -23,6 +24,13 @@ export async function domainUpdateNsConversation(
   ctx: AppContext
 ) {
   const session = await ctx.session;
+  if (!session) {
+    await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
+    return;
+  }
+  if (!session.other) {
+    (session as any).other = createInitialOtherSession();
+  }
   await ensureSessionUser(ctx);
 
   // Try to get domainId from callback query data or session
@@ -31,7 +39,6 @@ export async function domainUpdateNsConversation(
     const match = (ctx.callbackQuery.data ?? "").match(/^domain_update_ns_(\d+)$/);
     if (match) {
       domainId = parseInt(match[1]);
-      session.other = session.other || {};
       (session.other as any).currentDomainId = domainId;
     }
   }

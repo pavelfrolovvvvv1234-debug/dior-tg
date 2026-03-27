@@ -4,7 +4,7 @@
  * @module infrastructure/db/repositories/VdsRepository
  */
 
-import { DataSource, LessThanOrEqual } from "typeorm";
+import { Brackets, DataSource, LessThanOrEqual } from "typeorm";
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer";
 import { BaseRepository } from "./base";
 import { NotFoundError } from "../../../shared/errors/index";
@@ -45,6 +45,31 @@ export class VdsRepository extends BaseRepository<VirtualDedicatedServer> {
         expireAt: LessThanOrEqual(new Date()),
       },
     });
+  }
+
+  /**
+   * Admin list with optional search by id, IP, name, rate.
+   */
+  async findPaginatedForAdmin(
+    skip: number,
+    take: number,
+    search?: string
+  ): Promise<[VirtualDedicatedServer[], number]> {
+    const qb = this.repository.createQueryBuilder("v");
+    const trimmed = search?.trim();
+    if (trimmed) {
+      const q = `%${trimmed}%`;
+      qb.where(
+        new Brackets((w) => {
+          w.where("CAST(v.id AS TEXT) LIKE :q", { q })
+            .orWhere("v.ipv4Addr LIKE :q", { q })
+            .orWhere("COALESCE(v.displayName, '') LIKE :q", { q })
+            .orWhere("v.rateName LIKE :q", { q });
+        })
+      );
+    }
+    qb.orderBy("v.id", "DESC").skip(skip).take(take);
+    return qb.getManyAndCount();
   }
 
   /**

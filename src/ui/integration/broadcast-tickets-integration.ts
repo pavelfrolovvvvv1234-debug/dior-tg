@@ -33,6 +33,7 @@ import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { escapeUserInput } from "../../helpers/formatting.js";
 import DedicatedServer from "../../entities/DedicatedServer";
 import { setModeratorChatId } from "../../shared/moderator-chat.js";
+import { createInitialOtherSession } from "../../shared/session-initial.js";
 
 const safeEditMessageText = async (
   ctx: AppContext,
@@ -1335,7 +1336,9 @@ Are you sure you want to proceed?`,
         return;
       }
       await ensureSessionUser(ctx);
-      session.other = session.other || {};
+      if (!session.other) {
+        (session as any).other = createInitialOtherSession();
+      }
       session.other.currentDomainId = domainId;
 
       await ctx.conversation.enter("domainUpdateNsConversation");
