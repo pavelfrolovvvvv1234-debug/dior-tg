@@ -17,6 +17,7 @@ import ms from "@/lib/multims";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
 import { cdnMenu } from "../ui/menus/cdn-menu.js";
 import { createInitialOtherSession } from "../shared/session-initial.js";
+import { showVpsVdsInServiceMenus } from "../app/config.js";
 
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
@@ -133,72 +134,82 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: f
     });
   });
 
-export const servicesMenu = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
-  .submenu(
-    (ctx) => ctx.t("button-domains"),
-    "domains-menu",
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("abuse-domains-service"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .text(
-    (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
-    async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      const session = await ctx.session;
-      if (!session.other) (session as any).other = createInitialOtherSession();
-      if (!session.other.cdn) session.other.cdn = { step: "idle" };
-      session.other.cdn.fromManage = false;
-      const t = typeof (ctx as any).t === "function" ? (ctx as any).t.bind(ctx) : ((k: string, v?: { error?: string }) => (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-welcome" || k === "cdn-service" ? "CDN — тарифы и заказ в боте." : k));
-      try {
-        const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
-        await ctx.editMessageText(text, {
+function buildServicesMenu(): Menu<AppContext> {
+  let m = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
+    .submenu(
+      (ctx) => ctx.t("button-domains"),
+      "domains-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("abuse-domains-service"), {
           parse_mode: "HTML",
-          reply_markup: cdnMenu,
         });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("[Bot] CDN menu open error:", msg);
-        await ctx.reply(t("cdn-error", { error: msg })).catch(() => {});
       }
-    }
-  )
-  .row()
-  .submenu(
-    (ctx) => ctx.t("button-vds"),
-    "vds-type-menu",
-    async (ctx) => {
-      await ctx.editMessageText(buildServiceHeader(ctx, "button-vds"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .submenu(
-    (ctx) => ctx.t("button-dedicated-server"),
-    "dedicated-type-menu",
-    async (ctx) => {
-      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .back(
-    (ctx) => ctx.t("button-back"),
-    async (ctx) => {
-      const session = await ctx.session;
-      await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        {
-          parse_mode: "HTML",
+    )
+    .row()
+    .text(
+      (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
+      async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        if (!session.other) (session as any).other = createInitialOtherSession();
+        if (!session.other.cdn) session.other.cdn = { step: "idle" };
+        session.other.cdn.fromManage = false;
+        const t = typeof (ctx as any).t === "function" ? (ctx as any).t.bind(ctx) : ((k: string, v?: { error?: string }) => (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-welcome" || k === "cdn-service" ? "CDN — тарифы и заказ в боте." : k));
+        try {
+          const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
+          await ctx.editMessageText(text, {
+            parse_mode: "HTML",
+            reply_markup: cdnMenu,
+          });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[Bot] CDN menu open error:", msg);
+          await ctx.reply(t("cdn-error", { error: msg })).catch(() => {});
         }
-      );
-    }
-  );
+      }
+    )
+    .row();
+
+  if (showVpsVdsInServiceMenus()) {
+    m = m
+      .submenu(
+        (ctx) => ctx.t("button-vds"),
+        "vds-type-menu",
+        async (ctx) => {
+          await ctx.editMessageText(buildServiceHeader(ctx, "button-vds"), {
+            parse_mode: "HTML",
+          });
+        }
+      )
+      .row();
+  }
+
+  return m
+    .submenu(
+      (ctx) => ctx.t("button-dedicated-server"),
+      "dedicated-type-menu",
+      async (ctx) => {
+        await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
+          parse_mode: "HTML",
+        });
+      }
+    )
+    .row()
+    .back(
+      (ctx) => ctx.t("button-back"),
+      async (ctx) => {
+        const session = await ctx.session;
+        await ctx.editMessageText(
+          ctx.t("welcome", { balance: session.main.user.balance }),
+          {
+            parse_mode: "HTML",
+          }
+        );
+      }
+    );
+}
+
+export const servicesMenu = buildServicesMenu();
 
 async function createAndBuyVDS(
   ctx: AppContext,

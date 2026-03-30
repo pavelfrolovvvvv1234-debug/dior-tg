@@ -18,6 +18,7 @@ import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepositor
 import { buildServiceInfoBlock } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
 import { createInitialOtherSession } from "@/shared/session-initial.js";
+import { showVpsVdsInServiceMenus } from "../app/config.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -171,65 +172,75 @@ const createVdsServiceInvoice = async (
   );
 };
 
-export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
-  .submenu(
-    (ctx) => ctx.t("button-domains"),
-    "domain-manage-services-menu",
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("domains-manage"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .submenu(
-    (ctx) => ctx.t("button-my-vds"),
-    "vds-manage-services-list",
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("vds-manage-title"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .submenu(
-    (ctx) => ctx.t("button-my-dedicated"),
-    "dedicated-menu",
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .row()
-  .text(
-    (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
-    async (ctx) => {
-      const session = await ctx.session;
-      if (!session.other) (session as any).other = createInitialOtherSession();
-      if (!session.other.cdn) session.other.cdn = { step: "idle" };
-      session.other.cdn.fromManage = true;
-      const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-      const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: cdnMenu,
-      });
-    }
-  )
-  .row()
-  .back(
-    (ctx) => ctx.t("button-back"),
-    async (ctx) => {
-      const session = await ctx.session;
-      await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        {
+function buildManageServicesMenu(): Menu<AppContext> {
+  let m = new Menu<AppContext>("manage-services-menu")
+    .submenu(
+      (ctx) => ctx.t("button-domains"),
+      "domain-manage-services-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("domains-manage"), {
           parse_mode: "HTML",
+        });
+      }
+    )
+    .row();
+
+  if (showVpsVdsInServiceMenus()) {
+    m = m
+      .submenu(
+        (ctx) => ctx.t("button-my-vds"),
+        "vds-manage-services-list",
+        async (ctx) => {
+          await ctx.editMessageText(ctx.t("vds-manage-title"), {
+            parse_mode: "HTML",
+          });
         }
-      );
-    }
-  );
+      )
+      .row();
+  }
+
+  return m
+    .submenu(
+      (ctx) => ctx.t("button-my-dedicated"),
+      "dedicated-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
+          parse_mode: "HTML",
+        });
+      }
+    )
+    .row()
+    .text(
+      (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
+      async (ctx) => {
+        const session = await ctx.session;
+        if (!session.other) (session as any).other = createInitialOtherSession();
+        if (!session.other.cdn) session.other.cdn = { step: "idle" };
+        session.other.cdn.fromManage = true;
+        const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
+        const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
+        await ctx.editMessageText(text, {
+          parse_mode: "HTML",
+          reply_markup: cdnMenu,
+        });
+      }
+    )
+    .row()
+    .back(
+      (ctx) => ctx.t("button-back"),
+      async (ctx) => {
+        const session = await ctx.session;
+        await ctx.editMessageText(
+          ctx.t("welcome", { balance: session.main.user.balance }),
+          {
+            parse_mode: "HTML",
+          }
+        );
+      }
+    );
+}
+
+export const manageSerivcesMenu = buildManageServicesMenu();
 
 const LIMIT_ON_PAGE = 10;
 
