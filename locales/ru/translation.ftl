@@ -247,6 +247,8 @@ cdn-service = 🌍 <strong>Аналог Cloudflare</strong> — проксиро
 
 cdn-enter-domain = Введите <strong>домен</strong> для проксирования (например: <code>cdn.example.com</code>):
 cdn-enter-target = Введите <strong>целевой URL</strong> (куда проксировать, например: <code>https://origin.example.com</code>):
+cdn-enter-target-friendly = Куда сейчас ведёт ваш сайт? Введите адрес origin (например: <code>origin.example.com</code> или <code>https://origin.example.com</code>).
+    Если не знаете — нажмите кнопку ниже.
 cdn-confirm = Прокси: <code>{$domainName}</code> → <code>{$targetUrl}</code>
 
 Стоимость: <b>{$price}$</b> за 30 дней. Списать с баланса?
@@ -254,7 +256,20 @@ cdn-created = ✅ Прокси создан: <code>{$domainName}</code> → <cod
 cdn-error = Ошибка CDN: {$error}
 cdn-not-configured = Услуга CDN пока не подключена. Чтобы включить: задайте в .env переменные CDN_BASE_URL и CDN_BOT_API_KEY (URL и ключ API proxy-сервиса).
 cdn-invalid-domain = Некорректное имя домена. Введите только домен без http:// (например: cdn.example.com).
-cdn-invalid-url = Некорректный URL. Введите полный адрес с http:// или https://.
+cdn-invalid-url = Некорректный URL. Введите домен/IP (можно без http) или полный адрес с http:// / https://.
+button-cdn-target-auto = 🤖 Подобрать автоматически
+button-cdn-target-help = ❓ Где взять origin URL?
+cdn-target-help = <strong>Где взять origin URL?</strong>
+
+    Это адрес вашего текущего сайта/сервера, куда CDN будет пересылать трафик.
+    Примеры:
+    • <code>https://site.example.com</code>
+    • <code>origin.example.com</code>
+    • <code>123.123.123.123:8080</code>
+
+    Если не знаете — нажмите «Подобрать автоматически».
+cdn-target-auto-not-ready = Сначала введите домен для проксирования.
+cdn-target-auto-picked = Подставил origin автоматически: <code>{$targetUrl}</code>
 cdn-my-proxies-empty = У вас пока нет прокси. Добавьте первый через кнопку «Добавить прокси».
 cdn-my-proxies-list = <strong>Ваши прокси:</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})

@@ -246,6 +246,8 @@ cdn-service = 🌍 <strong>Cloudflare alternative</strong> — proxy your site t
 
 cdn-enter-domain = Enter the <strong>domain</strong> for proxying (e.g. <code>cdn.example.com</code>):
 cdn-enter-target = Enter the <strong>target URL</strong> (e.g. <code>https://origin.example.com</code>):
+cdn-enter-target-friendly = Where does your site currently point? Enter the origin address (e.g. <code>origin.example.com</code> or <code>https://origin.example.com</code>).
+    If you are not sure, tap the button below.
 cdn-confirm = Proxy: <code>{$domainName}</code> → <code>{$targetUrl}</code>
 
 Cost: <b>{$price}$</b> for 30 days. Deduct from balance?
@@ -253,7 +255,20 @@ cdn-created = ✅ Proxy created: <code>{$domainName}</code> → <code>{$targetUr
 cdn-error = CDN error: {$error}
 cdn-not-configured = CDN service is not configured. To enable: set CDN_BASE_URL and CDN_BOT_API_KEY in .env (proxy service URL and API key).
 cdn-invalid-domain = Invalid domain name. Enter domain only without http:// (e.g. cdn.example.com).
-cdn-invalid-url = Invalid URL. Enter full address with http:// or https://.
+cdn-invalid-url = Invalid URL. Enter a domain/IP (http optional) or a full address with http:// / https://.
+button-cdn-target-auto = 🤖 Auto-pick
+button-cdn-target-help = ❓ Where to get origin URL?
+cdn-target-help = <strong>Where can I get origin URL?</strong>
+
+    This is your current site/server address where CDN should forward traffic.
+    Examples:
+    • <code>https://site.example.com</code>
+    • <code>origin.example.com</code>
+    • <code>123.123.123.123:8080</code>
+
+    If you are not sure, tap “Auto-pick”.
+cdn-target-auto-not-ready = First enter the domain to proxy.
+cdn-target-auto-picked = Origin was auto-filled: <code>{$targetUrl}</code>
 cdn-my-proxies-empty = You have no proxies yet. Add one via «Add proxy».
 cdn-my-proxies-list = <strong>Your proxies:</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})

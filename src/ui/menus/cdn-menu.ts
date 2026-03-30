@@ -34,8 +34,42 @@ function isValidDomain(name: string): boolean {
 }
 
 function isValidTargetUrl(url: string): boolean {
-  const u = url.trim();
-  return u.startsWith("http://") || u.startsWith("https://");
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function looksLikeHost(value: string): boolean {
+  const hostLike = /^(localhost|(\d{1,3}\.){3}\d{1,3}|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(:\d{1,5})?(\/.*)?$/;
+  return hostLike.test(value.trim());
+}
+
+function normalizeTargetUrlInput(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    return isValidTargetUrl(raw) ? raw : null;
+  }
+  if (!looksLikeHost(raw)) return null;
+  const normalized = `https://${raw}`;
+  return isValidTargetUrl(normalized) ? normalized : null;
+}
+
+function buildTargetInputKeyboard(ctx: AppContext): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(ctx.t("button-cdn-target-auto"), "cdn_target_auto")
+    .row()
+    .text(ctx.t("button-cdn-target-help"), "cdn_target_help");
+}
+
+async function askTargetUrl(ctx: AppContext): Promise<void> {
+  await ctx.reply(ctx.t("cdn-enter-target-friendly"), {
+    parse_mode: "HTML",
+    reply_markup: buildTargetInputKeyboard(ctx),
+  });
 }
 
 /** Безопасный вызов перевода: если ctx.t недоступен (например при рендере меню), возвращаем fallback. */
@@ -202,19 +236,20 @@ export async function cdnAddProxyConversation(
   }
 
   session.other.cdn.domainName = domainName;
-  await ctx.reply(ctx.t("cdn-enter-target"), { parse_mode: "HTML" });
+  await askTargetUrl(ctx);
 
   const targetCtx = await conversation.waitFor("message:text");
   session = (await (targetCtx as any).session) as any;
   ensureCdnSession(session);
   const targetUrl = targetCtx.message.text?.trim() ?? "";
 
-  if (!targetUrl || !isValidTargetUrl(targetUrl)) {
+    const normalized = normalizeTargetUrlInput(targetUrl);
+    if (!normalized) {
     await ctx.reply(ctx.t("cdn-invalid-url"));
     return;
   }
 
-  session.other.cdn.targetUrl = targetUrl;
+  session.other.cdn.targetUrl = normalized;
 
   let price: number;
   try {
@@ -460,16 +495,17 @@ export async function handleCdnAddProxyTextInput(ctx: AppContext): Promise<boole
     }
     session.other.cdn.domainName = input;
     session.other.cdn.step = "target";
-    await ctx.reply(ctx.t("cdn-enter-target"), { parse_mode: "HTML" });
+    await askTargetUrl(ctx);
     return true;
   }
 
   if (session.other.cdn.step === "target") {
-    if (!isValidTargetUrl(input)) {
+    const normalized = normalizeTargetUrlInput(input);
+    if (!normalized) {
       await ctx.reply(ctx.t("cdn-invalid-url"), { parse_mode: "HTML" });
       return true;
     }
-    session.other.cdn.targetUrl = input;
+    session.other.cdn.targetUrl = normalized;
     await finalizeCdnCreateFromSession(ctx, session);
     return true;
   }
@@ -576,6 +612,33 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
   const data = ctx.callbackQuery?.data ?? "";
   if (!data.startsWith("cdn_")) return;
   await ctx.answerCallbackQuery().catch(() => {});
+
+  if (data === "cdn_target_help") {
+    await ctx.reply(ctx.t("cdn-target-help"), { parse_mode: "HTML" });
+    return;
+  }
+
+  if (data === "cdn_target_auto") {
+    const session = (await ctx.session) as any;
+    if (!session?.other?.cdn || session.other.cdn.step !== "target") {
+      await ctx.reply(ctx.t("cdn-target-auto-not-ready"), { parse_mode: "HTML" });
+      return;
+    }
+    const domain = String(session.other.cdn.domainName ?? "").trim();
+    if (!domain) {
+      await ctx.reply(ctx.t("cdn-target-auto-not-ready"), { parse_mode: "HTML" });
+      return;
+    }
+    session.other.cdn.targetUrl = `https://${domain}`;
+    await ctx.reply(
+      ctx.t("cdn-target-auto-picked", {
+        targetUrl: session.other.cdn.targetUrl,
+      }),
+      { parse_mode: "HTML" }
+    );
+    await finalizeCdnCreateFromSession(ctx, session);
+    return;
+  }
 
   if (!isCdnEnabled()) {
     await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
