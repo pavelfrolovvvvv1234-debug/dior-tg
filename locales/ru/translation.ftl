@@ -69,7 +69,7 @@ bundle-manage-header = <strong>🚀 Инфраструктурный пакет<
     Услуги, купленные пакетом (домен + VPS):
 bundle-manage-empty = У вас пока нет услуг по пакетам
 button-dedicated-server = 🖥 Выделенные серверы
-button-dev-po = 💻 Development & Infra
+button-dev-po = 💻 Dev + Traff
 button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 💱 Криптообменник
 button-crypto-exchange-go = 💱 Перейти к обменнику

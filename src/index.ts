@@ -176,15 +176,25 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
   .text(
     (ctx) => ctx.t("button-dev-po"),
     async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
       const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(ctx.t("support-dev-po-template"))}`;
       const keyboard = new InlineKeyboard()
         .url(ctx.t("button-dev-po-discuss"), supportUrl)
         .row()
         .text(ctx.t("button-back"), "dev-po-back-to-main");
-      await ctx.editMessageText(ctx.t("service-dev-po"), {
-        parse_mode: "HTML",
-        reply_markup: keyboard,
-      });
+      try {
+        await ctx.editMessageText(ctx.t("service-dev-po"), {
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        });
+      } catch (e: any) {
+        const msg = e?.description ?? e?.message ?? String(e);
+        console.error("[Bot] dev-po screen edit failed:", msg);
+        await ctx.reply(ctx.t("service-dev-po"), {
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        }).catch(() => {});
+      }
     }
   )
   .text(
@@ -196,6 +206,7 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
         .url(ctx.t("button-crypto-exchange-go"), exchangerUrl)
         .row()
         .text(ctx.t("button-back"), "crypto-back-to-main");
+      await ctx.answerCallbackQuery().catch(() => {});
       const isRu = session?.main?.locale !== "en";
       const textCrypto = isRu
         ? "<b>💱 Криптообменник</b>\n\nБыстрый обмен криптовалюты в нашем боте DiorChange — без лишних регистраций и задержек. Выберите пару, укажите сумму (от 2$) и получите обмен по выгодному курсу.\n\nНажмите кнопку ниже, чтобы открыть бот-обменник DiorChange."

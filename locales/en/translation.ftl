@@ -68,7 +68,7 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
-button-dev-po = 💻 Development & Infra
+button-dev-po = 💻 Dev + Traff
 button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 💱 Crypto Exchange
 button-crypto-exchange-go = 💱 Go to exchanger
