@@ -218,11 +218,53 @@ function buildManageServicesMenu(): Menu<AppContext> {
         if (!session.other.cdn) session.other.cdn = { step: "idle" };
         session.other.cdn.fromManage = true;
         const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-        const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
+        let active: Array<{
+          id: string;
+          domain_name: string;
+          target_url: string | null;
+          status: string;
+          lifecycle_status: string;
+          auto_renew?: boolean;
+        }> = [];
+        try {
+          const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
+          if (telegramId) {
+            const { cdnListProxies } = await import("../infrastructure/cdn/CdnClient.js");
+            const proxies = await cdnListProxies(telegramId);
+            active = proxies.filter((p) => (p.lifecycle_status || p.status) !== "deleted");
+          }
+        } catch {
+          // CDN list can fail here (temporary API issues). Keep opening menu.
+        }
+        const text = active.length === 0 ? ctx.t("list-empty") : ctx.t("cdn-my-proxies-list");
         await ctx.editMessageText(text, {
           parse_mode: "HTML",
           reply_markup: cdnMenu,
         });
+        if (active.length > 0) {
+          for (const p of active) {
+            await ctx.reply(
+              ctx.t("cdn-proxy-manage-title", {
+                domain: p.domain_name,
+                status: p.lifecycle_status || p.status,
+              }),
+              {
+                parse_mode: "HTML",
+                reply_markup: new InlineKeyboard()
+                  .text(ctx.t("button-cdn-renew"), `cdn_renew:${p.id}`)
+                  .text(
+                    p.auto_renew ? ctx.t("button-cdn-autorenew-off") : ctx.t("button-cdn-autorenew-on"),
+                    `cdn_autorenew:${p.id}:${p.auto_renew ? "0" : "1"}`
+                  )
+                  .row()
+                  .text(ctx.t("button-cdn-retry-ssl"), `cdn_retryssl:${p.id}`)
+                  .text(ctx.t("button-cdn-delete"), `cdn_delask:${p.id}`)
+                  .row()
+                  .text(ctx.t("button-cdn-refresh"), `cdn_open:${p.id}`),
+              }
+            );
+          }
+        }
       }
     )
     .row()

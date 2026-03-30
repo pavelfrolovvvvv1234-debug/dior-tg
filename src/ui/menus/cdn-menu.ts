@@ -115,9 +115,11 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
 }
 
 export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onMenuOutdated: false })
-  .text(
-    (ctx) => safeT(ctx, "button-cdn-add-proxy"),
-    async (ctx) => {
+  .dynamic(async (ctx, range) => {
+    const session = (await ctx.session) as any;
+    const fromManage = session?.other?.cdn?.fromManage === true;
+    if (fromManage) return;
+    range.text(safeT(ctx, "button-cdn-add-proxy"), async (ctx) => {
       if (!isCdnEnabled()) {
         await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
         return;
@@ -140,58 +142,6 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
       } catch (e: any) {
         const msg = e?.message ?? "Error";
         await ctx.reply(safeT(ctx, "cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
-      }
-    }
-  )
-  .row()
-  .dynamic(async (ctx, range) => {
-    const session = (await ctx.session) as any;
-    const fromManage = session?.other?.cdn?.fromManage === true;
-    if (!fromManage) return;
-    range.text(safeT(ctx, "button-cdn-my-proxies"), async (ctx) => {
-      if (!isCdnEnabled()) {
-        await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
-        return;
-      }
-      const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
-      if (telegramId == null) {
-        await ctx.reply(safeT(ctx, "cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
-        return;
-      }
-      try {
-        const list = await cdnListProxies(telegramId);
-        if (list.length === 0) {
-          await ctx.reply(safeT(ctx, "cdn-my-proxies-empty"), { parse_mode: "HTML" });
-          return;
-        }
-        const lines = list.map((p) =>
-          safeT(ctx, "cdn-proxy-item", {
-            domain: p.domain_name,
-            target: p.target_url || "—",
-            status: p.lifecycle_status || p.status,
-          })
-        );
-        await ctx.reply(
-          `${safeT(ctx, "cdn-my-proxies-list")}\n\n${lines.join("\n")}`,
-          { parse_mode: "HTML" }
-        );
-        for (const p of list) {
-          await syncProxyRecordByItem(ctx, p, false);
-          await ctx.reply(
-            ctx.t("cdn-proxy-manage-title", {
-              domain: p.domain_name,
-              status: p.lifecycle_status || p.status,
-            }),
-            {
-              parse_mode: "HTML",
-              reply_markup: buildProxyActionKeyboard(ctx, p),
-            }
-          );
-        }
-      } catch (e: any) {
-        await ctx.reply(safeT(ctx, "cdn-error", { error: e?.message ?? "Unknown" }), {
-          parse_mode: "HTML",
-        });
       }
     });
   })
