@@ -164,8 +164,9 @@ export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated
         balance: session.main.user.balance,
       });
 
+      const { getReplyMainMenu } = await import("./main-menu-registry.js");
       await ctx.editMessageText(screen.text, {
-        reply_markup: screen.keyboard || (await import("./main-menu.js")).mainMenu,
+        reply_markup: screen.keyboard || (await getReplyMainMenu()),
         parse_mode: screen.parse_mode,
       });
     }

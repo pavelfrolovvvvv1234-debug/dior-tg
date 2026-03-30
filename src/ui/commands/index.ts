@@ -7,7 +7,6 @@
 import type { Bot } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import User, { Role } from "../../entities/User.js";
-import { mainMenu } from "../menus/main-menu.js";
 import { profileMenu } from "../menus/profile-menu.js";
 import { topupMethodMenu } from "../../helpers/deposit-money.js";
 import { adminMenu } from "../menus/admin-menu";
@@ -152,9 +151,9 @@ export function registerCommands(bot: Bot<AppContext>): void {
       balance: session.main.user.balance,
     });
 
-    // Send welcome message only once
+    const { getReplyMainMenu } = await import("../menus/main-menu-registry.js");
     await ctx.reply(screen.text, {
-      reply_markup: mainMenu,
+      reply_markup: await getReplyMainMenu(),
       parse_mode: screen.parse_mode,
     });
   });

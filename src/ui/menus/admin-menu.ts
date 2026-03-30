@@ -343,8 +343,9 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
       locale: session.main.locale,
     });
 
+    const { getReplyMainMenu } = await import("./main-menu-registry.js");
     await ctx.editMessageText(screen.text, {
-      reply_markup: (await import("./main-menu.js")).mainMenu,
+      reply_markup: await getReplyMainMenu(),
       parse_mode: screen.parse_mode,
     });
   });

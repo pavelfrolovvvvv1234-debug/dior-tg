@@ -33,9 +33,9 @@ export const languageSelectMenu = new Menu<AppContext>("language-select-menu", {
 
       ctx.fluent.useLocale("ru");
       const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
-      const { mainMenu } = await import("./main-menu.js");
+      const { getReplyMainMenu } = await import("./main-menu-registry.js");
       await ctx.editMessageText(welcomeText, {
-        reply_markup: mainMenu,
+        reply_markup: await getReplyMainMenu(),
         parse_mode: "HTML",
       });
     }
@@ -59,9 +59,9 @@ export const languageSelectMenu = new Menu<AppContext>("language-select-menu", {
 
       ctx.fluent.useLocale("en");
       const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
-      const { mainMenu } = await import("./main-menu.js");
+      const { getReplyMainMenu } = await import("./main-menu-registry.js");
       await ctx.editMessageText(welcomeText, {
-        reply_markup: mainMenu,
+        reply_markup: await getReplyMainMenu(),
         parse_mode: "HTML",
       });
     }

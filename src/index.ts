@@ -105,6 +105,7 @@ import { ensureSessionUser } from "./shared/utils/session-user.js";
 import { getCachedOsList, startOsListBackgroundRefresh } from "./shared/vmmanager-os-cache.js";
 import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cache.js";
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
+import { registerWelcomeMainMenu } from "./ui/menus/main-menu-registry.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
 // override: true — правки в .env должны побеждать устаревшие переменные из окружения PM2/systemd
@@ -217,6 +218,8 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
       });
     }
   );
+
+registerWelcomeMainMenu(mainMenu);
 
 const supportMenu = new Menu<AppContext>("support-menu", {
   autoAnswer: false,
@@ -420,6 +423,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
         ctx.t("welcome", { balance: session.main.user.balance }),
         {
           parse_mode: "HTML",
+          reply_markup: mainMenu,
         }
       );
     }
@@ -454,6 +458,7 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
               ctx.t("welcome", { balance: session.main.user.balance }),
               {
                 parse_mode: "HTML",
+                reply_markup: mainMenu,
               }
             );
             ctx.menu.back();

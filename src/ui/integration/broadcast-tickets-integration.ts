@@ -172,8 +172,11 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       const session = await ctx.session;
       const balance = session?.main?.user?.balance ?? 0;
       const welcomeText = ctx.t("welcome", { balance });
-      const { mainMenu } = await import("../menus/main-menu.js");
-      await ctx.editMessageText(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
+      const { getReplyMainMenu } = await import("../menus/main-menu-registry.js");
+      await ctx.editMessageText(welcomeText, {
+        reply_markup: await getReplyMainMenu(),
+        parse_mode: "HTML",
+      });
       return;
     }
     if (data === "prime-back-to-domains-zones") {
@@ -242,8 +245,11 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
     const session = await ctx.session;
     const balance = session?.main?.user?.balance ?? 0;
     const welcomeText = ctx.t("welcome", { balance });
-    const { mainMenu } = await import("../menus/main-menu.js");
-    await ctx.editMessageText(welcomeText, { reply_markup: mainMenu, parse_mode: "HTML" });
+    const { getReplyMainMenu } = await import("../menus/main-menu-registry.js");
+    await ctx.editMessageText(welcomeText, {
+      reply_markup: await getReplyMainMenu(),
+      parse_mode: "HTML",
+    });
   } catch (err: any) {
     const desc = err?.description ?? err?.message ?? "";
     if (desc.includes("message is not modified") || desc.includes("message not modified")) {
@@ -1482,8 +1488,9 @@ Are you sure you want to proceed?`,
       balance: session.main.user.balance,
     });
 
+    const { getReplyMainMenu } = await import("../menus/main-menu-registry.js");
     await ctx.editMessageText(screen.text, {
-      reply_markup: (await import("../menus/main-menu.js")).mainMenu,
+      reply_markup: await getReplyMainMenu(),
       parse_mode: screen.parse_mode,
     });
   });
@@ -1540,8 +1547,9 @@ Are you sure you want to proceed?`,
       balance: session.main.user.balance,
     });
 
+    const { getReplyMainMenu } = await import("../menus/main-menu-registry.js");
     await ctx.editMessageText(screen.text, {
-      reply_markup: (await import("../menus/main-menu.js")).mainMenu,
+      reply_markup: await getReplyMainMenu(),
       parse_mode: screen.parse_mode,
     });
   });

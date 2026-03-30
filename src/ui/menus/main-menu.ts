@@ -91,8 +91,9 @@ export const aboutUsMenu = new Menu<AppContext>("about-us-menu", {
         balance: session.main.user.balance,
       });
 
+      const { getReplyMainMenu } = await import("./main-menu-registry.js");
       await ctx.editMessageText(screen.text, {
-        reply_markup: screen.keyboard || mainMenu,
+        reply_markup: screen.keyboard || (await getReplyMainMenu()),
         parse_mode: screen.parse_mode,
       });
     }
@@ -121,8 +122,9 @@ export const supportMenu = new Menu<AppContext>("support-menu", {
         balance: session.main.user.balance,
       });
 
+      const { getReplyMainMenu } = await import("./main-menu-registry.js");
       await ctx.editMessageText(screen.text, {
-        reply_markup: screen.keyboard || mainMenu,
+        reply_markup: screen.keyboard || (await getReplyMainMenu()),
         parse_mode: screen.parse_mode,
       });
     }
@@ -162,8 +164,9 @@ export const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
               locale: lang,
             });
 
+            const { getReplyMainMenu } = await import("./main-menu-registry.js");
             await ctx.editMessageText(screen.text, {
-              reply_markup: screen.keyboard || mainMenu,
+              reply_markup: screen.keyboard || (await getReplyMainMenu()),
               parse_mode: screen.parse_mode,
             });
             ctx.menu.back();

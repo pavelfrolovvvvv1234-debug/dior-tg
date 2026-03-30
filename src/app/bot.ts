@@ -278,7 +278,11 @@ export async function createBot(): Promise<{
   
   // Create main menu without circular dependency
   const mainMenu = createMainMenu();
-  
+  {
+    const { registerWelcomeMainMenu } = await import("../ui/menus/main-menu-registry.js");
+    registerWelcomeMainMenu(mainMenu);
+  }
+
   // Import old menus from helpers
   const servicesMenu = legacyMenus.servicesMenu.servicesMenu;
   const domainsMenu = legacyMenus.servicesMenu.domainsMenu;
