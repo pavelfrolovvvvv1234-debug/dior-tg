@@ -793,6 +793,28 @@ async function index() {
     });
   }
 
+  // Conversations must be registered before menus that call ctx.conversation.enter(...)
+  bot.use(conversations());
+  registerPromoConversations(bot);
+  bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
+  bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
+  bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
+  try {
+    const { cdnAddProxyConversation } = await import("./ui/menus/cdn-menu.js");
+    bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
+  } catch (error: any) {
+    console.error("[Bot] Failed to register CDN conversation:", error?.stack ?? error);
+  }
+  bot.use(
+    createConversation(depositMoneyConversation as any, "depositMoneyConversation")
+  );
+  bot.use(
+    createConversation(renameVdsConversation as any, "renameVdsConversation")
+  );
+  bot.use(
+    createConversation(vdsPasswordManualConversation as any, "vdsPasswordManualConversation")
+  );
+
   bot.use(adminMenu);
   bot.use(moderatorMenu);
   bot.use(ticketViewMenu);
@@ -1015,31 +1037,11 @@ async function index() {
     return next();
   });
 
-  // Setup conversations (меню и /start уже выше)
-  bot.use(conversations());
-  registerPromoConversations(bot);
-  bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
-  bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
-  bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
-  try {
-    const { cdnAddProxyConversation } = await import("./ui/menus/cdn-menu.js");
-    bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
-  } catch (error: any) {
-    console.error("[Bot] Failed to register CDN conversation:", error?.stack ?? error);
-  }
+  // Conversations are registered above, before menu middleware.
   registerBroadcastAndTickets(bot);
   registerAdminPromosHandlers(bot);
 
   bot.use(depositPaymentSystemChoose);
-  bot.use(
-    createConversation(depositMoneyConversation as any, "depositMoneyConversation")
-  );
-  bot.use(
-    createConversation(renameVdsConversation as any, "renameVdsConversation")
-  );
-  bot.use(
-    createConversation(vdsPasswordManualConversation as any, "vdsPasswordManualConversation")
-  );
 
   // Register domain registration conversation
   // Note: This is also registered in broadcast-tickets-integration, so we skip it here to avoid duplicates
