@@ -69,7 +69,14 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
       try {
         const session = (await ctx.session) as any;
         if (session && !session.other) (session as any).other = createInitialOtherSession();
-        await ctx.conversation.enter("cdnAddProxyConversation");
+        if (session?.other) {
+          session.other.cdn = {
+            ...(session.other.cdn ?? {}),
+            step: "domain",
+            telegramId: ctx.from?.id ?? ctx.loadedUser?.telegramId,
+          };
+        }
+        await ctx.reply(ctx.t("cdn-enter-domain"), { parse_mode: "HTML" });
       } catch (e: any) {
         const msg = e?.message ?? "Error";
         await ctx.reply(safeT(ctx, "cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
@@ -338,6 +345,136 @@ export async function cdnAddProxyConversation(
   }
 
   session.other.cdn = { step: "idle" };
+}
+
+async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Promise<void> {
+  const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
+  if (telegramId == null) {
+    await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+  session.other.cdn.telegramId = telegramId;
+
+  let price: number;
+  try {
+    price = await cdnGetPrice();
+  } catch (e: any) {
+    await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Failed to get price" }), {
+      parse_mode: "HTML",
+    });
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+
+  const dataSource = await getAppDataSource();
+  const userRepo = dataSource.getRepository(User);
+  const userId = session?.main?.user?.id;
+  if (!userId) {
+    await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+  const user = await userRepo.findOneBy({ id: userId });
+  if (!user || user.balance < price) {
+    await showTopupForMissingAmount(ctx, price - (user?.balance ?? 0));
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+
+  user.balance -= price;
+  await userRepo.save(user);
+  session.main.user.balance = user.balance;
+
+  try {
+    const result = await cdnCreateProxy({
+      telegramId,
+      username: ctx.from?.username,
+      domainName: session.other.cdn.domainName!,
+      targetUrl: session.other.cdn.targetUrl!,
+      forceHttps: true,
+      hostHeader: "incoming",
+      cachingEnabled: false,
+    });
+
+    if (!result.success) {
+      user.balance += price;
+      await userRepo.save(user);
+      session.main.user.balance = user.balance;
+      await ctx.reply(ctx.t("cdn-error", { error: result.error ?? "Create failed" }), {
+        parse_mode: "HTML",
+      });
+      session.other.cdn = { step: "idle" };
+      return;
+    }
+
+    await ctx.reply(
+      ctx.t("cdn-created", {
+        domainName: session.other.cdn.domainName!,
+        targetUrl: session.other.cdn.targetUrl!,
+      }),
+      { parse_mode: "HTML" }
+    );
+    if (result.data?.id) {
+      await syncProxyRecordByItem(
+        ctx,
+        {
+          id: result.data.id,
+          domain_name: result.data.domain_name,
+          target_url: result.data.target_url,
+          status: result.data.status || "active",
+          lifecycle_status: result.data.status || "active",
+          server_ip: result.data.server_ip || null,
+          expires_at: result.data.expires_at || null,
+          created_at: new Date().toISOString(),
+          auto_renew: false,
+        },
+        false
+      );
+    }
+  } catch (e: any) {
+    user.balance += price;
+    await userRepo.save(user);
+    session.main.user.balance = user.balance;
+    await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Request failed" }), {
+      parse_mode: "HTML",
+    });
+  }
+
+  session.other.cdn = { step: "idle" };
+}
+
+export async function handleCdnAddProxyTextInput(ctx: AppContext): Promise<boolean> {
+  const session = (await ctx.session) as any;
+  if (!session?.other?.cdn?.step) return false;
+  if (!ctx.hasChatType("private")) return false;
+  if (!ctx.message?.text) return false;
+
+  const input = ctx.message.text.trim();
+  if (!input || input.startsWith("/")) return false;
+
+  if (session.other.cdn.step === "domain") {
+    if (!isValidDomain(input)) {
+      await ctx.reply(ctx.t("cdn-invalid-domain"), { parse_mode: "HTML" });
+      return true;
+    }
+    session.other.cdn.domainName = input;
+    session.other.cdn.step = "target";
+    await ctx.reply(ctx.t("cdn-enter-target"), { parse_mode: "HTML" });
+    return true;
+  }
+
+  if (session.other.cdn.step === "target") {
+    if (!isValidTargetUrl(input)) {
+      await ctx.reply(ctx.t("cdn-invalid-url"), { parse_mode: "HTML" });
+      return true;
+    }
+    session.other.cdn.targetUrl = input;
+    await finalizeCdnCreateFromSession(ctx, session);
+    return true;
+  }
+
+  return false;
 }
 
 function buildProxyActionKeyboard(ctx: AppContext, proxy: CdnProxyItem): InlineKeyboard {

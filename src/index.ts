@@ -1555,6 +1555,11 @@ async function index() {
 
   bot.on("message:text", async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
+    {
+      const { handleCdnAddProxyTextInput } = await import("./ui/menus/cdn-menu.js");
+      const consumed = await handleCdnAddProxyTextInput(ctx as AppContext);
+      if (consumed) return;
+    }
     const messageToUser = session.other.messageToUser;
     if (messageToUser) {
       if (!ctx.hasChatType("private")) {

@@ -642,6 +642,9 @@ export async function createBot(): Promise<{
   });
 
   bot.on("message:text", async (ctx, next) => {
+    const { handleCdnAddProxyTextInput } = await import("../ui/menus/cdn-menu.js");
+    const consumed = await handleCdnAddProxyTextInput(ctx as AppContext);
+    if (consumed) return;
     const session = await ctx.session;
     if (!session.other.promocode.awaitingInput) {
       return next();
