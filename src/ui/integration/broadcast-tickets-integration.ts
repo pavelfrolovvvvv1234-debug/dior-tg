@@ -1338,7 +1338,11 @@ Are you sure you want to proceed?`,
       await ctx.answerCallbackQuery().catch(() => {});
       const session = (await ctx.session) as any;
       if (!session) {
-        await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
+        const text =
+          typeof (ctx as any).t === "function"
+            ? ctx.t("error-unknown", { error: "Session not initialized" })
+            : "Error: Session not initialized";
+        await ctx.reply(text);
         return;
       }
       await ensureSessionUser(ctx);
@@ -1350,7 +1354,11 @@ Are you sure you want to proceed?`,
       await ctx.conversation.enter("domainUpdateNsConversation");
     } catch (error: any) {
       Logger.error("Failed to handle domain update NS:", error);
-      await ctx.reply(ctx.t("error-unknown", { error: error?.message ?? "Unknown error" })).catch(() => {});
+      const text =
+        typeof (ctx as any).t === "function"
+          ? ctx.t("error-unknown", { error: error?.message ?? "Unknown error" })
+          : `Error: ${String(error?.message ?? "Unknown error")}`;
+      await ctx.reply(text).catch(() => {});
     }
   });
 

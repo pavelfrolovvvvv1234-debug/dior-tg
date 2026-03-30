@@ -133,7 +133,11 @@ export function createDomainViewMenu(domainId: number): Menu<AppContext> {
           await ctx.conversation.enter("domainUpdateNsConversation");
         } catch (error: any) {
           Logger.error(`Failed to start update NS conversation for domain ${domainId}:`, error);
-          await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Unknown error" }).substring(0, 200));
+          const errText =
+            typeof (ctx as any).t === "function"
+              ? ctx.t("error-unknown", { error: "Unknown error" }).substring(0, 200)
+              : "Error. Try again.";
+          await ctx.answerCallbackQuery(errText).catch(() => {});
         }
       }
     )
