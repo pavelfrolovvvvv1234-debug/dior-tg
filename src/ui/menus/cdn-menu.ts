@@ -26,6 +26,7 @@ import User from "../../entities/User";
 import { createInitialOtherSession } from "../../shared/session-initial";
 import CdnProxyService from "../../entities/CdnProxyService";
 import CdnProxyAudit from "../../entities/CdnProxyAudit";
+import { ensureSessionUser } from "../../shared/utils/session-user.js";
 
 const DOMAIN_REGEX =
   /^(?!https?:\/\/)(?!www\.$)(?!.*\/$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -117,9 +118,10 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
 export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onMenuOutdated: false })
   .dynamic(async (ctx, range) => {
     const session = (await ctx.session) as any;
-    const fromManage = session?.other?.cdn?.fromManage === true;
-    if (fromManage) return;
+    // Always show «Add proxy» here: hiding it when fromManage=true left users who opened CDN
+    // from «Manage services» with no way to buy (only «Back»), which looked like dead buttons.
     range.text(safeT(ctx, "button-cdn-add-proxy"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
       if (!isCdnEnabled()) {
         await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
         return;
@@ -194,6 +196,7 @@ export async function cdnAddProxyConversation(
     });
     return;
   }
+  await ensureSessionUser(ctx);
   ensureCdnSession(session);
   const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
   if (telegramId == null) {
@@ -270,7 +273,7 @@ export async function cdnAddProxyConversation(
   await confirmCtx.answerCallbackQuery();
 
   const price = Number(session.other.cdn.price);
-  if (!(price > 0)) {
+  if (!(price > 0) || !Number.isFinite(price)) {
     await ctx.reply(ctx.t("cdn-error", { error: "Price not set" }), { parse_mode: "HTML" });
     session.other.cdn = { step: "idle" };
     return;
@@ -279,14 +282,15 @@ export async function cdnAddProxyConversation(
   const dataSource = await getAppDataSource();
   const userRepo = dataSource.getRepository(User);
   const userId = session?.main?.user?.id;
-  if (!userId) {
+  if (userId == null || userId <= 0) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
     session.other.cdn = { step: "idle" };
     return;
   }
   const user = await userRepo.findOneBy({ id: userId });
-  if (!user || user.balance < price) {
-    await showTopupForMissingAmount(ctx, price - (user?.balance ?? 0));
+  const bal = Number(user?.balance);
+  if (!user || !Number.isFinite(bal) || bal < price) {
+    await showTopupForMissingAmount(ctx, price - (Number.isFinite(bal) ? bal : 0));
     session.other.cdn = { step: "idle" };
     return;
   }
@@ -366,6 +370,7 @@ export async function cdnAddProxyConversation(
 }
 
 async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Promise<void> {
+  await ensureSessionUser(ctx);
   const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
   if (telegramId == null) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
@@ -384,19 +389,27 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
     session.other.cdn = { step: "idle" };
     return;
   }
+  const priceNum = Number(price);
+  if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    await ctx.reply(ctx.t("cdn-error", { error: "Invalid price" }), { parse_mode: "HTML" });
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+  price = priceNum;
   session.other.cdn.price = price;
 
   const dataSource = await getAppDataSource();
   const userRepo = dataSource.getRepository(User);
   const userId = session?.main?.user?.id;
-  if (!userId) {
+  if (userId == null || userId <= 0) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
     session.other.cdn = { step: "idle" };
     return;
   }
   const user = await userRepo.findOneBy({ id: userId });
-  if (!user || user.balance < price) {
-    await showTopupForMissingAmount(ctx, price - (user?.balance ?? 0));
+  const bal = Number(user?.balance);
+  if (!user || !Number.isFinite(bal) || bal < price) {
+    await showTopupForMissingAmount(ctx, price - (Number.isFinite(bal) ? bal : 0));
     session.other.cdn = { step: "idle" };
     return;
   }
@@ -613,6 +626,7 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
   const data = ctx.callbackQuery?.data ?? "";
   if (!data.startsWith("cdn_")) return;
   await ctx.answerCallbackQuery().catch(() => {});
+  await ensureSessionUser(ctx);
 
   if (data === "cdn_target_help") {
     await ctx.reply(ctx.t("cdn-target-help"), { parse_mode: "HTML" });
