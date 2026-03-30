@@ -15,6 +15,7 @@ import { AmperDomainsProvider } from "../../infrastructure/domains/AmperDomainsP
 import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
+import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 
 const pendingNsDomainByTelegramId = new Map<number, number>();
 
@@ -82,10 +83,11 @@ export async function domainUpdateNsConversation(
   }
 
   try {
-    const domainRepo = new DomainRepository(ctx.appDataSource);
-    const userRepo = new UserRepository(ctx.appDataSource);
-    const topUpRepo = new TopUpRepository(ctx.appDataSource);
-    const billingService = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+    const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+    const domainRepo = new DomainRepository(dataSource);
+    const userRepo = new UserRepository(dataSource);
+    const topUpRepo = new TopUpRepository(dataSource);
+    const billingService = new BillingService(dataSource, userRepo, topUpRepo);
 
     const config = {
       apiBaseUrl: process.env.AMPER_API_BASE_URL || "",
@@ -97,7 +99,7 @@ export async function domainUpdateNsConversation(
 
     const provider = new AmperDomainsProvider(config);
     const domainService = new AmperDomainService(
-      ctx.appDataSource,
+      dataSource,
       domainRepo,
       billingService,
       provider
