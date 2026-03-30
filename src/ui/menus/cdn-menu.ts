@@ -201,12 +201,17 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
       if (!session) return;
       if (!session.other) (session as any).other = createInitialOtherSession();
       const fromManage = session.other?.cdn?.fromManage;
+      // Reset transient CDN flow state before leaving the screen.
+      const keepFromManage = fromManage === true;
+      session.other.cdn = { step: "idle", fromManage: keepFromManage };
       if (fromManage) {
         const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");
-        await ctx.editMessageText(safeT(ctx, "manage-services-header"), {
+        // Use a fresh message for manage-services to avoid stale callback matrix after menu switch.
+        await ctx.reply(safeT(ctx, "manage-services-header"), {
           parse_mode: "HTML",
           reply_markup: manageSerivcesMenu,
         });
+        await ctx.deleteMessage().catch(() => {});
       } else {
         const { servicesMenu } = await import("../../helpers/services-menu.js");
         await ctx.editMessageText(safeT(ctx, "menu-service-for-buy-choose"), {
