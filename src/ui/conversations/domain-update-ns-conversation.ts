@@ -26,6 +26,18 @@ export function setPendingDomainNsUpdate(telegramId: number, domainId: number): 
 function safeT(ctx: AppContext, key: string, vars?: Record<string, string | number>): string {
   const t = (ctx as any).t;
   if (typeof t === "function") return String(t(key, vars));
+  if (key === "not-specified") return "не указано";
+  if (key === "error-access-denied") return "Доступ запрещен.";
+  if (key === "domain-api-not-configured") return "API доменов не настроен.";
+  if (key === "domain-invalid-ns-format") {
+    return "Неверный формат NS. Введите два nameserver, например: ns1.example.com ns2.example.com";
+  }
+  if (key === "domain-update-ns-enter") {
+    return `Текущие NS:\nNS1: ${String(vars?.currentNs1 ?? "—")}\nNS2: ${String(vars?.currentNs2 ?? "—")}\n\nОтправьте два NS через пробел: ns1.example.com ns2.example.com`;
+  }
+  if (key === "domain-ns-updated") {
+    return `NS обновлены для ${String(vars?.domain ?? "домена")}:\nNS1: ${String(vars?.ns1 ?? "—")}\nNS2: ${String(vars?.ns2 ?? "—")}`;
+  }
   if (key === "error-unknown") return `Ошибка: ${String(vars?.error ?? "Unknown error")}`;
   if (key === "error-invalid-context") return "Некорректный контекст. Откройте домен заново.";
   return key;
