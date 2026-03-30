@@ -244,11 +244,49 @@ domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$
 
 cdn-service = 🌍 <strong>Cloudflare alternative</strong> — proxy your site through our domain with SSL. Enter domain and target URL.
 
+cdn-welcome = 🌍 <strong>CDN</strong> — proxy, SSL, and traffic protection.
+
+<b>Plans (per site, monthly)</b>
+
+<b>CDN Standard (Ads-ready)</b> — $29 / month
+• 1 domain
+• ~200–300 GB traffic (soft cap)
+• basic cache + proxy
+• SSL
+• basic anti-bot / rate limiting
+
+<b>CDN Bulletproof</b> — $99 / month
+• higher resilience (multi-origin / fallback)
+• abuse-report handling tuned for uptime
+• fast re-issues / route changes
+• custom rules (UA, geo, referer)
+• hidden origins
+
+<b>Bundled (CDN + VDS)</b> — $189 / month
+• CDN (bulletproof)
+• VDS (bulletproof)
+• basic setup (nginx + SSL + firewall)
+• origin hiding
+• quick IP changes when needed
+
+Tap <b>«Add proxy»</b> and choose a plan below.
+
+cdn-plan-standard-name = CDN Standard (Ads-ready)
+cdn-plan-bulletproof-name = CDN Bulletproof
+cdn-plan-bundle-name = Bundled (CDN + VDS)
+cdn-choose-plan = <b>Choose a CDN plan</b> (per site, monthly, USD):
+cdn-choose-plan-hint = Please pick a plan using one of the buttons below.
+button-cdn-plan-standard = 📦 Standard — $29/mo
+button-cdn-plan-bulletproof = 🛡 Bulletproof — $99/mo
+button-cdn-plan-bundle = 📦 Bundle CDN+VDS — $189/mo
+
 cdn-enter-domain = Enter the <strong>domain</strong> for proxying (e.g. <code>cdn.example.com</code>):
 cdn-enter-target = Enter the <strong>target URL</strong> (e.g. <code>https://origin.example.com</code>):
 cdn-enter-target-friendly = Where does your site currently point? Enter the origin address (e.g. <code>origin.example.com</code> or <code>https://origin.example.com</code>).
     If you are not sure, tap the button below.
-cdn-confirm = Proxy: <code>{$domainName}</code> → <code>{$targetUrl}</code>
+cdn-confirm = Plan: <b>{$planName}</b>
+
+Proxy: <code>{$domainName}</code> → <code>{$targetUrl}</code>
 
 Cost: <b>{$price}$</b> for 30 days. Deduct from balance?
 cdn-created = ✅ Proxy created: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Configure DNS as per CDN panel instructions.

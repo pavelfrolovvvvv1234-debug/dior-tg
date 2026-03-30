@@ -245,11 +245,49 @@ domain-registration-in-progress = 🔄 Регистрация домена <i>{$
 
 cdn-service = 🌍 <strong>Аналог Cloudflare</strong> — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.
 
+cdn-welcome = 🌍 <strong>CDN</strong> — прокси, SSL и защита трафика.
+
+<b>Тарифы (за 1 сайт, помесячно)</b>
+
+<b>CDN Standard (Ads-ready)</b> — 29 $ / мес
+• 1 домен
+• до ~200–300 GB трафика (скрытый лимит)
+• базовый cache + proxy
+• SSL
+• базовый анти-бот / rate-limit
+
+<b>CDN Bulletproof</b> — 99 $ / мес
+• повышенная живучесть (multi-origin / fallback)
+• игнорирование абуз-репортов
+• быстрые перевыпуски / смена маршрутов
+• кастомные rules (UA, geo, referer)
+• скрытые origin
+
+<b>Бандл (CDN + VDS)</b> — 189 $ / мес
+• CDN (bulletproof)
+• VDS (bulletproof)
+• базовая настройка (nginx + SSL + firewall)
+• скрытие origin
+• возможность быстро менять IP
+
+Нажмите <b>«Добавить прокси»</b> и выберите тариф кнопками ниже.
+
+cdn-plan-standard-name = CDN Standard (Ads-ready)
+cdn-plan-bulletproof-name = CDN Bulletproof
+cdn-plan-bundle-name = Бандл (CDN + VDS)
+cdn-choose-plan = <b>Выберите тариф CDN</b> (цены за 1 сайт в месяц, USD):
+cdn-choose-plan-hint = Выберите тариф одной из кнопок ниже.
+button-cdn-plan-standard = 📦 Standard — 29 $
+button-cdn-plan-bulletproof = 🛡 Bulletproof — 99 $
+button-cdn-plan-bundle = 📦 Bundle CDN+VDS — 189 $
+
 cdn-enter-domain = Введите <strong>домен</strong> для проксирования (например: <code>cdn.example.com</code>):
 cdn-enter-target = Введите <strong>целевой URL</strong> (куда проксировать, например: <code>https://origin.example.com</code>):
 cdn-enter-target-friendly = Куда сейчас ведёт ваш сайт? Введите адрес origin (например: <code>origin.example.com</code> или <code>https://origin.example.com</code>).
     Если не знаете — нажмите кнопку ниже.
-cdn-confirm = Прокси: <code>{$domainName}</code> → <code>{$targetUrl}</code>
+cdn-confirm = Тариф: <b>{$planName}</b>
+
+Прокси: <code>{$domainName}</code> → <code>{$targetUrl}</code>
 
 Стоимость: <b>{$price}$</b> за 30 дней. Списать с баланса?
 cdn-created = ✅ Прокси создан: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Настройте DNS по инструкции в панели CDN.

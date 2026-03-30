@@ -781,9 +781,9 @@ async function index() {
       if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = false;
-      const t = (k: string, v?: { error?: string }) => (typeof (ctx as any).t === "function" ? (ctx as any).t(k, v) : (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-service" ? "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL." : k));
+      const t = (k: string, v?: { error?: string }) => (typeof (ctx as any).t === "function" ? (ctx as any).t(k, v) : (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-welcome" || k === "cdn-service" ? "CDN — тарифы и заказ в боте." : k));
       try {
-        await ctx.editMessageText(t("cdn-service"), {
+        await ctx.editMessageText(t("cdn-welcome"), {
           parse_mode: "HTML",
           reply_markup: cdnMenu!,
         });
@@ -1095,7 +1095,7 @@ async function index() {
   });
 
   bot.callbackQuery(
-    /^(cdn_(open|renew|autorenew|retryssl|delask|delok):|cdn_target_auto|cdn_target_help)$/,
+    /^(cdn_(open|renew|autorenew|retryssl|delask|delok):|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle))$/,
     async (ctx) => {
       const { handleCdnActionCallback } = await import("./ui/menus/cdn-menu.js");
       await handleCdnActionCallback(ctx as AppContext);

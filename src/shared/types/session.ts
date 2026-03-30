@@ -174,9 +174,12 @@ export interface OtherSessionData {
   };
   /** CDN proxy: conversation state */
   cdn?: {
-    step?: "idle" | "domain" | "target" | "confirm";
+    step?: "idle" | "plan" | "domain" | "target" | "confirm";
+    /** Product tier (add-proxy flow). */
+    planId?: "standard" | "bulletproof" | "bundle";
     domainName?: string;
     targetUrl?: string;
+    /** USD charged for this purchase (from plan). */
     price?: number;
     /** Telegram user id for CDN API */
     telegramId?: number;

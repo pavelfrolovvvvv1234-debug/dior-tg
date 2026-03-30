@@ -210,7 +210,7 @@ export const manageSerivcesMenu = new Menu<AppContext>("manage-services-menu")
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = true;
       const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-      const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-service") : "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.";
+      const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
       await ctx.editMessageText(text, {
         parse_mode: "HTML",
         reply_markup: cdnMenu,

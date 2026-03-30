@@ -19,6 +19,7 @@ import {
   cdnToggleAutoRenew,
   type CdnProxyItem,
 } from "../../infrastructure/cdn/CdnClient";
+import { getCdnPlan, parseCdnPlanId, type CdnPlanId } from "../../infrastructure/cdn/cdn-plans";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money";
 import { getAppDataSource } from "../../database";
 import User from "../../entities/User";
@@ -28,6 +29,18 @@ import CdnProxyAudit from "../../entities/CdnProxyAudit";
 
 const DOMAIN_REGEX =
   /^(?!https?:\/\/)(?!www\.$)(?!.*\/$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+
+function cdnPlanIdOrDefault(session: { other?: { cdn?: { planId?: string } } }): CdnPlanId {
+  const id = session?.other?.cdn?.planId;
+  return id === "bulletproof" || id === "bundle" || id === "standard" ? id : "standard";
+}
+
+/** Tariff from session, or legacy single price from CDN API. */
+async function resolveCdnChargeUsd(session: any): Promise<number> {
+  const p = session?.other?.cdn?.price;
+  if (typeof p === "number" && p > 0) return p;
+  return cdnGetPrice();
+}
 
 function isValidDomain(name: string): boolean {
   return DOMAIN_REGEX.test(name.trim());
@@ -63,6 +76,15 @@ function buildTargetInputKeyboard(ctx: AppContext): InlineKeyboard {
     .text(ctx.t("button-cdn-target-auto"), "cdn_target_auto")
     .row()
     .text(ctx.t("button-cdn-target-help"), "cdn_target_help");
+}
+
+function buildPlanKeyboard(ctx: AppContext): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(ctx.t("button-cdn-plan-standard"), "cdn_plan:standard")
+    .row()
+    .text(ctx.t("button-cdn-plan-bulletproof"), "cdn_plan:bulletproof")
+    .row()
+    .text(ctx.t("button-cdn-plan-bundle"), "cdn_plan:bundle");
 }
 
 async function askTargetUrl(ctx: AppContext): Promise<void> {
@@ -104,13 +126,17 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
         const session = (await ctx.session) as any;
         if (session && !session.other) (session as any).other = createInitialOtherSession();
         if (session?.other) {
+          const fromManage = session.other.cdn?.fromManage;
           session.other.cdn = {
-            ...(session.other.cdn ?? {}),
-            step: "domain",
+            step: "plan",
             telegramId: ctx.from?.id ?? ctx.loadedUser?.telegramId,
+            fromManage,
           };
         }
-        await ctx.reply(ctx.t("cdn-enter-domain"), { parse_mode: "HTML" });
+        await ctx.reply(ctx.t("cdn-choose-plan"), {
+          parse_mode: "HTML",
+          reply_markup: buildPlanKeyboard(ctx),
+        });
       } catch (e: any) {
         const msg = e?.message ?? "Error";
         await ctx.reply(safeT(ctx, "cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
@@ -236,6 +262,8 @@ export async function cdnAddProxyConversation(
   }
 
   session.other.cdn.domainName = domainName;
+  session.other.cdn.planId = "standard";
+  session.other.cdn.price = getCdnPlan("standard").priceUsd;
   await askTargetUrl(ctx);
 
   const targetCtx = await conversation.waitFor("message:text");
@@ -251,18 +279,6 @@ export async function cdnAddProxyConversation(
 
   session.other.cdn.targetUrl = normalized;
 
-  let price: number;
-  try {
-    price = await cdnGetPrice();
-  } catch (e: any) {
-    await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Failed to get price" }), {
-      parse_mode: "HTML",
-    });
-    return;
-  }
-
-  session.other.cdn.price = price;
-
   const keyboard = new InlineKeyboard()
     .text(ctx.t("button-cdn-confirm"), "cdn_confirm")
     .text(ctx.t("button-cdn-cancel"), "cdn_cancel");
@@ -271,7 +287,8 @@ export async function cdnAddProxyConversation(
     ctx.t("cdn-confirm", {
       domainName: session.other.cdn.domainName,
       targetUrl: session.other.cdn.targetUrl!,
-      price: session.other.cdn.price,
+      price: session.other.cdn.price!,
+      planName: ctx.t(getCdnPlan(cdnPlanIdOrDefault(session)).labelKey),
     }),
     { parse_mode: "HTML", reply_markup: keyboard }
   );
@@ -294,6 +311,13 @@ export async function cdnAddProxyConversation(
   }
 
   await confirmCtx.answerCallbackQuery();
+
+  const price = Number(session.other.cdn.price);
+  if (!(price > 0)) {
+    await ctx.reply(ctx.t("cdn-error", { error: "Price not set" }), { parse_mode: "HTML" });
+    session.other.cdn = { step: "idle" };
+    return;
+  }
 
   const dataSource = await getAppDataSource();
   const userRepo = dataSource.getRepository(User);
@@ -325,11 +349,13 @@ export async function cdnAddProxyConversation(
   }
 
   try {
+    const planId = cdnPlanIdOrDefault(session);
     const result = await cdnCreateProxy({
       telegramId: tid,
       username: ctx.from?.username,
       domainName: session.other.cdn.domainName!,
       targetUrl: session.other.cdn.targetUrl!,
+      description: `plan=${planId}; ${ctx.t(getCdnPlan(planId).labelKey)}`,
       forceHttps: true,
       hostHeader: "incoming",
       cachingEnabled: false,
@@ -393,7 +419,7 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
 
   let price: number;
   try {
-    price = await cdnGetPrice();
+    price = await resolveCdnChargeUsd(session);
   } catch (e: any) {
     await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Failed to get price" }), {
       parse_mode: "HTML",
@@ -401,6 +427,7 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
     session.other.cdn = { step: "idle" };
     return;
   }
+  session.other.cdn.price = price;
 
   const dataSource = await getAppDataSource();
   const userRepo = dataSource.getRepository(User);
@@ -422,11 +449,13 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
   session.main.user.balance = user.balance;
 
   try {
+    const planId = cdnPlanIdOrDefault(session);
     const result = await cdnCreateProxy({
       telegramId,
       username: ctx.from?.username,
       domainName: session.other.cdn.domainName!,
       targetUrl: session.other.cdn.targetUrl!,
+      description: `plan=${planId}; ${ctx.t(getCdnPlan(planId).labelKey)}`,
       forceHttps: true,
       hostHeader: "incoming",
       cachingEnabled: false,
@@ -488,7 +517,22 @@ export async function handleCdnAddProxyTextInput(ctx: AppContext): Promise<boole
   const input = ctx.message.text.trim();
   if (!input || input.startsWith("/")) return false;
 
+  if (session.other.cdn.step === "plan") {
+    await ctx.reply(ctx.t("cdn-choose-plan-hint"), {
+      parse_mode: "HTML",
+      reply_markup: buildPlanKeyboard(ctx),
+    });
+    return true;
+  }
+
   if (session.other.cdn.step === "domain") {
+    if (!session.other.cdn.planId) {
+      await ctx.reply(ctx.t("cdn-choose-plan"), {
+        parse_mode: "HTML",
+        reply_markup: buildPlanKeyboard(ctx),
+      });
+      return true;
+    }
     if (!isValidDomain(input)) {
       await ctx.reply(ctx.t("cdn-invalid-domain"), { parse_mode: "HTML" });
       return true;
@@ -637,6 +681,24 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
       { parse_mode: "HTML" }
     );
     await finalizeCdnCreateFromSession(ctx, session);
+    return;
+  }
+
+  if (data.startsWith("cdn_plan:")) {
+    if (!isCdnEnabled()) {
+      await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+      return;
+    }
+    const planId = parseCdnPlanId(data.slice("cdn_plan:".length));
+    if (!planId) return;
+    const session = (await ctx.session) as any;
+    ensureCdnSession(session);
+    const plan = getCdnPlan(planId);
+    session.other.cdn.planId = planId;
+    session.other.cdn.price = plan.priceUsd;
+    session.other.cdn.step = "domain";
+    session.other.cdn.telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId ?? session.other.cdn.telegramId;
+    await ctx.reply(ctx.t("cdn-enter-domain"), { parse_mode: "HTML" });
     return;
   }
 

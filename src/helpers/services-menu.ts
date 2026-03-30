@@ -152,9 +152,9 @@ export const servicesMenu = new Menu<AppContext>("services-menu", { autoAnswer: 
       if (!session.other) (session as any).other = createInitialOtherSession();
       if (!session.other.cdn) session.other.cdn = { step: "idle" };
       session.other.cdn.fromManage = false;
-      const t = typeof (ctx as any).t === "function" ? (ctx as any).t.bind(ctx) : ((k: string, v?: { error?: string }) => (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-service" ? "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL." : k));
+      const t = typeof (ctx as any).t === "function" ? (ctx as any).t.bind(ctx) : ((k: string, v?: { error?: string }) => (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-welcome" || k === "cdn-service" ? "CDN — тарифы и заказ в боте." : k));
       try {
-        const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-service") : "Аналог Cloudflare — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.";
+        const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
         await ctx.editMessageText(text, {
           parse_mode: "HTML",
           reply_markup: cdnMenu,
