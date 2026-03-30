@@ -107,10 +107,11 @@ import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cach
 import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webhook.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+// override: true — правки в .env должны побеждать устаревшие переменные из окружения PM2/systemd
+dotenv.config({ path: path.join(process.cwd(), ".env"), override: true });
 // Если запуск из dist/, .env может быть в родительской папке
 if (!process.env.AMPER_API_BASE_URL?.trim() || !process.env.AMPER_API_TOKEN?.trim()) {
-  dotenv.config({ path: path.join(process.cwd(), "..", ".env") });
+  dotenv.config({ path: path.join(process.cwd(), "..", ".env"), override: true });
 }
 
 export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, onMenuOutdated: false })

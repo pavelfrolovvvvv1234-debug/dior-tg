@@ -8,8 +8,8 @@
 import { z } from "zod";
 import dotenv from "dotenv";
 
-// Load environment variables
-dotenv.config();
+// Load environment variables (.env wins over stale process env, e.g. PM2)
+dotenv.config({ override: true });
 
 /**
  * Zod schema for environment variables validation.
