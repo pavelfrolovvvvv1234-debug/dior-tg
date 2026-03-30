@@ -144,9 +144,11 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
     }
   )
   .row()
-  .text(
-    (ctx) => safeT(ctx, "button-cdn-my-proxies"),
-    async (ctx) => {
+  .dynamic(async (ctx, range) => {
+    const session = (await ctx.session) as any;
+    const fromManage = session?.other?.cdn?.fromManage === true;
+    if (!fromManage) return;
+    range.text(safeT(ctx, "button-cdn-my-proxies"), async (ctx) => {
       if (!isCdnEnabled()) {
         await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
         return;
@@ -158,41 +160,41 @@ export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onM
       }
       try {
         const list = await cdnListProxies(telegramId);
-          if (list.length === 0) {
-            await ctx.reply(safeT(ctx, "cdn-my-proxies-empty"), { parse_mode: "HTML" });
-            return;
-          }
-          const lines = list.map((p) =>
-            safeT(ctx, "cdn-proxy-item", {
-              domain: p.domain_name,
-              target: p.target_url || "—",
-              status: p.lifecycle_status || p.status,
-            })
-          );
+        if (list.length === 0) {
+          await ctx.reply(safeT(ctx, "cdn-my-proxies-empty"), { parse_mode: "HTML" });
+          return;
+        }
+        const lines = list.map((p) =>
+          safeT(ctx, "cdn-proxy-item", {
+            domain: p.domain_name,
+            target: p.target_url || "—",
+            status: p.lifecycle_status || p.status,
+          })
+        );
+        await ctx.reply(
+          `${safeT(ctx, "cdn-my-proxies-list")}\n\n${lines.join("\n")}`,
+          { parse_mode: "HTML" }
+        );
+        for (const p of list) {
+          await syncProxyRecordByItem(ctx, p, false);
           await ctx.reply(
-            `${safeT(ctx, "cdn-my-proxies-list")}\n\n${lines.join("\n")}`,
-            { parse_mode: "HTML" }
+            ctx.t("cdn-proxy-manage-title", {
+              domain: p.domain_name,
+              status: p.lifecycle_status || p.status,
+            }),
+            {
+              parse_mode: "HTML",
+              reply_markup: buildProxyActionKeyboard(ctx, p),
+            }
           );
-          for (const p of list) {
-            await syncProxyRecordByItem(ctx, p, false);
-            await ctx.reply(
-              ctx.t("cdn-proxy-manage-title", {
-                domain: p.domain_name,
-                status: p.lifecycle_status || p.status,
-              }),
-              {
-                parse_mode: "HTML",
-                reply_markup: buildProxyActionKeyboard(ctx, p),
-              }
-            );
-          }
+        }
       } catch (e: any) {
         await ctx.reply(safeT(ctx, "cdn-error", { error: e?.message ?? "Unknown" }), {
           parse_mode: "HTML",
         });
       }
-    }
-  )
+    });
+  })
   .row()
   .back(
     (ctx) => safeT(ctx, "button-back"),
