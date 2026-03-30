@@ -1094,10 +1094,13 @@ async function index() {
     await handleAdminVdsCallback(ctx as AppContext);
   });
 
-  bot.callbackQuery(/^cdn_(open|renew|autorenew|retryssl|delask|delok):/, async (ctx) => {
-    const { handleCdnActionCallback } = await import("./ui/menus/cdn-menu.js");
-    await handleCdnActionCallback(ctx as AppContext);
-  });
+  bot.callbackQuery(
+    /^(cdn_(open|renew|autorenew|retryssl|delask|delok):|cdn_target_auto|cdn_target_help)$/,
+    async (ctx) => {
+      const { handleCdnActionCallback } = await import("./ui/menus/cdn-menu.js");
+      await handleCdnActionCallback(ctx as AppContext);
+    }
+  );
   bot.callbackQuery(/^acdn:/, async (ctx) => {
     const { handleAdminCdnCallback } = await import("./ui/menus/admin-cdn-menu.js");
     await handleAdminCdnCallback(ctx as AppContext);
