@@ -16,6 +16,14 @@ import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
 
+function safeT(ctx: AppContext, key: string, vars?: Record<string, string | number>): string {
+  const t = (ctx as any).t;
+  if (typeof t === "function") return String(t(key, vars));
+  if (key === "error-unknown") return `Ошибка: ${String(vars?.error ?? "Unknown error")}`;
+  if (key === "error-invalid-context") return "Некорректный контекст. Откройте домен заново.";
+  return key;
+}
+
 /**
  * Domain nameserver update conversation.
  */
@@ -25,7 +33,7 @@ export async function domainUpdateNsConversation(
 ) {
   const session = await ctx.session;
   if (!session) {
-    await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
+    await ctx.reply(safeT(ctx, "error-unknown", { error: "Session not initialized" }));
     return;
   }
   if (!session.other) {
@@ -48,14 +56,14 @@ export async function domainUpdateNsConversation(
   }
 
   if (!domainId) {
-    await ctx.reply(ctx.t("error-invalid-context"));
+    await ctx.reply(safeT(ctx, "error-invalid-context"));
     return;
   }
 
   const apiBaseUrl = process.env.AMPER_API_BASE_URL?.trim();
   const apiToken = process.env.AMPER_API_TOKEN?.trim();
   if (!apiBaseUrl || !apiToken) {
-    await ctx.reply(ctx.t("domain-api-not-configured"));
+    await ctx.reply(safeT(ctx, "domain-api-not-configured"));
     return;
   }
 
@@ -85,13 +93,13 @@ export async function domainUpdateNsConversation(
 
     const currentUserId = session?.main?.user?.id ?? 0;
     if (!currentUserId || domain.userId !== currentUserId) {
-      await ctx.reply(ctx.t("error-access-denied"));
+      await ctx.reply(safeT(ctx, "error-access-denied"));
       return;
     }
 
-    await ctx.reply(ctx.t("domain-update-ns-enter", {
-      currentNs1: domain.ns1 || ctx.t("not-specified"),
-      currentNs2: domain.ns2 || ctx.t("not-specified"),
+    await ctx.reply(safeT(ctx, "domain-update-ns-enter", {
+      currentNs1: domain.ns1 || safeT(ctx, "not-specified"),
+      currentNs2: domain.ns2 || safeT(ctx, "not-specified"),
     }), {
       parse_mode: "HTML",
     });
@@ -101,7 +109,7 @@ export async function domainUpdateNsConversation(
     const nsParts = nsText.split(/[\s,]+/);
 
     if (nsParts.length < 2) {
-      await ctx.reply(ctx.t("domain-invalid-ns-format"));
+      await ctx.reply(safeT(ctx, "domain-invalid-ns-format"));
       return;
     }
 
@@ -111,13 +119,13 @@ export async function domainUpdateNsConversation(
     // Validate nameserver format
     if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i.test(ns1) ||
         !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i.test(ns2)) {
-      await ctx.reply(ctx.t("domain-invalid-ns-format"));
+      await ctx.reply(safeT(ctx, "domain-invalid-ns-format"));
       return;
     }
 
     try {
       await domainService.updateNameservers(domainId, ns1, ns2);
-      await ctx.reply(ctx.t("domain-ns-updated", {
+      await ctx.reply(safeT(ctx, "domain-ns-updated", {
         domain: domain.domain,
         ns1,
         ns2,
@@ -127,12 +135,12 @@ export async function domainUpdateNsConversation(
     } catch (error: any) {
       Logger.error(`Failed to update nameservers for domain ${domainId}:`, error);
       const msg = error?.message || String(error);
-      await ctx.reply(ctx.t("error-unknown", { error: msg.slice(0, 300) }), {
+      await ctx.reply(safeT(ctx, "error-unknown", { error: msg.slice(0, 300) }), {
         parse_mode: "HTML",
       });
     }
   } catch (error: any) {
     Logger.error("Domain update NS conversation error:", error);
-    await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+    await ctx.reply(safeT(ctx, "error-unknown", { error: error.message || "Unknown error" }));
   }
 }

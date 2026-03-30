@@ -9,6 +9,7 @@ import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { Logger } from "../../app/logger.js";
+import { createInitialOtherSession } from "../../shared/session-initial.js";
 
 const PRIME_MONTHLY_PRICE = "9.99";
 
@@ -121,6 +122,14 @@ export function createDomainViewMenu(domainId: number): Menu<AppContext> {
       (ctx) => ctx.t("button-domain-update-ns"),
       async (ctx) => {
         try {
+          await ctx.answerCallbackQuery().catch(() => {});
+          const session = (await ctx.session) as any;
+          if (session && !session.other) {
+            (session as any).other = createInitialOtherSession();
+          }
+          if (session?.other) {
+            session.other.currentDomainId = domainId;
+          }
           await ctx.conversation.enter("domainUpdateNsConversation");
         } catch (error: any) {
           Logger.error(`Failed to start update NS conversation for domain ${domainId}:`, error);
