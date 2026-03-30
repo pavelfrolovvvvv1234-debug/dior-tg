@@ -183,16 +183,21 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
         .url(ctx.t("button-dev-po-discuss"), supportUrl)
         .row()
         .text(ctx.t("button-back"), "dev-po-back-to-main");
+      const devPoText = ctx.t("service-dev-po");
       try {
-        await ctx.editMessageText(ctx.t("service-dev-po"), {
+        await ctx.editMessageText(devPoText, {
           parse_mode: "HTML",
           reply_markup: keyboard,
         });
       } catch (e: any) {
         const msg = e?.description ?? e?.message ?? String(e);
         console.error("[Bot] dev-po screen edit failed:", msg);
-        await ctx.reply(ctx.t("service-dev-po"), {
-          parse_mode: "HTML",
+        // If Telegram rejects HTML parse, show a plain-text fallback.
+        const plainText = devPoText
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/?b>/gi, "")
+          .replace(/&amp;/g, "&");
+        await ctx.reply(plainText, {
           reply_markup: keyboard,
         }).catch(() => {});
       }
