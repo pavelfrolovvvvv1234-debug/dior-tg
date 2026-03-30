@@ -11,6 +11,7 @@ import { retry } from "../../shared/utils/retry.js";
 import { ExternalApiError } from "../../shared/errors/index.js";
 import ms from "../../lib/multims.js";
 import { generatePassword } from "../../entities/VirtualDedicatedServer.js";
+import { isVmManagerEnabled } from "../../app/config.js";
 import type {
   CreatePublicTokenResponse,
   CreateVMSuccesffulyResponse,
@@ -34,12 +35,19 @@ export class VMManager {
   private readonly baseUrl: string;
   private readonly email: string;
   private readonly password: string;
+  private readonly enabled: boolean;
   private loginInterval?: NodeJS.Timeout;
 
   constructor(email: string, password: string) {
     this.email = email;
     this.password = password;
-    this.baseUrl = config.VMM_ENDPOINT_URL;
+    this.baseUrl = config.VMM_ENDPOINT_URL ?? "";
+    this.enabled = isVmManagerEnabled();
+
+    if (!this.enabled) {
+      Logger.warn("VMManager is disabled: VMM_* variables are not configured");
+      return;
+    }
 
     // Initial login
     this.login().catch((error) => {
@@ -71,6 +79,7 @@ export class VMManager {
    * Login and get authentication token.
    */
   private async login(): Promise<void> {
+    if (!this.enabled) return;
     try {
       Logger.debug("Attempting VMManager authentication");
 
@@ -118,6 +127,9 @@ export class VMManager {
    * Get headers with authentication token.
    */
   private getHeaders(): Record<string, string> {
+    if (!this.enabled) {
+      throw new ExternalApiError("VMManager is not configured", "VMManager");
+    }
     if (!this.token) {
       throw new ExternalApiError("Not authenticated with VMManager", "VMManager");
     }
@@ -172,6 +184,7 @@ export class VMManager {
    * Get OS list.
    */
   async getOsList(): Promise<GetOsListResponse | undefined> {
+    if (!this.enabled) return undefined;
     return this.handleApiCall(async () => {
       const { status, data } = await axios.get<GetOsListResponse>(
         `${this.baseUrl}vm/v3/os`,

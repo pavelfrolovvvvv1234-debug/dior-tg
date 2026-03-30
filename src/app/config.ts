@@ -29,10 +29,10 @@ const envSchema = z.object({
   PAYMENT_CRYSTALPAY_SECRET_ONE: z.string().min(1, "PAYMENT_CRYSTALPAY_SECRET_ONE is required"),
   PAYMENT_CRYSTALPAY_SECRET_TWO: z.string().min(1, "PAYMENT_CRYSTALPAY_SECRET_TWO is required"),
 
-  // VMManager API
-  VMM_EMAIL: z.string().email("VMM_EMAIL must be a valid email"),
-  VMM_PASSWORD: z.string().min(1, "VMM_PASSWORD is required"),
-  VMM_ENDPOINT_URL: z.string().url("VMM_ENDPOINT_URL must be a valid URL"),
+  // VMManager API (optional: when omitted, VDS features are disabled)
+  VMM_EMAIL: z.string().email("VMM_EMAIL must be a valid email").optional().or(z.literal("")),
+  VMM_PASSWORD: z.string().min(1, "VMM_PASSWORD is required").optional().or(z.literal("")),
+  VMM_ENDPOINT_URL: z.string().url("VMM_ENDPOINT_URL must be a valid URL").optional().or(z.literal("")),
 
   // Webhook Configuration (optional)
   IS_WEBHOOK: z.string().url().optional().or(z.literal("")),
@@ -141,6 +141,27 @@ export const isCdnEnabled = (): boolean => {
   const base = config.CDN_BASE_URL ?? process.env.CDN_BASE_URL ?? "";
   const key = config.CDN_BOT_API_KEY ?? process.env.CDN_BOT_API_KEY ?? "";
   return base.length > 0 && key.length >= 16;
+};
+
+/** Whether VMManager (and VDS API actions) is configured and available. */
+export const isVmManagerEnabled = (): boolean => {
+  const email = (config.VMM_EMAIL ?? process.env.VMM_EMAIL ?? "").trim();
+  const password = (config.VMM_PASSWORD ?? process.env.VMM_PASSWORD ?? "").trim();
+  const endpoint = (config.VMM_ENDPOINT_URL ?? process.env.VMM_ENDPOINT_URL ?? "").trim();
+
+  // Ignore placeholders from .env.example
+  const isPlaceholderEmail = email === "your_email@example.com";
+  const isPlaceholderPassword = password === "your_vmm_password";
+  const isPlaceholderEndpoint = endpoint.includes("your-vmm-endpoint.com");
+
+  return (
+    email.length > 0 &&
+    password.length > 0 &&
+    endpoint.length > 0 &&
+    !isPlaceholderEmail &&
+    !isPlaceholderPassword &&
+    !isPlaceholderEndpoint
+  );
 };
 
 export const getPrimeChannelForCheck = (): number | string | null => {

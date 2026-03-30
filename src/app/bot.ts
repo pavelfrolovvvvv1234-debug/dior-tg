@@ -68,7 +68,7 @@ export async function createBot(): Promise<{
   Logger.info("Database initialized");
 
   // Initialize VMManager
-  const vmManager = new VMManager(config.VMM_EMAIL, config.VMM_PASSWORD);
+  const vmManager = new VMManager(config.VMM_EMAIL ?? "", config.VMM_PASSWORD ?? "");
   startOsListBackgroundRefresh(vmManager);
   Logger.info("VMManager initialized");
 
