@@ -176,17 +176,12 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
   .text(
     (ctx) => ctx.t("button-dev-po"),
     async (ctx) => {
-      const session = (await ctx.session) as SessionData;
       const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(ctx.t("support-dev-po-template"))}`;
       const keyboard = new InlineKeyboard()
         .url(ctx.t("button-dev-po-discuss"), supportUrl)
         .row()
         .text(ctx.t("button-back"), "dev-po-back-to-main");
-      const isRu = session?.main?.locale !== "en";
-      const textDevPo = isRu
-        ? "<b>💻 Разработка ПО</b>\n\nНаша команда занимается разработкой IT-решений:\n\n🤖 Telegram-боты\n🌐 Веб-сервисы\n⚙️ Кастомное ПО\n📊 Автоматизация бизнеса\n🚀 Запуск и сопровождение проектов\n\nДля обсуждения проекта нажмите кнопку ниже — откроется чат с саппортом. Опишите в сообщении ТЗ максимально подробно: что нужно разработать, какие функции, сроки и пожелания. Наша команда рассмотрит запрос и свяжется с вами."
-        : "<b>💻 Software Development</b>\n\nOur team develops IT solutions:\n\n🤖 Telegram bots\n🌐 Web services\n⚙️ Custom software\n📊 Business automation\n🚀 Project launch and support\n\nPress the button below to open a chat with support. Describe your requirements in as much detail as possible: what to develop, features, deadlines and wishes. Our team will review your request and contact you.";
-      await ctx.editMessageText(textDevPo, {
+      await ctx.editMessageText(ctx.t("service-dev-po"), {
         parse_mode: "HTML",
         reply_markup: keyboard,
       });

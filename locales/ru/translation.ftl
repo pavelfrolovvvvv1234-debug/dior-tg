@@ -69,13 +69,13 @@ bundle-manage-header = <strong>🚀 Инфраструктурный пакет<
     Услуги, купленные пакетом (домен + VPS):
 bundle-manage-empty = У вас пока нет услуг по пакетам
 button-dedicated-server = 🖥 Выделенные серверы
-button-dev-po = 💻 Разработка ПО
-button-dev-po-discuss = 💬 Обсудить проект
+button-dev-po = 💻 Development & Infra
+button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 💱 Криптообменник
 button-crypto-exchange-go = 💱 Перейти к обменнику
 service-crypto-exchange = <b>💱 Криптообменник</b><br><br>Быстрый обмен криптовалюты в нашем боте DiorChange — без лишних регистраций и задержек. Выберите пару, укажите сумму (от 2$) и получите обмен по выгодному курсу.<br><br>Нажмите кнопку ниже, чтобы открыть бот-обменник DiorChange.
-service-dev-po = <b>💻 Разработка ПО</b><br><br>Наша команда занимается разработкой IT-решений:<br><br>🤖 Telegram-боты<br>🌐 Веб-сервисы<br>⚙️ Кастомное ПО<br>📊 Автоматизация бизнеса<br>🚀 Запуск и сопровождение проектов<br><br>Для обсуждения проекта нажмите кнопку ниже — откроется чат с саппортом. Опишите в сообщении ТЗ максимально подробно: что нужно разработать, какие функции, сроки и пожелания. Наша команда рассмотрит запрос и свяжется с вами.
-support-dev-po-template = Запрос на разработку ПО.
+service-dev-po = <b>💻 Development &amp; Infrastructure Solutions</b><br><br>We build and scale digital products — from code to traffic and infrastructure.<br><br><b>What we do:</b><br><br>🌐 <b>Web Development</b><br>— Landing pages, high-performance websites, SEO-ready structures<br>— Frontend: Next.js, React, Vue<br>— Clean architecture + fast loading + conversion-focused UI<br><br>⚙️ <b>Backend &amp; Systems</b><br>— Node.js (NestJS / Express / Fastify), Python (FastAPI), PHP (Laravel)<br>— API integrations, authentication, billing systems, dashboards<br>— Scalable backend architecture<br><br>🤖 <b>Automation &amp; Bots</b><br>— Telegram / Discord bots<br>— Admin panels, queues, automation flows<br>— Custom backend logic and integrations<br><br>🧱 <b>Infrastructure &amp; DevOps</b><br>— VPS / Dedicated setup (Nginx, Docker, CI/CD)<br>— Cloudflare, DNS routing, SSL, reverse proxy<br>— Secure deployments + hidden origin setups<br><br>📊 <b>SEO &amp; Traffic-Ready Systems</b><br>— Technical SEO (HTML structure, schema, indexing)<br>— Analytics (GA4, GTM, event tracking)<br>— Infrastructure optimized for traffic acquisition<br><br>🚀 <b>Product Launch &amp; Scaling</b><br>— From MVP to production<br>— Architecture, deployment, support<br>— Growth-ready systems<br><br>To discuss your project, click the button below — support chat will open.<br>Send a detailed brief: scope, features, deadlines, and requirements.<br>We will review and get back with a structured proposal.
+support-dev-po-template = Development & infrastructure — please describe your brief below (scope, features, deadlines).
 
 Опишите ТЗ: что нужно разработать, какие функции, сроки и пожелания:
 button-balance = 💸 Баланс

@@ -68,13 +68,13 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
-button-dev-po = 💻 Software Development
+button-dev-po = 💻 Development & Infra
 button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 💱 Crypto Exchange
 button-crypto-exchange-go = 💱 Go to exchanger
 service-crypto-exchange = <b>💱 Crypto Exchange</b><br><br>Fast cryptocurrency exchange in our DiorChange bot — no extra registration or delays. Choose a pair, enter the amount (from $2) and get the exchange at a competitive rate.<br><br>Press the button below to open the DiorChange exchanger bot.
-service-dev-po = <b>💻 Software Development</b><br><br>Our team develops IT solutions:<br><br>🤖 Telegram bots<br>🌐 Web services<br>⚙️ Custom software<br>📊 Business automation<br>🚀 Project launch and support<br><br>Press the button below to open a chat with support. Describe your requirements in as much detail as possible: what to develop, features, deadlines and wishes. Our team will review your request and contact you.
-support-dev-po-template = Software development request.
+service-dev-po = <b>💻 Development &amp; Infrastructure Solutions</b><br><br>We build and scale digital products — from code to traffic and infrastructure.<br><br><b>What we do:</b><br><br>🌐 <b>Web Development</b><br>— Landing pages, high-performance websites, SEO-ready structures<br>— Frontend: Next.js, React, Vue<br>— Clean architecture + fast loading + conversion-focused UI<br><br>⚙️ <b>Backend &amp; Systems</b><br>— Node.js (NestJS / Express / Fastify), Python (FastAPI), PHP (Laravel)<br>— API integrations, authentication, billing systems, dashboards<br>— Scalable backend architecture<br><br>🤖 <b>Automation &amp; Bots</b><br>— Telegram / Discord bots<br>— Admin panels, queues, automation flows<br>— Custom backend logic and integrations<br><br>🧱 <b>Infrastructure &amp; DevOps</b><br>— VPS / Dedicated setup (Nginx, Docker, CI/CD)<br>— Cloudflare, DNS routing, SSL, reverse proxy<br>— Secure deployments + hidden origin setups<br><br>📊 <b>SEO &amp; Traffic-Ready Systems</b><br>— Technical SEO (HTML structure, schema, indexing)<br>— Analytics (GA4, GTM, event tracking)<br>— Infrastructure optimized for traffic acquisition<br><br>🚀 <b>Product Launch &amp; Scaling</b><br>— From MVP to production<br>— Architecture, deployment, support<br>— Growth-ready systems<br><br>To discuss your project, click the button below — support chat will open.<br>Send a detailed brief: scope, features, deadlines, and requirements.<br>We will review and get back with a structured proposal.
+support-dev-po-template = Development & infrastructure — please describe your brief below (scope, features, deadlines).
 
 Describe your requirements: what to develop, features, deadlines and wishes:
 button-balance = 💸 Balance
