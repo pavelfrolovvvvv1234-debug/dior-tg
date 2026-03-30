@@ -10,6 +10,7 @@ import type { AppContext } from "../../shared/types/context.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { Logger } from "../../app/logger.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
+import { setPendingDomainNsUpdate } from "../conversations/domain-update-ns-conversation.js";
 
 const PRIME_MONTHLY_PRICE = "9.99";
 
@@ -129,6 +130,10 @@ export function createDomainViewMenu(domainId: number): Menu<AppContext> {
           }
           if (session?.other) {
             session.other.currentDomainId = domainId;
+          }
+          const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+          if (telegramId > 0) {
+            setPendingDomainNsUpdate(telegramId, domainId);
           }
           await ctx.conversation.enter("domainUpdateNsConversation");
         } catch (error: any) {

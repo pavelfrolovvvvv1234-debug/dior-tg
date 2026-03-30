@@ -34,6 +34,7 @@ import { escapeUserInput } from "../../helpers/formatting.js";
 import DedicatedServer from "../../entities/DedicatedServer";
 import { setModeratorChatId } from "../../shared/moderator-chat.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
+import { setPendingDomainNsUpdate } from "../conversations/domain-update-ns-conversation.js";
 
 const safeEditMessageText = async (
   ctx: AppContext,
@@ -1350,6 +1351,10 @@ Are you sure you want to proceed?`,
         (session as any).other = createInitialOtherSession();
       }
       session.other.currentDomainId = domainId;
+      const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+      if (telegramId > 0) {
+        setPendingDomainNsUpdate(telegramId, domainId);
+      }
 
       await ctx.conversation.enter("domainUpdateNsConversation");
     } catch (error: any) {

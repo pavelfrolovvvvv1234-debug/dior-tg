@@ -16,6 +16,12 @@ import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
 
+const pendingNsDomainByTelegramId = new Map<number, number>();
+
+export function setPendingDomainNsUpdate(telegramId: number, domainId: number): void {
+  pendingNsDomainByTelegramId.set(telegramId, domainId);
+}
+
 function safeT(ctx: AppContext, key: string, vars?: Record<string, string | number>): string {
   const t = (ctx as any).t;
   if (typeof t === "function") return String(t(key, vars));
@@ -32,14 +38,13 @@ export async function domainUpdateNsConversation(
   ctx: AppContext
 ) {
   const session = await ctx.session;
-  if (!session) {
-    await ctx.reply(safeT(ctx, "error-unknown", { error: "Session not initialized" }));
-    return;
-  }
-  if (!session.other) {
+  if (session && !session.other) {
     (session as any).other = createInitialOtherSession();
   }
-  await ensureSessionUser(ctx);
+  if (session) {
+    await ensureSessionUser(ctx);
+  }
+  const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
 
   // Try to get domainId from callback query data or session
   let domainId: number | undefined;
@@ -47,12 +52,21 @@ export async function domainUpdateNsConversation(
     const match = (ctx.callbackQuery.data ?? "").match(/^domain_update_ns_(\d+)$/);
     if (match) {
       domainId = parseInt(match[1]);
-      (session.other as any).currentDomainId = domainId;
+      if (session?.other) {
+        (session.other as any).currentDomainId = domainId;
+      }
+      if (telegramId > 0) {
+        setPendingDomainNsUpdate(telegramId, domainId);
+      }
     }
   }
 
   if (!domainId) {
-    domainId = (session.other as any)?.currentDomainId as number;
+    domainId = (session?.other as any)?.currentDomainId as number;
+  }
+
+  if (!domainId && telegramId > 0) {
+    domainId = pendingNsDomainByTelegramId.get(telegramId);
   }
 
   if (!domainId) {
@@ -91,7 +105,11 @@ export async function domainUpdateNsConversation(
 
     const domain = await domainService.getDomainById(domainId);
 
-    const currentUserId = session?.main?.user?.id ?? 0;
+    let currentUserId = session?.main?.user?.id ?? 0;
+    if (!currentUserId && telegramId > 0) {
+      const byTid = await userRepo.findByTelegramId(telegramId);
+      currentUserId = byTid?.id ?? 0;
+    }
     if (!currentUserId || domain.userId !== currentUserId) {
       await ctx.reply(safeT(ctx, "error-access-denied"));
       return;
@@ -125,6 +143,9 @@ export async function domainUpdateNsConversation(
 
     try {
       await domainService.updateNameservers(domainId, ns1, ns2);
+      if (telegramId > 0) {
+        pendingNsDomainByTelegramId.delete(telegramId);
+      }
       await ctx.reply(safeT(ctx, "domain-ns-updated", {
         domain: domain.domain,
         ns1,
