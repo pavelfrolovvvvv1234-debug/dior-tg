@@ -62,6 +62,27 @@ export interface CdnActionResponse {
 /**
  * Fetch CDN API with Bot API key.
  */
+function pickCdnErrorMessage(data: unknown, fallbackStatus: number, rawBody: string): string {
+  if (data && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    const err = o.error;
+    if (typeof err === "string" && err.trim()) return err.trim();
+    const msg = o.message;
+    if (typeof msg === "string" && msg.trim()) return msg.trim();
+    if (Array.isArray(msg) && msg.length > 0) {
+      const parts = msg.filter((x): x is string => typeof x === "string");
+      if (parts.length) return parts.join("; ").slice(0, 500);
+    }
+    const detail = o.detail;
+    if (typeof detail === "string" && detail.trim()) return detail.trim();
+  }
+  const trimmed = rawBody.trim();
+  if (trimmed && trimmed.length < 800 && !trimmed.startsWith("<!")) {
+    return trimmed.slice(0, 500);
+  }
+  return `CDN API ${fallbackStatus}`;
+}
+
 async function cdnFetch<T>(
   path: string,
   options: { method?: string; body?: Record<string, unknown>; headers?: Record<string, string> } = {}
@@ -79,17 +100,34 @@ async function cdnFetch<T>(
     ...((customHeaders as Record<string, string>) ?? {}),
   };
 
-  const res = await fetch(`${base}${path}`, {
+  const url = `${base}${path}`;
+  const res = await fetch(url, {
     method,
     headers,
     ...(body != null ? { body: JSON.stringify(body) } : {}),
   });
 
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const raw = await res.text();
+  let data: unknown = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = {};
+    }
+  }
+
   if (!res.ok) {
-    const err = new Error((data as { error?: string }).error ?? `CDN API ${res.status}`);
+    const message = pickCdnErrorMessage(data, res.status, raw);
+    const { Logger } = await import("../../app/logger.js");
+    const preview = raw.replace(/\s+/g, " ").slice(0, 400);
+    Logger.error(`[CdnClient] HTTP ${res.status} ${path}: ${message}${preview ? ` | ${preview}` : ""}`);
+    const err = new Error(message);
     (err as any).status = res.status;
-    (err as any).code = (data as { code?: string }).code;
+    (err as any).code =
+      data && typeof data === "object" && typeof (data as { code?: string }).code === "string"
+        ? (data as { code: string }).code
+        : undefined;
     throw err;
   }
   return data as T;
@@ -119,18 +157,40 @@ export async function cdnCreateProxy(params: {
   hostHeader?: "incoming" | "target";
   cachingEnabled?: boolean;
 }): Promise<CdnCreateProxyResponse> {
+  const snake = process.env.CDN_BOT_CREATE_PROXY_SNAKE === "1";
+  const forceHttps = params.forceHttps ?? true;
+  const hostHeader = params.hostHeader ?? "incoming";
+  const cachingEnabled = params.cachingEnabled ?? false;
+
+  const rawBody = snake
+    ? {
+        telegram_id: params.telegramId,
+        username: params.username,
+        domain_name: params.domainName,
+        target_url: params.targetUrl,
+        description: params.description,
+        force_https: forceHttps,
+        host_header: hostHeader,
+        caching_enabled: cachingEnabled,
+      }
+    : {
+        telegramId: params.telegramId,
+        username: params.username,
+        domainName: params.domainName,
+        targetUrl: params.targetUrl,
+        description: params.description,
+        forceHttps,
+        hostHeader,
+        cachingEnabled,
+      };
+
+  const body = Object.fromEntries(
+    Object.entries(rawBody).filter(([, v]) => v !== undefined)
+  ) as Record<string, unknown>;
+
   return cdnFetch<CdnCreateProxyResponse>("/api/bot/create-proxy", {
     method: "POST",
-    body: {
-      telegramId: params.telegramId,
-      username: params.username,
-      domainName: params.domainName,
-      targetUrl: params.targetUrl,
-      description: params.description,
-      forceHttps: params.forceHttps ?? true,
-      hostHeader: params.hostHeader ?? "incoming",
-      cachingEnabled: params.cachingEnabled ?? false,
-    },
+    body,
   });
 }
 
