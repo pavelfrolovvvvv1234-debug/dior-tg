@@ -53,6 +53,7 @@ const envSchema = z.object({
   // CDN / Proxy service (optional) — Bot API for creating reverse proxies from bot
   CDN_BASE_URL: z.union([z.string().url(), z.literal("")]).optional(),
   CDN_BOT_API_KEY: z.string().optional(),
+  CDN_AUTO_TARGET_URL: z.union([z.string().url(), z.literal("")]).optional(),
 
   // Environment
   NODE_ENV: z
@@ -141,6 +142,12 @@ export const isCdnEnabled = (): boolean => {
   const base = config.CDN_BASE_URL ?? process.env.CDN_BASE_URL ?? "";
   const key = config.CDN_BOT_API_KEY ?? process.env.CDN_BOT_API_KEY ?? "";
   return base.length > 0 && key.length >= 16;
+};
+
+/** Default upstream URL for CDN "auto target" button. */
+export const getCdnAutoTargetUrl = (): string | null => {
+  const raw = (config.CDN_AUTO_TARGET_URL ?? process.env.CDN_AUTO_TARGET_URL ?? "").trim();
+  return raw.length > 0 ? raw : null;
 };
 
 /** Whether VMManager (and VDS API actions) is configured and available. */

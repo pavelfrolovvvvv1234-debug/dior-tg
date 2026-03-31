@@ -8,7 +8,7 @@
 import { Menu } from "@grammyjs/menu";
 import { InlineKeyboard } from "grammy";
 import type { AppContext, AppConversation } from "../../shared/types/context";
-import { isCdnEnabled } from "../../app/config";
+import { getCdnAutoTargetUrl, isCdnEnabled } from "../../app/config";
 import {
   cdnGetPrice,
   cdnCreateProxy,
@@ -684,7 +684,14 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
       await ctx.reply(ctx.t("cdn-target-auto-not-ready"), { parse_mode: "HTML" });
       return;
     }
-    const autoTarget = `https://${domain}`;
+    const autoTarget = getCdnAutoTargetUrl();
+    if (!autoTarget) {
+      await ctx.reply(
+        ctx.t("cdn-error", { error: "Auto origin is not configured. Contact support." }),
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
     if (isSelfTarget(domain, autoTarget)) {
       await ctx.reply(
         ctx.t("cdn-error", { error: "Origin URL must be different from CDN domain" }),
