@@ -72,6 +72,20 @@ function normalizeTargetUrlInput(input: string): string | null {
   return isValidTargetUrl(normalized) ? normalized : null;
 }
 
+function normalizeDomainInput(input: string): string {
+  return input.trim().toLowerCase();
+}
+
+function isSelfTarget(domainName: string, targetUrl: string): boolean {
+  try {
+    const domainHost = normalizeDomainInput(domainName);
+    const targetHost = new URL(targetUrl).hostname.trim().toLowerCase();
+    return domainHost === targetHost;
+  } catch {
+    return false;
+  }
+}
+
 function buildTargetInputKeyboard(ctx: AppContext): InlineKeyboard {
   return new InlineKeyboard()
     .text(ctx.t("button-cdn-target-auto"), "cdn_target_auto")
@@ -210,7 +224,7 @@ export async function cdnAddProxyConversation(
   const domainCtx = await conversation.waitFor("message:text");
   session = (await (domainCtx as any).session) as any;
   ensureCdnSession(session);
-  const domainName = domainCtx.message.text?.trim() ?? "";
+  const domainName = normalizeDomainInput(domainCtx.message.text ?? "");
 
   if (!domainName) {
     await ctx.reply(ctx.t("cdn-invalid-domain"));
@@ -234,6 +248,14 @@ export async function cdnAddProxyConversation(
     const normalized = normalizeTargetUrlInput(targetUrl);
     if (!normalized) {
     await ctx.reply(ctx.t("cdn-invalid-url"));
+    return;
+  }
+
+  if (isSelfTarget(session.other.cdn.domainName ?? "", normalized)) {
+    await ctx.reply(
+      ctx.t("cdn-error", { error: "Origin URL must be different from CDN domain" }),
+      { parse_mode: "HTML" }
+    );
     return;
   }
 
@@ -379,6 +401,17 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
   }
   session.other.cdn.telegramId = telegramId;
 
+  const domainName = String(session?.other?.cdn?.domainName ?? "");
+  const targetUrl = String(session?.other?.cdn?.targetUrl ?? "");
+  if (domainName && targetUrl && isSelfTarget(domainName, targetUrl)) {
+    await ctx.reply(
+      ctx.t("cdn-error", { error: "Origin URL must be different from CDN domain" }),
+      { parse_mode: "HTML" }
+    );
+    session.other.cdn = { step: "idle" };
+    return;
+  }
+
   let price: number;
   try {
     price = await resolveCdnChargeUsd(session);
@@ -507,7 +540,7 @@ export async function handleCdnAddProxyTextInput(ctx: AppContext): Promise<boole
       await ctx.reply(ctx.t("cdn-invalid-domain"), { parse_mode: "HTML" });
       return true;
     }
-    session.other.cdn.domainName = input;
+    session.other.cdn.domainName = normalizeDomainInput(input);
     session.other.cdn.step = "target";
     await askTargetUrl(ctx);
     return true;
@@ -517,6 +550,13 @@ export async function handleCdnAddProxyTextInput(ctx: AppContext): Promise<boole
     const normalized = normalizeTargetUrlInput(input);
     if (!normalized) {
       await ctx.reply(ctx.t("cdn-invalid-url"), { parse_mode: "HTML" });
+      return true;
+    }
+    if (isSelfTarget(session.other.cdn.domainName ?? "", normalized)) {
+      await ctx.reply(
+        ctx.t("cdn-error", { error: "Origin URL must be different from CDN domain" }),
+        { parse_mode: "HTML" }
+      );
       return true;
     }
     session.other.cdn.targetUrl = normalized;
@@ -644,7 +684,15 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
       await ctx.reply(ctx.t("cdn-target-auto-not-ready"), { parse_mode: "HTML" });
       return;
     }
-    session.other.cdn.targetUrl = `https://${domain}`;
+    const autoTarget = `https://${domain}`;
+    if (isSelfTarget(domain, autoTarget)) {
+      await ctx.reply(
+        ctx.t("cdn-error", { error: "Origin URL must be different from CDN domain" }),
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+    session.other.cdn.targetUrl = autoTarget;
     await ctx.reply(
       ctx.t("cdn-target-auto-picked", {
         targetUrl: session.other.cdn.targetUrl,
