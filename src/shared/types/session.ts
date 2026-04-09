@@ -43,6 +43,10 @@ export interface OtherSessionData {
     bulletproof: boolean;
     selectedRateId: number;
     selectedOs: number;
+    /** VPS shop: tier (null on type step). */
+    shopTier?: "start" | "standard" | "performance" | "enterprise" | null;
+    /** VPS shop: plan list pagination. */
+    shopListPage?: number;
   };
   dedicatedType: {
     bulletproof: boolean;

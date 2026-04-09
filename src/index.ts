@@ -95,6 +95,7 @@ import Promo from "./entities/Promo";
 import { handlePromocodeInput, promocodeQuestion } from "./helpers/promocode-input";
 import { registerDomainPurchaseFlow } from "./domain/domains/domain-purchase-flow.js";
 import { registerDedicatedShopHandlers } from "./domain/dedicated/dedicated-shop-flow.js";
+import { registerVpsShopHandlers } from "./domain/vds/vds-shop-flow.js";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
@@ -966,6 +967,7 @@ async function index() {
   bot.use(manageSerivcesMenu);
   registerDomainPurchaseFlow(bot);
   registerDedicatedShopHandlers(bot);
+  registerVpsShopHandlers(bot);
   bot.use(domainsMenu);
   bot.use(vdsMenu);
   bot.use(dedicatedTypeMenu);
@@ -2654,7 +2656,6 @@ async function index() {
     }
   }
   servicesMenu.register(vdsTypeMenu, "services-menu");
-  servicesMenu.register(vdsMenu, "services-menu");
   
   // dedicatedServersMenu: bot.use only (legacy keyboards); not registered under type — shop flow is inline (dsh:*).
   try {
@@ -2681,15 +2682,7 @@ async function index() {
     }
   }
   
-  // Register vds menu in vds-type-menu
-  try {
-    vdsTypeMenu.register(vdsMenu, "vds-type-menu");
-  } catch (error: any) {
-    if (!error.message?.includes("already registered")) {
-      console.error("[Bot] Failed to register vdsMenu:", error);
-    }
-  }
-  
+  // vdsMenu: legacy chain for OS selection only (bot.use); not nested under vds-type-menu (shop is inline vsh:*).
   try {
     vdsMenu.register(vdsRateChoose, "vds-menu");
   } catch (error: any) {

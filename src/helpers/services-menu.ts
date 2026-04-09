@@ -120,35 +120,38 @@ export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { a
   });
 
 /**
- * VDS type selection menu (Standard/Bulletproof).
+ * VPS step 1: standard vs bulletproof → inline shop step 2 (vsh:*).
  */
 export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: false, onMenuOutdated: false })
-  .submenu(
-    (ctx) => ctx.t("button-standard"),
-    "vds-menu",
-    async (ctx) => {
-      const session = await ctx.session;
-      session.other.vdsRate.bulletproof = false;
-      await ctx.editMessageText(ctx.t("vds-service"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
-  .submenu(
-    (ctx) => ctx.t("button-bulletproof"),
-    "vds-menu",
-    async (ctx) => {
-      const session = await ctx.session;
-      session.other.vdsRate.bulletproof = true;
-      await ctx.editMessageText(ctx.t("abuse-vds-service"), {
-        parse_mode: "HTML",
-      });
-    }
-  )
+  .text((ctx) => ctx.t("vds-shop-btn-standard"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    session.other.vdsRate.bulletproof = false;
+    session.other.vdsRate.shopTier = null;
+    session.other.vdsRate.shopListPage = 0;
+    session.other.vdsRate.selectedRateId = -1;
+    session.other.vdsRate.selectedOs = -1;
+    const { showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
+    await showVpsShopStep2Tier(ctx);
+  })
+  .text((ctx) => ctx.t("vds-shop-btn-bulletproof"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    session.other.vdsRate.bulletproof = true;
+    session.other.vdsRate.shopTier = null;
+    session.other.vdsRate.shopListPage = 0;
+    session.other.vdsRate.selectedRateId = -1;
+    session.other.vdsRate.selectedOs = -1;
+    const { showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
+    await showVpsShopStep2Tier(ctx);
+  })
   .row()
-  .back((ctx) => ctx.t("button-back"), async (ctx) => {
-    await ctx.editMessageText(buildServiceHeader(ctx, "button-vds"), {
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
       parse_mode: "HTML",
+      reply_markup: servicesMenu,
     });
   });
 
@@ -189,26 +192,6 @@ export const domainsMenu = new Menu<AppContext>("domains-menu", { autoAnswer: fa
     session.other.domains.shopAllPage = 0;
     await showDomainCategoryTlds(ctx, "all");
   })
-  .row()
-  .text(
-    (ctx) => ctx.t("prime-button-menu-row"),
-    async (ctx) => {
-      try {
-        const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
-        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx, {
-          backCallback: "prime-back-to-domains-zones",
-        });
-        await ctx.editMessageText(fullText, {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
-      } catch (error: any) {
-        const { Logger } = await import("../app/logger.js");
-        Logger.error("Failed to open Prime screen from domains menu:", error);
-        await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
-      }
-    }
-  )
   .row()
   .back(
     (ctx) => ctx.t("button-back"),
@@ -282,9 +265,8 @@ function buildServicesMenu(): Menu<AppContext> {
         (ctx) => ctx.t("button-vds"),
         "vds-type-menu",
         async (ctx) => {
-          await ctx.editMessageText(buildServiceHeader(ctx, "button-vds"), {
-            parse_mode: "HTML",
-          });
+          const { showVpsShopStep1 } = await import("../domain/vds/vds-shop-flow.js");
+          await showVpsShopStep1(ctx);
         }
       )
       .row();
@@ -518,7 +500,9 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
           );
           return;
         }
-        await editMessageVdsRate(ctx, Number(ctx.match));
+        const id = Number(ctx.match);
+        const { showVpsShopStep4Card } = await import("../domain/vds/vds-shop-flow.js");
+        await showVpsShopStep4Card(ctx, id);
       }
     );
   }
@@ -599,109 +583,24 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      await ctx.editMessageText(ctx.t("vds-service"), {
-        parse_mode: "HTML",
-      });
-    }
-  );
-
-const editMessageVdsRate = async (ctx: AppContext, rateId: number) => {
-  const pricesList = await prices();
-  const session = await ctx.session;
-  const rate = pricesList.virtual_vds[rateId];
-  const basePrice =
-    session.other.vdsRate.bulletproof == true
-      ? rate.price.bulletproof
-      : rate.price.default;
-  const dataSource = await getAppDataSource();
-  const price = await getPriceWithPrimeDiscount(
-    dataSource,
-    session.main.user.id,
-    basePrice
-  );
-
-  await ctx.editMessageText(
-    ctx.t("vds-rate-full-view", {
-      rateName: rate.name,
-      price,
-      ram: rate.ram,
-      disk: rate.ssd,
-      cpu: rate.cpu,
-      network: rate.network,
-      abuse:
-        session.other.vdsRate.bulletproof == true
-          ? ctx.t("bulletproof-on")
-          : ctx.t("bulletproof-off"),
-    }),
-    {
-      parse_mode: "HTML",
-    }
-  );
-};
-
-export const vdsMenu = new Menu<AppContext>("vds-menu", { autoAnswer: false, onMenuOutdated: false })
-  .dynamic(async (ctx, range) => {
-    const pricesList = await prices();
-    const session = await ctx.session;
-    const dataSource = await getAppDataSource();
-
-    for (let id = 0; id < pricesList.virtual_vds.length; id++) {
-      const rate = pricesList.virtual_vds[id];
-      const basePrice =
-        session.other.vdsRate.bulletproof == true
-          ? rate.price.bulletproof
-          : rate.price.default;
-      const price = await getPriceWithPrimeDiscount(
-        dataSource,
-        session.main.user.id,
-        basePrice
-      );
-      range
-        .submenu(
-          {
-            text: ctx.t("vds-rate", {
-              rateName: rate.name,
-              price,
-              ram: rate.ram,
-              disk: rate.ssd,
-              cpu: rate.cpu,
-            }),
-            payload: id.toString(),
-          },
-          "vds-selected-rate",
-          async (ctx) => {
-            session.other.vdsRate.selectedRateId = Number(ctx.match);
-
-            await editMessageVdsRate(ctx, id);
-          }
-        )
-        .row();
-    }
-  })
-  .row()
-  .text(
-    (ctx) => ctx.t("prime-discount-vds"),
-    async (ctx) => {
-      try {
-        const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
-        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any, {
-          backCallback: "prime-back-to-vds-menu",
-        });
-        await ctx.editMessageText(fullText, { reply_markup: keyboard, parse_mode: "HTML" });
-      } catch (e: any) {
-        await ctx.editMessageText(ctx.t("error-unknown", { error: e?.message || "Error" })).catch(() => {});
+      const session = await ctx.session;
+      if (!session.other) (session as any).other = createInitialOtherSession();
+      const { showVpsShopStep3List, showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
+      if (session.other.vdsRate.shopTier) {
+        await showVpsShopStep3List(ctx, session.other.vdsRate.shopListPage ?? 0);
+      } else {
+        await showVpsShopStep2Tier(ctx);
       }
     }
-  )
-  .row()
-  .back(
-    (ctx) => ctx.t("button-back"),
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
-        parse_mode: "HTML",
-      });
-    }
   );
+
+/** Legacy id for OS/rate menu chain; purchase list uses vsh:* inline flow. */
+export const vdsMenu = new Menu<AppContext>("vds-menu", { autoAnswer: false, onMenuOutdated: false })
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const { showVpsShopStep1 } = await import("../domain/vds/vds-shop-flow.js");
+    await showVpsShopStep1(ctx);
+  });
 
 /**
  * Legacy menu id kept for registration chain (dedicated-selected-server → location).

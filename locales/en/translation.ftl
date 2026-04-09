@@ -583,6 +583,52 @@ vds-purchase-paused-reply =
 
     Ordering is temporarily unavailable — it should work again in a couple of days. All plans stay in the menu for you to review.
 
+# VPS shop (multi-step)
+vds-shop-step1-text =
+    <b>🖥 VPS / VDS</b>
+
+    Full system control.
+    Ideal for websites, apps and services.
+
+    🚀 Up to 150 Mbps
+    🔒 No logs
+
+    <b>Choose type:</b>
+vds-shop-btn-standard = ⚙️ Standard
+vds-shop-btn-bulletproof = 🛡 Bulletproof
+vds-shop-step2-title = <b>Choose tier:</b>
+vds-shop-bulletproof-blurb =
+    <b>🛡 Bulletproof VDS</b>
+
+    Stable infrastructure for sensitive workloads.
+    Priority handling.
+vds-shop-type-standard = Standard
+vds-shop-type-bulletproof = Bulletproof
+vds-shop-tier-start = 🚀 Start
+vds-shop-tier-standard = ⚙️ Standard
+vds-shop-tier-performance = 🔥 Performance
+vds-shop-tier-enterprise = 🏢 Enterprise
+vds-shop-tier-start-label = Start
+vds-shop-tier-standard-label = Standard
+vds-shop-tier-performance-label = Performance
+vds-shop-tier-enterprise-label = Enterprise
+vds-shop-step3-header = <b>🖥 {$typeLine} • {$tierLine}</b>
+vds-shop-step3-prompt = Choose plan:
+vds-shop-list-page = Page {$current} / {$total}
+vds-shop-page-prev = ⬅️ Prev
+vds-shop-page-next = ➡️ Next
+vds-shop-card =
+    <b>🖥 {$title}</b>
+
+    <b>CPU:</b> {$cpu} vCPU
+    <b>RAM:</b> {$ram} GB
+    <b>Storage:</b> {$storage} GB SSD
+    <b>Network:</b> {$network} Mbps
+
+    💳 <b>Price:</b> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
+vds-shop-order = 🛒 Order
+vds-shop-details = 📋 Details
+
 vds-os-select = <strong>Select the OS to be installed</strong>
 
 bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
@@ -591,7 +637,7 @@ vds-created = The status can be monitored in the main menu. > Manage services
 
 vds-manage-title = Manage VDS
 vds-manage-list-item = «{$rateName}» - {$ip} 🖥
-button-my-vds = 🖥 My VPS/VDS
+button-my-vds = 🖥 VPS/VDS
 
 vds-autorenew-line = <strong>Auto-renew:</strong> {$state}
 vds-autorenew-on = on
@@ -1334,7 +1380,7 @@ prime-trial-subscribe-first = Please subscribe to the channel first, then press 
 prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the button above, wait 5–10 seconds and press "I have subscribed" again. Ensure the bot is added to the channel as an administrator.
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
 prime-discount-dedicated = 🔐 Prime — up to 10% off
-prime-discount-vds = 🔐 Prime Subscription −10% on VPS/VDS
+prime-discount-vds = 🔐 Prime — up to 10% off
 
 profile-prime-no = Prime: No
 profile-prime-until = Prime: until {$date}

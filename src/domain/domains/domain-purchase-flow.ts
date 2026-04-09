@@ -150,7 +150,8 @@ async function buildTldListKeyboard(
     }
   }
 
-  kb.text(ctx.t("button-back"), "domshop:home");
+  kb.text(ctx.t("prime-button-menu-row"), "domshop:prime").row();
+  kb.text(ctx.t("button-back"), "domshop:home").row();
   return kb;
 }
 
@@ -297,6 +298,24 @@ export function registerDomainPurchaseFlow(bot: Bot<AppContext>): void {
     const session = await ctx.session;
     if (!session.other) (session as any).other = createInitialOtherSession();
     await showDomainShopHome(ctx);
+  });
+
+  bot.callbackQuery("domshop:prime", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    try {
+      const { getDomainsListWithPrimeScreen } = await import("../../ui/menus/amper-domains-menu.js");
+      const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx, {
+        backCallback: "prime-back-to-domain-shop-category",
+      });
+      await ctx.editMessageText(fullText, {
+        reply_markup: keyboard,
+        parse_mode: "HTML",
+      });
+    } catch (e: any) {
+      await ctx
+        .editMessageText(ctx.t("error-unknown", { error: e?.message || "Error" }))
+        .catch(() => {});
+    }
   });
 
   bot.callbackQuery("dommy:back", async (ctx) => {

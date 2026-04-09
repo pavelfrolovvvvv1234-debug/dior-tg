@@ -19,7 +19,7 @@ import {
 
 const TIER_ORDER: DedicatedShopTier[] = ["start", "standard", "performance", "enterprise"];
 
-/** Prime, then Back — always last rows (same order on every dedicated shop screen). */
+/** Prime, then Back — на списке планов, карточке и полном описании (не на шаге выбора линейки). */
 function appendDedicatedShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
   kb.text(ctx.t("prime-discount-dedicated"), "dsh:prime").row();
   kb.text(ctx.t("button-back"), backData).row();
@@ -98,7 +98,7 @@ export async function showDedicatedShopStep2Tier(ctx: AppContext): Promise<void>
   for (const tier of TIER_ORDER) {
     kb.text(ctx.t(`dedicated-shop-tier-${tier}`), `dsh:tier:${tier}`).row();
   }
-  appendDedicatedShopPrimeAndBack(kb, ctx, "dsh:back:type");
+  kb.text(ctx.t("button-back"), "dsh:back:type").row();
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",

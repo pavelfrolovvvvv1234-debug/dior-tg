@@ -34,6 +34,7 @@ import { escapeUserInput } from "../../helpers/formatting.js";
 import DedicatedServer from "../../entities/DedicatedServer";
 import { setModeratorChatId } from "../../shared/moderator-chat.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
+import type { DomainShopCategory } from "../../domain/domains/domain-purchase-config.js";
 import { setPendingDomainNsUpdate } from "../conversations/domain-update-ns-conversation.js";
 import {
   DedicatedProvisioningService,
@@ -238,6 +239,18 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       await showDomainShopHome(ctx);
       return;
     }
+    if (data === "prime-back-to-domain-shop-category") {
+      const session = await ctx.session;
+      const { showDomainCategoryTlds } = await import("../../domain/domains/domain-purchase-flow.js");
+      if (!session.other) (session as any).other = createInitialOtherSession();
+      const raw = session.other.domains?.shopCategory;
+      const cat: DomainShopCategory =
+        raw === "popular" || raw === "business" || raw === "tech" || raw === "geo" || raw === "all"
+          ? raw
+          : "popular";
+      await showDomainCategoryTlds(ctx, cat);
+      return;
+    }
     if (data === "prime-back-to-dedicated-type") {
       const { showDedicatedShopStep1 } = await import("../../domain/dedicated/dedicated-shop-flow.js");
       await showDedicatedShopStep1(ctx);
@@ -280,22 +293,33 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       return;
     }
     if (data === "prime-back-to-vds-menu") {
-      const { vdsMenu } = await import("../../helpers/services-menu.js");
       const session = await ctx.session;
-      const header = session?.other?.vdsRate?.bulletproof ? ctx.t("abuse-vds-service") : ctx.t("vds-service");
-      await ctx.editMessageText(header, {
-        reply_markup: vdsMenu,
-        parse_mode: "HTML",
-      });
+      const { showVpsShopStep2Tier, showVpsShopStep3List } = await import("../../domain/vds/vds-shop-flow.js");
+      if (!session.other?.vdsRate?.shopTier) {
+        await showVpsShopStep2Tier(ctx);
+      } else {
+        await showVpsShopStep3List(ctx, session.other.vdsRate.shopListPage ?? 0);
+      }
+      return;
+    }
+    if (data === "prime-back-to-vds-shop-tier") {
+      const { showVpsShopStep2Tier } = await import("../../domain/vds/vds-shop-flow.js");
+      await showVpsShopStep2Tier(ctx);
+      return;
+    }
+    if (data === "prime-back-to-vds-shop-list") {
+      const session = await ctx.session;
+      const { showVpsShopStep3List, showVpsShopStep2Tier } = await import("../../domain/vds/vds-shop-flow.js");
+      if (!session.other?.vdsRate?.shopTier) {
+        await showVpsShopStep2Tier(ctx);
+        return;
+      }
+      await showVpsShopStep3List(ctx, session.other.vdsRate.shopListPage ?? 0);
       return;
     }
     if (data === "prime-back-to-vds-type") {
-      const { vdsTypeMenu } = await import("../../helpers/services-menu.js");
-      const header = `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t("button-vds")}`;
-      await ctx.editMessageText(header, {
-        reply_markup: vdsTypeMenu,
-        parse_mode: "HTML",
-      });
+      const { showVpsShopStep1 } = await import("../../domain/vds/vds-shop-flow.js");
+      await showVpsShopStep1(ctx);
       return;
     }
     if (data === "prime-back-to-profile" || data === "prime_sub_back") {
