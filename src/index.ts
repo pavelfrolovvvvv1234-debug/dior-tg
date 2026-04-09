@@ -1734,6 +1734,8 @@ async function index() {
         targetUser.balance -= amount;
       }
       await ctx.appDataSource.manager.save(targetUser);
+      // Force fresh DB read for that user on next update.
+      invalidateUser(targetUser.telegramId);
       delete session.other.balanceEdit;
       await ctx.reply(
         ctx.t("admin-balance-success", {
