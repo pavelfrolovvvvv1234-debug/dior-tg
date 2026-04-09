@@ -69,7 +69,7 @@ bundle-manage-header = <strong>🚀 Инфраструктурный пакет<
     Услуги, купленные пакетом (домен + VPS):
 bundle-manage-empty = У вас пока нет услуг по пакетам
 button-dedicated-server = 🖥 Выделенные серверы
-button-dev-po = 💻 Dev + Traff
+button-dev-po = 💻 Разработка ПО
 button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 💱 Криптообменник
 button-crypto-exchange-go = 💱 Перейти к обменнику
@@ -292,6 +292,7 @@ cdn-confirm = Тариф: <b>{$planName}</b>
 Стоимость: <b>{$price}$</b> за 30 дней. Списать с баланса?
 cdn-created = ✅ Прокси создан: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Настройте DNS по инструкции в панели CDN.
 cdn-error = Ошибка CDN: {$error}
+manage-cdn-no-active = У вас нет активных CDN-услуг.
 cdn-not-configured = Услуга CDN пока не подключена. Чтобы включить: задайте в .env переменные CDN_BASE_URL и CDN_BOT_API_KEY (URL и ключ API proxy-сервиса).
 cdn-invalid-domain = Некорректное имя домена. Введите только домен без http:// (например: cdn.example.com).
 cdn-invalid-url = Некорректный URL. Введите домен/IP (можно без http) или полный адрес с http:// / https://.
@@ -820,6 +821,34 @@ dedicated-purchase-success-deducted = <strong>Покупка успешна.</st
 dedicated-contact-support-message = Для выдачи dedicated свяжитесь с нашей поддержкой.
 button-go-to-support = Перейти в поддержку
 support-message-dedicated-paid = Здравствуйте! Я оплатил услугу «{$serviceName}», локация: {$location}, ОС: {$os}. Можете выдать?
+
+button-provisioning-tickets = 🛠 Тикеты провижининга
+provisioning-menu-title = <strong>🛠 Тикеты провижининга dedicated</strong>\nВыберите статус для просмотра очереди.
+provisioning-list-empty = Нет тикетов провижининга со статусом: {$status}
+provisioning-list-title = <strong>Очередь провижининга:</strong> {$status}\nВсего: {$count}
+provisioning-ticket-view = <strong>🛠 Тикет провижининга #{$ticketId}</strong>\nТикет: <code>{$ticketNumber}</code>\nЗаказ: <code>{$orderNumber}</code>\n\n<strong>Статус:</strong> {$status}\n<strong>Ответственный:</strong> {$assignee}\n<strong>Клиент:</strong> {$userId}\n<strong>Сумма:</strong> {$amount} {$currency}\n<strong>Сервер:</strong> {$serviceName}\n<strong>Локация:</strong> {$location}\n<strong>ОС:</strong> {$os}\n<strong>Чеклист:</strong> {$checklist}\n<strong>Создан:</strong> {$createdAt}
+provisioning-latest-note = Последняя внутренняя заметка
+provisioning-assigned-refresh = Тикет назначен на вас.
+provisioning-status-updated = Статус провижининга обновлен.
+provisioning-checklist-open = Чеклист
+provisioning-checklist-title = <strong>Чеклист для тикета #{$ticketId}</strong>
+provisioning-checklist-updated = Пункт чеклиста обновлен.
+provisioning-note-enter = Отправьте текст внутренней заметки для этого тикета.
+provisioning-note-saved = Внутренняя заметка сохранена.
+provisioning-complete-enter-message = Отправьте финальное сообщение для клиента (доступы/детали). Оно будет доставлено, а тикет завершен.
+provisioning-completed = Тикет провижининга помечен как завершенный.
+provisioning-user-ready-message = <strong>Ваш выделенный сервер готов.</strong>\nTicket ID: #{$ticketId}\n\n{$message}
+dedicated-provisioning-ticket-created = <strong>Заказ принят.</strong>\nЗаявка на выделенный сервер отправлена в ручной провижининг.\n\nTicket ID: <code>#{$ticketId}</code>\nOrder ID: <code>#{$orderId}</code>\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}\n\nНаша команда подготовит сервер вручную и отправит доступы после завершения.
+dedicated-provisioning-staff-notification = <strong>🛠 Новый тикет провижининга dedicated</strong>\nТикет: <code>#{$ticketId}</code>\nЗаказ: <code>#{$orderId}</code>\nКлиент: {$userId}\nСумма: {$amount} $\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}
+
+ticket-status-pending_review = 🟡 На проверке
+ticket-status-awaiting_payment = 🟠 Ожидает оплаты
+ticket-status-paid = 🟢 Оплачен
+ticket-status-awaiting_stock = 🟠 Ожидает наличия
+ticket-status-in_provisioning = 🔵 В провижининге
+ticket-status-awaiting_final_check = 🟣 Финальная проверка
+ticket-status-completed = ✅ Завершен
+ticket-status-cancelled = ⚫ Отменен
 # Dedicated locations (таблица: Germany, NL/USA/Turkey)
 dedicated-location-de-germany = 🇩🇪 Германия
 dedicated-location-nl-amsterdam = 🇳🇱 Нидерланды

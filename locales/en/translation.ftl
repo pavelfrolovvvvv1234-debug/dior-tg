@@ -68,7 +68,7 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
-button-dev-po = 💻 Dev + Traff
+button-dev-po = 💻 Software Development
 button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 💱 Crypto Exchange
 button-crypto-exchange-go = 💱 Go to exchanger
@@ -291,6 +291,7 @@ Proxy: <code>{$domainName}</code> → <code>{$targetUrl}</code>
 Cost: <b>{$price}$</b> for 30 days. Deduct from balance?
 cdn-created = ✅ Proxy created: <code>{$domainName}</code> → <code>{$targetUrl}</code>. Configure DNS as per CDN panel instructions.
 cdn-error = CDN error: {$error}
+manage-cdn-no-active = You have no active CDN services.
 cdn-not-configured = CDN service is not configured. To enable: set CDN_BASE_URL and CDN_BOT_API_KEY in .env (proxy service URL and API key).
 cdn-invalid-domain = Invalid domain name. Enter domain only without http:// (e.g. cdn.example.com).
 cdn-invalid-url = Invalid URL. Enter a domain/IP (http optional) or a full address with http:// / https://.
@@ -823,6 +824,34 @@ dedicated-purchase-success-deducted = <strong>Purchase successful.</strong> {NUM
 dedicated-contact-support-message = To receive your dedicated server, contact our support.
 button-go-to-support = Go to support
 support-message-dedicated-paid = Hello! I paid for the service "{$serviceName}", location: {$location}, OS: {$os}. Can you provide it?
+
+button-provisioning-tickets = 🛠 Provisioning tickets
+provisioning-menu-title = <strong>🛠 Dedicated provisioning tickets</strong>\nChoose a status to view queue.
+provisioning-list-empty = No provisioning tickets in status: {$status}
+provisioning-list-title = <strong>Provisioning queue:</strong> {$status}\nTotal: {$count}
+provisioning-ticket-view = <strong>🛠 Provisioning Ticket #{$ticketId}</strong>\nTicket: <code>{$ticketNumber}</code>\nOrder: <code>{$orderNumber}</code>\n\n<strong>Status:</strong> {$status}\n<strong>Assignee:</strong> {$assignee}\n<strong>User:</strong> {$userId}\n<strong>Amount:</strong> {$amount} {$currency}\n<strong>Server:</strong> {$serviceName}\n<strong>Location:</strong> {$location}\n<strong>OS:</strong> {$os}\n<strong>Checklist:</strong> {$checklist}\n<strong>Created:</strong> {$createdAt}
+provisioning-latest-note = Latest internal note
+provisioning-assigned-refresh = Ticket assigned to you.
+provisioning-status-updated = Provisioning status updated.
+provisioning-checklist-open = Checklist
+provisioning-checklist-title = <strong>Checklist for ticket #{$ticketId}</strong>
+provisioning-checklist-updated = Checklist item updated.
+provisioning-note-enter = Send internal note text for this provisioning ticket.
+provisioning-note-saved = Internal note saved.
+provisioning-complete-enter-message = Send final message for customer (credentials/details). It will be delivered and ticket marked completed.
+provisioning-completed = Provisioning ticket marked as completed.
+provisioning-user-ready-message = <strong>Your dedicated server is ready.</strong>\nTicket ID: #{$ticketId}\n\n{$message}
+dedicated-provisioning-ticket-created = <strong>Order accepted.</strong>\nYour dedicated server request was sent to manual provisioning.\n\nTicket ID: <code>#{$ticketId}</code>\nOrder ID: <code>#{$orderId}</code>\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}\n\nOur operations team will prepare your server and send details after completion.
+dedicated-provisioning-staff-notification = <strong>🛠 New dedicated provisioning ticket</strong>\nTicket: <code>#{$ticketId}</code>\nOrder: <code>#{$orderId}</code>\nUser: {$userId}\nAmount: {$amount} $\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}
+
+ticket-status-pending_review = 🟡 Pending review
+ticket-status-awaiting_payment = 🟠 Awaiting payment
+ticket-status-paid = 🟢 Paid
+ticket-status-awaiting_stock = 🟠 Awaiting stock
+ticket-status-in_provisioning = 🔵 In provisioning
+ticket-status-awaiting_final_check = 🟣 Awaiting final check
+ticket-status-completed = ✅ Completed
+ticket-status-cancelled = ⚫ Cancelled
 # Dedicated locations (table: Germany, NL/USA/Turkey)
 dedicated-location-de-germany = 🇩🇪 Germany
 dedicated-location-nl-amsterdam = 🇳🇱 Netherlands

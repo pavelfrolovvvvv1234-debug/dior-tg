@@ -35,6 +35,13 @@ import DedicatedServer from "../../entities/DedicatedServer";
 import { setModeratorChatId } from "../../shared/moderator-chat.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
 import { setPendingDomainNsUpdate } from "../conversations/domain-update-ns-conversation.js";
+import {
+  DedicatedProvisioningService,
+  PROVISIONING_CHECKLIST_KEYS,
+} from "../../domain/dedicated/DedicatedProvisioningService.js";
+import {
+  ProvisioningTicketStatus,
+} from "../../entities/ProvisioningTicket.js";
 
 const safeEditMessageText = async (
   ctx: AppContext,
@@ -99,6 +106,33 @@ const parseTicketPayload = (payload: string | null): Record<string, any> => {
     return {};
   }
 };
+
+const toProvisioningStatus = (raw: string): ProvisioningTicketStatus | null => {
+  const values = new Set<string>(Object.values(ProvisioningTicketStatus));
+  return values.has(raw) ? (raw as ProvisioningTicketStatus) : null;
+};
+
+const formatProvisioningStatus = (ctx: AppContext, status: ProvisioningTicketStatus): string => {
+  const key = `ticket-status-${status}`;
+  const translated = ctx.t(key as any);
+  return translated === key ? status : translated;
+};
+
+const provisioningTicketKeyboard = (
+  ctx: AppContext,
+  ticketId: number
+): InlineKeyboard =>
+  new InlineKeyboard()
+    .text(ctx.t("button-ticket-assign-self"), `prov_take_${ticketId}`)
+    .text(ctx.t("button-ticket-ask-clarification"), `prov_note_${ticketId}`)
+    .row()
+    .text(ctx.t("ticket-status-in_provisioning"), `prov_status_${ticketId}_in_provisioning`)
+    .text(ctx.t("ticket-status-awaiting_final_check"), `prov_status_${ticketId}_awaiting_final_check`)
+    .row()
+    .text(ctx.t("button-ticket-complete"), `prov_complete_${ticketId}`)
+    .text(ctx.t("button-ticket-reject"), `prov_status_${ticketId}_rejected`)
+    .row()
+    .text(ctx.t("button-back"), "prov_tickets");
 
 const resolveAskUserRecipientId = async (
   ctx: AppContext,
@@ -826,6 +860,48 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         session.other.ticketsView.pendingData = {};
         return;
       }
+
+      if (pendingAction === "provisioning_note") {
+        const service = new DedicatedProvisioningService(ctx.appDataSource);
+        await service.addInternalNote(ticketId, session.main.user.id, input);
+        await ctx.reply(ctx.t("provisioning-note-saved"), {
+          parse_mode: "HTML",
+          reply_markup: new InlineKeyboard().text(ctx.t("button-open"), `prov_view_${ticketId}`),
+        });
+        session.other.ticketsView.pendingAction = null;
+        session.other.ticketsView.pendingTicketId = null;
+        session.other.ticketsView.pendingData = {};
+        return;
+      }
+
+      if (pendingAction === "provisioning_complete_message") {
+        const service = new DedicatedProvisioningService(ctx.appDataSource);
+        const ticket = await service.getTicketById(ticketId);
+        if (!ticket) {
+          await ctx.reply(ctx.t("error-ticket-not-found"));
+          return;
+        }
+        const order = await service.getOrderById(ticket.orderId);
+        if (!order) {
+          await ctx.reply(ctx.t("error-ticket-not-found"));
+          return;
+        }
+        await service.updateStatus(ticketId, ProvisioningTicketStatus.COMPLETED, session.main.user.id, "completed_by_staff");
+        await service.setChecklistItem(ticketId, "ticket_completed", true, session.main.user.id);
+        await service.setChecklistItem(ticketId, "credentials_sent_to_customer", true, session.main.user.id);
+        await ctx.api.sendMessage(order.telegramUserId || ctx.from!.id, ctx.t("provisioning-user-ready-message", {
+          ticketId,
+          message: escapeUserInput(input),
+        }), { parse_mode: "HTML" }).catch(() => {});
+        await ctx.reply(ctx.t("provisioning-completed"), {
+          parse_mode: "HTML",
+          reply_markup: new InlineKeyboard().text(ctx.t("button-open"), `prov_view_${ticketId}`),
+        });
+        session.other.ticketsView.pendingAction = null;
+        session.other.ticketsView.pendingTicketId = null;
+        session.other.ticketsView.pendingData = {};
+        return;
+      }
     } catch (error: any) {
       Logger.error("Ticket action failed:", error);
       await ctx.reply(
@@ -1011,6 +1087,41 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
       // Moderator menu accessible via callback or can be added to main menu
     }
     return next();
+  });
+
+  bot.command("tickets", async (ctx) => {
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
+      return;
+    }
+    await ctx.reply(ctx.t("provisioning-menu-title"), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard()
+        .text(ctx.t("button-open"), "prov_list_new")
+        .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+        .row()
+        .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
+        .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+        .row()
+        .text(ctx.t("ticket-status-completed"), "prov_list_completed"),
+    });
+  });
+
+  bot.command("ticket", async (ctx) => {
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
+      return;
+    }
+    const text = ctx.message?.text ?? "";
+    const parts = text.split(" ").filter(Boolean);
+    const id = Number(parts[1]);
+    if (!Number.isInteger(id) || id <= 0) {
+      await ctx.reply("Usage: /ticket <id>");
+      return;
+    }
+    await ctx.reply(ctx.t("button-open"), {
+      reply_markup: new InlineKeyboard().text(`#${id}`, `prov_view_${id}`),
+    });
   });
 
   // Handle ticket view callbacks
@@ -1583,6 +1694,180 @@ Are you sure you want to proceed?`,
       reply_markup: moderatorMenu,
       parse_mode: "HTML",
     });
+  });
+
+  bot.callbackQuery("prov_tickets", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+      return;
+    }
+    await ctx.editMessageText(ctx.t("provisioning-menu-title"), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard()
+        .text(ctx.t("button-open"), "prov_list_new")
+        .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+        .row()
+        .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
+        .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+        .row()
+        .text(ctx.t("ticket-status-completed"), "prov_list_completed")
+        .text(ctx.t("button-back"), "tickets-menu-back"),
+    });
+  });
+
+  bot.callbackQuery(/^prov_list_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+      return;
+    }
+    const status = toProvisioningStatus(ctx.match[1]);
+    if (!status) return;
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    const tickets = await service.listTicketsByStatus(status, 20);
+    if (tickets.length === 0) {
+      await ctx.editMessageText(ctx.t("provisioning-list-empty", { status: formatProvisioningStatus(ctx, status) }), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "prov_tickets"),
+      });
+      return;
+    }
+    const kb = new InlineKeyboard();
+    for (const t of tickets.slice(0, 10)) {
+      kb.text(`#${t.id} ${t.ticketNumber}`, `prov_view_${t.id}`).row();
+    }
+    kb.text(ctx.t("button-back"), "prov_tickets");
+    await ctx.editMessageText(ctx.t("provisioning-list-title", { status: formatProvisioningStatus(ctx, status), count: tickets.length }), {
+      parse_mode: "HTML",
+      reply_markup: kb,
+    });
+  });
+
+  bot.callbackQuery(/^prov_view_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+      return;
+    }
+    const ticketId = Number(ctx.match[1]);
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    const ticket = await service.getTicketById(ticketId);
+    if (!ticket) return;
+    const order = await service.getOrderById(ticket.orderId);
+    if (!order) return;
+    const checklist = await service.getChecklist(ticket.id);
+    const notes = await service.listRecentNotes(ticket.id, 3);
+    const checked = checklist.filter((x) => x.isChecked).length;
+    const total = checklist.length || PROVISIONING_CHECKLIST_KEYS.length;
+    const noteLine = notes.length
+      ? `\n\n📝 ${ctx.t("provisioning-latest-note")}: ${escapeUserInput(notes[0].text).slice(0, 220)}`
+      : "";
+    const text = ctx.t("provisioning-ticket-view", {
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      orderNumber: order.orderNumber,
+      status: formatProvisioningStatus(ctx, ticket.status),
+      assignee: ticket.assigneeUserId ?? ctx.t("ticket-card-responsible-none"),
+      userId: order.userId,
+      amount: order.paymentAmount,
+      currency: order.currency,
+      serviceName: order.productName,
+      location: order.locationLabel ?? "—",
+      os: order.osLabel ?? "—",
+      checklist: `${checked}/${total}`,
+      createdAt: ticket.createdAt.toISOString(),
+    }) + noteLine;
+    const kb = provisioningTicketKeyboard(ctx, ticket.id)
+      .row()
+      .text(ctx.t("provisioning-checklist-open"), `prov_checklist_${ticket.id}`)
+      .text(ctx.t("button-back"), "prov_tickets");
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^prov_take_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) return;
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    await service.assignTicket(Number(ctx.match[1]), session.main.user.id, session.main.user.id);
+    await ctx.answerCallbackQuery(ctx.t("ticket-taken").substring(0, 200)).catch(() => {});
+    await ctx.api.deleteMessage(ctx.chat!.id, ctx.callbackQuery!.message!.message_id).catch(() => {});
+    await ctx.api.sendMessage(ctx.chat!.id, ctx.t("provisioning-assigned-refresh"), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text(ctx.t("button-open"), `prov_view_${Number(ctx.match[1])}`),
+    }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^prov_status_(\d+)_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) return;
+    const ticketId = Number(ctx.match[1]);
+    const status = toProvisioningStatus(ctx.match[2]);
+    if (!status) return;
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    await service.updateStatus(ticketId, status, session.main.user.id);
+    await ctx.answerCallbackQuery(ctx.t("provisioning-status-updated").substring(0, 200)).catch(() => {});
+    await ctx.api.sendMessage(ctx.chat!.id, ctx.t("provisioning-status-updated"), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text(ctx.t("button-open"), `prov_view_${ticketId}`),
+    }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^prov_checklist_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const ticketId = Number(ctx.match[1]);
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    const rows = await service.getChecklist(ticketId);
+    const kb = new InlineKeyboard();
+    for (const row of rows) {
+      kb.text(`${row.isChecked ? "✅" : "☑️"} ${row.key}`.slice(0, 62), `prov_check_${ticketId}_${row.key}_${row.isChecked ? "0" : "1"}`).row();
+    }
+    kb.text(ctx.t("button-back"), `prov_view_${ticketId}`);
+    await ctx.editMessageText(ctx.t("provisioning-checklist-title", { ticketId }), {
+      parse_mode: "HTML",
+      reply_markup: kb,
+    });
+  });
+
+  bot.callbackQuery(/^prov_check_(\d+)_(.+)_(0|1)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) return;
+    const ticketId = Number(ctx.match[1]);
+    const key = ctx.match[2];
+    const isChecked = ctx.match[3] === "1";
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    await service.setChecklistItem(ticketId, key, isChecked, session.main.user.id);
+    if (isChecked && key === "ticket_completed") {
+      await service.updateStatus(ticketId, ProvisioningTicketStatus.COMPLETED, session.main.user.id, "checklist_completed");
+    }
+    await ctx.api.sendMessage(ctx.chat!.id, ctx.t("provisioning-checklist-updated"), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text(ctx.t("provisioning-checklist-open"), `prov_checklist_${ticketId}`),
+    }).catch(() => {});
+  });
+
+  bot.callbackQuery(/^prov_note_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.other.ticketsView.pendingAction = "provisioning_note";
+    session.other.ticketsView.pendingTicketId = Number(ctx.match[1]);
+    session.other.ticketsView.pendingData = {};
+    await ctx.reply(ctx.t("provisioning-note-enter"), { parse_mode: "HTML" });
+  });
+
+  bot.callbackQuery(/^prov_complete_(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.other.ticketsView.pendingAction = "provisioning_complete_message";
+    session.other.ticketsView.pendingTicketId = Number(ctx.match[1]);
+    session.other.ticketsView.pendingData = {};
+    await ctx.reply(ctx.t("provisioning-complete-enter-message"), { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^ticket_notify_close_(\d+)$/, async (ctx) => {

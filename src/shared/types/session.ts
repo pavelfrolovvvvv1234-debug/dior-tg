@@ -106,6 +106,8 @@ export interface OtherSessionData {
       | "provide_dedicated_password"
       | "provide_dedicated_panel"
       | "provide_dedicated_notes"
+      | "provisioning_note"
+      | "provisioning_complete_message"
       | null;
     pendingTicketId?: number | null;
     pendingData?: {

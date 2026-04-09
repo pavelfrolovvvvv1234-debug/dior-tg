@@ -24,6 +24,13 @@ import ServiceInvoice from "../../entities/ServiceInvoice.js";
 import GrowthEvent from "../../entities/GrowthEvent.js";
 import CdnProxyService from "../../entities/CdnProxyService.js";
 import CdnProxyAudit from "../../entities/CdnProxyAudit.js";
+import DedicatedServerOrder from "../../entities/DedicatedServerOrder.js";
+import ProvisioningTicket from "../../entities/ProvisioningTicket.js";
+import ProvisioningTicketStatusHistory from "../../entities/ProvisioningTicketStatusHistory.js";
+import ProvisioningTicketNote from "../../entities/ProvisioningTicketNote.js";
+import ProvisioningTicketAssignment from "../../entities/ProvisioningTicketAssignment.js";
+import ProvisioningTicketChecklist from "../../entities/ProvisioningTicketChecklist.js";
+import ProvisioningTicketEvent from "../../entities/ProvisioningTicketEvent.js";
 import {
   AutomationScenario,
   ScenarioVersion,
@@ -61,6 +68,13 @@ const AppDataSource = new DataSource({
     GrowthEvent,
     CdnProxyService,
     CdnProxyAudit,
+    DedicatedServerOrder,
+    ProvisioningTicket,
+    ProvisioningTicketStatusHistory,
+    ProvisioningTicketNote,
+    ProvisioningTicketAssignment,
+    ProvisioningTicketChecklist,
+    ProvisioningTicketEvent,
     AutomationScenario,
     ScenarioVersion,
     UserNotificationState,

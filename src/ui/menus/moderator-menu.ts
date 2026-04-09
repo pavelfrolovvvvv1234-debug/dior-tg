@@ -94,6 +94,25 @@ const showTicketsList = async (
  */
 export const moderatorMenu = new Menu<AppContext>("moderator-menu")
   .text(
+    (ctx) => ctx.t("button-provisioning-tickets"),
+    async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      await ctx.editMessageText(ctx.t("provisioning-menu-title"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard()
+          .text(ctx.t("button-open"), "prov_list_new")
+          .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+          .row()
+          .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
+          .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+          .row()
+          .text(ctx.t("ticket-status-completed"), "prov_list_completed")
+          .text(ctx.t("button-back"), "tickets-menu-back"),
+      });
+    }
+  )
+  .row()
+  .text(
     (ctx) => ctx.t("button-tickets-new"),
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});

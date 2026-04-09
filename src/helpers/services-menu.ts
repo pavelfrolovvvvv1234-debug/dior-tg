@@ -8,7 +8,7 @@ import DomainChecker from "@api/domain-checker";
 import { escapeUserInput } from "@helpers/formatting";
 import { InlineKeyboard } from "grammy";
 import { getAppDataSource } from "@/database";
-import User from "@/entities/User";
+import User, { Role } from "@/entities/User";
 import VirtualDedicatedServer, {
   generatePassword,
   generateRandomName,
@@ -18,6 +18,9 @@ import { showTopupForMissingAmount } from "@helpers/deposit-money";
 import { cdnMenu } from "../ui/menus/cdn-menu.js";
 import { createInitialOtherSession } from "../shared/session-initial.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
+import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
+import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
+import { getModeratorChatId } from "../shared/moderator-chat.js";
 
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
@@ -858,27 +861,94 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     selectedLocationKey: locationKey,
     selectedOsKey: osKey,
   };
-  const serviceName = server.name;
+  const provisioningService = new DedicatedProvisioningService(dataSource);
   const location = ctx.t(`dedicated-location-${locationKey}`);
   const os = ctx.t(`dedicated-os-${osKey}`);
-  const supportText = ctx.t("support-message-dedicated-paid", {
-    serviceName,
-    location,
-    os,
+  const idempotencyKey = ctx.callbackQuery?.id
+    ? `tgcb:${ctx.callbackQuery.id}`
+    : `dedicated:${session.main.user.id}:${selectedId}:${locationKey}:${osKey}:${Date.now()}`;
+  const category = session.other.dedicatedType?.bulletproof ? "bulletproof" : "standard";
+  const created = await provisioningService.createPaidOrderAndTicket({
+    userId: user.id,
+    telegramUserId: ctx.from?.id ?? null,
+    telegramUsername: ctx.from?.username ?? null,
+    fullName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") || null,
+    customerLanguage: session.main.locale,
+    paymentAmount: price,
+    paymentMethod: "balance",
+    paymentStatus: DedicatedOrderPaymentStatus.PAID,
+    balanceUsedAmount: price,
+    idempotencyKey,
+    config: {
+      productId: String(selectedId),
+      productName: server.name ?? `Dedicated #${selectedId}`,
+      category,
+      cpuModel: server.cpu != null ? String(server.cpu) : null,
+      cpuThreads: Number(server.cpuThreads ?? 0) || null,
+      ram: server.ram != null ? String(server.ram) : null,
+      storageSize: server.storage != null ? String(server.storage) : null,
+      bandwidth: server.bandwidth != null ? String(server.bandwidth) : null,
+      uplinkSpeed: server.network != null ? String(server.network) : null,
+      unmeteredTraffic: String(server.bandwidth ?? "").toLowerCase() === "unlimited",
+      locationKey,
+      locationLabel: location,
+      osKey,
+      osLabel: os,
+      ddosProtection: session.other.dedicatedType?.bulletproof ? "enhanced" : "standard",
+      deploymentNotes: null,
+    },
   });
+
+  const order = created.order;
+  const ticket = created.ticket;
   await ctx.answerCallbackQuery().catch(() => {});
   await ctx.deleteMessage().catch(() => {});
   await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
     parse_mode: "HTML",
   });
-  const keyboard = new InlineKeyboard().url(
-    ctx.t("button-go-to-support"),
-    `tg://resolve?domain=diorhost&text=${encodeURIComponent(supportText)}`
-  );
-  await ctx.reply(ctx.t("dedicated-contact-support-message"), {
-    reply_markup: keyboard,
+
+  await ctx.reply(ctx.t("dedicated-provisioning-ticket-created", {
+    ticketId: ticket.id,
+    orderId: order.id,
+    serviceName: server.name ?? `#${selectedId}`,
+    location,
+    os,
+  }), {
     parse_mode: "HTML",
   });
+
+  const moderators = await usersRepo.find({
+    where: [{ role: Role.Admin }, { role: Role.Moderator }],
+  });
+  const staffText = ctx.t("dedicated-provisioning-staff-notification", {
+    ticketId: ticket.id,
+    orderId: order.id,
+    userId: user.id,
+    amount: price,
+    serviceName: server.name ?? `#${selectedId}`,
+    location,
+    os,
+  });
+  const staffKeyboard = new InlineKeyboard()
+    .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
+    .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+  for (const mod of moderators) {
+    await ctx.api
+      .sendMessage(mod.telegramId, staffText, {
+        parse_mode: "HTML",
+        reply_markup: staffKeyboard,
+      })
+      .catch(() => {});
+  }
+  const moderatorChatId = getModeratorChatId();
+  if (moderatorChatId) {
+    await ctx.api
+      .sendMessage(moderatorChatId, staffText, {
+        parse_mode: "HTML",
+        reply_markup: staffKeyboard,
+      })
+      .catch(() => {});
+  }
 }
 
 /**
