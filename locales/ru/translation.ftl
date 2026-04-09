@@ -576,6 +576,12 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>💰 Цена: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / месяц
 
+vds-purchase-paused-alert = Заказ VPS временно недоступен — через пару дней заработает. Спасибо за ожидание!
+vds-purchase-paused-reply =
+    <b>VPS / VDS</b>
+
+    Оформление временно отключено — через пару дней всё снова будет доступно. Тарифы те же, список в меню можно смотреть.
+
 vds-os-select = <strong>Выберете ОС которая будет установлена</strong>
 
 

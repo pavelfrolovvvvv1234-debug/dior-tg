@@ -19,6 +19,12 @@ import {
 
 const TIER_ORDER: DedicatedShopTier[] = ["start", "standard", "performance", "enterprise"];
 
+/** Prime, then Back — always last rows (same order on every dedicated shop screen). */
+function appendDedicatedShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
+  kb.text(ctx.t("prime-discount-dedicated"), "dsh:prime").row();
+  kb.text(ctx.t("button-back"), backData).row();
+}
+
 async function getPriceWithPrimeDiscount(
   dataSource: AppContext["appDataSource"],
   userId: number,
@@ -92,8 +98,7 @@ export async function showDedicatedShopStep2Tier(ctx: AppContext): Promise<void>
   for (const tier of TIER_ORDER) {
     kb.text(ctx.t(`dedicated-shop-tier-${tier}`), `dsh:tier:${tier}`).row();
   }
-  kb.text(ctx.t("button-back"), "dsh:back:type").row();
-  kb.text(ctx.t("prime-discount-dedicated"), "dsh:prime").row();
+  appendDedicatedShopPrimeAndBack(kb, ctx, "dsh:back:type");
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",
@@ -138,8 +143,6 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
   }
 
   const kb = new InlineKeyboard();
-  const ds = ctx.appDataSource ?? (await getAppDataSource());
-  const userId = session.main.user.id;
 
   for (const id of slice) {
     const label = DEDICATED_COMPACT_LABEL[id] ?? `#${id}`;
@@ -154,8 +157,7 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
       .row();
   }
 
-  kb.text(ctx.t("button-back"), "dsh:back:tier").row();
-  kb.text(ctx.t("prime-discount-dedicated"), "dsh:prime").row();
+  appendDedicatedShopPrimeAndBack(kb, ctx, "dsh:back:tier");
 
   await ctx.editMessageText(body, {
     parse_mode: "HTML",
@@ -203,8 +205,8 @@ export async function showDedicatedShopStep4Card(ctx: AppContext, serverId: numb
     .text(ctx.t("dedicated-shop-order"), `dsh:ord:${serverId}`)
     .row()
     .text(ctx.t("dedicated-shop-details"), `dsh:det:${serverId}`)
-    .row()
-    .text(ctx.t("button-back"), `dsh:back:list`);
+    .row();
+  appendDedicatedShopPrimeAndBack(kb, ctx, `dsh:back:list`);
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",
@@ -239,7 +241,8 @@ export async function showDedicatedShopFullSpec(ctx: AppContext, serverId: numbe
     abuse: isBp ? ctx.t("bulletproof-on") : ctx.t("bulletproof-off"),
   });
 
-  const kb = new InlineKeyboard().text(ctx.t("button-back"), `dsh:card:${serverId}`);
+  const kb = new InlineKeyboard();
+  appendDedicatedShopPrimeAndBack(kb, ctx, `dsh:card:${serverId}`);
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",

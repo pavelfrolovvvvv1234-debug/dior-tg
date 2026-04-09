@@ -189,10 +189,20 @@ export const getPrimeChannelForCheck = (): number | string | null => {
 };
 
 /**
- * VPS/VDS в меню «Услуги» и «Управление услугами». По умолчанию скрыто; задайте SHOW_VPS_VDS_IN_MENUS=1,
- * чтобы снова показать пункты без правок кода.
+ * VPS/VDS в меню «Услуги» и «Управление услугами». По умолчанию включено.
+ * Скрыть: SHOW_VPS_VDS_IN_MENUS=0 (или false/off/no).
  */
 export const showVpsVdsInServiceMenus = (): boolean => {
   const v = (process.env.SHOW_VPS_VDS_IN_MENUS ?? "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
+  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
+  return true;
+};
+
+/**
+ * Новые заказы VPS/VDS через меню покупки. По умолчанию выключено (заглушка «через пару дней»).
+ * Включить оформление: VDS_PURCHASE_ENABLED=1
+ */
+export const isVdsPurchaseTemporarilyDisabled = (): boolean => {
+  const v = (process.env.VDS_PURCHASE_ENABLED ?? "").trim().toLowerCase();
+  return !(v === "1" || v === "true" || v === "yes");
 };

@@ -577,6 +577,12 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
 
+vds-purchase-paused-alert = VPS orders are paused — back in a couple of days. Thanks for your patience!
+vds-purchase-paused-reply =
+    <b>VPS / VDS</b>
+
+    Ordering is temporarily unavailable — it should work again in a couple of days. All plans stay in the menu for you to review.
+
 vds-os-select = <strong>Select the OS to be installed</strong>
 
 bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
