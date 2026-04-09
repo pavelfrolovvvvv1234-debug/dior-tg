@@ -10,10 +10,10 @@ welcome = 🔷 DiorHost — Bulletproof Servers, Domains, CDN & Infrastructure
     
     👤 @{$username}
     ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
-    ├ <b>ID:</b> <code>{$userId}</code>
-    └ <b>Servers purchased:</b> <code>{$servicesCount} pcs ($0.00)</code>
+    ├ <b>ID:</b> <code>{$userIdText}</code>
+    └ <b>Servers purchased:</b> <code>{$servicesCount}</code> pcs ($0.00)
     
-    <a href="https://t.me/diorhost">Support</a> • <a href="https://t.me/+C27tBPXXpj40ZGE6">News</a> • <a href="https://dior.host/">Web Site</a>
+    Support • News • Web Site
 
 about-us = We provide reliable and high-performance VDS dedicated servers and hosting services.
 

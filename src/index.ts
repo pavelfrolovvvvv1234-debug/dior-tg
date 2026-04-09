@@ -802,13 +802,15 @@ async function index() {
         const usernameRaw = ctx.from?.username?.trim();
         const username = usernameRaw && usernameRaw.length > 0 ? usernameRaw : "username";
         const userId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+        const userIdText = String(Number.isFinite(userId) ? Math.trunc(userId) : 0);
         const servicesCount =
           typeof vars?.servicesCount === "number" ? vars.servicesCount : 0;
         return String(
           fluent.translate(locale, "welcome", {
             balance: baseBalance,
             username,
-            userId: Number.isFinite(userId) ? userId : 0,
+            userId,
+            userIdText,
             servicesCount,
           })
         );
