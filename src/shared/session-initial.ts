@@ -29,7 +29,12 @@ export function createInitialOtherSession(): SessionData["other"] {
     broadcast: { step: "idle" },
     controlUsersPage: { orderBy: "id", sortBy: "ASC", page: 0 },
     vdsRate: { bulletproof: true, selectedRateId: -1, selectedOs: -1 },
-    dedicatedType: { bulletproof: false, selectedDedicatedId: -1 },
+    dedicatedType: {
+      bulletproof: false,
+      selectedDedicatedId: -1,
+      shopTier: null,
+      shopListPage: 0,
+    },
     manageVds: {
       lastPickedId: -1,
       page: 0,

@@ -515,6 +515,48 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
 
+# Магазин дедиков (пошагово)
+dedicated-shop-step1-text =
+    <b>🖥 Дедики</b>
+
+    Выберите тип инфраструктуры:
+dedicated-shop-btn-standard = ⚙️ Стандартные
+dedicated-shop-btn-bulletproof = 🛡 Абузоустойчивые
+dedicated-shop-step2-title = Выберите конфигурацию:
+dedicated-shop-bulletproof-blurb =
+    <b>🛡 Абузоустойчивые серверы</b>
+
+    Инфраструктура для чувствительных проектов.
+    Стабильная сеть и приоритетная обработка.
+dedicated-shop-type-standard = Стандарт
+dedicated-shop-type-bulletproof = Абузоустойчивые
+dedicated-shop-tier-start = 🚀 Старт
+dedicated-shop-tier-standard = ⚙️ Стандарт
+dedicated-shop-tier-performance = 🔥 Производительность
+dedicated-shop-tier-enterprise = 🏢 Enterprise
+dedicated-shop-tier-start-label = Старт
+dedicated-shop-tier-standard-label = Стандарт
+dedicated-shop-tier-performance-label = Производительность
+dedicated-shop-tier-enterprise-label = Enterprise
+dedicated-shop-step3-header = <b>🖥 {$typeLine} • {$tierLine}</b>
+dedicated-shop-step3-prompt = Выберите сервер:
+dedicated-shop-list-page = Стр. {$current} / {$total}
+dedicated-shop-page-prev = ⬅️ Пред.
+dedicated-shop-page-next = ➡️ След.
+dedicated-shop-storage-line = SSD / NVMe
+dedicated-shop-card =
+    <b>🖥 {$title}</b>
+
+    <b>CPU:</b> {$cpu}
+    <b>RAM:</b> {$ram} GB
+    <b>Диск:</b> {$storageLine}
+    <b>Тип:</b> {$typeLine}
+    <b>Линейка:</b> {$tierLine}
+
+    💳 <b>Цена:</b> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / мес
+dedicated-shop-order = 🛒 Заказать
+dedicated-shop-details = 📋 Подробнее
+
 bulletproof-on = ✅ Абузоустойчивый тариф
 bulletproof-off = ⚠️ Это не абузоустойчивый тариф
 unlimited = Безлимитный
@@ -1263,7 +1305,14 @@ admin-user-referrals-summary = <strong>Реферал</strong>
 # Prime Subscription (Dior Host)
 prime-subscription-title = 🔐 Prime
 prime-subscription-body = Расширенные условия для активных пользователей.
-prime-subscription-benefits-block = 💸 Скидка до 10% на домены\n\n⚡ Приоритетная обработка заказов\n\n📊 Улучшенные условия по объёмам\n\n🛠 Приоритетная поддержка
+prime-subscription-benefits-block =
+    💸 Скидка до 10% на домены
+
+    ⚡ Приоритетная обработка заказов
+
+    📊 Улучшенные условия по объёмам
+
+    🛠 Приоритетная поддержка
 prime-subscription-trial-line = 🎁 Бесплатный доступ — 7 дней
 prime-subscription-status-active = ✅ Подписка активирована
 prime-subscription-status-inactive = ❌ Подписка не активирована
@@ -1281,7 +1330,7 @@ prime-trial-already-used = Вы уже использовали бесплатн
 prime-trial-subscribe-first = Сначала подпишитесь на канал, затем нажмите «Я подписался».
 prime-trial-subscribe-first-retry = Подписка не обнаружена. Подпишитесь на канал по кнопке выше, подождите 5–10 секунд и нажмите «Я подписался» снова. Убедитесь, что бот добавлен в канал как администратор.
 prime-channel-not-configured = Проверка подписки пока не настроена. Напишите в поддержку.
-prime-discount-dedicated = 🔐 Prime Подписка −10% на выделенные
+prime-discount-dedicated = 🔐 Prime — скидка до 10%
 prime-discount-vds = 🔐 Prime Подписка −10% на VPS/VDS
 
 profile-prime-no = Подписка: нет

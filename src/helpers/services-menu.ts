@@ -72,36 +72,42 @@ async function getPriceWithPrimeDiscount(
 }
 
 export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { autoAnswer: false, onMenuOutdated: false })
-  .submenu(
-    (ctx) => ctx.t("button-standard"),
-    "dedicated-servers-menu",
-    async (ctx) => {
-      const session = await ctx.session;
-      if (!session.other.dedicatedType) {
-        session.other.dedicatedType = { bulletproof: false, selectedDedicatedId: -1 };
-      }
-      session.other.dedicatedType.bulletproof = false;
-      session.other.dedicatedType.selectedDedicatedId = -1;
-      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-        parse_mode: "HTML",
-      });
+  .text((ctx) => ctx.t("dedicated-shop-btn-standard"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other.dedicatedType) {
+      session.other.dedicatedType = {
+        bulletproof: false,
+        selectedDedicatedId: -1,
+        shopTier: null,
+        shopListPage: 0,
+      };
     }
-  )
-  .submenu(
-    (ctx) => ctx.t("button-bulletproof"),
-    "dedicated-servers-menu",
-    async (ctx) => {
-      const session = await ctx.session;
-      if (!session.other.dedicatedType) {
-        session.other.dedicatedType = { bulletproof: true, selectedDedicatedId: -1 };
-      }
-      session.other.dedicatedType.bulletproof = true;
-      session.other.dedicatedType.selectedDedicatedId = -1;
-      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-        parse_mode: "HTML",
-      });
+    session.other.dedicatedType.bulletproof = false;
+    session.other.dedicatedType.shopTier = null;
+    session.other.dedicatedType.shopListPage = 0;
+    session.other.dedicatedType.selectedDedicatedId = -1;
+    const { showDedicatedShopStep2Tier } = await import("../domain/dedicated/dedicated-shop-flow.js");
+    await showDedicatedShopStep2Tier(ctx);
+  })
+  .text((ctx) => ctx.t("dedicated-shop-btn-bulletproof"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other.dedicatedType) {
+      session.other.dedicatedType = {
+        bulletproof: false,
+        selectedDedicatedId: -1,
+        shopTier: null,
+        shopListPage: 0,
+      };
     }
-  )
+    session.other.dedicatedType.bulletproof = true;
+    session.other.dedicatedType.shopTier = null;
+    session.other.dedicatedType.shopListPage = 0;
+    session.other.dedicatedType.selectedDedicatedId = -1;
+    const { showDedicatedShopStep2Tier } = await import("../domain/dedicated/dedicated-shop-flow.js");
+    await showDedicatedShopStep2Tier(ctx);
+  })
   .row()
   .text((ctx) => ctx.t("button-back"), async (ctx) => {
     await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
@@ -220,9 +226,8 @@ async function openDomainsPurchaseScreen(ctx: AppContext): Promise<void> {
 }
 
 async function openDedicatedCategoryScreen(ctx: AppContext): Promise<void> {
-  await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-    parse_mode: "HTML",
-  });
+  const { showDedicatedShopStep1 } = await import("../domain/dedicated/dedicated-shop-flow.js");
+  await showDedicatedShopStep1(ctx);
 }
 
 /** Открытие CDN из меню покупки услуг (fallback callback в index — строка CDN в меню). */
@@ -678,121 +683,14 @@ export const vdsMenu = new Menu<AppContext>("vds-menu", { autoAnswer: false, onM
   );
 
 /**
- * Dedicated servers list menu (shows after selecting Standard/Bulletproof).
+ * Legacy menu id kept for registration chain (dedicated-selected-server → location).
+ * Purchase flow uses dedicated-shop-flow inline steps; this stub is a safe fallback.
  */
 export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu", { autoAnswer: false, onMenuOutdated: false })
-  .dynamic(async (ctx, range) => {
-    const pricesList = await prices();
-    const session = await ctx.session;
-
-    // Ensure dedicatedType is set (e.g. when opening list from Back or direct path)
-    if (!session.other.dedicatedType) {
-      session.other.dedicatedType = { bulletproof: false, selectedDedicatedId: -1 };
-    }
-
-    const list = pricesList.dedicated_servers ?? [];
-    if (!list.length) {
-      range.text(ctx.t("button-back"), async (ctx) => {
-        await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
-          parse_mode: "HTML",
-        });
-      });
-      return;
-    }
-
-    const isBulletproof = session.other.dedicatedType.bulletproof;
-
-    // Filter servers by category: standard vs bulletproof (abuse-resistant)
-    const serverIndices: number[] = [];
-    list.forEach((server: any, id) => {
-      const category = server.category ?? "standard";
-      if (!isBulletproof && category === "standard") {
-        serverIndices.push(id);
-      }
-      if (isBulletproof && category === "bulletproof") {
-        serverIndices.push(id);
-      }
-    });
-
-    if (serverIndices.length === 0) {
-      range
-        .row()
-        .text(ctx.t("button-back"), async (ctx) => {
-          const session = await ctx.session;
-          await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-            parse_mode: "HTML",
-            reply_markup: dedicatedTypeMenu,
-          });
-        });
-      return;
-    }
-
-    let dataSource: AppContext["appDataSource"] | null = null;
-    try {
-      dataSource = ctx.appDataSource;
-    } catch {
-      // DB may be unavailable; we still show servers with base price
-    }
-    const userId = session.main?.user?.id ?? 0;
-
-    for (const id of serverIndices) {
-      const server = list[id];
-      const priceObj = server.price ?? {};
-      const basePrice =
-        isBulletproof && priceObj.bulletproof != null
-          ? (priceObj.bulletproof as number)
-          : (priceObj.default ?? 0);
-      let price = basePrice;
-      if (dataSource && userId > 0) {
-        try {
-          price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
-        } catch {
-          // keep basePrice on error
-        }
-      }
-
-      range
-        .submenu(
-          {
-            text: server.name ?? "",
-            payload: id.toString(),
-          },
-          "dedicated-selected-server",
-          async (ctx) => {
-            const session = await ctx.session;
-            if (session.other.dedicatedType) session.other.dedicatedType.selectedDedicatedId = id;
-            await editMessageDedicatedServer(ctx, id);
-          }
-        )
-        .row();
-    }
-
-    range
-      .row()
-      .text(
-        (ctx) => ctx.t("prime-discount-dedicated"),
-        async (ctx) => {
-          try {
-            const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
-            const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any, {
-              backCallback: "prime-back-to-dedicated-servers",
-            });
-            await ctx.editMessageText(fullText, { reply_markup: keyboard, parse_mode: "HTML" });
-          } catch (e: any) {
-            await ctx.editMessageText(ctx.t("error-unknown", { error: e?.message || "Error" })).catch(() => {});
-          }
-        }
-      )
-      .row()
-      .text(
-        (ctx) => ctx.t("button-back"),
-        async (ctx) => {
-          await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-            parse_mode: "HTML",
-            reply_markup: dedicatedTypeMenu,
-          });
-        }
-      );
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const { showDedicatedShopStep1 } = await import("../domain/dedicated/dedicated-shop-flow.js");
+    await showDedicatedShopStep1(ctx);
   });
 
 /**
@@ -887,12 +785,13 @@ export const dedicatedLocationMenu = new Menu<AppContext>("dedicated-location-me
   .back((ctx) => ctx.t("button-back"), async (ctx) => {
     const session = await ctx.session;
     const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
-    const pricesList = await prices();
-    const server = pricesList.dedicated_servers?.[selectedId];
-    if (server !== undefined) {
-      await editMessageDedicatedServer(ctx, selectedId, dedicatedSelectedServerMenu);
+    const { showDedicatedShopStep4Card, showDedicatedShopStep3List } = await import(
+      "../domain/dedicated/dedicated-shop-flow.js"
+    );
+    if (selectedId >= 0) {
+      await showDedicatedShopStep4Card(ctx, selectedId);
     } else {
-      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), { parse_mode: "HTML" });
+      await showDedicatedShopStep3List(ctx, session.other.dedicatedType?.shopListPage ?? 0);
     }
   });
 
@@ -1097,10 +996,9 @@ export const dedicatedSelectedServerMenu = new Menu<AppContext>("dedicated-selec
   .text(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-        parse_mode: "HTML",
-        reply_markup: dedicatedServersMenu,
-      });
+      const session = await ctx.session;
+      const { showDedicatedShopStep3List } = await import("../domain/dedicated/dedicated-shop-flow.js");
+      await showDedicatedShopStep3List(ctx, session.other.dedicatedType?.shopListPage ?? 0);
     }
   );
 

@@ -47,6 +47,10 @@ export interface OtherSessionData {
   dedicatedType: {
     bulletproof: boolean;
     selectedDedicatedId: number;
+    /** Purchase shop: performance tier (null on type step). */
+    shopTier?: "start" | "standard" | "performance" | "enterprise" | null;
+    /** Purchase shop: server list pagination. */
+    shopListPage?: number;
   };
   manageVds: {
     page: number;

@@ -239,28 +239,44 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       return;
     }
     if (data === "prime-back-to-dedicated-type") {
-      const { dedicatedTypeMenu } = await import("../../helpers/services-menu.js");
-      const header = `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t("button-dedicated-server")}`;
-      await ctx.editMessageText(header, {
-        reply_markup: dedicatedTypeMenu,
-        parse_mode: "HTML",
-      });
+      const { showDedicatedShopStep1 } = await import("../../domain/dedicated/dedicated-shop-flow.js");
+      await showDedicatedShopStep1(ctx);
       return;
     }
     if (data === "prime-back-to-dedicated-servers") {
       const session = await ctx.session;
-      if (session.other.dedicatedType) {
-        session.other.dedicatedType.bulletproof = false;
-        session.other.dedicatedType.selectedDedicatedId = -1;
-      } else {
-        session.other.dedicatedType = { bulletproof: false, selectedDedicatedId: -1 };
+      const {
+        showDedicatedShopStep1,
+        showDedicatedShopStep2Tier,
+        showDedicatedShopStep3List,
+      } = await import("../../domain/dedicated/dedicated-shop-flow.js");
+      if (!session.other.dedicatedType) {
+        await showDedicatedShopStep1(ctx);
+        return;
       }
-      const { dedicatedServersMenu } = await import("../../helpers/services-menu.js");
-      const header = `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t("button-dedicated-server")}`;
-      await ctx.editMessageText(header, {
-        reply_markup: dedicatedServersMenu,
-        parse_mode: "HTML",
-      });
+      const tier = session.other.dedicatedType.shopTier;
+      if (tier) {
+        await showDedicatedShopStep3List(ctx, session.other.dedicatedType.shopListPage ?? 0);
+      } else {
+        await showDedicatedShopStep2Tier(ctx);
+      }
+      return;
+    }
+    if (data === "prime-back-to-dedicated-tier") {
+      const { showDedicatedShopStep2Tier } = await import("../../domain/dedicated/dedicated-shop-flow.js");
+      await showDedicatedShopStep2Tier(ctx);
+      return;
+    }
+    if (data === "prime-back-to-dedicated-list") {
+      const session = await ctx.session;
+      const { showDedicatedShopStep3List, showDedicatedShopStep2Tier } = await import(
+        "../../domain/dedicated/dedicated-shop-flow.js"
+      );
+      if (!session.other.dedicatedType?.shopTier) {
+        await showDedicatedShopStep2Tier(ctx);
+        return;
+      }
+      await showDedicatedShopStep3List(ctx, session.other.dedicatedType.shopListPage ?? 0);
       return;
     }
     if (data === "prime-back-to-vds-menu") {

@@ -51,7 +51,8 @@ export function buildPrimeBlockText(
     lines.push(ctx.t("prime-subscription-trial-line"));
   }
 
-  return lines.join("\n");
+  // Fluent may leave literal "\n" in strings from .ftl; Telegram needs real newlines.
+  return lines.join("\n").replace(/\\n/g, "\n");
 }
 
 export type DomainsPrimeScreenOptions = {
@@ -65,7 +66,7 @@ export type DomainsPrimeScreenOptions = {
  */
 export async function getDomainsListWithPrimeScreen(
   ctx: AppContext,
-  _options?: DomainsPrimeScreenOptions
+  options?: DomainsPrimeScreenOptions
 ): Promise<{ fullText: string; keyboard: InlineKeyboard }> {
   const session = await ctx.session;
   const userRepo = new UserRepository(ctx.appDataSource);
@@ -80,7 +81,8 @@ export async function getDomainsListWithPrimeScreen(
       .text(ctx.t("prime-button-activate-trial"), "prime_activate_trial")
       .row();
   }
-  keyboard.text(ctx.t("button-back"), "prime-back-to-main").row();
+  const backCb = options?.backCallback?.trim() || "prime-back-to-main";
+  keyboard.text(ctx.t("button-back"), backCb).row();
 
   return { fullText, keyboard };
 }

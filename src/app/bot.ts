@@ -474,6 +474,8 @@ export async function createBot(): Promise<{
   registerPrimeBackHandler(bot);
   const { registerDomainPurchaseFlow } = await import("../domain/domains/domain-purchase-flow.js");
   registerDomainPurchaseFlow(bot);
+  const { registerDedicatedShopHandlers } = await import("../domain/dedicated/dedicated-shop-flow.js");
+  registerDedicatedShopHandlers(bot);
 
   // Register all menus
   bot.use(mainMenu);
@@ -555,12 +557,7 @@ export async function createBot(): Promise<{
   servicesMenu.register(dedicatedTypeMenu, "services-menu");
   servicesMenu.register(vdsTypeMenu, "services-menu");
   servicesMenu.register(vdsMenu, "services-menu");
-  
-  try {
-    dedicatedTypeMenu.register(dedicatedServersMenu, "dedicated-type-menu");
-  } catch (error: any) {
-    Logger.warn("dedicatedServersMenu already registered or error:", error);
-  }
+  // Shop flow uses inline dsh:*; dedicatedServersMenu stays on bot.use for legacy keyboards only.
   // Register vds menu in vds-type-menu
   vdsTypeMenu.register(vdsMenu, "vds-type-menu");
   

@@ -94,6 +94,7 @@ import Ticket, { TicketType } from "./entities/Ticket";
 import Promo from "./entities/Promo";
 import { handlePromocodeInput, promocodeQuestion } from "./helpers/promocode-input";
 import { registerDomainPurchaseFlow } from "./domain/domains/domain-purchase-flow.js";
+import { registerDedicatedShopHandlers } from "./domain/dedicated/dedicated-shop-flow.js";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
@@ -964,6 +965,7 @@ async function index() {
   bot.use(profileMenu);
   bot.use(manageSerivcesMenu);
   registerDomainPurchaseFlow(bot);
+  registerDedicatedShopHandlers(bot);
   bot.use(domainsMenu);
   bot.use(vdsMenu);
   bot.use(dedicatedTypeMenu);
@@ -2654,15 +2656,7 @@ async function index() {
   servicesMenu.register(vdsTypeMenu, "services-menu");
   servicesMenu.register(vdsMenu, "services-menu");
   
-  try {
-    dedicatedTypeMenu.register(dedicatedServersMenu, "dedicated-type-menu");
-  } catch (error: any) {
-    if (!error.message?.includes("already registered")) {
-      console.error("[Bot] Failed to register dedicatedServersMenu:", error);
-    }
-  }
-  
-  // Register dedicated selected server menu (shows server details with Order button)
+  // dedicatedServersMenu: bot.use only (legacy keyboards); not registered under type — shop flow is inline (dsh:*).
   try {
     dedicatedServersMenu.register(dedicatedSelectedServerMenu, "dedicated-servers-menu");
   } catch (error: any) {

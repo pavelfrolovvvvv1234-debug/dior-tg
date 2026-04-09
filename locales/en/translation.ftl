@@ -517,6 +517,48 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
 
+# Dedicated server shop (multi-step)
+dedicated-shop-step1-text =
+    <b>🖥 Dedicated</b>
+
+    Choose infrastructure type:
+dedicated-shop-btn-standard = ⚙️ Standard
+dedicated-shop-btn-bulletproof = 🛡 Bulletproof
+dedicated-shop-step2-title = Choose configuration:
+dedicated-shop-bulletproof-blurb =
+    <b>🛡 Bulletproof servers</b>
+
+    Infrastructure for sensitive workloads.
+    Stable network and priority handling.
+dedicated-shop-type-standard = Standard
+dedicated-shop-type-bulletproof = Bulletproof
+dedicated-shop-tier-start = 🚀 Start
+dedicated-shop-tier-standard = ⚙️ Standard
+dedicated-shop-tier-performance = 🔥 Performance
+dedicated-shop-tier-enterprise = 🏢 Enterprise
+dedicated-shop-tier-start-label = Start
+dedicated-shop-tier-standard-label = Standard
+dedicated-shop-tier-performance-label = Performance
+dedicated-shop-tier-enterprise-label = Enterprise
+dedicated-shop-step3-header = <b>🖥 {$typeLine} • {$tierLine}</b>
+dedicated-shop-step3-prompt = Choose server:
+dedicated-shop-list-page = Page {$current} / {$total}
+dedicated-shop-page-prev = ⬅️ Prev
+dedicated-shop-page-next = ➡️ Next
+dedicated-shop-storage-line = SSD / NVMe
+dedicated-shop-card =
+    <b>🖥 {$title}</b>
+
+    <b>CPU:</b> {$cpu}
+    <b>RAM:</b> {$ram} GB
+    <b>Storage:</b> {$storageLine}
+    <b>Type:</b> {$typeLine}
+    <b>Tier:</b> {$tierLine}
+
+    💳 <b>Price:</b> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
+dedicated-shop-order = 🛒 Order
+dedicated-shop-details = 📋 Details
+
 bulletproof-on = ✅ Bulletproof rate
 bulletproof-off = ⚠️ Isn't bulletproof rate
 unlimited = Unlimited
@@ -1260,7 +1302,14 @@ admin-user-referrals-summary = <strong>Referral</strong>
 # Prime Subscription (Dior Host)
 prime-subscription-title = 🔐 Prime
 prime-subscription-body = Extended terms for active users.
-prime-subscription-benefits-block = 💸 Up to 10% off domains\n\n⚡ Priority order processing\n\n📊 Better terms for volume\n\n🛠 Priority support
+prime-subscription-benefits-block =
+    💸 Up to 10% off domains
+
+    ⚡ Priority order processing
+
+    📊 Better terms for volume
+
+    🛠 Priority support
 prime-subscription-trial-line = 🎁 Free access — 7 days
 prime-subscription-status-active = ✅ Subscription active
 prime-subscription-status-inactive = ❌ Subscription not active
@@ -1278,7 +1327,7 @@ prime-trial-already-used = You have already used the free trial. Continue subscr
 prime-trial-subscribe-first = Please subscribe to the channel first, then press "I have subscribed".
 prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the button above, wait 5–10 seconds and press "I have subscribed" again. Ensure the bot is added to the channel as an administrator.
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
-prime-discount-dedicated = 🔐 Prime Subscription −10% on Dedicated
+prime-discount-dedicated = 🔐 Prime — up to 10% off
 prime-discount-vds = 🔐 Prime Subscription −10% on VPS/VDS
 
 profile-prime-no = Prime: No
