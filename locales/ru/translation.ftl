@@ -254,21 +254,21 @@ cdn-welcome = 🌍 <strong>CDN</strong> — прокси, SSL и защита т
 
 <b>Тарифы (за 1 сайт, помесячно)</b>
 
-<b>CDN Standard (Ads-ready)</b> — 29 $ / мес
+<b>CDN Standard (Ads-ready)</b> — 25 $ / мес
 • 1 домен
 • до ~200–300 GB трафика (скрытый лимит)
 • базовый cache + proxy
 • SSL
 • базовый анти-бот / rate-limit
 
-<b>CDN Bulletproof</b> — 99 $ / мес
+<b>CDN Bulletproof</b> — 49 $ / мес
 • повышенная живучесть (multi-origin / fallback)
 • игнорирование абуз-репортов
 • быстрые перевыпуски / смена маршрутов
 • кастомные rules (UA, geo, referer)
 • скрытые origin
 
-<b>Бандл (CDN + VDS)</b> — 189 $ / мес
+<b>Бандл (CDN + VDS)</b> — 169 $ / мес
 • CDN (bulletproof)
 • VDS (bulletproof)
 • базовая настройка (nginx + SSL + firewall)
@@ -282,9 +282,9 @@ cdn-plan-bulletproof-name = CDN Bulletproof
 cdn-plan-bundle-name = Бандл (CDN + VDS)
 cdn-choose-plan = <b>Выберите тариф CDN</b> (цены за 1 сайт в месяц, USD):
 cdn-choose-plan-hint = Выберите тариф одной из кнопок ниже.
-button-cdn-plan-standard = 📦 Standard — 29 $
-button-cdn-plan-bulletproof = 🛡 Bulletproof — 99 $
-button-cdn-plan-bundle = 📦 Bundle CDN+VDS — 189 $
+button-cdn-plan-standard = 📦 Standard — 25 $
+button-cdn-plan-bulletproof = 🛡 Bulletproof — 49 $
+button-cdn-plan-bundle = 📦 Bundle CDN+VDS — 169 $
 
 cdn-enter-domain = Введите <strong>домен</strong> для проксирования (например: <code>cdn.example.com</code>):
 cdn-enter-target = Введите <strong>целевой URL</strong> (куда проксировать, например: <code>https://origin.example.com</code>):
@@ -890,7 +890,7 @@ referral-stat-reg2dep = Конверсия рефералов (REG2DEP): { $perc
 referral-stat-avg-deposit = Средний депозит реферала: { $amount } $
 referral-stat-percent = Реферальный процент: { $percent }%
 referral-stat-active-30d = Активных рефералов за 30 дней: { $count }
-referral-stat-new-clients = Новых клиентов
+referral-stat-new-clients = Новых рефералов
 referral-stat-earned = Заработано
 withdraw-enter-amount = <strong>Вывод баланса</strong>
 

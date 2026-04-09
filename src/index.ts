@@ -1245,8 +1245,10 @@ async function index() {
     await handleAdminVdsCallback(ctx as AppContext);
   });
 
+  // NOTE: proxy id comes after the first colon (e.g. cdn_open:<id>, cdn_autorenew:<id>:1).
+  // A pattern like `cdn_open:` with `$` at end never matched real callbacks — buttons did nothing.
   bot.callbackQuery(
-    /^(cdn_(open|renew|autorenew|retryssl|delask|delok):|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back)$/,
+    /^(cdn_(open|renew|retryssl|delask|delok):.+|cdn_autorenew:.+:[01]|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back|cdn_list|cdn_back_to_manage)$/,
     async (ctx) => {
       const { handleCdnActionCallback } = await import("./ui/menus/cdn-menu.js");
       await handleCdnActionCallback(ctx as AppContext);

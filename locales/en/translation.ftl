@@ -182,7 +182,7 @@ sort-desc = 🔼
 button-admin-panel = ⚙️ Admin Panel
 button-control-users = 👥 Manage Users
 button-tickets = 🎫 Tickets
-button-promocodes = 🎟 Promo codes
+button-promocodes = 🎟 Promocodes
 button-automations = 📬 Automations & Notifications
 button-statistics = 📊 Statistics
 admin-automations-header = <strong>📬 Automations & Notifications</strong>
@@ -252,21 +252,21 @@ cdn-welcome = 🌍 <strong>CDN</strong> — proxy, SSL, and traffic protection.
 
 <b>Plans (per site, monthly)</b>
 
-<b>CDN Standard (Ads-ready)</b> — $29 / month
+<b>CDN Standard (Ads-ready)</b> — $25 / month
 • 1 domain
 • ~200–300 GB traffic (soft cap)
 • basic cache + proxy
 • SSL
 • basic anti-bot / rate limiting
 
-<b>CDN Bulletproof</b> — $99 / month
+<b>CDN Bulletproof</b> — $49 / month
 • higher resilience (multi-origin / fallback)
 • abuse-report handling tuned for uptime
 • fast re-issues / route changes
 • custom rules (UA, geo, referer)
 • hidden origins
 
-<b>Bundled (CDN + VDS)</b> — $189 / month
+<b>Bundled (CDN + VDS)</b> — $169 / month
 • CDN (bulletproof)
 • VDS (bulletproof)
 • basic setup (nginx + SSL + firewall)
@@ -280,9 +280,9 @@ cdn-plan-bulletproof-name = CDN Bulletproof
 cdn-plan-bundle-name = Bundled (CDN + VDS)
 cdn-choose-plan = <b>Choose a CDN plan</b> (per site, monthly, USD):
 cdn-choose-plan-hint = Please pick a plan using one of the buttons below.
-button-cdn-plan-standard = 📦 Standard — $29/mo
-button-cdn-plan-bulletproof = 🛡 Bulletproof — $99/mo
-button-cdn-plan-bundle = 📦 Bundle CDN+VDS — $189/mo
+button-cdn-plan-standard = 📦 Standard — $25/mo
+button-cdn-plan-bulletproof = 🛡 Bulletproof — $49/mo
+button-cdn-plan-bundle = 📦 Bundle CDN+VDS — $169/mo
 
 cdn-enter-domain = Enter the <strong>domain</strong> for proxying (e.g. <code>cdn.example.com</code>):
 cdn-enter-target = Enter the <strong>target URL</strong> (e.g. <code>https://origin.example.com</code>):

@@ -16,9 +16,9 @@ export interface CdnPlanDef {
 }
 
 export const CDN_PLANS: Record<CdnPlanId, CdnPlanDef> = {
-  standard: { id: "standard", priceUsd: 29, labelKey: "cdn-plan-standard-name" },
-  bulletproof: { id: "bulletproof", priceUsd: 99, labelKey: "cdn-plan-bulletproof-name" },
-  bundle: { id: "bundle", priceUsd: 189, labelKey: "cdn-plan-bundle-name" },
+  standard: { id: "standard", priceUsd: 25, labelKey: "cdn-plan-standard-name" },
+  bulletproof: { id: "bulletproof", priceUsd: 49, labelKey: "cdn-plan-bulletproof-name" },
+  bundle: { id: "bundle", priceUsd: 169, labelKey: "cdn-plan-bundle-name" },
 };
 
 export function parseCdnPlanId(raw: string): CdnPlanId | null {
