@@ -139,7 +139,7 @@ promoted-to-admin = Вы были повышенны до администрат
 promoted-to-user = Вы были понижены до пользователя
 
 admin-notification-about-promotion = Пользователь <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} повышен до роли {$role}
-admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nСпособ оплаты: {$paymentMethod}
+admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\n{$referralLine}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nСпособ оплаты: {$paymentMethod}
 
 -users-list = Список пользователей
 -users-list-empty = Список пользователей пуст
@@ -542,8 +542,8 @@ payment-information = После оплаты подождите немного,
 payment-next-url-label = Перейти к оплате
 payment-await = Пожалуйста, подождите...
 deposit-by-sum = Ваш счёт пополнен на {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
-money-not-enough = Недостаточно средств на балансе, пополните его. (Не хватает: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $)
-money-not-enough-go-topup = Не хватает {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $. Выберите способ пополнения:
+money-not-enough = Недостаточно средств на балансе, пополните его. (Не хватает: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $)
+money-not-enough-go-topup = Не хватает {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $. Выберите способ пополнения:
 
 invalid-arguments = Аргументы не корректны
 
@@ -572,7 +572,7 @@ vds-menu-select = Выберете интересующий вас тариф
 vds-bulletproof-mode-button-on = Абузоустойчивые: ВКЛ
 vds-bulletproof-mode-button-off = Абузоустойчивые: ВЫКЛ
 
-vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $, {$cpu} ядер, {$ram} gb озу, {$disk} gb диск
+vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $, {$cpu} ядер, {$ram} gb озу, {$disk} gb диск
 dedicated-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $/мес, {$cpu} ядер / {$cpuThreads} потоков, {$ram} GB RAM, {$storage} GB
 
 dedicated-rate-full-view = <strong>«{$rateName}»</strong>
@@ -587,7 +587,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>OS: </strong> {$os}
 
- <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
 
 # Магазин дедиков (пошагово)
 dedicated-shop-step1-text =
@@ -648,7 +648,7 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>ОС: </strong> Windows/Linux
 
- <strong>💰 Цена: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / месяц
+ <strong>💰 Цена: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / месяц
 
 vds-purchase-paused-alert = Заказ VPS временно недоступен — через пару дней заработает. Спасибо за ожидание!
 vds-purchase-paused-reply =

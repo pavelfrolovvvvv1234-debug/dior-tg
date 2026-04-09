@@ -75,3 +75,29 @@ export function assertDedicatedCatalogLength(catalogLen: number): void {
     );
   }
 }
+
+/** Location keys (FTL: dedicated-location-{key}). Same rules as legacy Menu. */
+export const DEDICATED_LOCATION_KEYS = ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"] as const;
+
+export function dedicatedLocationKeysForServer(server: { locations?: string[] } | undefined): string[] {
+  const keys = DEDICATED_LOCATION_KEYS as readonly string[];
+  if (server?.locations?.length && keys.filter((k) => server.locations!.includes(k)).length > 0) {
+    return (server.locations as string[]).filter((k) => keys.includes(k));
+  }
+  return [...keys];
+}
+
+/** OS keys (FTL: dedicated-os-{key}). */
+export const DEDICATED_OS_KEYS = [
+  "winserver2019",
+  "winserver2025",
+  "windows11",
+  "alma8",
+  "alma9",
+  "centos9",
+  "debian11",
+  "debian12",
+  "debian13",
+  "ubuntu2204",
+  "ubuntu2404",
+] as const;

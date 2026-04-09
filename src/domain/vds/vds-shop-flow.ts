@@ -292,11 +292,17 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
     const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
     const dataSource = ctx.appDataSource ?? (await getAppDataSource());
     const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
-
-    if (session.main.user.balance < price) {
-      await showTopupForMissingAmount(ctx, price - session.main.user.balance);
+    const usersRepo = dataSource.getRepository(User);
+    const user = await usersRepo.findOneBy({ id: session.main.user.id });
+    if (!user) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
+    if (user.balance < price) {
+      await showTopupForMissingAmount(ctx, price - user.balance);
+      return;
+    }
+    session.main.user.balance = user.balance;
 
     session.other.vdsRate.selectedRateId = id;
     session.other.vdsRate.selectedOs = -1;

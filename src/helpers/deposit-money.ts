@@ -162,7 +162,7 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
  */
 export async function showTopupForMissingAmount(ctx: AppContext, missingAmount: number): Promise<void> {
   const session = await ctx.session;
-  session.main.lastSumDepositsEntered = Math.ceil(missingAmount * 100) / 100;
+  session.main.lastSumDepositsEntered = Math.round(missingAmount * 100) / 100;
   await ctx.reply(ctx.t("money-not-enough-go-topup", { amount: session.main.lastSumDepositsEntered }), {
     reply_markup: topupMethodMenu,
     parse_mode: "HTML",

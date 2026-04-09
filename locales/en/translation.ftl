@@ -137,7 +137,7 @@ promoted-to-admin = You have been promoted to administrator
 promoted-to-user = You have been demoted to user
 
 admin-notification-about-promotion = User <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} has been promoted to {$role}
-admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nPayment method: {$paymentMethod}
+admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\n{$referralLine}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nPayment method: {$paymentMethod}
 
 -users-list = Users list
 -users-list-empty = Users list is empty
@@ -540,8 +540,8 @@ payment-await = Please wait...
 
 deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
-money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ short)
-money-not-enough-go-topup = You need {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ more. Choose payment method:
+money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ short)
+money-not-enough-go-topup = You need {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ more. Choose payment method:
 
 invalid-arguments = Invalid arguments
 
@@ -574,7 +574,7 @@ vds-menu-rate-select = test
 vds-bulletproof-mode-button-on = Bulletproof: ON
 vds-bulletproof-mode-button-off = Bulletproof: OFF
 
-vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $, {$cpu} cores, {$ram} gb ram, {$disk} gb disk
+vds-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $, {$cpu} cores, {$ram} gb ram, {$disk} gb disk
 dedicated-rate = «{$rateName}» - {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $/mo, {$cpu} cores / {$cpuThreads} threads, {$ram} GB RAM, {$storage} GB
 
 dedicated-rate-full-view = <strong>«{$rateName}»</strong>
@@ -589,7 +589,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>OS: </strong> {$os}
 
- <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
 
 # Dedicated server shop (multi-step)
 dedicated-shop-step1-text =
@@ -649,7 +649,7 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>OS: </strong> Windows/Linux
 
- <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $ / month
+ <strong>💰 Price: </strong> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
 
 vds-purchase-paused-alert = VPS orders are paused — back in a couple of days. Thanks for your patience!
 vds-purchase-paused-reply =

@@ -3,6 +3,7 @@ import User, { Role } from "@entities/User";
 import type { Api, Bot, RawApi } from "grammy";
 import { getAdminTelegramIds } from "../app/config.js";
 import type { ReferralRewardApplied } from "../domain/referral/ReferralService.js";
+import { getAppDataSource } from "../infrastructure/db/datasource.js";
 
 let fluentCache: { translate: (locale: string, key: string, vars?: Record<string, string | number>) => string } | null = null;
 
@@ -22,13 +23,27 @@ async function getFluentForNotify() {
   return fluentCache;
 }
 
+async function formatUserLabelForAdminNotify(
+  bot: Bot<any, Api<RawApi>>,
+  dbId: number,
+  telegramId: number
+): Promise<string> {
+  try {
+    const chat = await bot.api.getChat(telegramId);
+    const un = (chat as { username?: string }).username;
+    return un ? `@${un}` : `ID ${dbId} (TG: ${telegramId})`;
+  } catch {
+    return `ID ${dbId} (TG: ${telegramId})`;
+  }
+}
+
 /**
  * Notify admins (by ADMIN_TELEGRAM_IDS) about a balance top-up.
  * Used from both api/payment.ts (startCheckTopUpStatus) and PaymentStatusChecker.
  */
 export async function notifyAdminsAboutTopUp(
   bot: Bot<any, Api<RawApi>>,
-  user: { id: number; telegramId: number },
+  user: { id: number; telegramId: number; referrerId?: number | null },
   amount: number,
   paymentMethod?: string | null
 ): Promise<void> {
@@ -36,14 +51,25 @@ export async function notifyAdminsAboutTopUp(
     const adminIds = getAdminTelegramIds();
     if (adminIds.length === 0) return;
 
-    let buyerLabel: string;
-    try {
-      const chat = await bot.api.getChat(user.telegramId);
-      const un = (chat as { username?: string }).username;
-      buyerLabel = un ? `@${un}` : `ID ${user.id} (TG: ${user.telegramId})`;
-    } catch {
-      buyerLabel = `ID ${user.id} (TG: ${user.telegramId})`;
+    const buyerLabel = await formatUserLabelForAdminNotify(bot, user.id, user.telegramId);
+
+    let referralLine = "Реферал: нет (не по реф. ссылке)";
+    const refId = user.referrerId;
+    if (refId != null && refId > 0) {
+      try {
+        const ds = await getAppDataSource();
+        const referrer = await ds.getRepository(User).findOneBy({ id: refId });
+        if (referrer) {
+          const refLabel = await formatUserLabelForAdminNotify(bot, referrer.id, referrer.telegramId);
+          referralLine = `Реферал: ${refLabel} (пригласивший, user id ${referrer.id})`;
+        } else {
+          referralLine = `Реферал: в БД указан referrerId ${refId}, запись не найдена`;
+        }
+      } catch {
+        referralLine = `Реферал: referrerId ${refId} (не удалось загрузить)`;
+      }
     }
+
     const amountFormatted = new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
@@ -57,7 +83,7 @@ export async function notifyAdminsAboutTopUp(
           : methodRaw
             ? paymentMethod
             : "—";
-    const adminText = `💳 <b>Пополнение баланса</b>\nПокупатель: ${buyerLabel}\nСумма: ${amountFormatted} $\nСпособ оплаты: ${methodLabel}`;
+    const adminText = `💳 <b>Пополнение баланса</b>\nПокупатель: ${buyerLabel}\n${referralLine}\nСумма: ${amountFormatted} $\nСпособ оплаты: ${methodLabel}`;
     for (const adminTelegramId of adminIds) {
       await bot.api
         .sendMessage(adminTelegramId, adminText, { parse_mode: "HTML" })

@@ -22,6 +22,10 @@ import {
 } from "../domain/domains/domain-purchase-flow.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
+import {
+  DEDICATED_OS_KEYS,
+  dedicatedLocationKeysForServer,
+} from "../domain/dedicated/dedicated-shop-config.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
 
@@ -34,29 +38,6 @@ const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
  */
 const buildServiceHeader = (ctx: AppContext, labelKey: string): string =>
   `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t(labelKey)}`;
-
-/** Location key suffixes for dedicated order (FTL: dedicated-location-{key}). Table: Germany, NL/USA/Turkey. */
-const DEDICATED_LOCATION_KEYS = [
-  "de-germany",
-  "nl-amsterdam",
-  "usa",
-  "tr-istanbul",
-] as const;
-
-/** OS key suffixes for dedicated order (FTL: dedicated-os-{key}). Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24. */
-const DEDICATED_OS_KEYS = [
-  "winserver2019",
-  "winserver2025",
-  "windows11",
-  "alma8",
-  "alma9",
-  "centos9",
-  "debian11",
-  "debian12",
-  "debian13",
-  "ubuntu2204",
-  "ubuntu2404",
-] as const;
 
 /** Apply Prime −10% discount if user has active Prime. */
 async function getPriceWithPrimeDiscount(
@@ -530,12 +511,19 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
             ? rate.price.bulletproof
             : rate.price.default;
           const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
-
-          if (session.main.user.balance < price) {
+          const usersRepo = dataSource.getRepository(User);
+          const user = await usersRepo.findOneBy({ id: session.main.user.id });
+          if (!user) {
             await ctx.menu.close();
-            await showTopupForMissingAmount(ctx, price - session.main.user.balance);
+            await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
             return;
           }
+          if (user.balance < price) {
+            await ctx.menu.close();
+            await showTopupForMissingAmount(ctx, price - user.balance);
+            return;
+          }
+          session.main.user.balance = user.balance;
         } else {
           ctx.menu.close();
           return;
@@ -642,13 +630,7 @@ export const dedicatedLocationMenu = new Menu<AppContext>("dedicated-location-me
     const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
     const pricesList = await prices();
     const server = pricesList.dedicated_servers?.[selectedId] as { locations?: string[] } | undefined;
-    const locationKeys =
-      server?.locations?.length &&
-      DEDICATED_LOCATION_KEYS.filter((k) => server.locations!.includes(k)).length > 0
-        ? (server.locations as readonly string[]).filter((k) =>
-            (DEDICATED_LOCATION_KEYS as readonly string[]).includes(k)
-          )
-        : [...DEDICATED_LOCATION_KEYS];
+    const locationKeys = dedicatedLocationKeysForServer(server);
 
     for (const key of locationKeys) {
       const labelKey = `dedicated-location-${key}` as const;

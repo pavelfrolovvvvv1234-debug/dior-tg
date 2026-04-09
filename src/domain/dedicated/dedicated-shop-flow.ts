@@ -9,11 +9,14 @@ import type { SessionData } from "../../shared/types/session.js";
 import prices from "../../helpers/prices.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import User from "../../entities/User.js";
+import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
 import {
   assertDedicatedCatalogLength,
   DEDICATED_COMPACT_LABEL,
   DEDICATED_INDEX_TIER,
+  DEDICATED_OS_KEYS,
   DEDICATED_SHOP_PAGE_SIZE,
+  dedicatedLocationKeysForServer,
   type DedicatedShopTier,
 } from "./dedicated-shop-config.js";
 
@@ -256,16 +259,26 @@ export async function showDedicatedShopFullSpec(ctx: AppContext, serverId: numbe
   });
 }
 
-/** Open location menu (existing purchase path) */
+/** Inline location keyboard (no grammY Menu — avoids «Cannot send menu dedicated-location-menu» on shop path). */
 export async function showDedicatedLocationPicker(ctx: AppContext, serverId: number): Promise<void> {
-  const { dedicatedLocationMenu } = await import("../../helpers/services-menu.js");
   const session = await ctx.session;
   ensureDedicatedSession(session);
   session.other.dedicatedType!.selectedDedicatedId = serverId;
 
+  const pricesList = await prices();
+  const server = pricesList.dedicated_servers?.[serverId] as { locations?: string[] } | undefined;
+  const keys = dedicatedLocationKeysForServer(server);
+  const kb = new InlineKeyboard();
+  for (const key of keys) {
+    const labelKey = `dedicated-location-${key}` as const;
+    kb.text(ctx.t(labelKey), `dsh:loc:${key}`).row();
+  }
+  kb.text(ctx.t("button-back"), `dsh:card:${serverId}`).row();
+
   await ctx.editMessageText(ctx.t("dedicated-location-select-title"), {
     parse_mode: "HTML",
-    reply_markup: dedicatedLocationMenu,
+    reply_markup: kb,
+    link_preview_options: { is_disabled: true },
   });
 }
 
@@ -295,16 +308,75 @@ export function registerDedicatedShopHandlers(bot: Bot<AppContext>): void {
     await showDedicatedShopStep4Card(ctx, id);
   });
 
+  bot.callbackQuery(/^dsh:loc:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const key = ctx.match![1]!;
+    const session = await ctx.session;
+    ensureDedicatedSession(session);
+    const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
+    if (selectedId < 0) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    try {
+      const pricesList = await prices();
+      const server = pricesList.dedicated_servers?.[selectedId];
+      if (!server) {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+        return;
+      }
+      const allowed = dedicatedLocationKeysForServer(server);
+      if (!allowed.includes(key)) {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+        return;
+      }
+      session.other.dedicatedOrder = session.other.dedicatedOrder ?? { step: "idle", requirements: undefined };
+      session.other.dedicatedOrder.selectedLocationKey = key;
+      const osKeyboard = new InlineKeyboard();
+      for (const osKey of DEDICATED_OS_KEYS) {
+        osKeyboard.text(ctx.t(`dedicated-os-${osKey}`), `dedicated-os:${osKey}`).row();
+      }
+      osKeyboard.text(ctx.t("button-return-to-main"), "dedicated-os:back");
+      await ctx.editMessageText(ctx.t("dedicated-os-select-title"), {
+        parse_mode: "HTML",
+        reply_markup: osKeyboard,
+        link_preview_options: { is_disabled: true },
+      });
+    } catch (e: any) {
+      await ctx
+        .reply(ctx.t("error-unknown", { error: e?.message || "dsh:loc" }), { parse_mode: "HTML" })
+        .catch(() => {});
+    }
+  });
+
   bot.callbackQuery(/^dsh:ord:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const id = Number.parseInt(ctx.match![1]!, 10);
     try {
+      const session = await ctx.session;
+      ensureDedicatedSession(session);
       const pricesList = await prices();
       const server = pricesList.dedicated_servers?.[id];
       if (!server) {
         await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
         return;
       }
+      const isBp = session.other.dedicatedType!.bulletproof;
+      const basePrice: number =
+        (isBp && server.price?.bulletproof != null ? server.price.bulletproof : server.price?.default) ?? 0;
+      const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+      const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+      const usersRepo = dataSource.getRepository(User);
+      const user = await usersRepo.findOneBy({ id: session.main.user.id });
+      if (!user) {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+        return;
+      }
+      if (user.balance < price) {
+        await showTopupForMissingAmount(ctx, price - user.balance);
+        return;
+      }
+      session.main.user.balance = user.balance;
       await showDedicatedLocationPicker(ctx, id);
     } catch (e: any) {
       await ctx
