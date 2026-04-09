@@ -183,7 +183,7 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
         .url(ctx.t("button-dev-po-discuss"), supportUrl)
         .row()
         .text(ctx.t("button-back"), "dev-po-back-to-main");
-      const devPoText = ctx.t("service-dev-po");
+      const devPoText = ctx.t("service-dev-po").replace(/<br\s*\/?>/gi, "\n");
       try {
         await ctx.editMessageText(devPoText, {
           parse_mode: "HTML",
