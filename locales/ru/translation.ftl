@@ -75,8 +75,6 @@ button-dedicated-server = 🖥 Выделенные серверы
 button-service-buy-domains = 🌐 Домены
 button-service-buy-cdn = 🛡 CDN
 button-service-buy-dedicated = 🖥 Дедики
-button-purchase-lang-en = 🇬🇧 EN
-button-purchase-lang-ru = 🇷🇺 RU
 
 button-dev-po = ⚙️ Разработка ПО
 button-dev-po-discuss = 💬 Обсудить проект

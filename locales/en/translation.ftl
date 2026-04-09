@@ -73,8 +73,6 @@ button-dedicated-server = 🖥 Dedicated Servers
 button-service-buy-domains = 🌐 Domains
 button-service-buy-cdn = 🛡 CDN
 button-service-buy-dedicated = 🖥 Dedicated
-button-purchase-lang-en = 🇬🇧 EN
-button-purchase-lang-ru = 🇷🇺 RU
 
 button-dev-po = ⚙️ Development
 button-dev-po-discuss = 💬 Discuss project

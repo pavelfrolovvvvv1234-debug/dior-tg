@@ -21,8 +21,6 @@ import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
-import { UserRepository } from "../infrastructure/db/repositories/UserRepository.js";
-import { invalidateUser } from "../shared/user-cache.js";
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
@@ -153,33 +151,6 @@ async function openDedicatedCategoryScreen(ctx: AppContext): Promise<void> {
   });
 }
 
-/** Смена языка на экране «Покупка услуг» и перерисовка клавиатуры (только 3 категории в текущей локали). */
-async function switchServicesPurchaseLocale(
-  ctx: AppContext,
-  menu: Menu<AppContext>,
-  nextLocale: "ru" | "en"
-): Promise<void> {
-  await ctx.answerCallbackQuery().catch(() => {});
-  const session = await ctx.session;
-  session.main.locale = nextLocale;
-  (ctx as any)._requestLocale = nextLocale;
-  const userRepo = new UserRepository(ctx.appDataSource);
-  try {
-    await userRepo.updateLanguage(session.main.user.id, nextLocale);
-    if (ctx.chatId) invalidateUser(Number(ctx.chatId));
-  } catch {
-    // ignore
-  }
-  const header =
-    typeof (ctx as any).fluent?.translateForLocale === "function"
-      ? (ctx as any).fluent.translateForLocale(nextLocale, "menu-service-for-buy-choose")
-      : ctx.t("menu-service-for-buy-choose");
-  await ctx.editMessageText(header, {
-    parse_mode: "HTML",
-    reply_markup: menu,
-  });
-}
-
 /** Открытие CDN из меню покупки услуг (fallback callback в index — строка CDN в меню). */
 export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<void> {
   await ctx.answerCallbackQuery().catch(() => {});
@@ -211,7 +182,7 @@ export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<
 }
 
 function buildServicesMenu(): Menu<AppContext> {
-  const menu = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
+  let m = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
     .submenu((ctx) => ctx.t("button-service-buy-domains"), "domains-menu", openDomainsPurchaseScreen)
     .row()
     .text((ctx) => ctx.t("button-service-buy-cdn"), openCdnPurchaseFromServicesMenu)
@@ -221,23 +192,7 @@ function buildServicesMenu(): Menu<AppContext> {
       "dedicated-type-menu",
       openDedicatedCategoryScreen
     )
-    .row()
-    .dynamic(async (ctx, range) => {
-      const session = await ctx.session;
-      const isEn = session.main.locale === "en";
-      if (isEn) {
-        range.text((c) => c.t("button-purchase-lang-ru"), async (c) => {
-          await switchServicesPurchaseLocale(c, menu, "ru");
-        });
-      } else {
-        range.text((c) => c.t("button-purchase-lang-en"), async (c) => {
-          await switchServicesPurchaseLocale(c, menu, "en");
-        });
-      }
-    })
     .row();
-
-  let m = menu;
 
   if (showVpsVdsInServiceMenus()) {
     m = m
