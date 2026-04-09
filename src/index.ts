@@ -16,7 +16,7 @@ import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource, MoreThan, MoreThanOrEqual } from "typeorm";
-import { getAppDataSource } from "./database";
+import { getAppDataSource } from "./infrastructure/db/datasource.js";
 import { getAdminTelegramIds, getPrimeChannelForCheck } from "./app/config";
 import User, { Role, UserStatus } from "./entities/User";
 import { createLink } from "./entities/TempLink";

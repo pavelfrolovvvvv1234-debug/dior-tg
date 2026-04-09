@@ -841,20 +841,24 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       : server.price.default) ?? 0;
   const dataSource = ctx.appDataSource;
   const usersRepo = dataSource.getRepository(User);
+  let user: User | null = null;
+  let price = 0;
+  let deducted = false;
   try {
-    const user = await usersRepo.findOneBy({ id: session.main.user.id });
+    user = await usersRepo.findOneBy({ id: session.main.user.id });
     if (!user) {
       await ctx.reply(ctx.t("bad-error"));
       return;
     }
     const userId: number = user.id ?? 0;
-    const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+    price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
     if (user.balance < price) {
       await showTopupForMissingAmount(ctx, price - user.balance);
       return;
     }
     user.balance -= price;
     await usersRepo.save(user);
+    deducted = true;
     session.main.user.balance = user.balance;
     session.main.user.referralBalance = user.referralBalance ?? 0;
     session.other.dedicatedOrder = {
@@ -951,6 +955,15 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
         .catch(() => {});
     }
   } catch (error: any) {
+    if (deducted && user) {
+      try {
+        user.balance += price;
+        await usersRepo.save(user);
+        session.main.user.balance = user.balance;
+      } catch {
+        // ignore rollback failure, original error is still returned below
+      }
+    }
     const errorMessage = error?.message || "Unknown error";
     await ctx.reply(ctx.t("error-unknown", { error: errorMessage }), { parse_mode: "HTML" }).catch(() => {});
   }
