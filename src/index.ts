@@ -93,6 +93,7 @@ import TopUp, { TopUpStatus } from "./entities/TopUp";
 import Ticket, { TicketType } from "./entities/Ticket";
 import Promo from "./entities/Promo";
 import { handlePromocodeInput, promocodeQuestion } from "./helpers/promocode-input";
+import { registerDomainPurchaseFlow } from "./domain/domains/domain-purchase-flow.js";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 import ms from "./lib/multims";
 import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
@@ -356,10 +357,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
           select: ["referralBalance"],
         });
         const refBalance = userForRef?.referralBalance ?? session.main.user.referralBalance ?? 0;
-        const profitFormatted =
-          refBalance === Math.floor(refBalance)
-            ? String(refBalance)
-            : refBalance.toFixed(2);
+        const profitFormatted = refBalance.toFixed(2);
 
         const text = ctx
           .t("referrals-screen", {
@@ -965,6 +963,7 @@ async function index() {
   bot.use(servicesMenu);
   bot.use(profileMenu);
   bot.use(manageSerivcesMenu);
+  registerDomainPurchaseFlow(bot);
   bot.use(domainsMenu);
   bot.use(vdsMenu);
   bot.use(dedicatedTypeMenu);
@@ -1052,8 +1051,7 @@ async function index() {
       select: ["referralBalance"],
     });
     const refBalance = userForRef?.referralBalance ?? session.main.user.referralBalance ?? 0;
-    const profitFormatted =
-      refBalance === Math.floor(refBalance) ? String(refBalance) : refBalance.toFixed(2);
+    const profitFormatted = refBalance.toFixed(2);
     const text = ctx
       .t("referrals-screen", {
         link: referralLink,

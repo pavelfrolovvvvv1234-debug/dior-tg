@@ -149,7 +149,6 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
       )}&text=${encodeURIComponent(ctx.t("referrals-share-text"))}`;
     }
   )
-  .row()
   .text(
     (ctx) => ctx.t("button-withdraw"),
     async (ctx) => {

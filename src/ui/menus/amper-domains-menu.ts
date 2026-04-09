@@ -32,6 +32,8 @@ export function buildPrimeBlockText(
     "",
     ctx.t("prime-subscription-body"),
     "",
+    ctx.t("prime-subscription-benefits-block"),
+    "",
   ];
 
   const now = new Date();
@@ -45,6 +47,8 @@ export function buildPrimeBlockText(
     });
     lines.push(ctx.t("prime-subscription-status-active"));
     lines.push(ctx.t("prime-subscription-status-until", { date: dateStr }));
+  } else {
+    lines.push(ctx.t("prime-subscription-trial-line"));
   }
 
   return lines.join("\n");

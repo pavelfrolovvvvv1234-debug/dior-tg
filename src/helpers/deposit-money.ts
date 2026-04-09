@@ -104,21 +104,7 @@ async function handleTopupByMethod(
 }
 
 export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
-  .text("CrystalPay", async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
-    session.main.topupMethod = "crystalpay";
-    if (session.main.lastSumDepositsEntered > 0) {
-      await handleTopupByMethod(ctx, "crystalpay", session.main.lastSumDepositsEntered);
-      return;
-    }
-    await ctx.editMessageText(renderTopupAmountsText(ctx), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
-  })
-  .row()
-  .text("CryptoBot", async (ctx) => {
+  .text((ctx) => ctx.t("topup-method-cryptobot"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "cryptobot";
@@ -132,7 +118,21 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     });
   })
   .row()
-  .text((ctx) => ctx.t("topup-method-manual"), async (ctx) => {
+  .text((ctx) => ctx.t("topup-method-crystalpay"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.main.topupMethod = "crystalpay";
+    if (session.main.lastSumDepositsEntered > 0) {
+      await handleTopupByMethod(ctx, "crystalpay", session.main.lastSumDepositsEntered);
+      return;
+    }
+    await ctx.editMessageText(renderTopupAmountsText(ctx), {
+      reply_markup: depositMenu,
+      parse_mode: "HTML",
+    });
+  })
+  .row()
+  .text((ctx) => ctx.t("topup-method-bank"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "manual";
@@ -151,7 +151,7 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     });
   })
   .row()
-  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+  .text((ctx) => ctx.t("topup-method-back"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     await showProfileScreen(ctx);
   });

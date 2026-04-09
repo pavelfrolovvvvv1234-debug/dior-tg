@@ -234,11 +234,8 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       return;
     }
     if (data === "prime-back-to-domains-zones") {
-      const { domainsMenu } = await import("../../helpers/services-menu.js");
-      await ctx.editMessageText(ctx.t("abuse-domains-service"), {
-        reply_markup: domainsMenu,
-        parse_mode: "HTML",
-      });
+      const { showDomainShopHome } = await import("../../domain/domains/domain-purchase-flow.js");
+      await showDomainShopHome(ctx);
       return;
     }
     if (data === "prime-back-to-dedicated-type") {

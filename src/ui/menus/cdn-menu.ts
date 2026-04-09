@@ -119,7 +119,7 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
   const ru: Record<string, string> = {
     "button-cdn-add-proxy": "➕ Добавить прокси",
     "button-cdn-my-proxies": "Мои прокси",
-    "button-back": "Назад",
+    "button-back": "⬅️ Назад",
     "cdn-not-configured": "Услуга CDN пока не подключена.",
     "cdn-error": "Ошибка CDN: " + (vars?.error ?? ""),
     "cdn-my-proxies-empty": "У вас пока нет прокси.",

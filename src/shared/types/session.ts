@@ -72,6 +72,12 @@ export interface OtherSessionData {
     lastPickDomain: string;
     page: number;
     pendingZone?: string;
+    /** Domain purchase shop: category list or "all" for paginated catalog. */
+    shopCategory?: "popular" | "business" | "tech" | "geo" | "all";
+    /** Zero-based page for "All TLDs" category only. */
+    shopAllPage?: number;
+    /** Selected zone on confirm screen; used when returning from "My domains". */
+    shopConfirmZone?: string;
   };
   dedicatedOrder: {
     step: "idle" | "requirements" | "comment";

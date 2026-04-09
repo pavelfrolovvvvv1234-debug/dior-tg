@@ -17,6 +17,10 @@ import ms from "@/lib/multims";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
 import { cdnMenu } from "../ui/menus/cdn-menu.js";
 import { createInitialOtherSession } from "../shared/session-initial.js";
+import {
+  buildDomainsPurchaseIntroHtml,
+  showDomainCategoryTlds,
+} from "../domain/domains/domain-purchase-flow.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
@@ -139,9 +143,79 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: f
     });
   });
 
+export const domainsMenu = new Menu<AppContext>("domains-menu", { autoAnswer: false, onMenuOutdated: false })
+  .text((ctx) => ctx.t("domain-shop-cat-popular"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    session.other.domains.shopAllPage = 0;
+    await showDomainCategoryTlds(ctx, "popular");
+  })
+  .row()
+  .text((ctx) => ctx.t("domain-shop-cat-business"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    await showDomainCategoryTlds(ctx, "business");
+  })
+  .row()
+  .text((ctx) => ctx.t("domain-shop-cat-tech"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    await showDomainCategoryTlds(ctx, "tech");
+  })
+  .row()
+  .text((ctx) => ctx.t("domain-shop-cat-geo"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    await showDomainCategoryTlds(ctx, "geo");
+  })
+  .row()
+  .text((ctx) => ctx.t("domain-shop-cat-all"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    session.other.domains.shopAllPage = 0;
+    await showDomainCategoryTlds(ctx, "all");
+  })
+  .row()
+  .text(
+    (ctx) => ctx.t("prime-button-menu-row"),
+    async (ctx) => {
+      try {
+        const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
+        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx, {
+          backCallback: "prime-back-to-domains-zones",
+        });
+        await ctx.editMessageText(fullText, {
+          reply_markup: keyboard,
+          parse_mode: "HTML",
+        });
+      } catch (error: any) {
+        const { Logger } = await import("../app/logger.js");
+        Logger.error("Failed to open Prime screen from domains menu:", error);
+        await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
+      }
+    }
+  )
+  .row()
+  .back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+        parse_mode: "HTML",
+      });
+    }
+  );
+
 async function openDomainsPurchaseScreen(ctx: AppContext): Promise<void> {
-  await ctx.editMessageText(ctx.t("abuse-domains-service"), {
+  const text = await buildDomainsPurchaseIntroHtml(ctx);
+  await ctx.editMessageText(text, {
     parse_mode: "HTML",
+    reply_markup: domainsMenu,
+    link_preview_options: { is_disabled: true },
   });
 }
 
@@ -1026,109 +1100,6 @@ export const dedicatedSelectedServerMenu = new Menu<AppContext>("dedicated-selec
       await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
         parse_mode: "HTML",
         reply_markup: dedicatedServersMenu,
-      });
-    }
-  );
-
-export const domainsMenu = new Menu<AppContext>("domains-menu", { autoAnswer: false, onMenuOutdated: false })
-  .text(
-    (ctx) => ctx.t("button-register-domain"),
-    async (ctx) => {
-      try {
-        await ctx.conversation.enter("domainRegisterConversation");
-      } catch (error: any) {
-        console.error("Failed to start domain register conversation:", error);
-        await ctx.reply(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
-      }
-    }
-  )
-  .text(
-    (ctx) => ctx.t("button-my-domains"),
-    async (ctx) => {
-      // Navigate to amper domains menu
-      ctx.menu.nav("amper-domains-menu");
-    }
-  )
-  .row()
-  .dynamic(async (ctx, range) => {
-    const dataSource = await getAppDataSource();
-    const userId = (await ctx.session)?.main?.user?.id;
-    const domainZones = (await prices()).domains;
-    let count = 0;
-
-    for (const zone in domainZones) {
-      const basePrice = domainZones[zone as keyof typeof domainZones].price;
-      const price =
-        userId != null
-          ? await getPriceWithPrimeDiscount(dataSource, userId, basePrice)
-          : basePrice;
-
-      range.text(
-        `${zone} - ${price} $`,
-        async (ctx) => {
-          const session = await ctx.session;
-          const ds = await getAppDataSource();
-          const priceForCheck = await getPriceWithPrimeDiscount(
-            ds,
-            session.main.user.id,
-            basePrice
-          );
-          if (session.main.user.balance < priceForCheck) {
-            await showTopupForMissingAmount(ctx, priceForCheck - session.main.user.balance);
-            return;
-          }
-          session.other.domains.pendingZone = zone;
-          await ctx.reply(
-            ctx.t("domain-question", {
-              zoneName: zone,
-            }),
-            {
-              reply_markup: new InlineKeyboard().text(
-                ctx.t("button-cancel"),
-                "domain-register-cancel"
-              ),
-              parse_mode: "HTML",
-            }
-          );
-        }
-      );
-
-      count++;
-      if (count % 2 === 0) {
-        range.row();
-      }
-    }
-
-    if (count % 2 !== 0) {
-      range.row();
-    }
-  })
-  .row()
-  .text(
-    (ctx) => ctx.t("prime-button-menu-row"),
-    async (ctx) => {
-      try {
-        const { getDomainsListWithPrimeScreen } = await import("../ui/menus/amper-domains-menu.js");
-        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx, {
-          backCallback: "prime-back-to-domains-zones",
-        });
-        await ctx.editMessageText(fullText, {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
-      } catch (error: any) {
-        const { Logger } = await import("../app/logger.js");
-        Logger.error("Failed to open Prime screen from domains menu:", error);
-        await ctx.editMessageText(ctx.t("error-unknown", { error: error.message || "Unknown error" }));
-      }
-    }
-  )
-  .row()
-  .back(
-    (ctx) => ctx.t("button-back"),
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
-        parse_mode: "HTML",
       });
     }
   );

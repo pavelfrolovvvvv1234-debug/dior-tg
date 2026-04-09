@@ -89,7 +89,7 @@ button-bulletproof = ⚜️ Bulletproof
 button-agree = ✅ Agree
 update-button = 🔄 Update
 
-button-back = 🔙 Back
+button-back = ⬅️ Back
 
 # Profile root menu only
 button-profile-back = ⬅️ Back
@@ -224,8 +224,8 @@ moderator-menu-header = <strong>Moderator Panel</strong>
 
 # Referrals
 button-referrals = 👥 Referrals
-button-share-link = 📤 Share link
-referrals-screen = 🚀 DiorHost Partner Program\n\nMonetize your traffic on VPS, dedicated servers and abuse-resistant domains.\n\n💰 Terms:\n\n• Up to 30% of each referred client's top-up\n• Lifetime — percentage from all future payments\n• Credited on first top-up from $10+\n• No limit on number of referrals\n• Automatic tracking in the system\n\n🔗 Your referral link:\n{$link}\n\nReferrals: {$count}\nEarned: {$profit} $\n\nDrive traffic — earn passive income on infrastructure.
+button-share-link = 🔗 Share
+referrals-screen = 🚀 Affiliate Program\n\nMonetize your traffic with DiorHost infrastructure.\n\n💸 Up to 30% commission\n♾ Lifetime earnings\n⚡ Withdrawals from $10\n📊 Built-in analytics\n\n🔗 Your link:\n{$link}\n\n👥 Referrals: {$count}\n💰 Earnings: $ { $profit }
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
 referral-new-joined = 👋 You have a new referral.
     Your total referrals: <b>{$count}</b>
@@ -245,6 +245,40 @@ message-about-block = Unfortunately you are blocked. Contact support for clarifi
 button-buy = 💸 Make order
 
 domain-question = Enter domain (with or without zone): example or example.com
+
+domains-purchase-screen = 🌐 <b>Domains</b>
+
+Register domains with stable infrastructure.
+Support for popular TLDs.
+
+💳 Price: from { NUMBER($minPrice, minimumFractionDigits: 0, maximumFractionDigits: 0) } $/year
+
+domain-shop-cat-popular = 🌍 Popular
+domain-shop-cat-business = 💼 Business
+domain-shop-cat-tech = 💻 Tech
+domain-shop-cat-geo = 🌐 Geo
+domain-shop-cat-all = 🔎 All TLDs
+
+domain-shop-list-title-popular = 🌍 <b>Popular</b>
+domain-shop-list-title-business = 💼 <b>Business</b>
+domain-shop-list-title-tech = 💻 <b>Tech</b>
+domain-shop-list-title-geo = 🌐 <b>Geo</b>
+domain-shop-list-title-all = 🔎 <b>All TLDs</b>
+
+domain-shop-list-page = Page { $current } of { $total }
+domain-shop-page-prev = ⬅️
+domain-shop-page-next = ➡️
+
+domain-shop-confirm = 🌐 <b>Domain: { $zone }</b>
+
+Price: { NUMBER($price, minimumFractionDigits: 0, maximumFractionDigits: 2) } $/year
+
+Select action:
+
+domain-shop-register = 🛒 Register
+domain-shop-my-domains = 📋 My Domains
+domain-shop-my-title = 📋 <b>My domains</b>
+domain-shop-my-empty = No domains yet.
 domain-invalid = The entered domain is incorrect <i>{$domain}</i> try again
 domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
 domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
@@ -391,10 +425,16 @@ domain-cannot-manage-while-in-progress = Domain is pending registration wait unt
 deposit-money-enter-sum = Enter payment amount
 deposit-money-incorrect-sum = The entered amount is incorrect
 
-topup-select-method = Select payment method
+topup-select-method = 💳 Add Balance
+
+ Select a payment method:
+
 topup-select-amount = Select top-up amount
-topup-method-manual = Manual payment
-topup-manual-support = Contact support to complete manual top-up.
+topup-method-cryptobot = 💳 CryptoBot
+topup-method-crystalpay = 💎 CrystalPay
+topup-method-bank = 🏦 Bank Transfer
+topup-method-back = ⬅️ Back
+topup-manual-support = For bank transfer top-up, contact support.
 topup-manual-support-message = I want to top up my balance by {$amount} $. Please provide payment details.
 topup-manual-support-message-no-amount = I want to top up my balance. Please provide payment details.
 topup-manual-created = ✅ Manual top-up request created.
@@ -887,14 +927,14 @@ dedicated-os-debian13 = Debian 13
 dedicated-os-ubuntu2204 = Ubuntu 22.04
 dedicated-os-ubuntu2404 = Ubuntu 24.04
 dedicated-os-os-any = Any (your choice)
-button-return-to-main = Return to main page
+button-return-to-main = ⬅️ Return to main page
 dedicated-not-active = Dedicated server is not active
 dedicated-not-suspended = Dedicated server is not powered off
 dedicated-price-not-set = Dedicated price is not set. Please contact support.
 ticket-credentials-invalid = Invalid credentials. Please provide IP, login, and password.
 
 # Withdraw Request
-button-withdraw = 💸 Withdraw funds
+button-withdraw = 💰 Withdraw
 button-referral-stats = 📊 Statistics
 referral-statistics-header = 📊 Referral statistics
 referral-stat-count = Referrals count: { $count }
@@ -1135,7 +1175,7 @@ ref-percent-label-domains = Domains
 ref-percent-label-dedicated = Dedicated
 ref-percent-label-vds = VDS
 ref-percent-label-cdn = CDN
-admin-referral-percent-back-to-list = Back to list
+admin-referral-percent-back-to-list = ⬅️ Back to list
 button-block-short = ⛔ Block
 button-control-user-back = ⬅️ Back
 button-status-short = 🏷 Role
@@ -1190,7 +1230,7 @@ admin-domain-set-amper-id-success = Amper ID for domain <b>{$domain}</b> saved. 
 admin-domain-set-amper-id-cancelled = Cancelled.
 button-admin-domain-change-ns = Change NS
 button-admin-set-amper-id = Set Amper ID
-button-admin-services-back = Back to summary
+button-admin-services-back = ⬅️ Back to summary
 button-admin-domains-list = 🌐 Domains ({$count})
 button-admin-register-domain = ➕ Register domain
 button-admin-delete-domain = 🗑 Delete
@@ -1218,34 +1258,16 @@ admin-user-referrals-summary = <strong>Referral</strong>
  Active referrals (30 days): {$activeReferrals30d}
 
 # Prime Subscription (Dior Host)
-prime-subscription-title = 🔐 Prime Subscription
-prime-subscription-body = Extended terms for active clients and infrastructure owners.
-
- What Prime gives you:
-
- 🏷 10% discount on all domain zones
- Access to a special rate with no limit on the number of registrations.
-
- ⚡ Priority order processing
- Your domains and services are processed first.
-
- 📈 Better commercial terms
- Flexible approach for volume and long-term orders.
-
- 💬 Priority support
- Fast response on infrastructure and billing questions.
-
- 🎁 Free 7-day trial
-prime-subscription-intro = Unlocks the following benefits for you:
-prime-subscription-benefit-ssl = Automatic SSL installation 🔰 (CloudFlare): A separate account is created for each domain, linked to your specified IP address!
-prime-subscription-benefit-discount = 🏷 You get a 10% discount on all available domains!
-prime-subscription-benefit-notify = Automatic domain status notification: You will be automatically notified via the bot if a 🟥 "Red Plate" appears on your domain. No need to worry about your domain status.
+prime-subscription-title = 🔐 Prime
+prime-subscription-body = Extended terms for active users.
+prime-subscription-benefits-block = 💸 Up to 10% off domains\n\n⚡ Priority order processing\n\n📊 Better terms for volume\n\n🛠 Priority support
+prime-subscription-trial-line = 🎁 Free access — 7 days
 prime-subscription-status-active = ✅ Subscription active
 prime-subscription-status-inactive = ❌ Subscription not active
 prime-subscription-status-until = Active until: {$date}
 prime-trial-activate = 🎁 Activate for $0 for 7 days (Then {$monthlyPrice}$/month)
 prime-trial-via-channel = Subscribe to our channel to get a free Prime subscription for 7 days
-prime-button-activate-trial = 🎁 Activate for $0 for 7 days
+prime-button-activate-trial = 🎁 Activate Prime
 prime-button-menu-row = 🔐 Prime Subscription −10% on domains
 prime-button-go-subscribe = ↗️ Go and subscribe
 prime-button-i-subscribed = ✅ I have subscribed
@@ -1370,7 +1392,7 @@ bundle-feature-extra-ip = Extra IP
 bundle-upsell-domain = 🔥 Add VPS — save up to 20%!
 bundle-upsell-vps = 🔥 Add domain — save up to 20%!
 bundle-button-upgrade = Upgrade to Launch Pack
-bundle-back-to-types = Back to types
+bundle-back-to-types = ⬅️ Back to types
 bundle-enter-domain-name = Enter domain (with or without zone): example or example.com
 bundle-confirm-purchase-text = Domain: <b>{ $domain }</b>
 Bundle total: <b>${ $price }</b>

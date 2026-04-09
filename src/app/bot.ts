@@ -472,6 +472,8 @@ export async function createBot(): Promise<{
   // Prime "Back" handler MUST run before any menu so it catches prime-back-* callbacks
   const { registerPrimeBackHandler } = await import("../ui/integration/broadcast-tickets-integration.js");
   registerPrimeBackHandler(bot);
+  const { registerDomainPurchaseFlow } = await import("../domain/domains/domain-purchase-flow.js");
+  registerDomainPurchaseFlow(bot);
 
   // Register all menus
   bot.use(mainMenu);
