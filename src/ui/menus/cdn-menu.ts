@@ -581,7 +581,8 @@ function buildProxyActionKeyboard(ctx: AppContext, proxy: CdnProxyItem): InlineK
     .text(ctx.t("button-cdn-retry-ssl"), `cdn_retryssl:${proxy.id}`)
     .text(ctx.t("button-cdn-delete"), `cdn_delask:${proxy.id}`)
     .row()
-    .text(ctx.t("button-cdn-refresh"), `cdn_open:${proxy.id}`);
+    .text(ctx.t("button-cdn-refresh"), `cdn_open:${proxy.id}`)
+    .text(ctx.t("button-back"), "cdn_list");
 }
 
 function buildDeleteConfirmKeyboard(ctx: AppContext, proxyId: string): InlineKeyboard {
@@ -664,11 +665,77 @@ async function showProxyCard(ctx: AppContext, proxy: CdnProxyItem, notice?: stri
   }
 }
 
+function buildProxyListKeyboard(ctx: AppContext, proxies: CdnProxyItem[]): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  for (const p of proxies) {
+    const status = p.lifecycle_status || p.status;
+    const buttonLabel = `🌐 ${p.domain_name} (${status})`;
+    const safeLabel = buttonLabel.length > 60 ? `${buttonLabel.slice(0, 57)}...` : buttonLabel;
+    keyboard.text(safeLabel, `cdn_open:${p.id}`).row();
+  }
+  keyboard.text(ctx.t("button-back"), "cdn_back_to_manage");
+  return keyboard;
+}
+
+export async function openCdnManageList(ctx: AppContext, notice?: string): Promise<void> {
+  const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
+  if (!telegramId) {
+    await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
+    return;
+  }
+
+  const proxies = await cdnListProxies(telegramId);
+  const active = proxies.filter((p) => (p.lifecycle_status || p.status) !== "deleted");
+  if (active.length === 0) {
+    const text = notice ? `${ctx.t("cdn-my-proxies-empty")}\n\n${notice}` : ctx.t("cdn-my-proxies-empty");
+    try {
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "cdn_back_to_manage"),
+      });
+    } catch {
+      await ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "cdn_back_to_manage"),
+      });
+    }
+    return;
+  }
+
+  const text = notice ? `${ctx.t("cdn-my-proxies-list")}\n\n${notice}` : ctx.t("cdn-my-proxies-list");
+  const keyboard = buildProxyListKeyboard(ctx, active);
+  try {
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  } catch {
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  }
+}
+
 export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
   const data = ctx.callbackQuery?.data ?? "";
   if (!data.startsWith("cdn_")) return;
   await ctx.answerCallbackQuery().catch(() => {});
   await ensureSessionUser(ctx);
+
+  if (data === "cdn_back_to_manage") {
+    const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");
+    await ctx.editMessageText(ctx.t("manage-services-header"), {
+      parse_mode: "HTML",
+      reply_markup: manageSerivcesMenu,
+    });
+    return;
+  }
+
+  if (data === "cdn_list") {
+    await openCdnManageList(ctx);
+    return;
+  }
 
   if (data === "cdn_target_help") {
     await ctx.reply(ctx.t("cdn-target-help"), { parse_mode: "HTML" });
@@ -717,17 +784,21 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
     ensureCdnSession(session);
     const fromManage = session?.other?.cdn?.fromManage === true;
     session.other.cdn = { step: "idle", fromManage };
-    const text = ctx.t("cdn-welcome");
-    try {
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: cdnMenu,
-      });
-    } catch {
-      await ctx.reply(text, {
-        parse_mode: "HTML",
-        reply_markup: cdnMenu,
-      });
+    if (fromManage) {
+      await openCdnManageList(ctx);
+    } else {
+      const text = ctx.t("cdn-welcome");
+      try {
+        await ctx.editMessageText(text, {
+          parse_mode: "HTML",
+          reply_markup: cdnMenu,
+        });
+      } catch {
+        await ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup: cdnMenu,
+        });
+      }
     }
     return;
   }
@@ -863,13 +934,7 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
           await repo.save(rec);
         }
         await addAudit(ctx, proxyId, "delete", true);
-        try {
-          await ctx.editMessageText(ctx.t("cdn-delete-success"), {
-            parse_mode: "HTML",
-          });
-        } catch {
-          await ctx.reply(ctx.t("cdn-delete-success"), { parse_mode: "HTML" });
-        }
+        await openCdnManageList(ctx, ctx.t("cdn-delete-success"));
       } else {
         await addAudit(ctx, proxyId, "delete", false);
         await ctx.reply(ctx.t("cdn-delete-failed"), { parse_mode: "HTML" });

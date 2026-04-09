@@ -365,6 +365,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
         await ctx.editMessageText(text, {
           parse_mode: "HTML",
           reply_markup: referralsMenu,
+          link_preview_options: { is_disabled: true },
         });
       } catch (error: any) {
         console.error("[Referrals] Failed to open referrals from profile:", error);
@@ -1070,6 +1071,7 @@ async function index() {
     await ctx.editMessageText(text, {
       parse_mode: "HTML",
       reply_markup: referralsMenu,
+      link_preview_options: { is_disabled: true },
     });
   });
 

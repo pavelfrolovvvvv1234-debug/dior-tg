@@ -217,52 +217,12 @@ function buildManageServicesMenu(): Menu<AppContext> {
         if (!session.other) (session as any).other = createInitialOtherSession();
         if (!session.other.cdn) session.other.cdn = { step: "idle" };
         session.other.cdn.fromManage = true;
-        const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-        let active: Array<{
-          id: string;
-          domain_name: string;
-          target_url: string | null;
-          status: string;
-          lifecycle_status: string;
-          auto_renew?: boolean;
-        }> = [];
         try {
-          const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
-          if (telegramId) {
-            const { cdnListProxies } = await import("../infrastructure/cdn/CdnClient.js");
-            const proxies = await cdnListProxies(telegramId);
-            active = proxies.filter((p) => (p.lifecycle_status || p.status) !== "deleted");
-          }
+          const { openCdnManageList } = await import("../ui/menus/cdn-menu.js");
+          await openCdnManageList(ctx);
         } catch {
-          // CDN list can fail here (temporary API issues). Keep opening menu.
-        }
-        const text = active.length === 0 ? ctx.t("list-empty") : ctx.t("cdn-my-proxies-list");
-        await ctx.editMessageText(text, {
-          parse_mode: "HTML",
-          reply_markup: cdnMenu,
-        });
-        if (active.length > 0) {
-          const listText = [
-            ctx.t("cdn-my-proxies-list"),
-            "",
-            ...active.map((p) =>
-              ctx.t("cdn-proxy-item", {
-                domain: p.domain_name,
-                target: p.target_url ?? "—",
-                status: p.lifecycle_status || p.status,
-              })
-            ),
-          ].join("\n");
-          const listKeyboard = new InlineKeyboard();
-          for (const p of active) {
-            const status = p.lifecycle_status || p.status;
-            const buttonLabel = `🌐 ${p.domain_name} (${status})`;
-            const safeLabel = buttonLabel.length > 60 ? `${buttonLabel.slice(0, 57)}...` : buttonLabel;
-            listKeyboard.text(safeLabel, `cdn_open:${p.id}`).row();
-          }
-          await ctx.reply(listText, {
+          await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN list" }), {
             parse_mode: "HTML",
-            reply_markup: listKeyboard,
           });
         }
       }
