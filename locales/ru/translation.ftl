@@ -4,14 +4,15 @@
 quoted-balance = <blockquote>Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = 🔷 DiorHost — Servers, Domains, CDN
-    Bulletproof Infrastructure
-    High availability • Stable routing • 24/7 uptime
+welcome = 🔷 DiorHost — Серверы, Домены, CDN
+
+    Абузоустойчивая Инфраструктура
+    Стабильная сеть • Глобальное покрытие • 24/7 аптайм
     
     👤 @{$username}
-    ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
+    ├ <b>Баланс:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
     ├ <b>ID:</b> <code>{$userIdText}</code>
-    └ <b>Servers purchased:</b> <code>{$servicesCount}</code> pcs ($0.00)
+    └ <b>Услуги:</b> <code>{$servicesCount}</code> активных
     
 
 
@@ -194,7 +195,7 @@ admin-automations-open-web = 🌐 Открыть веб-панель
 button-promos-create = ➕ Создать промокод
 admin-statistics-header = 📊 Статистика по покупкам
 admin-statistics-topups = Пополнений
-admin-statistics-purchases = Покупок
+admin-statistics-purchases = Зарегистрированных пользователей
 admin-statistics-sum = Прибыль
 admin-statistics-24h = За сутки
 admin-statistics-7d = За 7 дней

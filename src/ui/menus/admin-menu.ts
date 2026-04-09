@@ -9,15 +9,15 @@ import { Menu } from "@grammyjs/menu";
 import { MoreThanOrEqual } from "typeorm";
 import type { AppContext } from "../../shared/types/context";
 import type { DataSource } from "typeorm";
-import { Role } from "../../entities/User";
+import User, { Role } from "../../entities/User";
 import TopUp, { TopUpStatus } from "../../entities/TopUp";
-import ServiceInvoice, { ServiceInvoiceStatus } from "../../entities/ServiceInvoice";
 import { Logger } from "../../app/logger";
 import { controlUsers } from "../../helpers/users-control";
-import { moderatorMenu } from "./moderator-menu";
 import { adminPromosMenu, buildAdminPromosText } from "./admin-promocodes-menu.js";
 import { ScreenRenderer } from "../screens/renderer";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
+import { DedicatedProvisioningService } from "../../domain/dedicated/DedicatedProvisioningService.js";
+import { ProvisioningTicketStatus } from "../../entities/ProvisioningTicket.js";
 
 async function getPurchaseStats(
   dataSource: DataSource,
@@ -39,16 +39,13 @@ async function getPurchaseStats(
   return { count, totalAmount };
 }
 
-async function getServicePurchasesCount(
+async function getRegisteredUsersCount(
   dataSource: DataSource,
   since?: Date
 ): Promise<number> {
-  const qb = dataSource
-    .getRepository(ServiceInvoice)
-    .createQueryBuilder("i")
-    .where("i.status = :status", { status: ServiceInvoiceStatus.Paid });
+  const qb = dataSource.getRepository(User).createQueryBuilder("u");
   if (since) {
-    qb.andWhere("COALESCE(i.paidAt, i.createdAt) >= :since", { since });
+    qb.andWhere("u.createdAt >= :since", { since });
   }
   return await qb.getCount();
 }
@@ -91,6 +88,8 @@ const safeEditMessageText = async (
     throw error;
   }
 };
+
+const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
 /**
  * Broadcast conversation for admin.
@@ -167,10 +166,60 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
       }
 
       await safeAdminAction(ctx, async () => {
-        await ctx.editMessageText(ctx.t("moderator-menu-header"), {
+        const service = new DedicatedProvisioningService(ctx.appDataSource);
+        const [
+          cntNew,
+          cntPendingReview,
+          cntPaid,
+          cntAwaitingStock,
+          cntInProvisioning,
+          cntAwaitingFinalCheck,
+          cntCompleted,
+          cntRejected,
+          cntCancelled,
+        ] = await Promise.all([
+          service.countTicketsByStatus(ProvisioningTicketStatus.NEW),
+          service.countTicketsByStatus(ProvisioningTicketStatus.PENDING_REVIEW),
+          service.countTicketsByStatus(ProvisioningTicketStatus.PAID),
+          service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_STOCK),
+          service.countTicketsByStatus(ProvisioningTicketStatus.IN_PROVISIONING),
+          service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_FINAL_CHECK),
+          service.countTicketsByStatus(ProvisioningTicketStatus.COMPLETED),
+          service.countTicketsByStatus(ProvisioningTicketStatus.REJECTED),
+          service.countTicketsByStatus(ProvisioningTicketStatus.CANCELLED),
+        ]);
+        const stats = {
+          open: cntNew + cntPaid + cntAwaitingStock + cntInProvisioning,
+          inWork: cntInProvisioning + cntAwaitingStock + cntPendingReview,
+          review: cntAwaitingFinalCheck + cntPendingReview,
+          closed: cntCompleted + cntRejected + cntCancelled,
+          total:
+            cntNew +
+            cntPendingReview +
+            cntPaid +
+            cntAwaitingStock +
+            cntInProvisioning +
+            cntAwaitingFinalCheck +
+            cntCompleted +
+            cntRejected +
+            cntCancelled,
+        };
+
+        await ctx.editMessageText(renderMultiline(ctx.t("provisioning-menu-title", stats)), {
           parse_mode: "HTML",
+          reply_markup: new InlineKeyboard()
+            .text(ctx.t("ticket-status-new"), "prov_list_new")
+            .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+            .row()
+            .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
+            .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+            .row()
+            .text(ctx.t("ticket-status-pending_review"), "prov_list_pending_review")
+            .text(ctx.t("ticket-status-awaiting_stock"), "prov_list_awaiting_stock")
+            .row()
+            .text(ctx.t("ticket-status-completed"), "prov_list_completed")
+            .text(ctx.t("button-back"), "admin-menu-back"),
         });
-        ctx.menu.nav("moderator-menu");
       });
     }
   )
@@ -222,16 +271,16 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
         const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const since30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const [stats24h, stats7d, stats30d, statsAll, purchases24h, purchases7d, purchases30d, purchasesAll] =
+        const [stats24h, stats7d, stats30d, statsAll, users24h, users7d, users30d, usersAll] =
           await Promise.all([
             getPurchaseStats(ctx.appDataSource, since24h),
             getPurchaseStats(ctx.appDataSource, since7d),
             getPurchaseStats(ctx.appDataSource, since30d),
             getPurchaseStats(ctx.appDataSource),
-            getServicePurchasesCount(ctx.appDataSource, since24h),
-            getServicePurchasesCount(ctx.appDataSource, since7d),
-            getServicePurchasesCount(ctx.appDataSource, since30d),
-            getServicePurchasesCount(ctx.appDataSource),
+            getRegisteredUsersCount(ctx.appDataSource, since24h),
+            getRegisteredUsersCount(ctx.appDataSource, since7d),
+            getRegisteredUsersCount(ctx.appDataSource, since30d),
+            getRegisteredUsersCount(ctx.appDataSource),
           ]);
 
         const fmt = (n: number) => (n === Math.floor(n) ? String(n) : n.toFixed(2));
@@ -239,20 +288,20 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
           period: string,
           topupsCount: number,
           amount: number,
-          purchasesCount: number
+          usersCount: number
         ) =>
-          `<b>${period}</b>\n├ ${ctx.t("admin-statistics-topups")}: ${fmt(topupsCount)}\n├ ${ctx.t("admin-statistics-purchases")}: ${fmt(purchasesCount)}\n└ ${ctx.t("admin-statistics-sum")}: ${fmt(amount)} $`;
+          `<b>${period}</b>\n├ ${ctx.t("admin-statistics-topups")}: ${fmt(topupsCount)}\n├ ${ctx.t("admin-statistics-purchases")}: ${fmt(usersCount)}\n└ ${ctx.t("admin-statistics-sum")}: ${fmt(amount)} $`;
 
         const text = [
           ctx.t("admin-statistics-header"),
           "",
-          block(ctx.t("admin-statistics-24h"), stats24h.count, stats24h.totalAmount, purchases24h),
+          block(ctx.t("admin-statistics-24h"), stats24h.count, stats24h.totalAmount, users24h),
           "",
-          block(ctx.t("admin-statistics-7d"), stats7d.count, stats7d.totalAmount, purchases7d),
+          block(ctx.t("admin-statistics-7d"), stats7d.count, stats7d.totalAmount, users7d),
           "",
-          block(ctx.t("admin-statistics-30d"), stats30d.count, stats30d.totalAmount, purchases30d),
+          block(ctx.t("admin-statistics-30d"), stats30d.count, stats30d.totalAmount, users30d),
           "",
-          block(ctx.t("admin-statistics-all"), statsAll.count, statsAll.totalAmount, purchasesAll),
+          block(ctx.t("admin-statistics-all"), statsAll.count, statsAll.totalAmount, usersAll),
         ].join("\n");
 
         const keyboard = new InlineKeyboard().text(ctx.t("button-back"), "admin-menu-back");

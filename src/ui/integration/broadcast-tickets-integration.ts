@@ -1709,6 +1709,15 @@ Are you sure you want to proceed?`,
       return;
     }
 
+    if (session.main.user.role === Role.Admin) {
+      const { adminMenu } = await import("../menus/admin-menu.js");
+      await ctx.editMessageText(ctx.t("admin-panel-header"), {
+        reply_markup: adminMenu,
+        parse_mode: "HTML",
+      });
+      return;
+    }
+
     await ctx.editMessageText(ctx.t("moderator-menu-header"), {
       reply_markup: moderatorMenu,
       parse_mode: "HTML",

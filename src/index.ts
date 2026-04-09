@@ -786,6 +786,24 @@ async function index() {
     const fluentObj = (ctx as any).fluent;
     if (!fluentObj) return next();
     const session = (await ctx.session) as SessionData;
+    const userId = Number(session?.main?.user?.id ?? 0);
+    if (userId > 0) {
+      const now = new Date();
+      const [activeVds, activeDedicated, activeDomain] = await Promise.all([
+        ctx.appDataSource.manager.count(VirtualDedicatedServer, {
+          where: { targetUserId: userId, expireAt: MoreThan(now) },
+        }),
+        ctx.appDataSource.manager.count(DedicatedServer, {
+          where: { userId, status: DedicatedServerStatus.ACTIVE },
+        }),
+        ctx.appDataSource.manager.count(Domain, {
+          where: { userId, status: DomainStatus.REGISTERED },
+        }),
+      ]);
+      (ctx as any)._activeServicesCount = activeVds + activeDedicated + activeDomain;
+    } else {
+      (ctx as any)._activeServicesCount = 0;
+    }
     // Фиксируем локаль на весь запрос — иначе текст и кнопки (меню) рендерятся с разной локалью
     const requestLocale = session?.main?.locale === "en" ? "en" : "ru";
     (ctx as any)._requestLocale = requestLocale;
@@ -804,7 +822,9 @@ async function index() {
         const userId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
         const userIdText = String(Number.isFinite(userId) ? Math.trunc(userId) : 0);
         const servicesCount =
-          typeof vars?.servicesCount === "number" ? vars.servicesCount : 0;
+          typeof vars?.servicesCount === "number"
+            ? vars.servicesCount
+            : Number((ctx as any)._activeServicesCount ?? 0);
         return String(
           fluent.translate(locale, "welcome", {
             balance: baseBalance,
@@ -1468,13 +1488,11 @@ async function index() {
       `${ctx.t("ref-percent-label-cdn")}: ${fmt(user?.referralPercentCdn ?? undefined)}`,
     ].join("\n");
     const keyboard = new InlineKeyboard()
-      .text(`${ctx.t("ref-percent-label-domains")} →`, "admin-referrals-percent-domains")
+      .text(`🌐 ${ctx.t("ref-percent-label-domains")} %`, "admin-referrals-percent-domains")
+      .text(`🖥 ${ctx.t("ref-percent-label-vds")} %`, "admin-referrals-percent-vds-menu")
       .row()
-      .text(`${ctx.t("ref-percent-label-dedicated")} →`, "admin-referrals-percent-dedicated-menu")
-      .row()
-      .text(`${ctx.t("ref-percent-label-vds")} →`, "admin-referrals-percent-vds-menu")
-      .row()
-      .text(`${ctx.t("ref-percent-label-cdn")} →`, "admin-referrals-percent-cdn")
+      .text(`🛠 ${ctx.t("ref-percent-label-dedicated")} %`, "admin-referrals-percent-dedicated-menu")
+      .text(`🚀 ${ctx.t("ref-percent-label-cdn")} %`, "admin-referrals-percent-cdn")
       .row()
       .text(ctx.t("button-back"), "admin-referrals-back-to-summary");
     return { text, reply_markup: keyboard };
@@ -1496,7 +1514,7 @@ async function index() {
     if (!session.other.controlUsersPage?.pickedUserData) return;
     const user = await ctx.appDataSource.manager.findOne(User, { where: { id: session.other.controlUsersPage.pickedUserData.id } });
     if (!user) return;
-    const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
+    const { text, reply_markup } = await buildReferralPercentByServiceReply(ctx, user.id);
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
   });
 
@@ -1509,7 +1527,11 @@ async function index() {
     });
     if (!user) return;
     const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
-    await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup,
+      link_preview_options: { is_disabled: true },
+    });
   });
 
   bot.callbackQuery("admin-referrals-percent-dedicated-menu", async (ctx) => {
@@ -1523,9 +1545,8 @@ async function index() {
     const fmt = (v: number | null | undefined) => (v != null ? `${v}%` : "—");
     const text = `${ctx.t("ref-percent-label-dedicated")}\n${ctx.t("button-standard")}: ${fmt(user?.referralPercentDedicatedStandard ?? undefined)}\n${ctx.t("button-bulletproof")}: ${fmt(user?.referralPercentDedicatedBulletproof ?? undefined)}`;
     const keyboard = new InlineKeyboard()
-      .text(`${ctx.t("button-standard")} →`, "admin-referrals-percent-dedicated-standard")
-      .row()
-      .text(`${ctx.t("button-bulletproof")} →`, "admin-referrals-percent-dedicated-bulletproof")
+      .text(`⚙️ ${ctx.t("button-standard")}`, "admin-referrals-percent-dedicated-standard")
+      .text(`🛡 ${ctx.t("button-bulletproof")}`, "admin-referrals-percent-dedicated-bulletproof")
       .row()
       .text(ctx.t("admin-referral-percent-back-to-list"), "admin-referrals-percent-back-to-list");
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});
@@ -1542,9 +1563,8 @@ async function index() {
     const fmt = (v: number | null | undefined) => (v != null ? `${v}%` : "—");
     const text = `${ctx.t("ref-percent-label-vds")}\n${ctx.t("button-standard")}: ${fmt(user?.referralPercentVdsStandard)}\n${ctx.t("button-bulletproof")}: ${fmt(user?.referralPercentVdsBulletproof)}`;
     const keyboard = new InlineKeyboard()
-      .text(`${ctx.t("button-standard")} →`, "admin-referrals-percent-vds-standard")
-      .row()
-      .text(`${ctx.t("button-bulletproof")} →`, "admin-referrals-percent-vds-bulletproof")
+      .text(`⚙️ ${ctx.t("button-standard")}`, "admin-referrals-percent-vds-standard")
+      .text(`🛡 ${ctx.t("button-bulletproof")}`, "admin-referrals-percent-vds-bulletproof")
       .row()
       .text(ctx.t("admin-referral-percent-back-to-list"), "admin-referrals-percent-back-to-list");
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard }).catch(() => {});

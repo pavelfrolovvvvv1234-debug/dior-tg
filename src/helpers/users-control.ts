@@ -227,12 +227,7 @@ export async function buildReferralSummaryReply(
   }
   const referralKeyboard = new InlineKeyboard()
     .text(ctx.t("button-ref-topup-percent"), "admin-referrals-change-percent")
-    .row()
-    .text(`${ctx.t("ref-percent-label-domains")} %`, "admin-referrals-percent-domains")
-    .text(`${ctx.t("ref-percent-label-vds")} %`, "admin-referrals-percent-vds-menu")
-    .row()
-    .text(`${ctx.t("ref-percent-label-dedicated")} %`, "admin-referrals-percent-dedicated-menu")
-    .text(`${ctx.t("ref-percent-label-cdn")} %`, "admin-referrals-percent-cdn")
+    .text(ctx.t("button-referral-percent-by-service"), "admin-referrals-percent-by-service")
     .row()
     .text(ctx.t("button-back"), "admin-referrals-back");
   const referralPercent = user.referralPercent != null ? user.referralPercent : 5;
@@ -443,7 +438,11 @@ export const controlUser = new Menu<AppContext>("control-user", {})
       await ctx.answerCallbackQuery().catch(() => {});
       try {
         const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
-        await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+        await ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup,
+          link_preview_options: { is_disabled: true },
+        });
       } catch (e: any) {
         await ctx.reply(ctx.t("error-unknown", { error: String(e?.message || e).slice(0, 200) }), {
           parse_mode: "HTML",
