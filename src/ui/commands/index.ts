@@ -121,9 +121,17 @@ export function registerCommands(bot: Bot<AppContext>): void {
               const referrerTelegramId = parseInt(ctx.match, 10);
               if (!Number.isNaN(referrerTelegramId)) {
                 const referrer = await userRepo.findByTelegramId(referrerTelegramId);
-                const referrerLang = referrer?.lang === "en" ? "en" : "ru";
-                const { notifyReferrerAboutNewSignup } = await import("../../helpers/notifier.js");
-                await notifyReferrerAboutNewSignup(ctx.api, referrerTelegramId, referrerLang);
+                if (referrer) {
+                  const referrerLang = referrer.lang === "en" ? "en" : "ru";
+                  const referralsCount = await referralService.countReferrals(referrer.id);
+                  const { notifyReferrerAboutNewSignup } = await import("../../helpers/notifier.js");
+                  await notifyReferrerAboutNewSignup(
+                    ctx.api,
+                    referrer.telegramId,
+                    referrerLang,
+                    referralsCount
+                  );
+                }
               }
             }
           }

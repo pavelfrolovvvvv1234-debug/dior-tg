@@ -23,7 +23,8 @@ async function getFluentForNotify() {
 export async function notifyAdminsAboutTopUp(
   bot: Bot<any, Api<RawApi>>,
   user: { id: number; telegramId: number },
-  amount: number
+  amount: number,
+  paymentMethod?: string | null
 ): Promise<void> {
   try {
     const adminIds = getAdminTelegramIds();
@@ -41,7 +42,16 @@ export async function notifyAdminsAboutTopUp(
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     }).format(amount);
-    const adminText = `💳 <b>Пополнение баланса</b>\nПокупатель: ${buyerLabel}\nСумма: ${amountFormatted} $`;
+    const methodRaw = String(paymentMethod ?? "").trim().toLowerCase();
+    const methodLabel =
+      methodRaw === "cryptobot"
+        ? "CryptoBot"
+        : methodRaw === "crystalpay"
+          ? "CrystalPay"
+          : methodRaw
+            ? paymentMethod
+            : "—";
+    const adminText = `💳 <b>Пополнение баланса</b>\nПокупатель: ${buyerLabel}\nСумма: ${amountFormatted} $\nСпособ оплаты: ${methodLabel}`;
     for (const adminTelegramId of adminIds) {
       await bot.api
         .sendMessage(adminTelegramId, adminText, { parse_mode: "HTML" })
@@ -65,11 +75,14 @@ type SendMessageApi = { sendMessage: (chatId: number, text: string, opts?: objec
 export async function notifyReferrerAboutNewSignup(
   api: SendMessageApi,
   referrerTelegramId: number,
-  referrerLang: string
+  referrerLang: string,
+  referralsCount: number
 ): Promise<void> {
   try {
     const fluent = await getFluentForNotify();
-    const message = fluent.translate(referrerLang === "en" ? "en" : "ru", "referral-new-joined", {});
+    const message = fluent.translate(referrerLang === "en" ? "en" : "ru", "referral-new-joined", {
+      count: referralsCount,
+    });
     if (!message?.trim()) throw new Error("Empty referral-new-joined message");
     await api.sendMessage(referrerTelegramId, message, { parse_mode: "HTML" });
   } catch (e) {

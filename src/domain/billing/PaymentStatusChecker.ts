@@ -106,7 +106,7 @@ export class PaymentStatusChecker {
           // Notify admins (same as in api/payment.ts paymentSuccess)
           if (user) {
             try {
-              await notifyAdminsAboutTopUp(this.bot, user, amount);
+              await notifyAdminsAboutTopUp(this.bot, user, amount, topUp.paymentSystem);
             } catch (adminErr) {
               Logger.error("Failed to notify admins about top-up", adminErr);
             }

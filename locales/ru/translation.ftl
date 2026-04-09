@@ -129,7 +129,7 @@ promoted-to-admin = Вы были повышенны до администрат
 promoted-to-user = Вы были понижены до пользователя
 
 admin-notification-about-promotion = Пользователь <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} повышен до роли {$role}
-admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nСпособ оплаты: {$paymentMethod}
 
 -users-list = Список пользователей
 -users-list-empty = Список пользователей пуст
@@ -222,7 +222,7 @@ button-referrals = 💲 Рефералы
 button-share-link = 📤 Поделиться ссылкой
 referrals-screen = 🚀 Партнёрская программа DiorHost\n\nМонетизируйте свой трафик на VPS, дедиках и абузоустойчивых доменах.\n\n💰 Условия:\n\n• До 30% от каждого пополнения привлечённого клиента\n• Lifetime — процент со всех будущих оплат\n• Начисление при первом пополнении от $10+\n• Без ограничений по количеству рефералов\n• Автоматический учёт в системе\n\n🔗 Ваша реферальная ссылка:\n{$link}\n\nРефералов: {$count}\nЗаработано: {$profit} $\n\nПривлекайте трафик — получайте пассивный доход на инфраструктуре.
 referrals-share-text = Присоединяйся ко мне на Dior Host! Используй мою реферальную ссылку, чтобы начать.
-referral-new-joined = 👋 По вашей реферальной ссылке зарегистрировался новый пользователь.
+referral-new-joined = 👋 У вас появился новый реферал.\nКоличество ваших рефералов: <b>{$count}</b>
 referral-topup-notify = 💰 Ваш реферал пополнил баланс на <b>{ $amount }</b>.\nВаш процент: <b>{ $percent }%</b> — на реферальный баланс зачислено <b>{ $reward }</b>.
 
 Выберите действие:

@@ -128,7 +128,7 @@ promoted-to-admin = You have been promoted to administrator
 promoted-to-user = You have been demoted to user
 
 admin-notification-about-promotion = User <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} has been promoted to {$role}
-admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nPayment method: {$paymentMethod}
 
 -users-list = Users list
 -users-list-empty = Users list is empty
@@ -221,7 +221,7 @@ button-referrals = 💲 Referrals
 button-share-link = 📤 Share link
 referrals-screen = 🚀 DiorHost Partner Program\n\nMonetize your traffic on VPS, dedicated servers and abuse-resistant domains.\n\n💰 Terms:\n\n• Up to 30% of each referred client's top-up\n• Lifetime — percentage from all future payments\n• Credited on first top-up from $10+\n• No limit on number of referrals\n• Automatic tracking in the system\n\n🔗 Your referral link:\n{$link}\n\nReferrals: {$count}\nEarned: {$profit} $\n\nDrive traffic — earn passive income on infrastructure.
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
-referral-new-joined = 👋 A new user has signed up via your referral link.
+referral-new-joined = 👋 You have a new referral.\nYour total referrals: <b>{$count}</b>
 referral-topup-notify = 💰 Your referral topped up their balance by <b>{ $amount }</b>.\nYour percentage: <b>{ $percent }%</b> — <b>{ $reward }</b> has been added to your referral balance.
 
 Select an action:

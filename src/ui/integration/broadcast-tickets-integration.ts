@@ -1771,7 +1771,7 @@ Are you sure you want to proceed?`,
         .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
         .row()
         .text(ctx.t("ticket-status-pending_review"), "prov_list_pending_review")
-        .text(ctx.t("ticket-status-new"), "prov_list_new")
+        .text(ctx.t("ticket-status-awaiting_stock"), "prov_list_awaiting_stock")
         .row()
         .text(ctx.t("ticket-status-completed"), "prov_list_completed")
         .text(ctx.t("button-back"), "tickets-menu-back"),

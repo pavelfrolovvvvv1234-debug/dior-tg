@@ -828,8 +828,25 @@ async function index() {
           const referralService = new ReferralService(ctx.appDataSource, userRepo);
           const user = await userRepo.findById(session.main.user.id);
           if (user && user.referrerId == null) {
-            await referralService.bindReferrer(user.id, payload);
-            Logger.info(`[Referral] Bound referrer for user ${user.id} with refCode ${payload}`);
+            const bound = await referralService.bindReferrer(user.id, payload);
+            if (bound) {
+              Logger.info(`[Referral] Bound referrer for user ${user.id} with refCode ${payload}`);
+              const referrerTelegramId = Number.parseInt(payload, 10);
+              if (!Number.isNaN(referrerTelegramId)) {
+                const referrer = await userRepo.findByTelegramId(referrerTelegramId);
+                if (referrer) {
+                  const referrerLang = referrer.lang === "en" ? "en" : "ru";
+                  const referralsCount = await referralService.countReferrals(referrer.id);
+                  const { notifyReferrerAboutNewSignup } = await import("./helpers/notifier.js");
+                  await notifyReferrerAboutNewSignup(
+                    ctx.api,
+                    referrer.telegramId,
+                    referrerLang,
+                    referralsCount
+                  );
+                }
+              }
+            }
           }
         } catch (err: any) {
           Logger.error("[Referral] Failed to bind referrer:", err);

@@ -286,7 +286,7 @@ async function paymentSuccess(
 
   bot.api.sendMessage(user.telegramId, balanceMessage).then();
 
-  await notifyAdminsAboutTopUp(bot, user, topUp.amount);
+  await notifyAdminsAboutTopUp(bot, user, topUp.amount, topUp.paymentSystem);
 
   // Emit automation event for deposit.completed
   try {
