@@ -9,6 +9,12 @@ import type { Fluent } from "@moebius/fluent";
 import type { AppContext } from "../shared/types/context.js";
 import type { SessionData } from "../shared/types/session.js";
 
+const normalizeI18nText = (value: string): string =>
+  value
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t");
+
 export interface EarlyLocaleResolverOptions {
   resolveLocale(ctx: AppContext, session: SessionData, loadedUser: { lang?: string | null } | null): "ru" | "en";
 }
@@ -67,7 +73,7 @@ export function createI18nMiddleware(fluentRu: Fluent, fluentEn: Fluent) {
 
     const translateForLocale = (loc: string, key: string, vars?: Record<string, string | number>) => {
       const f = loc === "en" ? fluentEn : fluentRu;
-      return String(f.translate(loc, key, vars ?? {}));
+      return normalizeI18nText(String(f.translate(loc, key, vars ?? {})));
     };
 
     (ctx as any).fluent = {
@@ -77,12 +83,12 @@ export function createI18nMiddleware(fluentRu: Fluent, fluentEn: Fluent) {
         if (localeOrKey === "ru" || localeOrKey === "en") {
           return translateForLocale(localeOrKey, keyOrVars as string ?? "", vars ?? {});
         }
-        return String(translate(localeOrKey, (keyOrVars as Record<string, string | number>) ?? {}));
+        return normalizeI18nText(String(translate(localeOrKey, (keyOrVars as Record<string, string | number>) ?? {})));
       },
       translateForLocale,
     };
     (ctx as any).t = (key: string, vars?: Record<string, string | number>) =>
-      String(translate(key, vars ?? {}));
+      normalizeI18nText(String(translate(key, vars ?? {})));
 
     return next();
   };

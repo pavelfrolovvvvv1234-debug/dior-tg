@@ -106,6 +106,7 @@ const parseTicketPayload = (payload: string | null): Record<string, any> => {
     return {};
   }
 };
+const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
 const toProvisioningStatus = (raw: string): ProvisioningTicketStatus | null => {
   const values = new Set<string>(Object.values(ProvisioningTicketStatus));
@@ -129,7 +130,7 @@ const provisioningTicketKeyboard = (
     .text(ctx.t("ticket-status-in_provisioning"), `prov_status_${ticketId}_in_provisioning`)
     .text(ctx.t("ticket-status-awaiting_final_check"), `prov_status_${ticketId}_awaiting_final_check`)
     .row()
-    .text(ctx.t("button-ticket-complete"), `prov_complete_${ticketId}`)
+    .text(ctx.t("button-provisioning-send-credentials"), `prov_complete_${ticketId}`)
     .text(ctx.t("button-ticket-reject"), `prov_status_${ticketId}_rejected`)
     .row()
     .text(ctx.t("button-back"), "prov_tickets");
@@ -889,10 +890,10 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         await service.updateStatus(ticketId, ProvisioningTicketStatus.COMPLETED, session.main.user.id, "completed_by_staff");
         await service.setChecklistItem(ticketId, "ticket_completed", true, session.main.user.id);
         await service.setChecklistItem(ticketId, "credentials_sent_to_customer", true, session.main.user.id);
-        await ctx.api.sendMessage(order.telegramUserId || ctx.from!.id, ctx.t("provisioning-user-ready-message", {
+        await ctx.api.sendMessage(order.telegramUserId || ctx.from!.id, renderMultiline(ctx.t("provisioning-user-ready-message", {
           ticketId,
           message: escapeUserInput(input),
-        }), { parse_mode: "HTML" }).catch(() => {});
+        })), { parse_mode: "HTML" }).catch(() => {});
         await ctx.reply(ctx.t("provisioning-completed"), {
           parse_mode: "HTML",
           reply_markup: new InlineKeyboard().text(ctx.t("button-open"), `prov_view_${ticketId}`),
@@ -1703,7 +1704,7 @@ Are you sure you want to proceed?`,
       await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
       return;
     }
-    await ctx.editMessageText(ctx.t("provisioning-menu-title"), {
+    await ctx.editMessageText(renderMultiline(ctx.t("provisioning-menu-title")), {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard()
         .text(ctx.t("button-open"), "prov_list_new")
@@ -1729,7 +1730,7 @@ Are you sure you want to proceed?`,
     const service = new DedicatedProvisioningService(ctx.appDataSource);
     const tickets = await service.listTicketsByStatus(status, 20);
     if (tickets.length === 0) {
-      await ctx.editMessageText(ctx.t("provisioning-list-empty", { status: formatProvisioningStatus(ctx, status) }), {
+      await ctx.editMessageText(renderMultiline(ctx.t("provisioning-list-empty", { status: formatProvisioningStatus(ctx, status) })), {
         parse_mode: "HTML",
         reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "prov_tickets"),
       });
@@ -1740,7 +1741,7 @@ Are you sure you want to proceed?`,
       kb.text(`#${t.id} ${t.ticketNumber}`, `prov_view_${t.id}`).row();
     }
     kb.text(ctx.t("button-back"), "prov_tickets");
-    await ctx.editMessageText(ctx.t("provisioning-list-title", { status: formatProvisioningStatus(ctx, status), count: tickets.length }), {
+    await ctx.editMessageText(renderMultiline(ctx.t("provisioning-list-title", { status: formatProvisioningStatus(ctx, status), count: tickets.length })), {
       parse_mode: "HTML",
       reply_markup: kb,
     });
@@ -1766,7 +1767,7 @@ Are you sure you want to proceed?`,
     const noteLine = notes.length
       ? `\n\n📝 ${ctx.t("provisioning-latest-note")}: ${escapeUserInput(notes[0].text).slice(0, 220)}`
       : "";
-    const text = ctx.t("provisioning-ticket-view", {
+    const text = renderMultiline(ctx.t("provisioning-ticket-view", {
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
       orderNumber: order.orderNumber,
@@ -1780,7 +1781,7 @@ Are you sure you want to proceed?`,
       os: order.osLabel ?? "—",
       checklist: `${checked}/${total}`,
       createdAt: ticket.createdAt.toISOString(),
-    }) + noteLine;
+    })) + noteLine;
     const kb = provisioningTicketKeyboard(ctx, ticket.id)
       .row()
       .text(ctx.t("provisioning-checklist-open"), `prov_checklist_${ticket.id}`)
@@ -1867,7 +1868,7 @@ Are you sure you want to proceed?`,
     session.other.ticketsView.pendingAction = "provisioning_complete_message";
     session.other.ticketsView.pendingTicketId = Number(ctx.match[1]);
     session.other.ticketsView.pendingData = {};
-    await ctx.reply(ctx.t("provisioning-complete-enter-message"), { parse_mode: "HTML" });
+    await ctx.reply(renderMultiline(ctx.t("provisioning-complete-enter-message")), { parse_mode: "HTML" });
   });
 
   bot.callbackQuery(/^ticket_notify_close_(\d+)$/, async (ctx) => {

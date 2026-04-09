@@ -834,13 +834,14 @@ provisioning-latest-note = Latest internal note
 provisioning-assigned-refresh = Ticket assigned to you.
 provisioning-status-updated = Provisioning status updated.
 provisioning-checklist-open = Checklist
+button-provisioning-send-credentials = ✅ Send server details
 provisioning-checklist-title = <strong>Checklist for ticket #{$ticketId}</strong>
 provisioning-checklist-updated = Checklist item updated.
 provisioning-note-enter = Send internal note text for this provisioning ticket.
 provisioning-note-saved = Internal note saved.
 provisioning-complete-enter-message = Send final message for customer (credentials/details). It will be delivered and ticket marked completed.
 provisioning-completed = Provisioning ticket marked as completed.
-provisioning-user-ready-message = <strong>Your dedicated server is ready.</strong>\nTicket ID: #{$ticketId}\n\n{$message}
+provisioning-user-ready-message = <strong>✅ Your dedicated server is ready</strong>\n\n<strong>Ticket:</strong> <code>#{$ticketId}</code>\n\n<strong>Access details:</strong>\n{$message}\n\nIf you need help with setup, just reply to this message.
 dedicated-provisioning-ticket-created = <strong>Order accepted.</strong>\nYour dedicated server request was sent to manual provisioning.\n\nTicket ID: <code>#{$ticketId}</code>\nOrder ID: <code>#{$orderId}</code>\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}\n\nOur operations team will prepare your server and send details after completion.
 dedicated-provisioning-staff-notification = <strong>🛠 New dedicated provisioning ticket</strong>\nTicket: <code>#{$ticketId}</code>\nOrder: <code>#{$orderId}</code>\nUser: {$userId}\nAmount: {$amount} $\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}
 

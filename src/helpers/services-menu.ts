@@ -22,6 +22,8 @@ import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvi
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
 
+const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
+
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
 /**
@@ -912,20 +914,21 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       parse_mode: "HTML",
     });
 
-    await ctx.reply(ctx.t("dedicated-provisioning-ticket-created", {
+    const buyerText = renderMultiline(ctx.t("dedicated-provisioning-ticket-created", {
       ticketId: ticket.id,
       orderId: order.id,
       serviceName: server.name ?? `#${selectedId}`,
       location,
       os,
-    }), {
+    }));
+    await ctx.reply(buyerText, {
       parse_mode: "HTML",
     });
 
     const moderators = await usersRepo.find({
       where: [{ role: Role.Admin }, { role: Role.Moderator }],
     });
-    const staffText = ctx.t("dedicated-provisioning-staff-notification", {
+    const staffText = renderMultiline(ctx.t("dedicated-provisioning-staff-notification", {
       ticketId: ticket.id,
       orderId: order.id,
       userId: user.id,
@@ -933,22 +936,22 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       serviceName: server.name ?? `#${selectedId}`,
       location,
       os,
-    });
+    }));
     const staffKeyboard = new InlineKeyboard()
       .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
       .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+    const recipientChatIds = new Set<number>();
     for (const mod of moderators) {
-      await ctx.api
-        .sendMessage(mod.telegramId, staffText, {
-          parse_mode: "HTML",
-          reply_markup: staffKeyboard,
-        })
-        .catch(() => {});
+      recipientChatIds.add(mod.telegramId);
     }
     const moderatorChatId = getModeratorChatId();
     if (moderatorChatId) {
+      recipientChatIds.add(moderatorChatId);
+    }
+
+    for (const chatId of recipientChatIds) {
       await ctx.api
-        .sendMessage(moderatorChatId, staffText, {
+        .sendMessage(chatId, staffText, {
           parse_mode: "HTML",
           reply_markup: staffKeyboard,
         })
