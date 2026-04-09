@@ -1,4 +1,3 @@
-import { getAppDataSource } from "@/database";
 import Promo from "@entities/Promo";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 import { InlineKeyboard } from "grammy";
@@ -19,7 +18,7 @@ export async function handlePromocodeInput(
   if (!input) return;
 
   const normalizedCode = input.toLowerCase();
-  const dataSource = await getAppDataSource();
+  const dataSource = ctx.appDataSource;
   const userId = session.main.user.id;
 
   try {

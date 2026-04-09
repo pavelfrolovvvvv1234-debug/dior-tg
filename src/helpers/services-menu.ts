@@ -7,7 +7,7 @@ import { StatelessQuestion } from "@grammyjs/stateless-question";
 import DomainChecker from "@api/domain-checker";
 import { escapeUserInput } from "@helpers/formatting";
 import { InlineKeyboard } from "grammy";
-import { getAppDataSource } from "@/database";
+import { getAppDataSource } from "../infrastructure/db/datasource.js";
 import User, { Role } from "@/entities/User";
 import VirtualDedicatedServer, {
   generatePassword,
@@ -55,7 +55,7 @@ const DEDICATED_OS_KEYS = [
 
 /** Apply Prime −20% discount if user has active Prime. */
 async function getPriceWithPrimeDiscount(
-  dataSource: Awaited<ReturnType<typeof getAppDataSource>>,
+  dataSource: AppContext["appDataSource"],
   userId: number,
   basePrice: number
 ): Promise<number> {
@@ -646,9 +646,9 @@ export const dedicatedServersMenu = new Menu<AppContext>("dedicated-servers-menu
       return;
     }
 
-    let dataSource: Awaited<ReturnType<typeof getAppDataSource>> | null = null;
+    let dataSource: AppContext["appDataSource"] | null = null;
     try {
-      dataSource = await getAppDataSource();
+      dataSource = ctx.appDataSource;
     } catch {
       // DB may be unavailable; we still show servers with base price
     }
@@ -737,7 +737,7 @@ const editMessageDedicatedServer = async (
     (isBulletproof && server.price.bulletproof
       ? server.price.bulletproof
       : server.price.default) ?? 0;
-  const dataSource = await getAppDataSource();
+  const dataSource = ctx.appDataSource;
   const userId: number = session.main?.user?.id ?? 0;
   const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
 
@@ -820,6 +820,7 @@ export const dedicatedLocationMenu = new Menu<AppContext>("dedicated-location-me
  * Used from callback "dedicated-os:{osKey}" when OS is chosen from manual keyboard.
  */
 export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): Promise<void> {
+  await ctx.answerCallbackQuery().catch(() => {});
   const session = await ctx.session;
   const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
   const locationKey = session.other.dedicatedOrder?.selectedLocationKey;
@@ -838,116 +839,120 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     (isBulletproof && server.price.bulletproof
       ? server.price.bulletproof
       : server.price.default) ?? 0;
-  const dataSource = await getAppDataSource();
+  const dataSource = ctx.appDataSource;
   const usersRepo = dataSource.getRepository(User);
-  const user = await usersRepo.findOneBy({ id: session.main.user.id });
-  if (!user) {
-    await ctx.reply(ctx.t("bad-error"));
-    return;
-  }
-  const userId: number = user.id ?? 0;
-  const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
-  if (user.balance < price) {
-    await showTopupForMissingAmount(ctx, price - user.balance);
-    return;
-  }
-  user.balance -= price;
-  await usersRepo.save(user);
-  session.main.user.balance = user.balance;
-  session.main.user.referralBalance = user.referralBalance ?? 0;
-  session.other.dedicatedOrder = {
-    step: "idle",
-    requirements: undefined,
-    selectedLocationKey: locationKey,
-    selectedOsKey: osKey,
-  };
-  const provisioningService = new DedicatedProvisioningService(dataSource);
-  const location = ctx.t(`dedicated-location-${locationKey}`);
-  const os = ctx.t(`dedicated-os-${osKey}`);
-  const idempotencyKey = ctx.callbackQuery?.id
-    ? `tgcb:${ctx.callbackQuery.id}`
-    : `dedicated:${session.main.user.id}:${selectedId}:${locationKey}:${osKey}:${Date.now()}`;
-  const category = session.other.dedicatedType?.bulletproof ? "bulletproof" : "standard";
-  const created = await provisioningService.createPaidOrderAndTicket({
-    userId: user.id,
-    telegramUserId: ctx.from?.id ?? null,
-    telegramUsername: ctx.from?.username ?? null,
-    fullName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") || null,
-    customerLanguage: session.main.locale,
-    paymentAmount: price,
-    paymentMethod: "balance",
-    paymentStatus: DedicatedOrderPaymentStatus.PAID,
-    balanceUsedAmount: price,
-    idempotencyKey,
-    config: {
-      productId: String(selectedId),
-      productName: server.name ?? `Dedicated #${selectedId}`,
-      category,
-      cpuModel: server.cpu != null ? String(server.cpu) : null,
-      cpuThreads: Number(server.cpuThreads ?? 0) || null,
-      ram: server.ram != null ? String(server.ram) : null,
-      storageSize: server.storage != null ? String(server.storage) : null,
-      bandwidth: server.bandwidth != null ? String(server.bandwidth) : null,
-      uplinkSpeed: server.network != null ? String(server.network) : null,
-      unmeteredTraffic: String(server.bandwidth ?? "").toLowerCase() === "unlimited",
-      locationKey,
-      locationLabel: location,
-      osKey,
-      osLabel: os,
-      ddosProtection: session.other.dedicatedType?.bulletproof ? "enhanced" : "standard",
-      deploymentNotes: null,
-    },
-  });
+  try {
+    const user = await usersRepo.findOneBy({ id: session.main.user.id });
+    if (!user) {
+      await ctx.reply(ctx.t("bad-error"));
+      return;
+    }
+    const userId: number = user.id ?? 0;
+    const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+    if (user.balance < price) {
+      await showTopupForMissingAmount(ctx, price - user.balance);
+      return;
+    }
+    user.balance -= price;
+    await usersRepo.save(user);
+    session.main.user.balance = user.balance;
+    session.main.user.referralBalance = user.referralBalance ?? 0;
+    session.other.dedicatedOrder = {
+      step: "idle",
+      requirements: undefined,
+      selectedLocationKey: locationKey,
+      selectedOsKey: osKey,
+    };
+    const provisioningService = new DedicatedProvisioningService(dataSource);
+    const location = ctx.t(`dedicated-location-${locationKey}`);
+    const os = ctx.t(`dedicated-os-${osKey}`);
+    const idempotencyKey = ctx.callbackQuery?.id
+      ? `tgcb:${ctx.callbackQuery.id}`
+      : `dedicated:${session.main.user.id}:${selectedId}:${locationKey}:${osKey}:${Date.now()}`;
+    const category = session.other.dedicatedType?.bulletproof ? "bulletproof" : "standard";
+    const created = await provisioningService.createPaidOrderAndTicket({
+      userId: user.id,
+      telegramUserId: ctx.from?.id ?? null,
+      telegramUsername: ctx.from?.username ?? null,
+      fullName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") || null,
+      customerLanguage: session.main.locale,
+      paymentAmount: price,
+      paymentMethod: "balance",
+      paymentStatus: DedicatedOrderPaymentStatus.PAID,
+      balanceUsedAmount: price,
+      idempotencyKey,
+      config: {
+        productId: String(selectedId),
+        productName: server.name ?? `Dedicated #${selectedId}`,
+        category,
+        cpuModel: server.cpu != null ? String(server.cpu) : null,
+        cpuThreads: Number(server.cpuThreads ?? 0) || null,
+        ram: server.ram != null ? String(server.ram) : null,
+        storageSize: server.storage != null ? String(server.storage) : null,
+        bandwidth: server.bandwidth != null ? String(server.bandwidth) : null,
+        uplinkSpeed: server.network != null ? String(server.network) : null,
+        unmeteredTraffic: String(server.bandwidth ?? "").toLowerCase() === "unlimited",
+        locationKey,
+        locationLabel: location,
+        osKey,
+        osLabel: os,
+        ddosProtection: session.other.dedicatedType?.bulletproof ? "enhanced" : "standard",
+        deploymentNotes: null,
+      },
+    });
 
-  const order = created.order;
-  const ticket = created.ticket;
-  await ctx.answerCallbackQuery().catch(() => {});
-  await ctx.deleteMessage().catch(() => {});
-  await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
-    parse_mode: "HTML",
-  });
+    const order = created.order;
+    const ticket = created.ticket;
+    await ctx.deleteMessage().catch(() => {});
+    await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
+      parse_mode: "HTML",
+    });
 
-  await ctx.reply(ctx.t("dedicated-provisioning-ticket-created", {
-    ticketId: ticket.id,
-    orderId: order.id,
-    serviceName: server.name ?? `#${selectedId}`,
-    location,
-    os,
-  }), {
-    parse_mode: "HTML",
-  });
+    await ctx.reply(ctx.t("dedicated-provisioning-ticket-created", {
+      ticketId: ticket.id,
+      orderId: order.id,
+      serviceName: server.name ?? `#${selectedId}`,
+      location,
+      os,
+    }), {
+      parse_mode: "HTML",
+    });
 
-  const moderators = await usersRepo.find({
-    where: [{ role: Role.Admin }, { role: Role.Moderator }],
-  });
-  const staffText = ctx.t("dedicated-provisioning-staff-notification", {
-    ticketId: ticket.id,
-    orderId: order.id,
-    userId: user.id,
-    amount: price,
-    serviceName: server.name ?? `#${selectedId}`,
-    location,
-    os,
-  });
-  const staffKeyboard = new InlineKeyboard()
-    .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
-    .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-  for (const mod of moderators) {
-    await ctx.api
-      .sendMessage(mod.telegramId, staffText, {
-        parse_mode: "HTML",
-        reply_markup: staffKeyboard,
-      })
-      .catch(() => {});
-  }
-  const moderatorChatId = getModeratorChatId();
-  if (moderatorChatId) {
-    await ctx.api
-      .sendMessage(moderatorChatId, staffText, {
-        parse_mode: "HTML",
-        reply_markup: staffKeyboard,
-      })
-      .catch(() => {});
+    const moderators = await usersRepo.find({
+      where: [{ role: Role.Admin }, { role: Role.Moderator }],
+    });
+    const staffText = ctx.t("dedicated-provisioning-staff-notification", {
+      ticketId: ticket.id,
+      orderId: order.id,
+      userId: user.id,
+      amount: price,
+      serviceName: server.name ?? `#${selectedId}`,
+      location,
+      os,
+    });
+    const staffKeyboard = new InlineKeyboard()
+      .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
+      .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+    for (const mod of moderators) {
+      await ctx.api
+        .sendMessage(mod.telegramId, staffText, {
+          parse_mode: "HTML",
+          reply_markup: staffKeyboard,
+        })
+        .catch(() => {});
+    }
+    const moderatorChatId = getModeratorChatId();
+    if (moderatorChatId) {
+      await ctx.api
+        .sendMessage(moderatorChatId, staffText, {
+          parse_mode: "HTML",
+          reply_markup: staffKeyboard,
+        })
+        .catch(() => {});
+    }
+  } catch (error: any) {
+    const errorMessage = error?.message || "Unknown error";
+    await ctx.reply(ctx.t("error-unknown", { error: errorMessage }), { parse_mode: "HTML" }).catch(() => {});
   }
 }
 
