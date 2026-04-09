@@ -286,9 +286,45 @@ export async function cdnDeleteProxy(proxyId: string, telegramId: number): Promi
       method: "DELETE",
     },
     {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}`,
+      method: "DELETE",
+      body: { telegramId },
+    },
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}`,
+      method: "POST",
+      body: { action: "delete", telegramId },
+    },
+    {
+      path: `/api/bot/proxy/${encodeURIComponent(proxyId)}/delete`,
+      method: "POST",
+      body: { telegramId },
+    },
+    {
+      path: `/api/bot/proxies/${encodeURIComponent(proxyId)}`,
+      method: "DELETE",
+      body: { telegramId },
+    },
+    {
+      path: `/api/bot/proxies/${encodeURIComponent(proxyId)}/delete`,
+      method: "POST",
+      body: { telegramId },
+    },
+    {
       path: `/api/bot/delete-proxy`,
       method: "POST",
       body: { proxyId, telegramId },
+    },
+    {
+      path: `/api/bot/delete-proxy`,
+      method: "POST",
+      body: { proxy_id: proxyId, telegram_id: telegramId },
+    },
+    {
+      path: `/api/bot/delete-proxy?proxyId=${encodeURIComponent(proxyId)}&telegramId=${encodeURIComponent(
+        telegramId
+      )}`,
+      method: "DELETE",
     },
   ]);
 }
