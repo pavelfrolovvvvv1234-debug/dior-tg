@@ -1,5 +1,5 @@
 /**
- * VPS shop: tier per plan index (prices.json virtual_vds order). 12 plans total.
+ * VPS shop: tier per plan index (prices.json virtual_vds order). 10 plans total.
  */
 
 export type VpsShopTier = "start" | "standard" | "performance" | "enterprise";
@@ -12,14 +12,12 @@ export const VDS_INDEX_TIER: Record<number, VpsShopTier> = {
   1: "start",
   2: "standard",
   3: "standard",
-  4: "standard",
+  4: "performance",
   5: "performance",
-  6: "performance",
-  7: "performance",
+  6: "enterprise",
+  7: "enterprise",
   8: "enterprise",
   9: "enterprise",
-  10: "enterprise",
-  11: "enterprise",
 };
 
 export function assertVdsCatalogLength(catalogLen: number): void {

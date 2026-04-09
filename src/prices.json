@@ -4,10 +4,10 @@
       "name": "Lite 1",
       "cpu": 1,
       "ram": 1,
-      "ssd": 20,
+      "ssd": 10,
       "network": 150,
       "price": {
-        "bulletproof": 18.99,
+        "bulletproof": 25,
         "default": 3.69
       }
     },
@@ -18,7 +18,7 @@
       "ssd": 40,
       "network": 150,
       "price": {
-        "bulletproof": 33.33,
+        "bulletproof": 27,
         "default": 5.99
       }
     },
@@ -26,22 +26,11 @@
       "name": "Lite 3",
       "cpu": 2,
       "ram": 4,
-      "ssd": 40,
+      "ssd": 50,
       "network": 150,
       "price": {
-        "bulletproof": 39.99,
+        "bulletproof": 39,
         "default": 7.49
-      }
-    },
-    {
-      "name": "Lite 4",
-      "cpu": 2,
-      "ram": 6,
-      "ssd": 40,
-      "network": 150,
-      "price": {
-        "bulletproof": 55.55,
-        "default": 9.49
       }
     },
     {
@@ -51,85 +40,74 @@
       "ssd": 80,
       "network": 150,
       "price": {
-        "bulletproof": 65.65,
-        "default": 16.66
+        "bulletproof": 65,
+        "default": 9.49
       }
     },
     {
       "name": "Elite 2",
-      "cpu": 4,
-      "ram": 10,
-      "ssd": 100,
+      "cpu": 8,
+      "ram": 16,
+      "ssd": 150,
       "network": 150,
       "price": {
-        "bulletproof": 79.88,
-        "default": 23.79
+        "bulletproof": 99,
+        "default": 16.66
       }
     },
     {
       "name": "Elite 3",
       "cpu": 8,
-      "ram": 12,
-      "ssd": 150,
-      "network": 150,
-      "price": {
-        "bulletproof": 99.99,
-        "default": 37.79
-      }
-    },
-    {
-      "name": "Elite 4",
-      "cpu": 8,
-      "ram": 16,
+      "ram": 24,
       "ssd": 200,
       "network": 150,
       "price": {
-        "bulletproof": 119.24,
-        "default": 42.29
+        "bulletproof": 115,
+        "default": 23.79
       }
     },
     {
       "name": "Mega 1",
       "cpu": 12,
-      "ram": 24,
-      "ssd": 300,
+      "ram": 32,
+      "ssd": 250,
       "network": 150,
       "price": {
-        "bulletproof": 149.24,
-        "default": 69.29
+        "bulletproof": 159,
+        "default": 37.79
       }
     },
     {
       "name": "Mega 2",
-      "cpu": 12,
-      "ram": 32,
-      "ssd": 320,
+      "cpu": 16,
+      "ram": 64,
+      "ssd": 300,
       "network": 150,
       "price": {
-        "bulletproof": 199.24,
-        "default": 87.29
+        "bulletproof": 199,
+        "default": 42.29
       }
     },
     {
       "name": "Mega 3",
-      "cpu": 16,
-      "ram": 48,
+      "cpu": 24,
+      "ram": 96,
       "ssd": 500,
       "network": 150,
       "price": {
-        "bulletproof": 239.99,
-        "default": 129.29
+        "bulletproof": 285,
+        "default": 69.29
       }
     },
     {
       "name": "Mega 4",
-      "cpu": 16,
-      "ram": 64,
-      "ssd": 1000,
+      "cpu": 24,
+      "ram": 128,
+      "ssd": 700,
       "network": 150,
       "price": {
-        "bulletproof": 249.27,
-        "default": 195.29
+        "bulletproof": 340,
+        "default": 87.29
       }
     }
   ],
