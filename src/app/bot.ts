@@ -379,7 +379,7 @@ export async function createBot(): Promise<{
     })
     .row()
     .back(
-      (ctx) => ctx.t("button-back"),
+      (ctx) => ctx.t("button-profile-back"),
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(

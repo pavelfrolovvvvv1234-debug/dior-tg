@@ -56,6 +56,7 @@ import {
   dedicatedLocationMenu,
   dedicatedOsMenu,
   handleDedicatedOsSelect,
+  openCdnPurchaseFromServicesMenu,
 } from "./helpers/services-menu";
 import { renameVdsConversation, vdsPasswordManualConversation } from "./helpers/manage-services";
 import {
@@ -495,7 +496,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
     range.row();
   })
   .back(
-    (ctx) => ctx.t("button-back"),
+    (ctx) => ctx.t("button-profile-back"),
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
@@ -931,22 +932,8 @@ async function index() {
 
   // mainMenu уже зарегистрирован выше (до /start)
   if (cdnMenu) {
-    bot.callbackQuery(/^services-menu\/1\/0($|\/)/, async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      const session = await ctx.session;
-      if (!session.other) (session as any).other = createInitialOtherSession();
-      if (!session.other.cdn) session.other.cdn = { step: "idle" };
-      session.other.cdn.fromManage = false;
-      const t = (k: string, v?: { error?: string }) => (typeof (ctx as any).t === "function" ? (ctx as any).t(k, v) : (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-welcome" || k === "cdn-service" ? "CDN — тарифы и заказ в боте." : k));
-      try {
-        await ctx.editMessageText(t("cdn-welcome"), {
-          parse_mode: "HTML",
-          reply_markup: cdnMenu!,
-        });
-      } catch (err: unknown) {
-        console.error("[Bot] CDN fallback open error:", err);
-        await ctx.reply(t("cdn-error", { error: String(err) })).catch(() => {});
-      }
+    bot.callbackQuery(/^services-menu\/(1|5)\/0($|\/)/, async (ctx) => {
+      await openCdnPurchaseFromServicesMenu(ctx as any);
     });
   }
 

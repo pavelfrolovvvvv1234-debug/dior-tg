@@ -125,7 +125,7 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
     "cdn-my-proxies-empty": "У вас пока нет прокси.",
     "cdn-my-proxies-list": "Ваши прокси",
     "cdn-proxy-item": `${vars?.domain ?? ""} → ${vars?.target ?? ""} (${vars?.status ?? ""})`,
-    "manage-services-header": "Управление услугами",
+    "manage-services-header": "💼 Услуги",
     "menu-service-for-buy-choose": "Выберите категорию услуг для приобретения",
   };
   return ru[key] ?? key;

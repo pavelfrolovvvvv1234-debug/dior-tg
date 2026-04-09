@@ -21,6 +21,8 @@ import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
+import { UserRepository } from "../infrastructure/db/repositories/UserRepository.js";
+import { invalidateUser } from "../shared/user-cache.js";
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
@@ -139,41 +141,94 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: f
     });
   });
 
+async function openDomainsPurchaseScreen(ctx: AppContext): Promise<void> {
+  await ctx.editMessageText(ctx.t("abuse-domains-service"), {
+    parse_mode: "HTML",
+  });
+}
+
+async function openDedicatedCategoryScreen(ctx: AppContext): Promise<void> {
+  await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
+    parse_mode: "HTML",
+  });
+}
+
+/** Открытие CDN из меню покупки услуг (две кнопки CDN → общий обработчик + fallback в index). */
+export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<void> {
+  await ctx.answerCallbackQuery().catch(() => {});
+  const session = await ctx.session;
+  if (!session.other) (session as any).other = createInitialOtherSession();
+  if (!session.other.cdn) session.other.cdn = { step: "idle" };
+  session.other.cdn.fromManage = false;
+  const t =
+    typeof (ctx as any).t === "function"
+      ? (ctx as any).t.bind(ctx)
+      : ((k: string, v?: { error?: string }) =>
+          k === "cdn-error" && v?.error
+            ? `Ошибка CDN: ${v.error}`
+            : k === "cdn-welcome" || k === "cdn-service"
+              ? "CDN — тарифы и заказ в боте."
+              : k);
+  try {
+    const text =
+      typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: cdnMenu,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Bot] CDN menu open error:", msg);
+    await ctx.reply(t("cdn-error", { error: msg })).catch(() => {});
+  }
+}
+
 function buildServicesMenu(): Menu<AppContext> {
-  let m = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
+  const menu = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
+    .submenu((ctx) => ctx.t("button-purchase-domains-ru"), "domains-menu", openDomainsPurchaseScreen)
+    .row()
+    .text((ctx) => ctx.t("button-purchase-cdn-ru"), openCdnPurchaseFromServicesMenu)
+    .row()
     .submenu(
-      (ctx) => ctx.t("button-domains"),
-      "domains-menu",
-      async (ctx) => {
-        await ctx.editMessageText(ctx.t("abuse-domains-service"), {
-          parse_mode: "HTML",
-        });
-      }
+      (ctx) => ctx.t("button-purchase-dedicated-ru"),
+      "dedicated-type-menu",
+      openDedicatedCategoryScreen
     )
     .row()
-    .text(
-      (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
-      async (ctx) => {
-        await ctx.answerCallbackQuery().catch(() => {});
-        const session = await ctx.session;
-        if (!session.other) (session as any).other = createInitialOtherSession();
-        if (!session.other.cdn) session.other.cdn = { step: "idle" };
-        session.other.cdn.fromManage = false;
-        const t = typeof (ctx as any).t === "function" ? (ctx as any).t.bind(ctx) : ((k: string, v?: { error?: string }) => (k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k === "cdn-welcome" || k === "cdn-service" ? "CDN — тарифы и заказ в боте." : k));
-        try {
-          const text = typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
-          await ctx.editMessageText(text, {
-            parse_mode: "HTML",
-            reply_markup: cdnMenu,
-          });
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error("[Bot] CDN menu open error:", msg);
-          await ctx.reply(t("cdn-error", { error: msg })).catch(() => {});
-        }
+    .text((ctx) => ctx.t("button-purchase-lang-en"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      session.main.locale = "en";
+      (ctx as any)._requestLocale = "en";
+      const userRepo = new UserRepository(ctx.appDataSource);
+      try {
+        await userRepo.updateLanguage(session.main.user.id, "en");
+        if (ctx.chatId) invalidateUser(Number(ctx.chatId));
+      } catch {
+        // ignore
       }
+      const header =
+        typeof (ctx as any).fluent?.translateForLocale === "function"
+          ? (ctx as any).fluent.translateForLocale("en", "menu-service-for-buy-choose")
+          : ctx.t("menu-service-for-buy-choose");
+      await ctx.editMessageText(header, {
+        parse_mode: "HTML",
+        reply_markup: menu,
+      });
+    })
+    .row()
+    .submenu((ctx) => ctx.t("button-purchase-domains-en"), "domains-menu", openDomainsPurchaseScreen)
+    .row()
+    .text((ctx) => ctx.t("button-purchase-cdn-en"), openCdnPurchaseFromServicesMenu)
+    .row()
+    .submenu(
+      (ctx) => ctx.t("button-purchase-dedicated-en"),
+      "dedicated-type-menu",
+      openDedicatedCategoryScreen
     )
     .row();
+
+  let m = menu;
 
   if (showVpsVdsInServiceMenus()) {
     m = m
@@ -189,29 +244,15 @@ function buildServicesMenu(): Menu<AppContext> {
       .row();
   }
 
-  return m
-    .submenu(
-      (ctx) => ctx.t("button-dedicated-server"),
-      "dedicated-type-menu",
-      async (ctx) => {
-        await ctx.editMessageText(buildServiceHeader(ctx, "button-dedicated-server"), {
-          parse_mode: "HTML",
-        });
-      }
-    )
-    .row()
-    .back(
-      (ctx) => ctx.t("button-back"),
-      async (ctx) => {
-        const session = await ctx.session;
-        await ctx.editMessageText(
-          ctx.t("welcome", { balance: session.main.user.balance }),
-          {
-            parse_mode: "HTML",
-          }
-        );
-      }
-    );
+  return m.back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      const session = await ctx.session;
+      await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+        parse_mode: "HTML",
+      });
+    }
+  );
 }
 
 export const servicesMenu = buildServicesMenu();

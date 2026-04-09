@@ -161,7 +161,7 @@ export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated
   })
   .row()
   .back(
-    (ctx) => ctx.t("button-back"),
+    (ctx) => ctx.t("button-profile-back"),
     async (ctx) => {
       const session = await ctx.session;
       const renderer = ScreenRenderer.fromContext(ctx);

@@ -142,31 +142,57 @@ export async function buildControlPanelUserReply(
       ? (un.startsWith("@") ? un : `@${un}`)
       : "—";
   const stats = await getQuickUserStats(ctx.appDataSource, user.id, user.lastUpdateAt);
-  const statusLabel = user.isBanned ? ctx.t("admin-user-status-banned") : ctx.t("admin-user-status-active");
+  const session = await ctx.session;
+  const uiLocale = session.main.locale === "en" ? "en" : "ru";
+  const statusLine = user.isBanned
+    ? ctx.t("control-panel-user-status-banned")
+    : ctx.t("control-panel-user-status-active");
   const hasPrime = user.primeActiveUntil != null && new Date(user.primeActiveUntil) > new Date();
-  const primeStatusLabel = hasPrime ? ctx.t("admin-prime-status-yes") : ctx.t("admin-prime-status-no");
+  const primeStatusLabel = hasPrime ? ctx.t("control-panel-prime-yes") : ctx.t("control-panel-prime-no");
   const statusForLevel = user.status && ["newbie", "user", "admin"].includes(user.status) ? user.status : UserStatus.Newbie;
   const userLevelLabel = ctx.t(`admin-user-level-${statusForLevel}` as "admin-user-level-newbie");
-  const lastDepositStr = stats.lastDepositAt ? ctx.t("admin-date-format", { date: stats.lastDepositAt }) : "—";
-  const lastActivityStr = stats.lastActivityAt ? ctx.t("admin-date-format", { date: stats.lastActivityAt }) : "—";
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const balanceFormatted = money.format(user.balance);
+  const depositFormatted = money.format(stats.totalDeposit);
+  const formatRuDateTime = (d: Date) =>
+    d.toLocaleString("ru-RU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  const formatEnDateOnly = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const registeredAtStr =
+    uiLocale === "en" ? formatEnDateOnly(user.createdAt) : formatRuDateTime(user.createdAt);
+  const lastActiveStr = stats.lastActivityAt
+    ? uiLocale === "en"
+      ? formatEnDateOnly(stats.lastActivityAt)
+      : formatRuDateTime(stats.lastActivityAt)
+    : "—";
   return {
     text: ctx.t("control-panel-about-user", {
       id: user.id,
       usernameDisplay,
-      balance: Math.round(user.balance * 100) / 100,
-      statusLabel,
+      statusLine,
       primeStatusLabel,
       userLevelLabel,
-      totalDeposit: stats.totalDeposit,
+      balanceFormatted,
+      depositFormatted,
       topupsCount: stats.topupsCount,
-      lastDepositStr,
       activeServicesCount: stats.activeServicesCount,
       totalServicesCount: stats.totalServicesCount,
       ticketsCount: stats.ticketsCount,
       ordersCount: stats.ordersCount,
-      createdAt: user.createdAt,
-      lastActivityStr,
-      referralIncome: stats.referralIncome,
+      registeredAtStr,
+      lastActiveStr,
+      gap: "\n\n",
     }),
     reply_markup: replyMarkup,
   };
@@ -432,27 +458,8 @@ export const controlUser = new Menu<AppContext>("control-user", {})
       return;
     }
 
-    // Row 1: 💰 Баланс | 🎁 Рефералка
+    // Row 1: 💳 Баланс | 💼 Услуги
     range.text((ctx) => ctx.t("button-balance-short"), (ctx) => ctx.menu.nav("control-user-balance"));
-    range.text((ctx) => ctx.t("button-partnership-short"), async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      try {
-        const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
-        await ctx.reply(text, {
-          parse_mode: "HTML",
-          reply_markup,
-          link_preview_options: { is_disabled: true },
-        });
-      } catch (e: any) {
-        await ctx.reply(ctx.t("error-unknown", { error: String(e?.message || e).slice(0, 200) }), {
-          parse_mode: "HTML",
-        });
-      }
-    });
-
-    range.row();
-
-    // Row 2: 🖥 Услуги | 🎫 Тикеты
     range.text((ctx) => ctx.t("button-services-short"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const now = new Date();
@@ -499,6 +506,14 @@ export const controlUser = new Menu<AppContext>("control-user", {})
         reply_markup: keyboard,
       });
     });
+    range.row();
+
+    // Row 2: 📨 Сообщение | 🎫 Тикеты
+    range.text((ctx) => ctx.t("button-message-short"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      session.other.messageToUser = { userId: user.id, telegramId: user.telegramId };
+      await ctx.reply(ctx.t("admin-message-to-user-enter"), { parse_mode: "HTML" });
+    });
     range.text((ctx) => ctx.t("button-tickets-short"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const count = await ctx.appDataSource.manager.count(Ticket, { where: { userId: user.id } });
@@ -507,26 +522,8 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 
     range.row();
 
-    // Row 3: ✉ Сообщение | 🔐 Подписка
-    range.text((ctx) => ctx.t("button-message-short"), async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      session.other.messageToUser = { userId: user.id, telegramId: user.telegramId };
-      await ctx.reply(ctx.t("admin-message-to-user-enter"), { parse_mode: "HTML" });
-    });
+    // Row 3: 🔐 Подписка | 🏷 Роль
     range.text((ctx) => ctx.t("button-subscription-short"), (ctx) => ctx.menu.nav("control-user-subscription"));
-
-    range.row();
-
-    // Row 4: ⛔ Блокировка | 🏷 Роль
-    range.text(
-      (ctx) => (user.isBanned ? ctx.t("unblock-user") : ctx.t("button-block-short")),
-      async (ctx) => {
-        await ctx.answerCallbackQuery().catch(() => {});
-        user.isBanned = !user.isBanned;
-        await ctx.appDataSource.manager.save(user);
-        ctx.menu.update();
-      }
-    );
     if (session.main.user.role === Role.Admin) {
       range.text((ctx) => ctx.t("button-status-short"), (ctx) => ctx.menu.nav("control-user-status"));
     } else {
@@ -537,7 +534,35 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 
     range.row();
 
-    range.text((ctx) => ctx.t("button-back"), async (ctx) => {
+    // Row 4: 👥 Рефералы | ⛔ Блокировать
+    range.text((ctx) => ctx.t("button-referrals"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      try {
+        const { text, reply_markup } = await buildReferralSummaryReply(ctx, user);
+        await ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup,
+          link_preview_options: { is_disabled: true },
+        });
+      } catch (e: any) {
+        await ctx.reply(ctx.t("error-unknown", { error: String(e?.message || e).slice(0, 200) }), {
+          parse_mode: "HTML",
+        });
+      }
+    });
+    range.text(
+      (ctx) => (user.isBanned ? ctx.t("unblock-user") : ctx.t("button-block-short")),
+      async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        user.isBanned = !user.isBanned;
+        await ctx.appDataSource.manager.save(user);
+        ctx.menu.update();
+      }
+    );
+
+    range.row();
+
+    range.text((ctx) => ctx.t("button-control-user-back"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       await ctx.editMessageText(ctx.t("control-panel-users"), {
         parse_mode: "HTML",

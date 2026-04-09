@@ -175,10 +175,38 @@ const createVdsServiceInvoice = async (
 function buildManageServicesMenu(): Menu<AppContext> {
   let m = new Menu<AppContext>("manage-services-menu")
     .submenu(
-      (ctx) => ctx.t("button-domains"),
+      (ctx) => ctx.t("button-manage-domains"),
       "domain-manage-services-menu",
       async (ctx) => {
         await ctx.editMessageText(ctx.t("domains-manage"), {
+          parse_mode: "HTML",
+        });
+      }
+    )
+    .row()
+    .text(
+      (ctx) => ctx.t("button-manage-cdn"),
+      async (ctx) => {
+        const session = await ctx.session;
+        if (!session.other) (session as any).other = createInitialOtherSession();
+        if (!session.other.cdn) session.other.cdn = { step: "idle" };
+        session.other.cdn.fromManage = true;
+        try {
+          const { openCdnManageList } = await import("../ui/menus/cdn-menu.js");
+          await openCdnManageList(ctx);
+        } catch {
+          await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN list" }), {
+            parse_mode: "HTML",
+          });
+        }
+      }
+    )
+    .row()
+    .submenu(
+      (ctx) => ctx.t("button-manage-dedicated"),
+      "dedicated-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
           parse_mode: "HTML",
         });
       }
@@ -199,47 +227,15 @@ function buildManageServicesMenu(): Menu<AppContext> {
       .row();
   }
 
-  return m
-    .submenu(
-      (ctx) => ctx.t("button-my-dedicated"),
-      "dedicated-menu",
-      async (ctx) => {
-        await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
-          parse_mode: "HTML",
-        });
-      }
-    )
-    .row()
-    .text(
-      (ctx) => (typeof (ctx as any).t === "function" ? (ctx as any).t("button-cdn") : "CDN"),
-      async (ctx) => {
-        const session = await ctx.session;
-        if (!session.other) (session as any).other = createInitialOtherSession();
-        if (!session.other.cdn) session.other.cdn = { step: "idle" };
-        session.other.cdn.fromManage = true;
-        try {
-          const { openCdnManageList } = await import("../ui/menus/cdn-menu.js");
-          await openCdnManageList(ctx);
-        } catch {
-          await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN list" }), {
-            parse_mode: "HTML",
-          });
-        }
-      }
-    )
-    .row()
-    .back(
-      (ctx) => ctx.t("button-back"),
-      async (ctx) => {
-        const session = await ctx.session;
-        await ctx.editMessageText(
-          ctx.t("welcome", { balance: session.main.user.balance }),
-          {
-            parse_mode: "HTML",
-          }
-        );
-      }
-    );
+  return m.back(
+    (ctx) => ctx.t("button-manage-services-back"),
+    async (ctx) => {
+      const session = await ctx.session;
+      await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+        parse_mode: "HTML",
+      });
+    }
+  );
 }
 
 export const manageSerivcesMenu = buildManageServicesMenu();

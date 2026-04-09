@@ -49,11 +49,11 @@ button-manage-services = 💼 Services
 button-personal-profile = 👤 Profile
 button-support = 🛠 Support
 button-about-us = 📖 About us
-button-change-locale = 🇺🇸 Change language
+button-change-locale = 🌐 Language
 button-ask-question = Ask question
 button-tp = Support
-button-deposit = 💸 Top up
-button-promocode = 🎁 Promocode
+button-deposit = 💳 Top Up
+button-promocode = 🎁 Promo Code
 button-subscription = 🔐 Subscription
 button-website = Web Site
 button-support-profile = 🔔 Support
@@ -70,6 +70,16 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
+
+# Purchase services screen — bilingual button labels (same in EN locale file)
+button-purchase-domains-ru = 🌐 Домены
+button-purchase-cdn-ru = 🛡 CDN
+button-purchase-dedicated-ru = 🖥 Дедики
+button-purchase-lang-en = 🇬🇧 EN
+button-purchase-domains-en = 🌐 Domains
+button-purchase-cdn-en = 🛡 CDN
+button-purchase-dedicated-en = 🖥 Dedicated
+
 button-dev-po = ⚙️ Development
 button-dev-po-discuss = 💬 Discuss project
 button-crypto-exchange = 🔁 Exchange
@@ -86,6 +96,9 @@ button-agree = ✅ Agree
 update-button = 🔄 Update
 
 button-back = 🔙 Back
+
+# Profile root menu only
+button-profile-back = ⬅️ Back
 button-change-percent = 📊 Change percentage
 button-change-referral-percent = 📊 Referral %
 button-close = ❌ Close
@@ -134,40 +147,37 @@ admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$userna
 
 -users-list = Users list
 -users-list-empty = Users list is empty
--user-info = <strong>User Control Panel</strong>
 
 control-panel-users = {-users-list}
 
-control-panel-about-user = {-user-info}
+control-panel-about-user =
+    <b>👤 User</b>{$gap}
+    ID: {$id} • {$usernameDisplay}
+    Status: {$statusLine}
+    Level: {$userLevelLabel} • Subscription: {$primeStatusLabel}{$gap}
+    <b>💳 Finance</b>
+    Balance: {$balanceFormatted}
+    Deposits: {$depositFormatted}
+    Top-ups: {$topupsCount}{$gap}
+    <b>📊 Activity</b>
+    Services: {$activeServicesCount} active / {$totalServicesCount} total
+    Tickets: {$ticketsCount} • Orders: {$ordersCount}{$gap}
+    <b>🕒 Metadata</b>
+    Registered: {$registeredAtStr}
+    Last active: {$lastActiveStr}
 
- ID: {$id}
- Username: {$usernameDisplay}
- Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
- Status: {$statusLabel}
- Prime subscription: {$primeStatusLabel}
- Level: {$userLevelLabel}
+control-panel-user-status-active = 🟢 Active
+control-panel-user-status-banned = ⛔ Banned
+control-panel-prime-yes = Yes
+control-panel-prime-no = None
 
- 💰 Finance
- Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
- Total deposit: {NUMBER($totalDeposit, minimumFractionDigits: 0, maximumFractionDigits: 0)} $
- Top-ups: {$topupsCount}
- Last deposit: {$lastDepositStr}
-
- 📊 Activity
- Active services: {$activeServicesCount}
- Total services: {$totalServicesCount}
- Tickets: {$ticketsCount}
- Orders: {$ordersCount}
- Registration date: {DATETIME($createdAt, dateStyle: "long", timeStyle: "short")}
- Last activity: {$lastActivityStr}
- 
 -balance = Balance
 -id = ID
 admin-user-status-active = Active
 admin-user-status-banned = Banned
 admin-prime-status-yes = Yes
 admin-prime-status-no = No
-admin-user-level-newbie = Newbie
+admin-user-level-newbie = Beginner
 admin-user-level-user = User
 admin-user-level-admin = Admin
 admin-date-format = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
@@ -179,7 +189,7 @@ sort-asc = 🔽
 sort-desc = 🔼
 
 # Admin Panel
-button-admin-panel = ⚙️ Admin Panel
+button-admin-panel = ⚙️ Admin
 button-control-users = 👥 Manage Users
 button-tickets = 🎫 Tickets
 button-promocodes = 🎟 Promocodes
@@ -212,14 +222,14 @@ admin-service-percent-enter = Enter percentage (0–100) for «{$name}»:
 admin-service-percent-success = Percentage for «{$name}» set to {$percent}%.
 button-delete = 🗑 Delete
 admin-panel-header = <strong>⚙️ Admin Panel</strong>
-admin-promoted-notification = You have been granted administrator status. Tap the button below or use the /admin command. The Admin Panel button will also appear in your Profile.
+admin-promoted-notification = You have been granted administrator status. Tap the button below or use the /admin command. The Admin button will also appear in your Profile.
 button-open-admin-panel = ⚙️ Open admin panel
 
 Select an action:
 moderator-menu-header = <strong>Moderator Panel</strong>
 
 # Referrals
-button-referrals = 💲 Referrals
+button-referrals = 👥 Referrals
 button-share-link = 📤 Share link
 referrals-screen = 🚀 DiorHost Partner Program\n\nMonetize your traffic on VPS, dedicated servers and abuse-resistant domains.\n\n💰 Terms:\n\n• Up to 30% of each referred client's top-up\n• Lifetime — percentage from all future payments\n• Credited on first top-up from $10+\n• No limit on number of referrals\n• Automatic tracking in the system\n\n🔗 Your referral link:\n{$link}\n\nReferrals: {$count}\nEarned: {$profit} $\n\nDrive traffic — earn passive income on infrastructure.
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
@@ -442,7 +452,13 @@ promocode-used = The promo code was successfully used and you are credited on yo
 
 menu-service-for-buy-choose = 📃 <strong>Select the category of services to purchase</strong>
 
-manage-services-header = 🛠 Manage services
+manage-services-header = 💼 Services
+
+# Manage services menu
+button-manage-domains = 🌐 Domains
+button-manage-cdn = 🛡 CDN
+button-manage-dedicated = 🖥 Dedicated
+button-manage-services-back = ⬅️ Back
 
 
 vds-menu-rate-select = test
@@ -1100,11 +1116,11 @@ user-status-current = Current status: {$status}
 button-change-status = 🔄 Change Status
 button-add-balance = 💰 Add to balance
 button-deduct-balance = ➖ Deduct from balance
-button-balance-short = 💰 Balance
-button-services-short = 🖥 Services
+button-balance-short = 💳 Balance
+button-services-short = 💼 Services
 button-partnership-short = 🎁 Partnership
 button-tickets-short = 🎫 Tickets
-button-message-short = ✉ Message
+button-message-short = 📨 Message
 button-notes-short = 📝 Notes
 button-subscription-short = 🔐 Subscription
 admin-subscription-grant = Grant subscription
@@ -1127,7 +1143,8 @@ ref-percent-label-vds = VDS
 ref-percent-label-cdn = CDN
 admin-referral-percent-back-to-list = Back to list
 button-block-short = ⛔ Block
-button-status-short = 🏷 Status
+button-control-user-back = ⬅️ Back
+button-status-short = 🏷 Role
 button-operations-history = 📜 Operations history
 button-user-stats = 📊 Statistics
 button-restrictions = ⛔ Restrictions
