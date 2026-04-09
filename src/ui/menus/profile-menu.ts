@@ -6,6 +6,7 @@
 
 import { InlineKeyboard } from "grammy";
 import { Menu } from "@grammyjs/menu";
+import { topupMethodMenu } from "../../helpers/deposit-money.js";
 import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
@@ -76,7 +77,14 @@ ${PROFILE_LINKS_EN}`;
  * Profile menu. onMenuOutdated: false — при смене языка кнопки меняются, не показывать "Menu was outdated".
  */
 export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
-  .submenu((ctx) => ctx.t("button-deposit"), "deposit-menu")
+  .text((ctx) => ctx.t("button-deposit"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(ctx.t("topup-select-method"), {
+      reply_markup: topupMethodMenu,
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+  })
   .text(
     (ctx) => ctx.t("button-subscription"),
     async (ctx) => {

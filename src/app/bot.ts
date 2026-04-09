@@ -296,6 +296,7 @@ export async function createBot(): Promise<{
   const vdsTypeMenu = legacyMenus.servicesMenu.vdsTypeMenu;
   
   const depositMenu = legacyMenus.depositMoney.depositMenu;
+  const topupMethodMenu = legacyMenus.depositMoney.topupMethodMenu;
   const depositPaymentSystemChoose = legacyMenus.depositMoney.depositPaymentSystemChoose;
   const depositMoneyConversation = legacyMenus.depositMoney.depositMoneyConversation;
   
@@ -318,7 +319,13 @@ export async function createBot(): Promise<{
   
   // Create profile menu
   const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
-    .submenu((ctx) => ctx.t("button-deposit"), "deposit-menu")
+    .text((ctx) => ctx.t("button-deposit"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      await ctx.editMessageText(ctx.t("topup-select-method"), {
+        reply_markup: topupMethodMenu,
+        parse_mode: "HTML",
+      });
+    })
     .text(
       (ctx) => ctx.t("button-promocode"),
       async (ctx) => {
@@ -509,7 +516,8 @@ export async function createBot(): Promise<{
     Logger.warn("Failed to register admin menu:", error);
   }
   
-  profileMenu.register(depositMenu, "profile-menu");
+  profileMenu.register(topupMethodMenu, "profile-menu");
+  topupMethodMenu.register(depositMenu, "topup-method-menu");
   
   manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
   manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");

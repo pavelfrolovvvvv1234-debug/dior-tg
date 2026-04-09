@@ -319,7 +319,13 @@ const supportMenu = new Menu<AppContext>("support-menu", {
   );
 
 const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
-  .submenu((ctx) => ctx.t("button-deposit"), "topup-method-menu")
+  .text((ctx) => ctx.t("button-deposit"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(ctx.t("topup-select-method"), {
+      reply_markup: topupMethodMenu,
+      parse_mode: "HTML",
+    });
+  })
   .row()
   .text(
     (ctx) => ctx.t("button-referrals"),
