@@ -306,7 +306,7 @@ const supportMenu = new Menu<AppContext>("support-menu", {
   )
   .row()
   .back(
-    (ctx) => ctx.t("button-back"),
+    (ctx) => ctx.t("button-support-back"),
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
       await ctx.editMessageText(
@@ -932,7 +932,7 @@ async function index() {
 
   // mainMenu уже зарегистрирован выше (до /start)
   if (cdnMenu) {
-    bot.callbackQuery(/^services-menu\/(1|5)\/0($|\/)/, async (ctx) => {
+    bot.callbackQuery(/^services-menu\/1\/0($|\/)/, async (ctx) => {
       await openCdnPurchaseFromServicesMenu(ctx as any);
     });
   }

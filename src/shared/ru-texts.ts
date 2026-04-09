@@ -17,25 +17,6 @@ export function getWelcomeTextRu(balance: number): string {
 <blockquote>Баланс: ${b} $</blockquote>`;
 }
 
-const PROFILE_LINKS_RU =
+/** Футер профиля (RU) — HTML-ссылки. */
+export const PROFILE_LINKS_RU =
   '<a href="https://dior.host">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
-
-export interface ProfileTextRuParams {
-  userId: number;
-  balanceStr: string;
-  primeLine: string;
-}
-
-/** Профиль по-русски: ветки ├ │ └ как в английском профиле. */
-export function getProfileTextRu(params: ProfileTextRuParams): string {
-  const { userId, balanceStr, primeLine } = params;
-  const idSafe = String(userId).split("").join("&#8203;");
-  return `<b>├ 💻 DIOR ПРОФИЛЬ</b>
-│
-└ <b>✅ СТАТИСТИКА</b>
-    ├ ID: ${idSafe}
-    ├ ${primeLine}
-    └ Баланс: ${balanceStr} $
-
-${PROFILE_LINKS_RU}`;
-}

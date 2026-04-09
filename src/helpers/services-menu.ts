@@ -153,7 +153,34 @@ async function openDedicatedCategoryScreen(ctx: AppContext): Promise<void> {
   });
 }
 
-/** Открытие CDN из меню покупки услуг (две кнопки CDN → общий обработчик + fallback в index). */
+/** Смена языка на экране «Покупка услуг» и перерисовка клавиатуры (только 3 категории в текущей локали). */
+async function switchServicesPurchaseLocale(
+  ctx: AppContext,
+  menu: Menu<AppContext>,
+  nextLocale: "ru" | "en"
+): Promise<void> {
+  await ctx.answerCallbackQuery().catch(() => {});
+  const session = await ctx.session;
+  session.main.locale = nextLocale;
+  (ctx as any)._requestLocale = nextLocale;
+  const userRepo = new UserRepository(ctx.appDataSource);
+  try {
+    await userRepo.updateLanguage(session.main.user.id, nextLocale);
+    if (ctx.chatId) invalidateUser(Number(ctx.chatId));
+  } catch {
+    // ignore
+  }
+  const header =
+    typeof (ctx as any).fluent?.translateForLocale === "function"
+      ? (ctx as any).fluent.translateForLocale(nextLocale, "menu-service-for-buy-choose")
+      : ctx.t("menu-service-for-buy-choose");
+  await ctx.editMessageText(header, {
+    parse_mode: "HTML",
+    reply_markup: menu,
+  });
+}
+
+/** Открытие CDN из меню покупки услуг (fallback callback в index — строка CDN в меню). */
 export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<void> {
   await ctx.answerCallbackQuery().catch(() => {});
   const session = await ctx.session;
@@ -185,47 +212,29 @@ export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<
 
 function buildServicesMenu(): Menu<AppContext> {
   const menu = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
-    .submenu((ctx) => ctx.t("button-purchase-domains-ru"), "domains-menu", openDomainsPurchaseScreen)
+    .submenu((ctx) => ctx.t("button-service-buy-domains"), "domains-menu", openDomainsPurchaseScreen)
     .row()
-    .text((ctx) => ctx.t("button-purchase-cdn-ru"), openCdnPurchaseFromServicesMenu)
+    .text((ctx) => ctx.t("button-service-buy-cdn"), openCdnPurchaseFromServicesMenu)
     .row()
     .submenu(
-      (ctx) => ctx.t("button-purchase-dedicated-ru"),
+      (ctx) => ctx.t("button-service-buy-dedicated"),
       "dedicated-type-menu",
       openDedicatedCategoryScreen
     )
     .row()
-    .text((ctx) => ctx.t("button-purchase-lang-en"), async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
+    .dynamic(async (ctx, range) => {
       const session = await ctx.session;
-      session.main.locale = "en";
-      (ctx as any)._requestLocale = "en";
-      const userRepo = new UserRepository(ctx.appDataSource);
-      try {
-        await userRepo.updateLanguage(session.main.user.id, "en");
-        if (ctx.chatId) invalidateUser(Number(ctx.chatId));
-      } catch {
-        // ignore
+      const isEn = session.main.locale === "en";
+      if (isEn) {
+        range.text((c) => c.t("button-purchase-lang-ru"), async (c) => {
+          await switchServicesPurchaseLocale(c, menu, "ru");
+        });
+      } else {
+        range.text((c) => c.t("button-purchase-lang-en"), async (c) => {
+          await switchServicesPurchaseLocale(c, menu, "en");
+        });
       }
-      const header =
-        typeof (ctx as any).fluent?.translateForLocale === "function"
-          ? (ctx as any).fluent.translateForLocale("en", "menu-service-for-buy-choose")
-          : ctx.t("menu-service-for-buy-choose");
-      await ctx.editMessageText(header, {
-        parse_mode: "HTML",
-        reply_markup: menu,
-      });
     })
-    .row()
-    .submenu((ctx) => ctx.t("button-purchase-domains-en"), "domains-menu", openDomainsPurchaseScreen)
-    .row()
-    .text((ctx) => ctx.t("button-purchase-cdn-en"), openCdnPurchaseFromServicesMenu)
-    .row()
-    .submenu(
-      (ctx) => ctx.t("button-purchase-dedicated-en"),
-      "dedicated-type-menu",
-      openDedicatedCategoryScreen
-    )
     .row();
 
   let m = menu;

@@ -6,71 +6,113 @@
 
 import { InlineKeyboard } from "grammy";
 import { Menu } from "@grammyjs/menu";
+import { MoreThan } from "typeorm";
 import { topupMethodMenu } from "../../helpers/deposit-money.js";
 import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
-import { getProfileTextRu } from "../../shared/ru-texts.js";
+import { PROFILE_LINKS_RU } from "../../shared/ru-texts.js";
 import { invalidateUser } from "../../shared/user-cache.js";
+import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
+import DedicatedServer, { DedicatedServerStatus } from "../../entities/DedicatedServer.js";
+import Domain, { DomainStatus } from "../../entities/Domain.js";
 
 const PROFILE_LINKS_EN =
   '<a href="https://dior.host">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>';
 
+function escapeProfileHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function countActiveServicesForUser(
+  ctx: AppContext,
+  internalUserId: number
+): Promise<number> {
+  const now = new Date();
+  const ds = ctx.appDataSource.manager;
+  const [activeVds, activeDedicated, activeDomain] = await Promise.all([
+    ds.count(VirtualDedicatedServer, {
+      where: { targetUserId: internalUserId, expireAt: MoreThan(now) },
+    }),
+    ds.count(DedicatedServer, {
+      where: { userId: internalUserId, status: DedicatedServerStatus.ACTIVE },
+    }),
+    ds.count(Domain, {
+      where: { userId: internalUserId, status: DomainStatus.REGISTERED },
+    }),
+  ]);
+  return activeVds + activeDedicated + activeDomain;
+}
+
 /**
- * Build profile screen text including Prime subscription status (active until date or "no").
- * Date is formatted without time (locale-aware).
- * @param options.locale — если передан, профиль в этом языке (для смены языка в меню).
+ * Build profile screen text (Prime, balance, active services, status).
+ * @param options.locale — для смены языка в меню без перезагрузки пользователя из БД.
  */
 export async function getProfileText(
   ctx: AppContext,
   options?: { locale?: string }
 ): Promise<string> {
   const session = await ctx.session;
-  const userId = ctx.from?.id ?? session.main.user.id;
-  const idSafe = String(userId).split("").join("&#8203;");
-  const balanceRaw = session.main.user.balance;
-  const balanceFormatted = balanceRaw.toFixed(2);
-  const balance = balanceFormatted.endsWith(".00")
-    ? balanceFormatted.slice(0, -3)
-    : balanceFormatted;
-
   const userRepo = new UserRepository(ctx.appDataSource);
   const user = await userRepo.findById(session.main.user.id);
   const primeActiveUntil = user?.primeActiveUntil ?? null;
   const now = new Date();
-  const hasActivePrime = primeActiveUntil && new Date(primeActiveUntil) > now;
+  const hasActivePrime = Boolean(primeActiveUntil && new Date(primeActiveUntil) > now);
 
-  // Язык профиля: из options (смена языка) или из БД (user.lang), по умолчанию русский
   const locale = options?.locale ?? (user?.lang === "en" ? "en" : "ru");
   const dateLocale = locale === "en" ? "en-US" : "ru-RU";
-  // Строка подписки в том же языке, что и профиль (иначе в RU-профиле было "Prime:")
   ctx.fluent.useLocale(locale);
-  const primeLine = hasActivePrime && primeActiveUntil
-    ? ctx.t("profile-prime-until", {
-        date: new Date(primeActiveUntil).toLocaleDateString(dateLocale, {
+
+  const telegramId = user?.telegramId ?? ctx.from?.id ?? session.main.user.id;
+  const idSafe = String(telegramId).split("").join("&#8203;");
+
+  let usernameLine: string;
+  if (ctx.from?.username) {
+    usernameLine = `@${escapeProfileHtml(ctx.from.username)}`;
+  } else if (ctx.from?.first_name) {
+    usernameLine = escapeProfileHtml(ctx.from.first_name);
+  } else {
+    usernameLine = ctx.t("profile-username-unknown");
+  }
+
+  const balanceAmount = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(session.main.user.balance);
+
+  const activeServices =
+    user != null ? await countActiveServicesForUser(ctx, user.id) : 0;
+
+  const subscriptionValue =
+    hasActivePrime && primeActiveUntil
+      ? new Date(primeActiveUntil).toLocaleDateString(dateLocale, {
           day: "numeric",
           month: "long",
           year: "numeric",
-        }),
-      })
-    : ctx.t("profile-prime-no");
+        })
+      : ctx.t("profile-subscription-none");
 
-  if (locale === "ru") {
-    return getProfileTextRu({
-      userId,
-      balanceStr: balance,
-      primeLine,
-    });
-  }
+  const statusLabel = user?.isBanned
+    ? ctx.t("profile-status-banned-label")
+    : ctx.t("profile-status-active-label");
 
-  return `<b>┠💻 DIOR PROFILE
-┃
-┗✅ STATS:
-    ┠ ID: ${idSafe}
-    ┠ ${primeLine}
-    ┗ Balance: ${balance} $</b>
+  const links = locale === "ru" ? PROFILE_LINKS_RU : PROFILE_LINKS_EN;
 
-${PROFILE_LINKS_EN}`;
+  return `${ctx.t("profile-screen-header")}
+
+${ctx.t("profile-screen-user", { username: usernameLine })}
+
+${ctx.t("profile-screen-id", { id: idSafe })}
+
+${ctx.t("profile-screen-balance", { amount: balanceAmount })}
+${ctx.t("profile-screen-active-services", { count: activeServices })}
+
+${ctx.t("profile-screen-subscription", { value: subscriptionValue })}
+${ctx.t("profile-screen-status", { status: statusLabel })}
+
+${links}`;
 }
 
 /**

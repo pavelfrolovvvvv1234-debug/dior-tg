@@ -20,13 +20,10 @@ about-us = We provide reliable and high-performance VDS dedicated servers and ho
  
  With us you get full control over services, flexible rates and 24/7 support from professionals.
 
-support = We are always here to help! 🤝
+support = 🛠 Support
 
- There are questions about registration domain names? Ideas for Improving of our service? Or offers for cooperation? We will be happy to listen to you!
-
- Write our support right now!
-
- <a href="https://dior.host/">Web Site</a> | <a href="https://t.me/diorhost">Support</a> | <a href="https://t.me/+C27tBPXXpj40ZGE6">Dior News</a>
+ Describe your issue or request.
+ We'll get back to you shortly.
 
 support-message-template = Hello!
  I have a question.
@@ -50,9 +47,10 @@ button-personal-profile = 👤 Profile
 button-support = 🛠 Support
 button-about-us = 📖 About us
 button-change-locale = 🌐 Language
-button-ask-question = Ask question
+button-ask-question = 📨 Contact Support
+button-support-back = ⬅️ Back
 button-tp = Support
-button-deposit = 💳 Top Up
+button-deposit = 💳 Balance
 button-promocode = 🎁 Promo Code
 button-subscription = 🔐 Subscription
 button-website = Web Site
@@ -71,14 +69,12 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
 
-# Purchase services screen — bilingual button labels (same in EN locale file)
-button-purchase-domains-ru = 🌐 Домены
-button-purchase-cdn-ru = 🛡 CDN
-button-purchase-dedicated-ru = 🖥 Дедики
+# Purchase services — labels for current locale (3 buttons + language toggle)
+button-service-buy-domains = 🌐 Domains
+button-service-buy-cdn = 🛡 CDN
+button-service-buy-dedicated = 🖥 Dedicated
 button-purchase-lang-en = 🇬🇧 EN
-button-purchase-domains-en = 🌐 Domains
-button-purchase-cdn-en = 🛡 CDN
-button-purchase-dedicated-en = 🖥 Dedicated
+button-purchase-lang-ru = 🇷🇺 RU
 
 button-dev-po = ⚙️ Development
 button-dev-po-discuss = 💬 Discuss project
@@ -1267,6 +1263,18 @@ prime-discount-vds = 🔐 Prime Subscription −10% on VPS/VDS
 
 profile-prime-no = Prime: No
 profile-prime-until = Prime: until {$date}
+
+profile-screen-header = 🔷 DiorHost
+profile-screen-user = 👤 {$username}
+profile-screen-id = ID: {$id}
+profile-screen-balance = Balance: {$amount}
+profile-screen-active-services = Active services: {$count}
+profile-screen-subscription = Subscription: {$value}
+profile-screen-status = Status: {$status}
+profile-subscription-none = None
+profile-status-active-label = Active
+profile-status-banned-label = Banned
+profile-username-unknown = —
 
 nps-promoter = Thanks for the high rating! 🎉 Invite friends via your referral link — earn % from their deposits. Or use the yearly renewal discount in your profile.
 nps-detractor = Sorry something wasn't right. Contact support — we'll look into it and help. The «Ask question» button in the menu opens a chat with us.

@@ -457,7 +457,7 @@ export async function createBot(): Promise<{
       }
     )
     .back(
-      (ctx) => ctx.t("button-back"),
+      (ctx) => ctx.t("button-support-back"),
       async (ctx) => {
         const session = await ctx.session;
         await ctx.editMessageText(

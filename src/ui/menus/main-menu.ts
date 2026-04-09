@@ -114,7 +114,7 @@ export const supportMenu = new Menu<AppContext>("support-menu", {
     }
   )
   .back(
-    (ctx) => ctx.t("button-back"),
+    (ctx) => ctx.t("button-support-back"),
     async (ctx) => {
       const session = await ctx.session;
       const renderer = ScreenRenderer.fromContext(ctx);
