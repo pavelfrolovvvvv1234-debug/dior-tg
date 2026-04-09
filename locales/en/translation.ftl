@@ -699,7 +699,7 @@ error-ticket-already-taken = Ticket already taken
 ticket-ask-user-enter-question = Enter the question for the user:
 ticket-question-from-moderator = <strong>Question from moderator</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 
 {$question}
 ticket-question-sent = Question sent to user
@@ -710,21 +710,21 @@ ticket-provide-panel-optional = Enter panel URL (optional, press /skip to skip):
 ticket-provide-notes-optional = Enter notes (optional, press /skip to skip):
 ticket-provide-result-text = Enter result text:
 ticket-result-provided = Result provided
-ticket-result-received = <strong>Ticket #{ticketId} resolved</strong>
+ticket-result-received = <strong>Ticket #{$ticketId} resolved</strong>
 
 {$result}
 ticket-reject-enter-reason-optional = Enter rejection reason (optional):
-ticket-rejected = <strong>Ticket #{ticketId} rejected</strong>
+ticket-rejected = <strong>Ticket #{$ticketId} rejected</strong>
 
 Reason: {$reason}
 ticket-rejected-by-moderator = Ticket rejected
-ticket-new-notification = <strong>New Ticket #{ticketId}</strong>
+ticket-new-notification = <strong>New Ticket #{$ticketId}</strong>
 
 User: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})
 Type: {$type}
 ticket-moderator-notification = <strong>You received a ticket</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 Type: {$type}
 User: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})
 {$amountLine}
@@ -747,7 +747,7 @@ button-my-tickets = 🎫 My Requests
 dedicated-none = You don't have any dedicated servers
 dedicated-status-requested = <strong>Dedicated Server Request</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 Status: {$status}
 
 Please wait for moderator to process your request.
@@ -774,11 +774,11 @@ dedicated-order-enter-requirements = Enter your requirements (CPU/RAM/SSD/Locati
 dedicated-order-enter-comment-optional = Enter additional comment (optional, press /skip to skip):
 dedicated-order-created = <strong>Request sent to moderator</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 Status: {$status}
 dedicated-order-success = <strong>Purchase completed successfully</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 
 If you need help, contact support.
 dedicated-purchase-success = <strong>Your purchase was successful</strong>
@@ -790,12 +790,12 @@ dedicated-operation-requested = <strong>Request sent to support</strong>
  Ticket #{$ticketId}. Please wait for moderator response.
 
 Operation: {$operation}
-Ticket #{ticketId}
+Ticket #{$ticketId}
 tickets-none-user = You don't have any tickets
 tickets-list-user = <strong>My Tickets ({$count})</strong>
 ticket-dedicated-ready = <strong>Your Dedicated Server is Ready!</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 
 <strong>IP:</strong> {$ip}
 <strong>Login:</strong> {$login}
@@ -919,13 +919,13 @@ withdraw-request-created = <strong>Withdrawal Request Created</strong>
 Ticket #{ticketId}
 
 A moderator will process your request shortly.
-withdraw-new-notification = <strong>New Withdrawal Request #{ticketId}</strong>
+withdraw-new-notification = <strong>New Withdrawal Request #{$ticketId}</strong>
 
 User: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})
 Amount: {$amount} $
 withdraw-approved = <strong>Withdrawal Request Approved</strong>
 
-Ticket #{ticketId}
+Ticket #{$ticketId}
 Amount: {$amount} $
 
 Funds have been deducted from your balance.

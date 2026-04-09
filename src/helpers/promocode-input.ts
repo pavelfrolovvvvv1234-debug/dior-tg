@@ -4,6 +4,7 @@ import { StatelessQuestion } from "@grammyjs/stateless-question";
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../shared/types/context";
 import User from "@entities/User";
+import { invalidateUser } from "../shared/user-cache.js";
 
 /**
  * Process promocode input and apply it to the user.
@@ -22,7 +23,7 @@ export async function handlePromocodeInput(
   const userId = session.main.user.id;
 
   try {
-    const sumApplied = await dataSource.transaction(async (manager) => {
+    const applied = await dataSource.transaction(async (manager) => {
       const promoRepo = manager.getRepository(Promo);
       const usersRepo = manager.getRepository(User);
 
@@ -44,18 +45,23 @@ export async function handlePromocodeInput(
       user.balance += promo.sum;
       await promoRepo.save(promo);
       await usersRepo.save(user);
-      return promo.sum;
+      return {
+        amount: promo.sum,
+        balance: user.balance,
+        telegramId: user.telegramId,
+      };
     });
 
-    if (sumApplied == null) {
+    if (applied == null) {
       await ctx.reply(ctx.t("promocode-not-found"), {
         parse_mode: "HTML",
         reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "promocode-back"),
       });
       return;
     }
-    session.main.user.balance += sumApplied;
-    await ctx.reply(ctx.t("promocode-used", { amount: sumApplied }), {
+    invalidateUser(applied.telegramId);
+    session.main.user.balance = applied.balance;
+    await ctx.reply(ctx.t("promocode-used", { amount: applied.amount }), {
       parse_mode: "HTML",
     });
   } catch (err) {

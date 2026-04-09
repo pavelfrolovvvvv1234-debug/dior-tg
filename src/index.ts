@@ -1048,7 +1048,7 @@ async function index() {
     const session = (await ctx.session) as SessionData;
     if (session.main.user.isBanned) {
       await ctx.reply(ctx.t("message-about-block"));
-      await ctx.deleteMessage();
+      await ctx.deleteMessage().catch(() => {});
       return;
     }
     return next();
@@ -1219,9 +1219,7 @@ async function index() {
     const session = (await ctx.session) as SessionData;
     const hasSessionUser = await ensureSessionUser(ctx as AppContext);
     if (!session || !hasSessionUser) {
-      await ctx.answerCallbackQuery(
-        ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200)
-      );
+      await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200)).catch(() => {});
       return;
     }
 
@@ -3034,7 +3032,7 @@ async function index() {
   });
 
   bot.command("users", async (ctx) => {
-    await ctx.deleteMessage();
+    await ctx.deleteMessage().catch(() => {});
     const session = (await ctx.session) as SessionData;
     if (session.main.user.role == Role.User) return;
 
