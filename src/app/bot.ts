@@ -483,8 +483,6 @@ export async function createBot(): Promise<{
   bot.use(mainMenu);
   // languageSelectMenu will be registered dynamically in /start command
   bot.use(servicesMenu);
-  const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-  bot.use(cdnMenu);
   bot.use(adminPromosMenu);
   bot.use(domainOrderMenu);
   bot.use(depositPaymentSystemChoose);
@@ -529,13 +527,6 @@ export async function createBot(): Promise<{
   manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");
   manageSerivcesMenu.register(bundleManageServicesMenu, "manage-services-menu");
   try {
-    const { cdnMenu } = await import("../ui/menus/cdn-menu.js");
-    manageSerivcesMenu.register(cdnMenu, "manage-services-menu");
-  } catch (error: any) {
-    Logger.warn("Failed to register CDN menu in manage services:", error);
-  }
-
-  try {
     const { dedicatedMenu } = await import("../ui/menus/dedicated-menu");
     if (dedicatedMenu) {
       manageSerivcesMenu.register(dedicatedMenu, "manage-services-menu");
@@ -555,7 +546,6 @@ export async function createBot(): Promise<{
   }
 
   servicesMenu.register(domainsMenu, "services-menu");
-  servicesMenu.register(cdnMenu, "services-menu");
   servicesMenu.register(dedicatedTypeMenu, "services-menu");
   servicesMenu.register(vdsTypeMenu, "services-menu");
   // Shop flow uses inline dsh:*; dedicatedServersMenu stays on bot.use for legacy keyboards only.
@@ -578,7 +568,7 @@ export async function createBot(): Promise<{
   bot.use(domainQuestion.middleware());
   bot.use(vdsManageSpecific);
   bot.callbackQuery(
-    /^(cdn_(open|renew|retryssl|delask|delok):.+|cdn_autorenew:.+:[01]|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back|cdn_list|cdn_back_to_manage)$/,
+    /^(cdn_(open|renew|retryssl|delask|delok):.+|cdn_autorenew:.+:[01]|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back|cdn_list|cdn_back_to_manage|cdn_empty_row|cdn_exit_services|cdn_nav:(main|tariffs|proxy)|cdn_card:(standard|bulletproof|bundle)|cdn_detail:(standard|bulletproof|bundle)|cdn_prime_row)$/,
     async (ctx) => {
       const { handleCdnActionCallback } = await import("../ui/menus/cdn-menu.js");
       await handleCdnActionCallback(ctx as AppContext);

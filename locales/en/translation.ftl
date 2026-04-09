@@ -284,43 +284,116 @@ domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take 
 domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
 domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$domain}</i> (Your balance has been debited) You can follow the status in the service management menu
 
-cdn-service = 🌍 <strong>Cloudflare alternative</strong> — proxy your site through our domain with SSL. Enter domain and target URL.
+cdn-service = 🌐 <strong>CDN &amp; Traffic</strong> — optimized routing, protection, and delivery. Pick a plan to connect a proxy.
 
-cdn-welcome = 🌍 <strong>CDN</strong> — proxy, SSL, and traffic protection.
+cdn-welcome = 🌐 <strong>CDN &amp; Traffic</strong>
 
-<b>Plans (per site, monthly)</b>
+Optimized routing, protection and stable delivery.
 
-<b>CDN Standard (Ads-ready)</b> — $25 / month
-• 1 domain
-• ~200–300 GB traffic (soft cap)
-• basic cache + proxy
-• SSL
-• basic anti-bot / rate limiting
+🚀 Acceleration
+🛡 Protection
+🌍 Global network
 
-<b>CDN Bulletproof</b> — $49 / month
-• higher resilience (multi-origin / fallback)
-• abuse-report handling tuned for uptime
-• fast re-issues / route changes
-• custom rules (UA, geo, referer)
-• hidden origins
+cdn-main-screen = 🌐 <strong>CDN &amp; Traffic</strong>
 
-<b>Bundled (CDN + VDS)</b> — $169 / month
-• CDN (bulletproof)
-• VDS (bulletproof)
-• basic setup (nginx + SSL + firewall)
-• origin hiding
-• quick IP changes when needed
+Optimized routing, protection and stable delivery.
 
-Tap <b>«Add proxy»</b> and choose a plan below.
+🚀 Acceleration
+🛡 Protection
+🌍 Global network
 
-cdn-plan-standard-name = CDN Standard (Ads-ready)
-cdn-plan-bulletproof-name = CDN Bulletproof
-cdn-plan-bundle-name = Bundled (CDN + VDS)
-cdn-choose-plan = <b>Choose a CDN plan</b> (per site, monthly, USD):
-cdn-choose-plan-hint = Please pick a plan using one of the buttons below.
-button-cdn-plan-standard = 📦 Standard — $25/mo
-button-cdn-plan-bulletproof = 🛡 Bulletproof — $49/mo
-button-cdn-plan-bundle = 📦 Bundle CDN+VDS — $169/mo
+cdn-tariffs-screen = 📦 <strong>CDN Plans</strong>
+
+Choose configuration:
+
+button-cdn-plans = 📦 CDN Plans
+button-cdn-proxy-ip = 🔗 Proxies / IP
+button-cdn-pick-standard = 🚀 Standard — from {$price}$
+button-cdn-pick-protected = 🛡 Protected — from {$price}$
+button-cdn-pick-bundle = ⚡ CDN + VDS — from {$price}$
+button-cdn-prime-row = 🔐 Prime — up to 10% off
+button-cdn-connect = 🛒 Connect
+button-cdn-details = 📋 Details
+
+cdn-card-standard-body = 🚀 <strong>Standard CDN</strong>
+
+Basic traffic acceleration and caching.
+
+✔️ CDN routing
+✔️ Caching
+✔️ SSL
+✔️ Basic protection
+
+💳 {$price}$ / month
+
+cdn-card-protected-body = 🛡 <strong>Protected CDN</strong>
+
+Enhanced protection and routing stability.
+
+✔️ Advanced filtering
+✔️ Stable routing
+✔️ Traffic protection
+✔️ Priority network
+
+💳 {$price}$ / month
+
+cdn-card-bundle-body = ⚡ <strong>CDN + VDS</strong>
+
+Ready-to-use infrastructure stack.
+
+✔️ CDN + server
+✔️ Reverse proxy
+✔️ Origin protection
+✔️ Full control
+
+💳 {$price}$ / month
+
+cdn-detail-standard-body = 🚀 <strong>Standard CDN</strong>
+
+Best for sites that need fast caching, SSL at the edge, and baseline L7 protection — without operational overhead.
+
+✔️ CDN routing
+✔️ Caching
+✔️ SSL
+✔️ Basic protection
+
+💳 <b>{$price}$ / month</b> · per site · billed from balance
+
+cdn-detail-protected-body = 🛡 <strong>Protected CDN</strong>
+
+For traffic that demands stronger filtering, resilient routing, and priority treatment when it matters.
+
+✔️ Advanced filtering
+✔️ Stable routing
+✔️ Traffic protection
+✔️ Priority network
+
+💳 <b>{$price}$ / month</b> · per site · billed from balance
+
+cdn-detail-bundle-body = ⚡ <strong>CDN + VDS</strong>
+
+Single stack: edge CDN plus a dedicated server — reverse proxy, hidden origin, and full control.
+
+✔️ CDN + server
+✔️ Reverse proxy
+✔️ Origin protection
+✔️ Full control
+
+💳 <b>{$price}$ / month</b> · bundle · billed from balance
+
+cdn-proxy-hub-screen = 🔗 <strong>Proxies / IP</strong>
+
+Add extra IPs and routing options.
+
+✔️ IPv4 / IPv6
+✔️ Geo locations
+✔️ Load balancing
+
+cdn-plan-standard-name = Standard CDN
+cdn-plan-bulletproof-name = Protected CDN
+cdn-plan-bundle-name = CDN + VDS
+cdn-choose-plan = 📦 <strong>CDN Plans</strong> — choose a configuration below.
+cdn-choose-plan-hint = Open <b>CDN Plans</b> and pick a tier, or use the buttons in the last message.
 
 cdn-enter-domain = Enter the <strong>domain</strong> for proxying (e.g. <code>cdn.example.com</code>):
 cdn-enter-target = Enter the <strong>target URL</strong> (e.g. <code>https://origin.example.com</code>):
@@ -350,8 +423,8 @@ cdn-target-help = <strong>Where can I get origin URL?</strong>
     If you are not sure, tap “Auto-pick”.
 cdn-target-auto-not-ready = First enter the domain to proxy.
 cdn-target-auto-picked = Origin was auto-filled: <code>{$targetUrl}</code>
-cdn-my-proxies-empty = You have no proxies yet. Add one via «Add proxy».
-cdn-my-proxies-list = <strong>Your proxies:</strong>
+cdn-my-proxies-empty = You have no proxies yet. Add one via <b>CDN Plans</b> → <b>Connect</b>.
+cdn-my-proxies-list = 🔗 <strong>Your proxies</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})
 button-cdn-confirm = ✅ Confirm
 button-cdn-cancel = ❌ Cancel
@@ -1380,8 +1453,8 @@ prime-trial-already-used = You have already used the free trial. Continue subscr
 prime-trial-subscribe-first = Please subscribe to the channel first, then press "I have subscribed".
 prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the button above, wait 5–10 seconds and press "I have subscribed" again. Ensure the bot is added to the channel as an administrator.
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
-prime-discount-dedicated = 🔐 Prime
-prime-discount-vds = 🔐 Prime
+prime-discount-dedicated = 🔐 Prime — up to 10% off
+prime-discount-vds = 🔐 Prime — up to 10% off
 
 profile-prime-no = Prime: No
 profile-prime-until = Prime: until {$date}

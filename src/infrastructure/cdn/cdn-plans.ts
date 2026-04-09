@@ -1,6 +1,6 @@
 /**
  * CDN product tiers — prices and ids stored in the bot (USD / month per site).
- * Descriptions live in Fluent (cdn-tariffs-overview, cdn-plan-*-name).
+ * Display names in Fluent (cdn-plan-*-name, cdn-card-*-body). Internal ids: standard | bulletproof | bundle.
  */
 
 export const CDN_PLAN_IDS = ["standard", "bulletproof", "bundle"] as const;

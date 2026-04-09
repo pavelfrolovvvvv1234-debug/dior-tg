@@ -25,6 +25,10 @@ function appendVpsShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, backData
   kb.text(ctx.t("button-back"), backData).row();
 }
 
+function appendVpsShopBackOnly(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
+  kb.text(ctx.t("button-back"), backData).row();
+}
+
 async function getPriceWithPrimeDiscount(
   dataSource: AppContext["appDataSource"],
   userId: number,
@@ -206,7 +210,7 @@ export async function showVpsShopStep4Card(ctx: AppContext, rateId: number): Pro
     .row()
     .text(ctx.t("vds-shop-details"), `vsh:det:${rateId}`)
     .row();
-  appendVpsShopPrimeAndBack(kb, ctx, `vsh:back:list`);
+  appendVpsShopBackOnly(kb, ctx, `vsh:back:list`);
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",
@@ -237,7 +241,7 @@ export async function showVpsShopFullDetails(ctx: AppContext, rateId: number): P
   });
 
   const kb = new InlineKeyboard();
-  appendVpsShopPrimeAndBack(kb, ctx, `vsh:card:${rateId}`);
+  appendVpsShopBackOnly(kb, ctx, `vsh:card:${rateId}`);
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",

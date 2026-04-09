@@ -286,43 +286,116 @@ domain-not-available = 🚫 Домен <i>{$domain}</i>, уже занят. По
 domain-available = ✅ Домен <i>{$domain}</i>, доступен для регистрации. Вы хотите его приобрести?
 domain-registration-in-progress = 🔄 Регистрация домена <i>{$domain}</i> в процессе. (С вашего баланса списанны средства) За статусом можете следить в меню управления услугами
 
-cdn-service = 🌍 <strong>Аналог Cloudflare</strong> — проксирование вашего сайта через наш домен с SSL. Введите домен и целевой URL.
+cdn-service = 🌐 <strong>CDN и трафик</strong> — маршрутизация, защита и доставка. Выберите тариф и подключите прокси.
 
-cdn-welcome = 🌍 <strong>CDN</strong> — прокси, SSL и защита трафика.
+cdn-welcome = 🌐 <strong>CDN &amp; Трафик</strong>
 
-<b>Тарифы (за 1 сайт, помесячно)</b>
+Оптимизация маршрутов, защита и стабильная доставка трафика.
 
-<b>CDN Standard (Ads-ready)</b> — 25 $ / мес
-• 1 домен
-• до ~200–300 GB трафика (скрытый лимит)
-• базовый cache + proxy
-• SSL
-• базовый анти-бот / rate-limit
+🚀 Ускорение
+🛡 Защита
+🌍 Глобальная сеть
 
-<b>CDN Bulletproof</b> — 49 $ / мес
-• повышенная живучесть (multi-origin / fallback)
-• игнорирование абуз-репортов
-• быстрые перевыпуски / смена маршрутов
-• кастомные rules (UA, geo, referer)
-• скрытые origin
+cdn-main-screen = 🌐 <strong>CDN &amp; Трафик</strong>
 
-<b>Бандл (CDN + VDS)</b> — 169 $ / мес
-• CDN (bulletproof)
-• VDS (bulletproof)
-• базовая настройка (nginx + SSL + firewall)
-• скрытие origin
-• возможность быстро менять IP
+Оптимизация маршрутов, защита и стабильная доставка трафика.
 
-Нажмите <b>«Добавить прокси»</b> и выберите тариф кнопками ниже.
+🚀 Ускорение
+🛡 Защита
+🌍 Глобальная сеть
 
-cdn-plan-standard-name = CDN Standard (Ads-ready)
-cdn-plan-bulletproof-name = CDN Bulletproof
-cdn-plan-bundle-name = Бандл (CDN + VDS)
-cdn-choose-plan = <b>Выберите тариф CDN</b> (цены за 1 сайт в месяц, USD):
-cdn-choose-plan-hint = Выберите тариф одной из кнопок ниже.
-button-cdn-plan-standard = 📦 Standard — 25 $
-button-cdn-plan-bulletproof = 🛡 Bulletproof — 49 $
-button-cdn-plan-bundle = 📦 Bundle CDN+VDS — 169 $
+cdn-tariffs-screen = 📦 <strong>Тарифы CDN</strong>
+
+Выберите конфигурацию:
+
+button-cdn-plans = 📦 Тарифы CDN
+button-cdn-proxy-ip = 🔗 Прокси / IP
+button-cdn-pick-standard = 🚀 Standard — от {$price} $
+button-cdn-pick-protected = 🛡 Protected — от {$price} $
+button-cdn-pick-bundle = ⚡ CDN + VDS — от {$price} $
+button-cdn-prime-row = 🔐 Prime — до 10% скидка
+button-cdn-connect = 🛒 Подключить
+button-cdn-details = 📋 Подробнее
+
+cdn-card-standard-body = 🚀 <strong>Standard CDN</strong>
+
+Базовое ускорение и кеширование трафика.
+
+✔️ CDN маршрутизация
+✔️ Кеширование
+✔️ SSL
+✔️ Базовая защита
+
+💳 {$price} $ / месяц
+
+cdn-card-protected-body = 🛡 <strong>Protected CDN</strong>
+
+Усиленная защита и стабильность трафика.
+
+✔️ Продвинутая фильтрация
+✔️ Стабильная маршрутизация
+✔️ Защита от блокировок
+✔️ Приоритетная сеть
+
+💳 {$price} $ / месяц
+
+cdn-card-bundle-body = ⚡ <strong>CDN + VDS</strong>
+
+Готовая инфраструктура под нагрузку.
+
+✔️ CDN + сервер
+✔️ Reverse proxy
+✔️ Скрытие origin
+✔️ Полный контроль
+
+💳 {$price} $ / месяц
+
+cdn-detail-standard-body = 🚀 <strong>Standard CDN</strong>
+
+Для проектов, где нужны кеш на edge, SSL и базовая защита на уровне L7 — без лишней сложности.
+
+✔️ CDN маршрутизация
+✔️ Кеширование
+✔️ SSL
+✔️ Базовая защита
+
+💳 <b>{$price} $ / месяц</b> · за сайт · списание с баланса
+
+cdn-detail-protected-body = 🛡 <strong>Protected CDN</strong>
+
+Когда важны устойчивость маршрутов, усиленная фильтрация и приоритетная сеть.
+
+✔️ Продвинутая фильтрация
+✔️ Стабильная маршрутизация
+✔️ Защита от блокировок
+✔️ Приоритетная сеть
+
+💳 <b>{$price} $ / месяц</b> · за сайт · списание с баланса
+
+cdn-detail-bundle-body = ⚡ <strong>CDN + VDS</strong>
+
+Единый стек: CDN на периметре и выделенный сервер — reverse proxy, скрытие origin и полный контроль.
+
+✔️ CDN + сервер
+✔️ Reverse proxy
+✔️ Скрытие origin
+✔️ Полный контроль
+
+💳 <b>{$price} $ / месяц</b> · бандл · списание с баланса
+
+cdn-proxy-hub-screen = 🔗 <strong>Прокси / IP</strong>
+
+Подключение дополнительных IP и маршрутов.
+
+✔️ IPv4 / IPv6
+✔️ Гео-локации
+✔️ Балансировка
+
+cdn-plan-standard-name = Standard CDN
+cdn-plan-bulletproof-name = Protected CDN
+cdn-plan-bundle-name = CDN + VDS
+cdn-choose-plan = 📦 <strong>Тарифы CDN</strong> — выберите конфигурацию ниже.
+cdn-choose-plan-hint = Откройте <b>Тарифы CDN</b> и выберите план или воспользуйтесь кнопками в последнем сообщении.
 
 cdn-enter-domain = Введите <strong>домен</strong> для проксирования (например: <code>cdn.example.com</code>):
 cdn-enter-target = Введите <strong>целевой URL</strong> (куда проксировать, например: <code>https://origin.example.com</code>):
@@ -352,8 +425,8 @@ cdn-target-help = <strong>Где взять origin URL?</strong>
     Если не знаете — нажмите «Подобрать автоматически».
 cdn-target-auto-not-ready = Сначала введите домен для проксирования.
 cdn-target-auto-picked = Подставил origin автоматически: <code>{$targetUrl}</code>
-cdn-my-proxies-empty = У вас пока нет прокси. Добавьте первый через кнопку «Добавить прокси».
-cdn-my-proxies-list = <strong>Ваши прокси:</strong>
+cdn-my-proxies-empty = У вас пока нет прокси. Добавьте через <b>Тарифы CDN</b> → <b>Подключить</b>.
+cdn-my-proxies-list = 🔗 <strong>Ваши прокси</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})
 button-cdn-confirm = ✅ Подтвердить
 button-cdn-cancel = ❌ Отмена
@@ -1383,8 +1456,8 @@ prime-trial-already-used = Вы уже использовали бесплатн
 prime-trial-subscribe-first = Сначала подпишитесь на канал, затем нажмите «Я подписался».
 prime-trial-subscribe-first-retry = Подписка не обнаружена. Подпишитесь на канал по кнопке выше, подождите 5–10 секунд и нажмите «Я подписался» снова. Убедитесь, что бот добавлен в канал как администратор.
 prime-channel-not-configured = Проверка подписки пока не настроена. Напишите в поддержку.
-prime-discount-dedicated = 🔐 Prime
-prime-discount-vds = 🔐 Prime
+prime-discount-dedicated = 🔐 Prime — скидки до 10%
+prime-discount-vds = 🔐 Prime — скидки до 10%
 
 profile-prime-no = Подписка: нет
 profile-prime-until = Подписка: до {$date}

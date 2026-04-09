@@ -322,6 +322,11 @@ async function handlePrimeBack(ctx: AppContext): Promise<void> {
       await showVpsShopStep1(ctx);
       return;
     }
+    if (data === "prime-back-to-cdn-tariffs") {
+      const { showCdnTariffsScreen } = await import("../menus/cdn-menu.js");
+      await showCdnTariffsScreen(ctx);
+      return;
+    }
     if (data === "prime-back-to-profile" || data === "prime_sub_back") {
       const { getProfileText, profileMenu } = await import("../menus/profile-menu.js");
       const profileText = await getProfileText(ctx);

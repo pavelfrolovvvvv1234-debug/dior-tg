@@ -921,21 +921,15 @@ async function index() {
   });
 
   // === Меню и callback сразу после /start — кнопки не проходят через conversations/broadcast ===
-  let cdnMenu: Menu<AppContext> | null = null;
   try {
-    const cdnModule = await import("./ui/menus/cdn-menu.js");
-    cdnMenu = cdnModule.cdnMenu;
-    servicesMenu.register(cdnMenu, "services-menu");
+    await import("./ui/menus/cdn-menu.js");
   } catch (error: any) {
-    console.error("[Bot] Failed to register CDN submenu:", error?.stack ?? error);
+    console.error("[Bot] Failed to preload CDN module:", error?.stack ?? error);
   }
 
-  // mainMenu уже зарегистрирован выше (до /start)
-  if (cdnMenu) {
-    bot.callbackQuery(/^services-menu\/1\/0($|\/)/, async (ctx) => {
-      await openCdnPurchaseFromServicesMenu(ctx as any);
-    });
-  }
+  bot.callbackQuery(/^services-menu\/1\/0($|\/)/, async (ctx) => {
+    await openCdnPurchaseFromServicesMenu(ctx as any);
+  });
 
   // Conversations must be registered before menus that call ctx.conversation.enter(...)
   bot.use(conversations());
@@ -985,12 +979,6 @@ async function index() {
   bot.use(vdsManageServiceMenu);
   bot.use(bundleManageServicesMenu);
   bot.use(domainOrderMenu);
-  try {
-    const { cdnMenu: cdnMenuRef } = await import("./ui/menus/cdn-menu.js");
-    bot.use(cdnMenuRef);
-  } catch (error: any) {
-    console.error("[Bot] Failed to register CDN menu:", error?.stack ?? error);
-  }
   bot.use(controlUser);
   bot.use(controlUserBalance);
   bot.use(controlUserSubscription);
@@ -1243,7 +1231,7 @@ async function index() {
   // NOTE: proxy id comes after the first colon (e.g. cdn_open:<id>, cdn_autorenew:<id>:1).
   // A pattern like `cdn_open:` with `$` at end never matched real callbacks — buttons did nothing.
   bot.callbackQuery(
-    /^(cdn_(open|renew|retryssl|delask|delok):.+|cdn_autorenew:.+:[01]|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back|cdn_list|cdn_back_to_manage)$/,
+    /^(cdn_(open|renew|retryssl|delask|delok):.+|cdn_autorenew:.+:[01]|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back|cdn_list|cdn_back_to_manage|cdn_empty_row|cdn_exit_services|cdn_nav:(main|tariffs|proxy)|cdn_card:(standard|bulletproof|bundle)|cdn_detail:(standard|bulletproof|bundle)|cdn_prime_row)$/,
     async (ctx) => {
       const { handleCdnActionCallback } = await import("./ui/menus/cdn-menu.js");
       await handleCdnActionCallback(ctx as AppContext);

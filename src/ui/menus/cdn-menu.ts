@@ -5,7 +5,6 @@
  * @module ui/menus/cdn-menu
  */
 
-import { Menu } from "@grammyjs/menu";
 import { InlineKeyboard } from "grammy";
 import type { AppContext, AppConversation } from "../../shared/types/context";
 import { getCdnAutoTargetUrl, isCdnEnabled } from "../../app/config";
@@ -86,6 +85,12 @@ function isSelfTarget(domainName: string, targetUrl: string): boolean {
   }
 }
 
+function ensureCdnSession(session: any): void {
+  if (!session) return;
+  if (!session.other) (session as any).other = createInitialOtherSession();
+  if (!session.other!.cdn) session.other!.cdn = { step: "idle" };
+}
+
 function buildTargetInputKeyboard(ctx: AppContext): InlineKeyboard {
   return new InlineKeyboard()
     .text(ctx.t("button-cdn-target-auto"), "cdn_target_auto")
@@ -93,15 +98,157 @@ function buildTargetInputKeyboard(ctx: AppContext): InlineKeyboard {
     .text(ctx.t("button-cdn-target-help"), "cdn_target_help");
 }
 
-function buildPlanKeyboard(ctx: AppContext): InlineKeyboard {
+function buildCdnTariffsKeyboard(ctx: AppContext): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  const std = getCdnPlan("standard");
+  const prot = getCdnPlan("bulletproof");
+  const bndl = getCdnPlan("bundle");
+  kb.text(ctx.t("button-cdn-pick-standard", { price: std.priceUsd }), "cdn_card:standard")
+    .row()
+    .text(ctx.t("button-cdn-pick-protected", { price: prot.priceUsd }), "cdn_card:bulletproof")
+    .row()
+    .text(ctx.t("button-cdn-pick-bundle", { price: bndl.priceUsd }), "cdn_card:bundle")
+    .row()
+    .text(ctx.t("button-cdn-prime-row"), "cdn_prime_row")
+    .row()
+    .text(ctx.t("button-back"), "cdn_nav:main")
+    .row();
+  return kb;
+}
+
+function buildCdnPlanCardKeyboard(ctx: AppContext, planId: CdnPlanId): InlineKeyboard {
   return new InlineKeyboard()
-    .text(ctx.t("button-cdn-plan-standard"), "cdn_plan:standard")
+    .text(ctx.t("button-cdn-connect"), `cdn_plan:${planId}`)
     .row()
-    .text(ctx.t("button-cdn-plan-bulletproof"), "cdn_plan:bulletproof")
+    .text(ctx.t("button-cdn-details"), `cdn_detail:${planId}`)
     .row()
-    .text(ctx.t("button-cdn-plan-bundle"), "cdn_plan:bundle")
+    .text(ctx.t("button-back"), "cdn_nav:tariffs")
+    .row();
+}
+
+function buildCdnPlanDetailKeyboard(ctx: AppContext, planId: CdnPlanId): InlineKeyboard {
+  return new InlineKeyboard().text(ctx.t("button-back"), `cdn_card:${planId}`).row();
+}
+
+function cdnCardBodyKey(planId: CdnPlanId): string {
+  if (planId === "standard") return "cdn-card-standard-body";
+  if (planId === "bulletproof") return "cdn-card-protected-body";
+  return "cdn-card-bundle-body";
+}
+
+function cdnDetailBodyKey(planId: CdnPlanId): string {
+  if (planId === "standard") return "cdn-detail-standard-body";
+  if (planId === "bulletproof") return "cdn-detail-protected-body";
+  return "cdn-detail-bundle-body";
+}
+
+/** Step 1 — CDN hub (purchase menu). */
+export async function showCdnMainHub(ctx: AppContext): Promise<void> {
+  const session = (await ctx.session) as any;
+  if (session?.other) {
+    ensureCdnSession(session);
+    const fm = session.other.cdn?.fromManage === true;
+    session.other.cdn = { step: "idle", fromManage: fm };
+  }
+  const text = ctx.t("cdn-main-screen");
+  const kb = new InlineKeyboard()
+    .text(ctx.t("button-cdn-plans"), "cdn_nav:tariffs")
     .row()
-    .text(ctx.t("button-back"), "cdn_plan_back");
+    .text(ctx.t("button-cdn-proxy-ip"), "cdn_nav:proxy")
+    .row()
+    .text(ctx.t("button-back"), "cdn_exit_services")
+    .row();
+  try {
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: kb,
+      link_preview_options: { is_disabled: true },
+    });
+  } catch {
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: kb,
+      link_preview_options: { is_disabled: true },
+    });
+  }
+}
+
+/** Step 2 — tariff list + Prime. */
+export async function showCdnTariffsScreen(ctx: AppContext, opts?: { useReply?: boolean }): Promise<void> {
+  const session = (await ctx.session) as any;
+  if (session?.other) {
+    ensureCdnSession(session);
+    session.other.cdn.step = "plan";
+    session.other.cdn.telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId ?? session.other.cdn.telegramId;
+  }
+  const text = ctx.t("cdn-tariffs-screen");
+  const kb = buildCdnTariffsKeyboard(ctx);
+  const payload = {
+    parse_mode: "HTML" as const,
+    reply_markup: kb,
+    link_preview_options: { is_disabled: true },
+  };
+  if (opts?.useReply) {
+    await ctx.reply(text, payload);
+    return;
+  }
+  try {
+    await ctx.editMessageText(text, payload);
+  } catch {
+    await ctx.reply(text, payload);
+  }
+}
+
+/** Step 3 — compact product card. */
+export async function showCdnPlanCardScreen(ctx: AppContext, planId: CdnPlanId): Promise<void> {
+  const plan = getCdnPlan(planId);
+  const text = ctx.t(cdnCardBodyKey(planId), { price: plan.priceUsd });
+  const payload = {
+    parse_mode: "HTML" as const,
+    reply_markup: buildCdnPlanCardKeyboard(ctx, planId),
+    link_preview_options: { is_disabled: true },
+  };
+  try {
+    await ctx.editMessageText(text, payload);
+  } catch {
+    await ctx.reply(text, payload);
+  }
+}
+
+/** Plan long description (Details). */
+export async function showCdnPlanDetailScreen(ctx: AppContext, planId: CdnPlanId): Promise<void> {
+  const plan = getCdnPlan(planId);
+  const text = ctx.t(cdnDetailBodyKey(planId), { price: plan.priceUsd });
+  const payload = {
+    parse_mode: "HTML" as const,
+    reply_markup: buildCdnPlanDetailKeyboard(ctx, planId),
+    link_preview_options: { is_disabled: true },
+  };
+  try {
+    await ctx.editMessageText(text, payload);
+  } catch {
+    await ctx.reply(text, payload);
+  }
+}
+
+/** Proxies / IP hub before purchase branch. */
+export async function showCdnProxyHubScreen(ctx: AppContext): Promise<void> {
+  const text = ctx.t("cdn-proxy-hub-screen");
+  const kb = new InlineKeyboard()
+    .text(ctx.t("button-cdn-add-proxy"), "cdn_nav:tariffs")
+    .row()
+    .text(ctx.t("button-back"), "cdn_nav:main")
+    .row();
+  const payload = {
+    parse_mode: "HTML" as const,
+    reply_markup: kb,
+    link_preview_options: { is_disabled: true },
+  };
+  try {
+    await ctx.editMessageText(text, payload);
+  } catch {
+    await ctx.reply(text, payload);
+  }
 }
 
 async function askTargetUrl(ctx: AppContext): Promise<void> {
@@ -131,76 +278,9 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
   return ru[key] ?? key;
 }
 
-export const cdnMenu = new Menu<AppContext>("cdn-menu", { autoAnswer: false, onMenuOutdated: false })
-  .dynamic(async (ctx, range) => {
-    const session = (await ctx.session) as any;
-    // Always show «Add proxy» here: hiding it when fromManage=true left users who opened CDN
-    // from «Manage services» with no way to buy (only «Back»), which looked like dead buttons.
-    range.text(safeT(ctx, "button-cdn-add-proxy"), async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      if (!isCdnEnabled()) {
-        await ctx.reply(safeT(ctx, "cdn-not-configured"), { parse_mode: "HTML" });
-        return;
-      }
-      try {
-        const session = (await ctx.session) as any;
-        if (session && !session.other) (session as any).other = createInitialOtherSession();
-        if (session?.other) {
-          const fromManage = session.other.cdn?.fromManage;
-          session.other.cdn = {
-            step: "plan",
-            telegramId: ctx.from?.id ?? ctx.loadedUser?.telegramId,
-            fromManage,
-          };
-        }
-        await ctx.reply(ctx.t("cdn-choose-plan"), {
-          parse_mode: "HTML",
-          reply_markup: buildPlanKeyboard(ctx),
-        });
-      } catch (e: any) {
-        const msg = e?.message ?? "Error";
-        await ctx.reply(safeT(ctx, "cdn-error", { error: msg }), { parse_mode: "HTML" }).catch(() => {});
-      }
-    });
-  })
-  .row()
-  .back(
-    (ctx) => safeT(ctx, "button-back"),
-    async (ctx) => {
-      const session = await ctx.session;
-      if (!session) return;
-      if (!session.other) (session as any).other = createInitialOtherSession();
-      const fromManage = session.other?.cdn?.fromManage;
-      // Reset transient CDN flow state before leaving the screen.
-      const keepFromManage = fromManage === true;
-      session.other.cdn = { step: "idle", fromManage: keepFromManage };
-      if (fromManage) {
-        const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");
-        // Use a fresh message for manage-services to avoid stale callback matrix after menu switch.
-        await ctx.reply(safeT(ctx, "manage-services-header"), {
-          parse_mode: "HTML",
-          reply_markup: manageSerivcesMenu,
-        });
-        await ctx.deleteMessage().catch(() => {});
-      } else {
-        const { servicesMenu } = await import("../../helpers/services-menu.js");
-        await ctx.editMessageText(safeT(ctx, "menu-service-for-buy-choose"), {
-          parse_mode: "HTML",
-          reply_markup: servicesMenu,
-        });
-      }
-    }
-  );
-
 /**
  * Conversation: add CDN proxy — domain → target URL → confirm → pay → create.
  */
-function ensureCdnSession(session: any): void {
-  if (!session) return;
-  if (!session.other) (session as any).other = createInitialOtherSession();
-  if (!session.other!.cdn) session.other!.cdn = { step: "idle" };
-}
-
 export async function cdnAddProxyConversation(
   conversation: AppConversation,
   ctx: AppContext
@@ -523,19 +603,15 @@ export async function handleCdnAddProxyTextInput(ctx: AppContext): Promise<boole
   if (!input || input.startsWith("/")) return false;
 
   if (session.other.cdn.step === "plan") {
-    await ctx.reply(ctx.t("cdn-choose-plan-hint"), {
-      parse_mode: "HTML",
-      reply_markup: buildPlanKeyboard(ctx),
-    });
+    await ctx.reply(ctx.t("cdn-choose-plan-hint"), { parse_mode: "HTML" });
+    await showCdnTariffsScreen(ctx, { useReply: true });
     return true;
   }
 
   if (session.other.cdn.step === "domain") {
     if (!session.other.cdn.planId) {
-      await ctx.reply(ctx.t("cdn-choose-plan"), {
-        parse_mode: "HTML",
-        reply_markup: buildPlanKeyboard(ctx),
-      });
+      await ctx.reply(ctx.t("cdn-choose-plan"), { parse_mode: "HTML" });
+      await showCdnTariffsScreen(ctx, { useReply: true });
       return true;
     }
     if (!isValidDomain(input)) {
@@ -732,6 +808,75 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
     return;
   }
 
+  if (data === "cdn_exit_services") {
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    const keepFromManage = session.other.cdn?.fromManage === true;
+    session.other.cdn = { step: "idle", fromManage: keepFromManage };
+    const { servicesMenu } = await import("../../helpers/services-menu.js");
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
+    return;
+  }
+
+  if (data === "cdn_nav:main") {
+    await showCdnMainHub(ctx);
+    return;
+  }
+
+  if (data === "cdn_nav:tariffs") {
+    if (!isCdnEnabled()) {
+      await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+      return;
+    }
+    await showCdnTariffsScreen(ctx);
+    return;
+  }
+
+  if (data === "cdn_nav:proxy") {
+    await showCdnProxyHubScreen(ctx);
+    return;
+  }
+
+  if (data.startsWith("cdn_card:")) {
+    if (!isCdnEnabled()) {
+      await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+      return;
+    }
+    const planId = parseCdnPlanId(data.slice("cdn_card:".length));
+    if (!planId) return;
+    await showCdnPlanCardScreen(ctx, planId);
+    return;
+  }
+
+  if (data.startsWith("cdn_detail:")) {
+    if (!isCdnEnabled()) {
+      await ctx.reply(ctx.t("cdn-not-configured"), { parse_mode: "HTML" });
+      return;
+    }
+    const planId = parseCdnPlanId(data.slice("cdn_detail:".length));
+    if (!planId) return;
+    await showCdnPlanDetailScreen(ctx, planId);
+    return;
+  }
+
+  if (data === "cdn_prime_row") {
+    try {
+      const { getDomainsListWithPrimeScreen } = await import("../../ui/menus/amper-domains-menu.js");
+      const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx, {
+        backCallback: "prime-back-to-cdn-tariffs",
+      });
+      await ctx.editMessageText(fullText, { reply_markup: keyboard, parse_mode: "HTML" });
+    } catch (e: any) {
+      await ctx
+        .editMessageText(ctx.t("error-unknown", { error: e?.message || "Error" }))
+        .catch(() => {});
+    }
+    return;
+  }
+
   if (data === "cdn_back_to_manage") {
     const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");
     await ctx.editMessageText(ctx.t("manage-services-header"), {
@@ -796,18 +941,7 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
     if (fromManage) {
       await openCdnManageList(ctx);
     } else {
-      const text = ctx.t("cdn-welcome");
-      try {
-        await ctx.editMessageText(text, {
-          parse_mode: "HTML",
-          reply_markup: cdnMenu,
-        });
-      } catch {
-        await ctx.reply(text, {
-          parse_mode: "HTML",
-          reply_markup: cdnMenu,
-        });
-      }
+      await showCdnMainHub(ctx);
     }
     return;
   }

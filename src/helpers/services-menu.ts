@@ -15,7 +15,6 @@ import VirtualDedicatedServer, {
 } from "@/entities/VirtualDedicatedServer";
 import ms from "@/lib/multims";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
-import { cdnMenu } from "../ui/menus/cdn-menu.js";
 import { createInitialOtherSession } from "../shared/session-initial.js";
 import {
   buildDomainsPurchaseIntroHtml,
@@ -223,25 +222,17 @@ export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<
   if (!session.other) (session as any).other = createInitialOtherSession();
   if (!session.other.cdn) session.other.cdn = { step: "idle" };
   session.other.cdn.fromManage = false;
-  const t =
-    typeof (ctx as any).t === "function"
-      ? (ctx as any).t.bind(ctx)
-      : ((k: string, v?: { error?: string }) =>
-          k === "cdn-error" && v?.error
-            ? `Ошибка CDN: ${v.error}`
-            : k === "cdn-welcome" || k === "cdn-service"
-              ? "CDN — тарифы и заказ в боте."
-              : k);
   try {
-    const text =
-      typeof (ctx as any).t === "function" ? (ctx as any).t("cdn-welcome") : "CDN — тарифы и заказ в боте.";
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: cdnMenu,
-    });
+    const { showCdnMainHub } = await import("../ui/menus/cdn-menu.js");
+    await showCdnMainHub(ctx);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[Bot] CDN menu open error:", msg);
+    const t =
+      typeof (ctx as any).t === "function"
+        ? (ctx as any).t.bind(ctx)
+        : ((k: string, v?: { error?: string }) =>
+            k === "cdn-error" && v?.error ? `Ошибка CDN: ${v.error}` : k);
     await ctx.reply(t("cdn-error", { error: msg })).catch(() => {});
   }
 }
