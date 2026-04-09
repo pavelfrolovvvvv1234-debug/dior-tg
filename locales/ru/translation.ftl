@@ -4,13 +4,18 @@
 quoted-balance = <blockquote>Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = DiorHost • Абузоустойчивая Инфраструктура
- 
- Покупка и управление услугами хостинга прямо в тг боте
- 24/7 работа • Абузоустойчивость • Офшорность
- @diorhost
- 
- {quoted-balance}
+welcome = 🔷 DiorHost — Абузоустойчивые серверы, домены, CDN и инфраструктура
+
+Надежные хостинг-решения прямо в Telegram
+24/7 аптайм • Стабильный трафик • Глобальные локации
+
+👤 @{$username}
+🆔 ID: {$userId}
+⚙️ Services: {$servicesCount} active
+
+💳 Balance: ${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}
+
+Support (<a href="https://t.me/diorhost">https://t.me/diorhost</a>) • News (<a href="https://t.me/+C27tBPXXpj40ZGE6">https://t.me/+C27tBPXXpj40ZGE6</a>) • Web Site (<a href="https://dior.host/">https://dior.host/</a>)
 
 
 about-us = Мы предоставляем надежные и высокопроизводительные услуги, VDS выделенных серверов.

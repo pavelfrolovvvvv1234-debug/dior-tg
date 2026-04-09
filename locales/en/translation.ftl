@@ -4,13 +4,18 @@
 quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = DiorHost • Bulletproof Infrastructure
- 
- Order and manage hosting services directly in this bot.
- 24/7 uptime • Bulletproof • Offshore
- @diorhost
- 
- {quoted-balance}
+welcome = 🔷 DiorHost — Bulletproof Servers, Domains, CDN & Infrastructure
+
+Reliable hosting solutions directly in Telegram
+24/7 uptime • Traffic stability • Global locations
+
+👤 @{$username}
+🆔 ID: {$userId}
+⚙️ Services: {$servicesCount} active
+
+💳 Balance: ${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}
+
+Support (<a href="https://t.me/diorhost">https://t.me/diorhost</a>) • News (<a href="https://t.me/+C27tBPXXpj40ZGE6">https://t.me/+C27tBPXXpj40ZGE6</a>) • Web Site (<a href="https://dior.host/">https://dior.host/</a>)
 
 about-us = We provide reliable and high-performance VDS dedicated servers and hosting services.
 

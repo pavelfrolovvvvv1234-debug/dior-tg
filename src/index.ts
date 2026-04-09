@@ -795,7 +795,23 @@ async function index() {
       const locale = (ctx as any)._requestLocale ?? requestLocale;
       // Приветствие в текущей локали (en/ru)
       if (key === "welcome") {
-        return String(fluent.translate(locale, "welcome", vars ?? {}));
+        const baseBalance =
+          typeof vars?.balance === "number"
+            ? vars.balance
+            : (session?.main?.user?.balance ?? 0);
+        const usernameRaw = ctx.from?.username?.trim();
+        const username = usernameRaw && usernameRaw.length > 0 ? usernameRaw : "username";
+        const userId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+        const servicesCount =
+          typeof vars?.servicesCount === "number" ? vars.servicesCount : 0;
+        return String(
+          fluent.translate(locale, "welcome", {
+            balance: baseBalance,
+            username,
+            userId: Number.isFinite(userId) ? userId : 0,
+            servicesCount,
+          })
+        );
       }
       fluentObj.useLocale?.(locale);
       return typeof fluentInstance.translate === "function"
