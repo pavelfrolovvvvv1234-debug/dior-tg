@@ -15,7 +15,6 @@ import {
   VDS_SHOP_PAGE_SIZE,
   type VpsShopTier,
 } from "./vds-shop-config.js";
-import { isVdsPurchaseTemporarilyDisabled } from "../../app/config.js";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
@@ -278,16 +277,6 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery(/^vsh:ord:(\d+)$/, async (ctx) => {
     const id = Number.parseInt(ctx.match![1]!, 10);
-
-    if (isVdsPurchaseTemporarilyDisabled()) {
-      await ctx
-        .answerCallbackQuery({
-          text: ctx.t("vds-purchase-paused-alert").slice(0, 200),
-          show_alert: true,
-        })
-        .catch(() => {});
-      return;
-    }
 
     await ctx.answerCallbackQuery().catch(() => {});
 

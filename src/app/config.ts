@@ -198,18 +198,3 @@ export const showVpsVdsInServiceMenus = (): boolean => {
   return true;
 };
 
-/**
- * VPS/VDS заказы из магазина: по умолчанию включены.
- * Остановить приём заказов: VDS_PURCHASE_DISABLED=1 (или VDS_PURCHASE_ENABLED=0).
- */
-export const isVdsPurchaseTemporarilyDisabled = (): boolean => {
-  const disabled = (process.env.VDS_PURCHASE_DISABLED ?? "").trim().toLowerCase();
-  if (disabled === "1" || disabled === "true" || disabled === "yes" || disabled === "on") {
-    return true;
-  }
-  const enabled = (process.env.VDS_PURCHASE_ENABLED ?? "").trim().toLowerCase();
-  if (enabled === "0" || enabled === "false" || enabled === "no" || enabled === "off") {
-    return true;
-  }
-  return false;
-};

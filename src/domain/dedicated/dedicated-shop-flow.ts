@@ -19,7 +19,12 @@ import {
 
 const TIER_ORDER: DedicatedShopTier[] = ["start", "standard", "performance", "enterprise"];
 
-/** Prime, then Back — на списке планов, карточке и полном описании (не на шаге выбора линейки). */
+/** Только «Назад» — карточка тарифа и экран «Подробнее» (Prime не показываем). */
+function appendDedicatedShopBack(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
+  kb.text(ctx.t("button-back"), backData).row();
+}
+
+/** Prime и «Назад» — только на списке выбора сервера (шаг 3). */
 function appendDedicatedShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
   kb.text(ctx.t("prime-discount-dedicated"), "dsh:prime").row();
   kb.text(ctx.t("button-back"), backData).row();
@@ -206,7 +211,7 @@ export async function showDedicatedShopStep4Card(ctx: AppContext, serverId: numb
     .row()
     .text(ctx.t("dedicated-shop-details"), `dsh:det:${serverId}`)
     .row();
-  appendDedicatedShopPrimeAndBack(kb, ctx, `dsh:back:list`);
+  appendDedicatedShopBack(kb, ctx, `dsh:back:list`);
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",
@@ -242,7 +247,7 @@ export async function showDedicatedShopFullSpec(ctx: AppContext, serverId: numbe
   });
 
   const kb = new InlineKeyboard();
-  appendDedicatedShopPrimeAndBack(kb, ctx, `dsh:card:${serverId}`);
+  appendDedicatedShopBack(kb, ctx, `dsh:card:${serverId}`);
 
   await ctx.editMessageText(text, {
     parse_mode: "HTML",

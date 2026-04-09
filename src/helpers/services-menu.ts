@@ -20,10 +20,7 @@ import {
   buildDomainsPurchaseIntroHtml,
   showDomainCategoryTlds,
 } from "../domain/domains/domain-purchase-flow.js";
-import {
-  isVdsPurchaseTemporarilyDisabled,
-  showVpsVdsInServiceMenus,
-} from "../app/config.js";
+import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
@@ -283,13 +280,6 @@ async function createAndBuyVDS(
   userId: number,
   bulletproof: boolean
 ) {
-  if (isVdsPurchaseTemporarilyDisabled()) {
-    await ctx
-      .reply(ctx.t("vds-purchase-paused-reply"), { parse_mode: "HTML" })
-      .catch(() => {});
-    return "purchase-paused" as const;
-  }
-
   const pricesList = await prices();
 
   const rate = pricesList.virtual_vds[rateId];
@@ -526,17 +516,6 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
               parse_mode: "HTML",
             }
           );
-          return;
-        }
-
-        if (isVdsPurchaseTemporarilyDisabled()) {
-          const alertText = ctx.t("vds-purchase-paused-alert");
-          await ctx
-            .answerCallbackQuery({
-              text: alertText.slice(0, 200),
-              show_alert: true,
-            })
-            .catch(() => {});
           return;
         }
 
