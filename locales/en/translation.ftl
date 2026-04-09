@@ -9,12 +9,11 @@ welcome = 🔷 DiorHost — Bulletproof Servers, Domains, CDN & Infrastructure
     24/7 uptime • Traffic stability • Global locations
     
     👤 @{$username}
-    🆔 ID: {$userId}
-    ⚙️ Services: {$servicesCount} active
+    ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
+    ├ <b>ID:</b> <code>{$userId}</code>
+    └ <b>Servers purchased:</b> <code>{$servicesCount} pcs ($0.00)</code>
     
-    💳 Balance: ${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}
-    
-    Support (<a href="https://t.me/diorhost">https://t.me/diorhost</a>) • News (<a href="https://t.me/+C27tBPXXpj40ZGE6">https://t.me/+C27tBPXXpj40ZGE6</a>) • Web Site (<a href="https://dior.host/">https://dior.host/</a>)
+    <a href="https://t.me/diorhost">Support</a> • <a href="https://t.me/+C27tBPXXpj40ZGE6">News</a> • <a href="https://dior.host/">Web Site</a>
 
 about-us = We provide reliable and high-performance VDS dedicated servers and hosting services.
 
@@ -46,10 +45,10 @@ profile = ┠💻 1REG PROFILE
 
 Terms of service (https://telegra.ph/Pravila-i-Usloviya-ispolzovaniya-servisa-1REG-05-26) | Support (https://t.me/one_reg_talk) | 1REG News (https://t.me/+kOkatN8cTig1ZGRk)
 
-button-purchase = 💳 Purchase service
-button-manage-services = 🛠 Manage services
+button-purchase = 🔎 Select Plan
+button-manage-services = 💼 Services
 button-personal-profile = 👤 Profile
-button-support = 🤝 Support
+button-support = 🛠 Support
 button-about-us = 📖 About us
 button-change-locale = 🇺🇸 Change language
 button-ask-question = Ask question
@@ -72,16 +71,16 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
 button-dedicated-server = 🖥 Dedicated Servers
-button-dev-po = 💻 Software Development
+button-dev-po = ⚙️ Development
 button-dev-po-discuss = 💬 Discuss project
-button-crypto-exchange = 💱 Crypto Exchange
+button-crypto-exchange = 🔁 Exchange
 button-crypto-exchange-go = 💱 Go to exchanger
 service-crypto-exchange = <b>💱 Crypto Exchange</b><br><br>Fast cryptocurrency exchange in our DiorChange bot — no extra registration or delays. Choose a pair, enter the amount (from $2) and get the exchange at a competitive rate.<br><br>Press the button below to open the DiorChange exchanger bot.
-service-dev-po = <b>💻 Development &amp; Infrastructure Solutions</b><br><br>We build and scale digital products — from code to traffic and infrastructure.<br><br><b>What we do:</b><br><br>🌐 <b>Web Development</b><br>— Landing pages, high-performance websites, SEO-ready structures<br>— Frontend: Next.js, React, Vue<br>— Clean architecture + fast loading + conversion-focused UI<br><br>⚙️ <b>Backend &amp; Systems</b><br>— Node.js (NestJS / Express / Fastify), Python (FastAPI), PHP (Laravel)<br>— API integrations, authentication, billing systems, dashboards<br>— Scalable backend architecture<br><br>🤖 <b>Automation &amp; Bots</b><br>— Telegram / Discord bots<br>— Admin panels, queues, automation flows<br>— Custom backend logic and integrations<br><br>🧱 <b>Infrastructure &amp; DevOps</b><br>— VPS / Dedicated setup (Nginx, Docker, CI/CD)<br>— Cloudflare, DNS routing, SSL, reverse proxy<br>— Secure deployments + hidden origin setups<br><br>📊 <b>SEO &amp; Traffic-Ready Systems</b><br>— Technical SEO (HTML structure, schema, indexing)<br>— Analytics (GA4, GTM, event tracking)<br>— Infrastructure optimized for traffic acquisition<br><br>🚀 <b>Product Launch &amp; Scaling</b><br>— From MVP to production<br>— Architecture, deployment, support<br>— Growth-ready systems<br><br>To discuss your project, click the button below — support chat will open.<br>Send a detailed brief: scope, features, deadlines, and requirements.<br>We will review and get back with a structured proposal.
+service-dev-po = <b>💻 Development &amp; Infrastructure</b><br><br>We design and scale digital products — from code to traffic and infrastructure.<br><br>🌐 <b>Web Development</b><br>High-performance websites, SEO-ready structure, conversion-focused UI<br><br>⚙️ <b>Backend &amp; Systems</b><br>APIs, authentication, billing, scalable architecture<br><br>🤖 <b>Automation &amp; Bots</b><br>Telegram / Discord bots, admin panels, custom workflows<br><br>🧱 <b>Infrastructure &amp; DevOps</b><br>VPS / Dedicated, Docker, Cloudflare, secure deployment<br><br>📊 <b>SEO &amp; Analytics</b><br>Technical SEO, tracking systems, traffic-ready architecture<br><br>🚀 <b>Product Launch &amp; Scaling</b><br>From MVP to production with full infrastructure support<br><br>To discuss your project, contact support and send a brief with your requirements.
 support-dev-po-template = Development & infrastructure — please describe your brief below (scope, features, deadlines).
 
 Describe your requirements: what to develop, features, deadlines and wishes:
-button-balance = 💸 Balance
+button-balance = 💳 Balance
 button-standard = 🛡 Standard
 button-bulletproof = ⚜️ Bulletproof
 button-agree = ✅ Agree
