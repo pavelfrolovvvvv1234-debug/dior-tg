@@ -131,9 +131,7 @@ const provisioningTicketKeyboard = (
     .text(ctx.t("ticket-status-awaiting_final_check"), `prov_status_${ticketId}_awaiting_final_check`)
     .row()
     .text(ctx.t("button-provisioning-send-credentials"), `prov_complete_${ticketId}`)
-    .text(ctx.t("button-ticket-reject"), `prov_status_${ticketId}_rejected`)
-    .row()
-    .text(ctx.t("button-back"), "prov_tickets");
+    .text(ctx.t("button-ticket-reject"), `prov_status_${ticketId}_rejected`);
 
 const resolveAskUserRecipientId = async (
   ctx: AppContext,
