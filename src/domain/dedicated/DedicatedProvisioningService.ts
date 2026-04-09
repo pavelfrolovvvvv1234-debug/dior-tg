@@ -215,6 +215,12 @@ export class DedicatedProvisioningService {
     });
   }
 
+  async countTicketsByStatus(status: ProvisioningTicketStatus): Promise<number> {
+    return this.dataSource.getRepository(ProvisioningTicket).count({
+      where: { status },
+    });
+  }
+
   async getTicketById(ticketId: number): Promise<ProvisioningTicket | null> {
     return this.dataSource.getRepository(ProvisioningTicket).findOne({ where: { id: ticketId } });
   }

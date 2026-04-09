@@ -119,6 +119,26 @@ const formatProvisioningStatus = (ctx: AppContext, status: ProvisioningTicketSta
   return translated === key ? status : translated;
 };
 
+const formatProvisioningQueueSummary = (
+  ctx: AppContext,
+  stats: {
+    open: number;
+    inWork: number;
+    review: number;
+    closed: number;
+    total: number;
+  }
+): string =>
+  renderMultiline(
+    ctx.t("provisioning-menu-title", {
+      open: stats.open,
+      inWork: stats.inWork,
+      review: stats.review,
+      closed: stats.closed,
+      total: stats.total,
+    })
+  );
+
 const provisioningTicketKeyboard = (
   ctx: AppContext,
   ticketId: number
@@ -1702,14 +1722,56 @@ Are you sure you want to proceed?`,
       await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
       return;
     }
-    await ctx.editMessageText(renderMultiline(ctx.t("provisioning-menu-title")), {
+    const service = new DedicatedProvisioningService(ctx.appDataSource);
+    const [
+      cntNew,
+      cntPendingReview,
+      cntPaid,
+      cntAwaitingStock,
+      cntInProvisioning,
+      cntAwaitingFinalCheck,
+      cntCompleted,
+      cntRejected,
+      cntCancelled,
+    ] = await Promise.all([
+      service.countTicketsByStatus(ProvisioningTicketStatus.NEW),
+      service.countTicketsByStatus(ProvisioningTicketStatus.PENDING_REVIEW),
+      service.countTicketsByStatus(ProvisioningTicketStatus.PAID),
+      service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_STOCK),
+      service.countTicketsByStatus(ProvisioningTicketStatus.IN_PROVISIONING),
+      service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_FINAL_CHECK),
+      service.countTicketsByStatus(ProvisioningTicketStatus.COMPLETED),
+      service.countTicketsByStatus(ProvisioningTicketStatus.REJECTED),
+      service.countTicketsByStatus(ProvisioningTicketStatus.CANCELLED),
+    ]);
+    const stats = {
+      open: cntNew + cntPaid + cntAwaitingStock + cntInProvisioning,
+      inWork: cntInProvisioning + cntAwaitingStock + cntPendingReview,
+      review: cntAwaitingFinalCheck + cntPendingReview,
+      closed: cntCompleted + cntRejected + cntCancelled,
+      total:
+        cntNew +
+        cntPendingReview +
+        cntPaid +
+        cntAwaitingStock +
+        cntInProvisioning +
+        cntAwaitingFinalCheck +
+        cntCompleted +
+        cntRejected +
+        cntCancelled,
+    };
+
+    await ctx.editMessageText(formatProvisioningQueueSummary(ctx, stats), {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard()
-        .text(ctx.t("button-open"), "prov_list_new")
+        .text(ctx.t("ticket-status-new"), "prov_list_new")
         .text(ctx.t("ticket-status-paid"), "prov_list_paid")
         .row()
         .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
         .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+        .row()
+        .text(ctx.t("ticket-status-pending_review"), "prov_list_pending_review")
+        .text(ctx.t("ticket-status-new"), "prov_list_new")
         .row()
         .text(ctx.t("ticket-status-completed"), "prov_list_completed")
         .text(ctx.t("button-back"), "tickets-menu-back"),
@@ -1736,7 +1798,11 @@ Are you sure you want to proceed?`,
     }
     const kb = new InlineKeyboard();
     for (const t of tickets.slice(0, 10)) {
-      kb.text(`#${t.id} ${t.ticketNumber}`, `prov_view_${t.id}`).row();
+      const order = await service.getOrderById(t.orderId);
+      const server = (order?.productName || "server").slice(0, 18);
+      const userId = order?.userId ?? "—";
+      const label = `#${t.id} • U${userId} • ${server}`;
+      kb.text(label.slice(0, 62), `prov_view_${t.id}`).row();
     }
     kb.text(ctx.t("button-back"), "prov_tickets");
     await ctx.editMessageText(renderMultiline(ctx.t("provisioning-list-title", { status: formatProvisioningStatus(ctx, status), count: tickets.length })), {

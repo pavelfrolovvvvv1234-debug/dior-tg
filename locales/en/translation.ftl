@@ -826,7 +826,7 @@ button-go-to-support = Go to support
 support-message-dedicated-paid = Hello! I paid for the service "{$serviceName}", location: {$location}, OS: {$os}. Can you provide it?
 
 button-provisioning-tickets = 🛠 Server setup tickets
-provisioning-menu-title = <strong>🛠 Dedicated server setup tickets</strong>\nChoose a status to open the queue.
+provisioning-menu-title = <strong>🛠 Dedicated server setup tickets</strong>\n\nCurrent queue:\n• Open: {$open}\n• In progress: {$inWork}\n• Under review: {$review}\n• Closed: {$closed}\n• Total: {$total}\n\nChoose a status to open ticket list.
 provisioning-list-empty = No tickets in status: {$status}
 provisioning-list-title = <strong>Ticket queue:</strong> {$status}\nTotal: {$count}
 provisioning-ticket-view = <strong>🛠 Setup Ticket #{$ticketId}</strong>\nTicket: <code>{$ticketNumber}</code>\nOrder: <code>{$orderNumber}</code>\n\n<strong>Status:</strong> {$status}\n<strong>Assignee:</strong> {$assignee}\n<strong>User:</strong> {$userId}\n<strong>Amount:</strong> {$amount} {$currency}\n<strong>Server:</strong> {$serviceName}\n<strong>Location:</strong> {$location}\n<strong>OS:</strong> {$os}\n<strong>Checklist:</strong> {$checklist}\n<strong>Created:</strong> {$createdAt}

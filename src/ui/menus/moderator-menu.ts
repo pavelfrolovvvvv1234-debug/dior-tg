@@ -26,6 +26,8 @@ const safeT = (
   return key;
 };
 
+const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
+
 const requireModeratorSession = async (ctx: AppContext) => {
   const session = await ctx.session;
   const hasSessionUser = await ensureSessionUser(ctx);
@@ -97,10 +99,16 @@ export const moderatorMenu = new Menu<AppContext>("moderator-menu")
     (ctx) => ctx.t("button-provisioning-tickets"),
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
-      await ctx.editMessageText(ctx.t("provisioning-menu-title"), {
+      await ctx.editMessageText(renderMultiline(ctx.t("provisioning-menu-title", {
+        open: 0,
+        inWork: 0,
+        review: 0,
+        closed: 0,
+        total: 0,
+      })), {
         parse_mode: "HTML",
         reply_markup: new InlineKeyboard()
-          .text(ctx.t("button-open"), "prov_list_new")
+          .text(ctx.t("ticket-status-new"), "prov_list_new")
           .text(ctx.t("ticket-status-paid"), "prov_list_paid")
           .row()
           .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
