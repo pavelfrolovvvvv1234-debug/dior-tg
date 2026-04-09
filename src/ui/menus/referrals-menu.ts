@@ -97,7 +97,7 @@ async function getReferralStats(
   dataSource: AppContext["appDataSource"],
   referrerId: number,
   since?: Date
-): Promise<{ topupsCount: number; purchasesCount: number; profit: number }> {
+): Promise<{ topupsCount: number; newClientsCount: number; profit: number }> {
   const rewardRepo = dataSource.getRepository(ReferralReward);
   const countQb = rewardRepo
     .createQueryBuilder("r")
@@ -114,25 +114,16 @@ async function getReferralStats(
     .getRawOne<{ total: string }>();
   const profit = Math.round(Number(sumResult?.total ?? 0) * 100) / 100;
 
-  const referees = await dataSource.manager.find(User, {
-    where: { referrerId },
-    select: ["id"],
-  });
-  const refereeIds = referees.map((r) => r.id);
-  let purchasesCount = 0;
-  if (refereeIds.length > 0) {
-    const qb = dataSource
-      .getRepository(ServiceInvoice)
-      .createQueryBuilder("i")
-      .where("i.userId IN (:...ids)", { ids: refereeIds })
-      .andWhere("i.status = :status", { status: ServiceInvoiceStatus.Paid });
-    if (since) {
-      qb.andWhere("COALESCE(i.paidAt, i.createdAt) >= :since", { since });
-    }
-    purchasesCount = await qb.getCount();
+  const userQb = dataSource
+    .getRepository(User)
+    .createQueryBuilder("u")
+    .where("u.referrerId = :rid", { rid: referrerId });
+  if (since) {
+    userQb.andWhere("u.createdAt >= :since", { since });
   }
+  const newClientsCount = await userQb.getCount();
 
-  return { topupsCount, purchasesCount, profit };
+  return { topupsCount, newClientsCount, profit };
 }
 
 /**
@@ -174,10 +165,13 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
       }
 
       await ctx.answerCallbackQuery().catch(() => {});
-      session.other.withdrawStart = { awaitingAmount: true, maxBalance: refBalance };
-      await ctx.reply(ctx.t("withdraw-enter-amount-short", {
-        maxAmount: refBalance,
-      }), { parse_mode: "HTML" });
+      delete session.other.withdrawStart;
+      delete session.other.withdrawInitialAmount;
+      try {
+        await ctx.conversation.enter("withdrawRequestConversation");
+      } catch (error: any) {
+        await ctx.reply(ctx.t("error-unknown", { error: "failed to start" }), { parse_mode: "HTML" }).catch(() => {});
+      }
     }
   )
   .row()
@@ -203,10 +197,10 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
       const block = (
         period: string,
         topups: number,
-        purchases: number,
+        newClients: number,
         profitVal: number
       ) =>
-        `<b>${period}</b>\n├ ${ctx.t("admin-statistics-topups")}: ${fmt(topups)}\n├ ${ctx.t("admin-statistics-purchases")}: ${fmt(purchases)}\n└ ${ctx.t("referral-stat-earned")}: ${fmt(profitVal)} $`;
+        `<b>${period}</b>\n├ ${ctx.t("admin-statistics-topups")}: ${fmt(topups)}\n├ ${ctx.t("referral-stat-new-clients")}: ${fmt(newClients)}\n└ ${ctx.t("referral-stat-earned")}: ${fmt(profitVal)} $`;
 
       const summaryLines = [
         ctx.t("referral-stat-count", { count: summary.totalReferees }),
@@ -221,13 +215,13 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
         "",
         summaryLines,
         "",
-        block(ctx.t("admin-statistics-24h"), s24h.topupsCount, s24h.purchasesCount, s24h.profit),
+        block(ctx.t("admin-statistics-24h"), s24h.topupsCount, s24h.newClientsCount, s24h.profit),
         "",
-        block(ctx.t("admin-statistics-7d"), s7d.topupsCount, s7d.purchasesCount, s7d.profit),
+        block(ctx.t("admin-statistics-7d"), s7d.topupsCount, s7d.newClientsCount, s7d.profit),
         "",
-        block(ctx.t("admin-statistics-30d"), s30d.topupsCount, s30d.purchasesCount, s30d.profit),
+        block(ctx.t("admin-statistics-30d"), s30d.topupsCount, s30d.newClientsCount, s30d.profit),
         "",
-        block(ctx.t("admin-statistics-all"), sAll.topupsCount, sAll.purchasesCount, sAll.profit),
+        block(ctx.t("admin-statistics-all"), sAll.topupsCount, sAll.newClientsCount, sAll.profit),
       ].join("\n");
 
       const keyboard = new InlineKeyboard().text(ctx.t("button-back"), "referral-stats-back");

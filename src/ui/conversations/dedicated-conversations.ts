@@ -97,6 +97,7 @@ export async function createDedicatedOperationTicket(
             username: ctx.from?.username || ctx.from?.first_name || "Unknown",
             type: ctx.t(`ticket-type-${ticket.type}`),
             amountLine: "",
+            detailsLine: "",
           }),
           {
             reply_markup: keyboard,
@@ -124,6 +125,7 @@ export async function createDedicatedOperationTicket(
             username: ctx.from?.username || ctx.from?.first_name || "Unknown",
             type: ctx.t(`ticket-type-${ticket.type}`),
             amountLine: "",
+            detailsLine: "",
           }),
           {
             reply_markup: keyboard,
@@ -221,6 +223,7 @@ export async function createDedicatedOrderTicket(
             username: ctx.from?.username || ctx.from?.first_name || "Unknown",
             type: ctx.t(`ticket-type-${ticket.type}`),
             amountLine: "",
+            detailsLine: "",
           }),
           {
             reply_markup: keyboard,
@@ -248,6 +251,7 @@ export async function createDedicatedOrderTicket(
             username: ctx.from?.username || ctx.from?.first_name || "Unknown",
             type: ctx.t(`ticket-type-${ticket.type}`),
             amountLine: "",
+            detailsLine: "",
           }),
           {
             reply_markup: keyboard,

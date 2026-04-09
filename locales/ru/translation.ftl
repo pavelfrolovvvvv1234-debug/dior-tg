@@ -4,16 +4,15 @@
 quoted-balance = <blockquote>Баланс: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = 🔷 DiorHost — Абузоустойчивые серверы, домены, CDN и инфраструктура
-    Надежные хостинг-решения прямо в Telegram
-    24/7 аптайм • Стабильный трафик • Глобальные локации
+welcome = 🔷 DiorHost — Servers, Domains, CDN
+    Bulletproof Infrastructure
+    High availability • Stable routing • 24/7 uptime
     
     👤 @{$username}
     ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
     ├ <b>ID:</b> <code>{$userIdText}</code>
     └ <b>Servers purchased:</b> <code>{$servicesCount}</code> pcs ($0.00)
     
-    Support • News • Web Site
 
 
 about-us = Мы предоставляем надежные и высокопроизводительные услуги, VDS выделенных серверов.
@@ -225,8 +224,10 @@ button-referrals = 💲 Рефералы
 button-share-link = 📤 Поделиться ссылкой
 referrals-screen = 🚀 Партнёрская программа DiorHost\n\nМонетизируйте свой трафик на VPS, дедиках и абузоустойчивых доменах.\n\n💰 Условия:\n\n• До 30% от каждого пополнения привлечённого клиента\n• Lifetime — процент со всех будущих оплат\n• Начисление при первом пополнении от $10+\n• Без ограничений по количеству рефералов\n• Автоматический учёт в системе\n\n🔗 Ваша реферальная ссылка:\n{$link}\n\nРефералов: {$count}\nЗаработано: {$profit} $\n\nПривлекайте трафик — получайте пассивный доход на инфраструктуре.
 referrals-share-text = Присоединяйся ко мне на Dior Host! Используй мою реферальную ссылку, чтобы начать.
-referral-new-joined = 👋 У вас появился новый реферал.\nКоличество ваших рефералов: <b>{$count}</b>
-referral-topup-notify = 💰 Ваш реферал пополнил баланс на <b>{ $amount }</b>.\nВаш процент: <b>{ $percent }%</b> — на реферальный баланс зачислено <b>{ $reward }</b>.
+referral-new-joined = 👋 У вас появился новый реферал.
+    Количество ваших рефералов: <b>{$count}</b>
+referral-topup-notify = 💰 Ваш реферал пополнил баланс на <b>{ $amount }</b>.
+    Ваш процент: <b>{ $percent }%</b> — на реферальный баланс зачислено <b>{ $reward }</b>.
 
 Выберите действие:
 
@@ -731,7 +732,9 @@ ticket-moderator-notification = <strong>Вам поступил тикет</stro
 Тип: {$type}
 Пользователь: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})
 {$amountLine}
+{$detailsLine}
 withdraw-notification-amount = Сумма: {$amount} $
+withdraw-notification-details = Кошелёк / реквизиты: {$details}
 ticket-type-dedicated_order = Заказ выделенного сервера
 ticket-type-dedicated_reinstall = Переустановка ОС
 ticket-type-dedicated_reboot = Перезагрузка
@@ -886,6 +889,7 @@ referral-stat-reg2dep = Конверсия рефералов (REG2DEP): { $perc
 referral-stat-avg-deposit = Средний депозит реферала: { $amount } $
 referral-stat-percent = Реферальный процент: { $percent }%
 referral-stat-active-30d = Активных рефералов за 30 дней: { $count }
+referral-stat-new-clients = Новых клиентов
 referral-stat-earned = Заработано
 withdraw-enter-amount = <strong>Вывод баланса</strong>
 
@@ -1100,7 +1104,7 @@ button-add-balance = 💰 Пополнить баланс
 button-deduct-balance = ➖ Списать с баланса
 button-balance-short = 💰 Баланс
 button-services-short = 🖥 Услуги
-button-partnership-short = 🎁 Партнёрка
+button-partnership-short = 🎁 Рефералка
 button-tickets-short = 🎫 Тикеты
 button-message-short = ✉ Сообщение
 button-notes-short = 📝 Заметки
@@ -1125,7 +1129,7 @@ ref-percent-label-vds = VDS
 ref-percent-label-cdn = CDN
 admin-referral-percent-back-to-list = Назад к списку
 button-block-short = ⛔ Блокировка
-button-status-short = 🏷 Статус
+button-status-short = 🏷 Роль
 button-operations-history = 📜 История операций
 button-user-stats = 📊 Статистика
 button-restrictions = ⛔ Ограничения

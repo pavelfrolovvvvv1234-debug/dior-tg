@@ -242,28 +242,28 @@ function buildManageServicesMenu(): Menu<AppContext> {
           reply_markup: cdnMenu,
         });
         if (active.length > 0) {
-          for (const p of active) {
-            await ctx.reply(
-              ctx.t("cdn-proxy-manage-title", {
+          const listText = [
+            ctx.t("cdn-my-proxies-list"),
+            "",
+            ...active.map((p) =>
+              ctx.t("cdn-proxy-item", {
                 domain: p.domain_name,
+                target: p.target_url ?? "—",
                 status: p.lifecycle_status || p.status,
-              }),
-              {
-                parse_mode: "HTML",
-                reply_markup: new InlineKeyboard()
-                  .text(ctx.t("button-cdn-renew"), `cdn_renew:${p.id}`)
-                  .text(
-                    p.auto_renew ? ctx.t("button-cdn-autorenew-off") : ctx.t("button-cdn-autorenew-on"),
-                    `cdn_autorenew:${p.id}:${p.auto_renew ? "0" : "1"}`
-                  )
-                  .row()
-                  .text(ctx.t("button-cdn-retry-ssl"), `cdn_retryssl:${p.id}`)
-                  .text(ctx.t("button-cdn-delete"), `cdn_delask:${p.id}`)
-                  .row()
-                  .text(ctx.t("button-cdn-refresh"), `cdn_open:${p.id}`),
-              }
-            );
+              })
+            ),
+          ].join("\n");
+          const listKeyboard = new InlineKeyboard();
+          for (const p of active) {
+            const status = p.lifecycle_status || p.status;
+            const buttonLabel = `🌐 ${p.domain_name} (${status})`;
+            const safeLabel = buttonLabel.length > 60 ? `${buttonLabel.slice(0, 57)}...` : buttonLabel;
+            listKeyboard.text(safeLabel, `cdn_open:${p.id}`).row();
           }
+          await ctx.reply(listText, {
+            parse_mode: "HTML",
+            reply_markup: listKeyboard,
+          });
         }
       }
     )

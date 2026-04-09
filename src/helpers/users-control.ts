@@ -437,7 +437,7 @@ export const controlUser = new Menu<AppContext>("control-user", {})
       return;
     }
 
-    // Row 1: 💰 Баланс | 🎁 Партнёрка
+    // Row 1: 💰 Баланс | 🎁 Рефералка
     range.text((ctx) => ctx.t("button-balance-short"), (ctx) => ctx.menu.nav("control-user-balance"));
     range.text((ctx) => ctx.t("button-partnership-short"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
@@ -518,7 +518,7 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 
     range.row();
 
-    // Row 4: ⛔ Блокировка | 🏷 Статус
+    // Row 4: ⛔ Блокировка | 🏷 Роль
     range.text(
       (ctx) => (user.isBanned ? ctx.t("unblock-user") : ctx.t("button-block-short")),
       async (ctx) => {

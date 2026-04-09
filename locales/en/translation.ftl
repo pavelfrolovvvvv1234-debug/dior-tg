@@ -4,16 +4,15 @@
 quoted-balance = <blockquote>Balance: {NUMBER($balance, minimumFractionDigits: 0, maximumFractionDigits: 0)} $</blockquote>
 strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</strong>
 
-welcome = 🔷 DiorHost — Bulletproof Servers, Domains, CDN & Infrastructure
-    Reliable hosting solutions directly in Telegram
-    24/7 uptime • Traffic stability • Global locations
+welcome = 🔷 DiorHost — Servers, Domains, CDN
+    Bulletproof Infrastructure
+    High availability • Stable routing • 24/7 uptime
     
     👤 @{$username}
     ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
     ├ <b>ID:</b> <code>{$userIdText}</code>
     └ <b>Servers purchased:</b> <code>{$servicesCount}</code> pcs ($0.00)
     
-    Support • News • Web Site
 
 about-us = We provide reliable and high-performance VDS dedicated servers and hosting services.
 
@@ -224,8 +223,10 @@ button-referrals = 💲 Referrals
 button-share-link = 📤 Share link
 referrals-screen = 🚀 DiorHost Partner Program\n\nMonetize your traffic on VPS, dedicated servers and abuse-resistant domains.\n\n💰 Terms:\n\n• Up to 30% of each referred client's top-up\n• Lifetime — percentage from all future payments\n• Credited on first top-up from $10+\n• No limit on number of referrals\n• Automatic tracking in the system\n\n🔗 Your referral link:\n{$link}\n\nReferrals: {$count}\nEarned: {$profit} $\n\nDrive traffic — earn passive income on infrastructure.
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
-referral-new-joined = 👋 You have a new referral.\nYour total referrals: <b>{$count}</b>
-referral-topup-notify = 💰 Your referral topped up their balance by <b>{ $amount }</b>.\nYour percentage: <b>{ $percent }%</b> — <b>{ $reward }</b> has been added to your referral balance.
+referral-new-joined = 👋 You have a new referral.
+    Your total referrals: <b>{$count}</b>
+referral-topup-notify = 💰 Your referral topped up their balance by <b>{ $amount }</b>.
+    Your percentage: <b>{ $percent }%</b> — <b>{ $reward }</b> has been added to your referral balance.
 
 Select an action:
 
@@ -731,7 +732,9 @@ Ticket #{$ticketId}
 Type: {$type}
 User: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})
 {$amountLine}
+{$detailsLine}
 withdraw-notification-amount = Amount: {$amount} $
+withdraw-notification-details = Wallet / payment details: {$details}
 ticket-type-dedicated_order = Dedicated Order
 ticket-type-dedicated_reinstall = Reinstall OS
 ticket-type-dedicated_reboot = Reboot
@@ -889,6 +892,7 @@ referral-stat-reg2dep = Referral conversion (REG2DEP): { $percent }%
 referral-stat-avg-deposit = Average referral deposit: { $amount } $
 referral-stat-percent = Referral percentage: { $percent }%
 referral-stat-active-30d = Active referrals (30 days): { $count }
+referral-stat-new-clients = New clients
 referral-stat-earned = Earned
 withdraw-enter-amount = <strong>Withdraw Balance</strong>
 

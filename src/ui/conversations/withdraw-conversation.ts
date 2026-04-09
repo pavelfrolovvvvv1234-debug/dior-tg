@@ -156,6 +156,7 @@ export async function withdrawRequestConversation(
             username: ctx.from?.username || ctx.from?.first_name || "Unknown",
             type: ctx.t(`ticket-type-${ticket.type}`),
             amountLine: ctx.t("withdraw-notification-amount", { amount }),
+            detailsLine: ctx.t("withdraw-notification-details", { details }),
           }),
           {
             reply_markup: modKeyboard,
@@ -182,6 +183,7 @@ export async function withdrawRequestConversation(
             username: ctx.from?.username || ctx.from?.first_name || "Unknown",
             type: ctx.t(`ticket-type-${ticket.type}`),
             amountLine: ctx.t("withdraw-notification-amount", { amount }),
+            detailsLine: ctx.t("withdraw-notification-details", { details }),
           }),
           {
             reply_markup: modKeyboard,

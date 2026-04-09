@@ -26,7 +26,6 @@ export async function getProfileText(
 ): Promise<string> {
   const session = await ctx.session;
   const userId = ctx.from?.id ?? session.main.user.id;
-  const userStatus = ctx.t(`user-status-${session.main.user.status}`);
   const idSafe = String(userId).split("").join("&#8203;");
   const balanceRaw = session.main.user.balance;
   const balanceFormatted = balanceRaw.toFixed(2);
@@ -58,7 +57,6 @@ export async function getProfileText(
   if (locale === "ru") {
     return getProfileTextRu({
       userId,
-      statusKey: session.main.user.status,
       balanceStr: balance,
       primeLine,
     });
@@ -68,7 +66,6 @@ export async function getProfileText(
 ┃
 ┗✅ STATS:
     ┠ ID: ${idSafe}
-    ┠ Status: ${userStatus}
     ┠ ${primeLine}
     ┗ Balance: ${balance} $</b>
 

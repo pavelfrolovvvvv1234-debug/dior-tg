@@ -6,12 +6,18 @@ import type { ReferralRewardApplied } from "../domain/referral/ReferralService.j
 
 let fluentCache: { translate: (locale: string, key: string, vars?: Record<string, string | number>) => string } | null = null;
 
+const normalizeI18nText = (value: string): string =>
+  value
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t");
+
 async function getFluentForNotify() {
   if (fluentCache) return fluentCache;
   const { fluent } = await import("../fluent.js").then((m) => m.initFluent());
   fluentCache = {
     translate: (locale: string, key: string, vars?: Record<string, string | number>) =>
-      String(fluent.translate(locale, key, vars ?? {})),
+      normalizeI18nText(String(fluent.translate(locale, key, vars ?? {}))),
   };
   return fluentCache;
 }
