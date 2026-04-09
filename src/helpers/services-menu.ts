@@ -55,7 +55,7 @@ const DEDICATED_OS_KEYS = [
   "ubuntu2404",
 ] as const;
 
-/** Apply Prime −20% discount if user has active Prime. */
+/** Apply Prime −10% discount if user has active Prime. */
 async function getPriceWithPrimeDiscount(
   dataSource: AppContext["appDataSource"],
   userId: number,
@@ -64,7 +64,7 @@ async function getPriceWithPrimeDiscount(
   const userRepo = dataSource.getRepository(User);
   const user = await userRepo.findOneBy({ id: userId });
   const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-  return hasPrime ? Math.round(basePrice * 0.8 * 100) / 100 : basePrice;
+  return hasPrime ? Math.round(basePrice * 0.9 * 100) / 100 : basePrice;
 }
 
 export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { autoAnswer: false, onMenuOutdated: false })

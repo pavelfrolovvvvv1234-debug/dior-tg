@@ -73,7 +73,7 @@ export class AmperDomainService {
   }
 
   /**
-   * Get domain price for user (20% discount if Prime active).
+   * Get domain price for user (10% discount if Prime active).
    *
    * @returns { price, discountApplied }
    */
@@ -85,7 +85,7 @@ export class AmperDomainService {
     const basePrice = await this.getPrice(tld, period);
     const hasPrime = await this.billingService.hasActivePrime(userId);
     if (hasPrime) {
-      const discounted = Math.round(basePrice * 0.8 * 100) / 100;
+      const discounted = Math.round(basePrice * 0.9 * 100) / 100;
       return { price: discounted, discountApplied: true };
     }
     return { price: basePrice, discountApplied: false };
@@ -108,7 +108,7 @@ export class AmperDomainService {
       throw new BusinessError("Invalid domain format");
     }
 
-    // Get price (with Prime 20% discount if active)
+    // Get price (with Prime 10% discount if active)
     const { price } = await this.getPriceForUser(userId, tld, period);
 
     // Check balance
@@ -257,7 +257,7 @@ export class AmperDomainService {
       throw new BusinessError(`Cannot renew domain with status: ${domain.status}`);
     }
 
-    // Get price for renewal (with Prime 20% discount if active)
+    // Get price for renewal (with Prime 10% discount if active)
     const { price } = await this.getPriceForUser(domain.userId, domain.tld, domain.period);
 
     // Check balance

@@ -155,7 +155,7 @@ export async function getBundleConfig(
  * Calculate bundle price.
  *
  * @param config - Bundle configuration
- * @param primeDiscount - Whether user has Prime (additional 20% on top)
+ * @param primeDiscount - Whether user has Prime (additional 10% on top)
  * @returns Bundle price calculation
  */
 export async function calculateBundlePrice(
@@ -185,11 +185,11 @@ export async function calculateBundlePrice(
   const bundleDiscountAmount = Math.round((basePrice * config.discountPercent) / 100 * 100) / 100;
   const priceAfterBundleDiscount = basePrice - bundleDiscountAmount;
 
-  // Apply Prime discount if applicable (20% on already discounted price)
+  // Apply Prime discount if applicable (10% on already discounted price)
   let finalPrice = priceAfterBundleDiscount;
   let totalDiscountPercent = config.discountPercent;
   if (primeDiscount) {
-    const primeDiscountAmount = Math.round(priceAfterBundleDiscount * 0.2 * 100) / 100;
+    const primeDiscountAmount = Math.round(priceAfterBundleDiscount * 0.1 * 100) / 100;
     finalPrice = priceAfterBundleDiscount - primeDiscountAmount;
     // Total discount = bundle discount + prime discount (compound)
     totalDiscountPercent = Math.round((1 - finalPrice / basePrice) * 100);

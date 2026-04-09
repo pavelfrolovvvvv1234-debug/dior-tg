@@ -1205,7 +1205,7 @@ prime-subscription-body = Extended terms for active clients and infrastructure o
 
  What Prime gives you:
 
- 🏷 20% discount on all domain zones
+ 🏷 10% discount on all domain zones
  Access to a special rate with no limit on the number of registrations.
 
  ⚡ Priority order processing
@@ -1220,7 +1220,7 @@ prime-subscription-body = Extended terms for active clients and infrastructure o
  🎁 Free 7-day trial
 prime-subscription-intro = Unlocks the following benefits for you:
 prime-subscription-benefit-ssl = Automatic SSL installation 🔰 (CloudFlare): A separate account is created for each domain, linked to your specified IP address!
-prime-subscription-benefit-discount = 🏷 You get a 20% discount on all available domains!
+prime-subscription-benefit-discount = 🏷 You get a 10% discount on all available domains!
 prime-subscription-benefit-notify = Automatic domain status notification: You will be automatically notified via the bot if a 🟥 "Red Plate" appears on your domain. No need to worry about your domain status.
 prime-subscription-status-active = ✅ Subscription active
 prime-subscription-status-inactive = ❌ Subscription not active
@@ -1228,18 +1228,18 @@ prime-subscription-status-until = Active until: {$date}
 prime-trial-activate = 🎁 Activate for $0 for 7 days (Then {$monthlyPrice}$/month)
 prime-trial-via-channel = Subscribe to our channel to get a free Prime subscription for 7 days
 prime-button-activate-trial = 🎁 Activate for $0 for 7 days
-prime-button-menu-row = 🔐 Prime Subscription −20% on domains
+prime-button-menu-row = 🔐 Prime Subscription −10% on domains
 prime-button-go-subscribe = ↗️ Go and subscribe
 prime-button-i-subscribed = ✅ I have subscribed
-prime-trial-activated = ✅ Prime subscription activated for 7 days! You now have a 20% discount on domains.
+prime-trial-activated = ✅ Prime subscription activated for 7 days! You now have a 10% discount on domains.
 prime-subscribe-message = Subscribe to our <a href="{$channelLink}">channel</a> to get a free Prime subscription for 7 days
 prime-trial-activated-message = 💎 Your Prime subscription has been activated for 1 week!
 prime-trial-already-used = You have already used the free trial. Continue subscription at {$monthlyPrice}$/month.
 prime-trial-subscribe-first = Please subscribe to the channel first, then press "I have subscribed".
 prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the button above, wait 5–10 seconds and press "I have subscribed" again. Ensure the bot is added to the channel as an administrator.
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
-prime-discount-dedicated = 🔐 Prime Subscription −20% on Dedicated
-prime-discount-vds = 🔐 Prime Subscription −20% on VPS/VDS
+prime-discount-dedicated = 🔐 Prime Subscription −10% on Dedicated
+prime-discount-vds = 🔐 Prime Subscription −10% on VPS/VDS
 
 profile-prime-no = Prime: No
 profile-prime-until = Prime: until {$date}

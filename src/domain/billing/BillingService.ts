@@ -245,7 +245,7 @@ export class BillingService {
   }
 
   /**
-   * Check if user has active Prime subscription (20% domain discount).
+   * Check if user has active Prime subscription (10% domain discount).
    *
    * @param userId - User ID
    * @returns True if primeActiveUntil is set and in the future

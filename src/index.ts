@@ -115,6 +115,73 @@ if (!process.env.AMPER_API_BASE_URL?.trim() || !process.env.AMPER_API_TOKEN?.tri
   dotenv.config({ path: path.join(process.cwd(), "..", ".env"), override: true });
 }
 
+const PRIME_MONTHLY_PRICE_USD = 9.99;
+const PRIME_BILLING_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+const primeBillingLocks = new Set<number>();
+
+async function ensurePrimePaidAfterTrial(ctx: AppContext, session: SessionData): Promise<void> {
+  if (!ctx.hasChatType("private") || ctx.chatId == null) {
+    return;
+  }
+  const userId = Number(session.main.user.id || 0);
+  const telegramId = Number(ctx.chatId);
+  if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(telegramId) || telegramId <= 0) {
+    return;
+  }
+  if (primeBillingLocks.has(userId)) {
+    return;
+  }
+  primeBillingLocks.add(userId);
+  try {
+    const now = Date.now();
+    let changed = false;
+    await ctx.appDataSource.transaction(async (manager) => {
+      const userRepo = manager.getRepository(User);
+      const user = await userRepo.findOne({ where: { id: userId } });
+      if (!user || !user.primeTrialUsed) {
+        return;
+      }
+      const activeUntilTs = user.primeActiveUntil ? new Date(user.primeActiveUntil).getTime() : 0;
+      if (activeUntilTs > now) {
+        return;
+      }
+      if (Number(user.balance || 0) < PRIME_MONTHLY_PRICE_USD) {
+        if (user.primeActiveUntil !== null) {
+          user.primeActiveUntil = null;
+          await userRepo.save(user);
+          changed = true;
+        }
+        return;
+      }
+      user.balance = Math.round((Number(user.balance || 0) - PRIME_MONTHLY_PRICE_USD) * 100) / 100;
+      user.primeActiveUntil = new Date(now + PRIME_BILLING_PERIOD_MS);
+      await userRepo.save(user);
+      changed = true;
+    });
+
+    if (!changed) {
+      return;
+    }
+    const changedUser = await ctx.appDataSource.getRepository(User).findOne({ where: { id: userId } });
+    if (!changedUser) {
+      return;
+    }
+
+    setCachedUser(telegramId, changedUser);
+    ctx.loadedUser = changedUser;
+    session.main.user.balance = changedUser.balance;
+    session.main.user.referralBalance = changedUser.referralBalance ?? 0;
+    session.main.user.id = changedUser.id;
+    session.main.user.role = changedUser.role;
+    session.main.user.status = changedUser.status;
+    session.main.user.isBanned = changedUser.isBanned;
+  } catch (error: any) {
+    Logger.error("Prime auto-billing after trial failed:", error);
+  } finally {
+    primeBillingLocks.delete(userId);
+  }
+}
+
 export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, onMenuOutdated: false })
   .submenu(
     (ctx) => ctx.t("button-purchase"),
@@ -672,6 +739,17 @@ async function index() {
           }
         }
       }
+    }
+    return next();
+  });
+
+  // Prime billing lifecycle:
+  // 1) trial grants 7 days via primeActiveUntil;
+  // 2) after expiration, if balance >= 9.99$, extend for 30 days and charge automatically.
+  bot.use(async (ctx, next) => {
+    const session = (await ctx.session) as SessionData;
+    if (session?.main?.user?.id) {
+      await ensurePrimePaidAfterTrial(ctx, session);
     }
     return next();
   });

@@ -55,7 +55,7 @@ export function registerDomainRegistrationMiddleware(
 
     const hasPrime = await billingService.hasActivePrime(user.id);
     const price = hasPrime
-      ? Math.round(basePrice * 0.8 * 100) / 100
+      ? Math.round(basePrice * 0.9 * 100) / 100
       : basePrice;
 
     user.balance -= price;

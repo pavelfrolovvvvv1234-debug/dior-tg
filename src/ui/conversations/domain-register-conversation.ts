@@ -278,7 +278,7 @@ export async function domainRegisterConversation(
       return;
     }
 
-    // Get price (with Prime 20% discount if active)
+    // Get price (with Prime 10% discount if active)
     const { price } = await domainService.getPriceForUser(
       user.id,
       tld.replace(".", ""),

@@ -99,7 +99,9 @@ function buildPlanKeyboard(ctx: AppContext): InlineKeyboard {
     .row()
     .text(ctx.t("button-cdn-plan-bulletproof"), "cdn_plan:bulletproof")
     .row()
-    .text(ctx.t("button-cdn-plan-bundle"), "cdn_plan:bundle");
+    .text(ctx.t("button-cdn-plan-bundle"), "cdn_plan:bundle")
+    .row()
+    .text(ctx.t("button-back"), "cdn_plan_back");
 }
 
 async function askTargetUrl(ctx: AppContext): Promise<void> {
@@ -707,6 +709,26 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
       { parse_mode: "HTML" }
     );
     await finalizeCdnCreateFromSession(ctx, session);
+    return;
+  }
+
+  if (data === "cdn_plan_back") {
+    const session = (await ctx.session) as any;
+    ensureCdnSession(session);
+    const fromManage = session?.other?.cdn?.fromManage === true;
+    session.other.cdn = { step: "idle", fromManage };
+    const text = ctx.t("cdn-welcome");
+    try {
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: cdnMenu,
+      });
+    } catch {
+      await ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: cdnMenu,
+      });
+    }
     return;
   }
 
