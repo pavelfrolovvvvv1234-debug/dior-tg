@@ -88,7 +88,9 @@ export const dedicatedMenu = new Menu<AppContext>("dedicated-menu")
       const dedicatedList = await dedicatedService.getDedicatedByUserId(session.main.user.id);
 
       if (dedicatedList.length === 0) {
-        range.text(ctx.t("list-empty"));
+        range.text(ctx.t("list-empty"), async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
+        });
         return;
       }
 

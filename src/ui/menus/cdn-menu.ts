@@ -687,16 +687,21 @@ export async function openCdnManageList(ctx: AppContext, notice?: string): Promi
   const proxies = await cdnListProxies(telegramId);
   const active = proxies.filter((p) => (p.lifecycle_status || p.status) !== "deleted");
   if (active.length === 0) {
-    const text = notice ? `${ctx.t("cdn-my-proxies-empty")}\n\n${notice}` : ctx.t("cdn-my-proxies-empty");
+    const title = ctx.t("cdn-manage-services-title");
+    const text = notice ? `${title}\n\n${notice}` : title;
+    const keyboard = new InlineKeyboard()
+      .text(ctx.t("list-empty"), "cdn_empty_row")
+      .row()
+      .text(ctx.t("button-back"), "cdn_back_to_manage");
     try {
       await ctx.editMessageText(text, {
         parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "cdn_back_to_manage"),
+        reply_markup: keyboard,
       });
     } catch {
       await ctx.reply(text, {
         parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "cdn_back_to_manage"),
+        reply_markup: keyboard,
       });
     }
     return;
@@ -722,6 +727,10 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
   if (!data.startsWith("cdn_")) return;
   await ctx.answerCallbackQuery().catch(() => {});
   await ensureSessionUser(ctx);
+
+  if (data === "cdn_empty_row") {
+    return;
+  }
 
   if (data === "cdn_back_to_manage") {
     const { manageSerivcesMenu } = await import("../../helpers/manage-services.js");

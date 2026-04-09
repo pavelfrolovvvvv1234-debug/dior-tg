@@ -490,6 +490,7 @@ manage-services-header = 💼 Услуги
 # Меню «Управление услугами»
 button-manage-domains = 🌐 Домены
 button-manage-cdn = 🛡 CDN
+cdn-manage-services-title = <strong>CDN</strong>
 button-manage-dedicated = 🖥 Дедики
 button-manage-services-back = ⬅️ Назад
 
@@ -1358,7 +1359,7 @@ admin-user-referrals-summary = <strong>Реферал</strong>
 prime-subscription-title = 🔐 Prime
 prime-subscription-body = Расширенные условия для активных пользователей.
 prime-subscription-benefits-block =
-    💸 Скидка до 10% на домены
+    💸 Специальные условия на услуги
 
     ⚡ Приоритетная обработка заказов
 
@@ -1372,18 +1373,18 @@ prime-subscription-status-until = Активна до: {$date}
 prime-trial-activate = 🎁 Активировать за 0$ на 7 дней (Далее {$monthlyPrice}$/мес)
 prime-trial-via-channel = Подпишись на наш канал, чтобы получить бесплатную Prime подписку на 7 дней
 prime-button-activate-trial = 🎁 Активировать Prime
-prime-button-menu-row = 🔐 Prime Подписка −10% на домены
+prime-button-menu-row = 🔐 Prime
 prime-button-go-subscribe = ↗️ Перейти и подписаться
 prime-button-i-subscribed = ✅ Я подписался
-prime-trial-activated = ✅ Prime подписка активирована на 7 дней! Вам доступна скидка 10% на домены.
+prime-trial-activated = ✅ Prime подписка активирована на 7 дней!
 prime-subscribe-message = Подпишись на наш <a href="{$channelLink}">канал</a>, чтобы получить бесплатную Prime подписку на 7 дней
 prime-trial-activated-message = 💎 Ваша Prime подписка была активирована на 1 неделю!
 prime-trial-already-used = Вы уже использовали бесплатный пробный период. Продолжить подписку можно по тарифу {$monthlyPrice}$/мес.
 prime-trial-subscribe-first = Сначала подпишитесь на канал, затем нажмите «Я подписался».
 prime-trial-subscribe-first-retry = Подписка не обнаружена. Подпишитесь на канал по кнопке выше, подождите 5–10 секунд и нажмите «Я подписался» снова. Убедитесь, что бот добавлен в канал как администратор.
 prime-channel-not-configured = Проверка подписки пока не настроена. Напишите в поддержку.
-prime-discount-dedicated = 🔐 Prime — скидка до 10%
-prime-discount-vds = 🔐 Prime — до 10% скидка
+prime-discount-dedicated = 🔐 Prime
+prime-discount-vds = 🔐 Prime
 
 profile-prime-no = Подписка: нет
 profile-prime-until = Подписка: до {$date}

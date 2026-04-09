@@ -1012,6 +1012,13 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
       skip: session.other.manageVds.page * LIMIT_ON_PAGE,
     });
 
+    if (total === 0) {
+      range.text(ctx.t("list-empty"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+      });
+      return;
+    }
+
     const maxPages = Math.ceil(total / LIMIT_ON_PAGE) - 1;
 
     for (const vds of vdsList) {
@@ -1119,27 +1126,47 @@ export const domainManageServicesMenu = new Menu<AppContext>(
 )
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
+    const userId = session.main.user.id;
 
-    // Show Amper domains
     const domainRepo = ctx.appDataSource.getRepository(Domain);
+    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+
+    const amperCount = await domainRepo.count({ where: { userId } });
+    const requestCount = await domainRequestRepo.count({
+      where: [
+        {
+          target_user_id: userId,
+          status: DomainRequestStatus.InProgress,
+        },
+        {
+          target_user_id: userId,
+          status: DomainRequestStatus.Completed,
+        },
+      ],
+    });
+
+    if (amperCount === 0 && requestCount === 0) {
+      range.text(ctx.t("list-empty"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+      });
+      return;
+    }
+
     const amperDomains = await domainRepo.find({
-      where: { userId: session.main.user.id },
+      where: { userId },
       order: { createdAt: "DESC" },
       take: LIMIT_ON_PAGE,
       skip: session.other.domains.page * LIMIT_ON_PAGE,
     });
 
-    // Show old domain requests
-    const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
-
     const [domainRequests, total] = await domainRequestRepo.findAndCount({
       where: [
         {
-          target_user_id: session.main.user.id,
+          target_user_id: userId,
           status: DomainRequestStatus.InProgress,
         },
         {
-          target_user_id: session.main.user.id,
+          target_user_id: userId,
           status: DomainRequestStatus.Completed,
         },
       ],

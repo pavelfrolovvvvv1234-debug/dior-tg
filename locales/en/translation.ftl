@@ -491,6 +491,7 @@ manage-services-header = 💼 Services
 # Manage services menu
 button-manage-domains = 🌐 Domains
 button-manage-cdn = 🛡 CDN
+cdn-manage-services-title = <strong>CDN</strong>
 button-manage-dedicated = 🖥 Dedicated
 button-manage-services-back = ⬅️ Back
 
@@ -1355,7 +1356,7 @@ admin-user-referrals-summary = <strong>Referral</strong>
 prime-subscription-title = 🔐 Prime
 prime-subscription-body = Extended terms for active users.
 prime-subscription-benefits-block =
-    💸 Up to 10% off domains
+    💸 Preferential pricing on services
 
     ⚡ Priority order processing
 
@@ -1369,18 +1370,18 @@ prime-subscription-status-until = Active until: {$date}
 prime-trial-activate = 🎁 Activate for $0 for 7 days (Then {$monthlyPrice}$/month)
 prime-trial-via-channel = Subscribe to our channel to get a free Prime subscription for 7 days
 prime-button-activate-trial = 🎁 Activate Prime
-prime-button-menu-row = 🔐 Prime Subscription −10% on domains
+prime-button-menu-row = 🔐 Prime
 prime-button-go-subscribe = ↗️ Go and subscribe
 prime-button-i-subscribed = ✅ I have subscribed
-prime-trial-activated = ✅ Prime subscription activated for 7 days! You now have a 10% discount on domains.
+prime-trial-activated = ✅ Prime subscription activated for 7 days!
 prime-subscribe-message = Subscribe to our <a href="{$channelLink}">channel</a> to get a free Prime subscription for 7 days
 prime-trial-activated-message = 💎 Your Prime subscription has been activated for 1 week!
 prime-trial-already-used = You have already used the free trial. Continue subscription at {$monthlyPrice}$/month.
 prime-trial-subscribe-first = Please subscribe to the channel first, then press "I have subscribed".
 prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the button above, wait 5–10 seconds and press "I have subscribed" again. Ensure the bot is added to the channel as an administrator.
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
-prime-discount-dedicated = 🔐 Prime — up to 10% off
-prime-discount-vds = 🔐 Prime — up to 10% off
+prime-discount-dedicated = 🔐 Prime
+prime-discount-vds = 🔐 Prime
 
 profile-prime-no = Prime: No
 profile-prime-until = Prime: until {$date}
