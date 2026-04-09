@@ -277,8 +277,14 @@ export async function cdnRetrySsl(proxyId: string, telegramId: number): Promise<
   ]);
 }
 
-export async function cdnDeleteProxy(proxyId: string, telegramId: number): Promise<boolean> {
-  return tryAction([
+export async function cdnDeleteProxy(
+  proxyId: string,
+  telegramId: number,
+  options?: { domainName?: string | null; targetUrl?: string | null }
+): Promise<boolean> {
+  const domainName = options?.domainName?.trim() || undefined;
+  const targetUrl = options?.targetUrl?.trim() || undefined;
+  const attempts: Array<{ path: string; method?: string; body?: Record<string, unknown> }> = [
     {
       path: `/api/bot/proxy/${encodeURIComponent(proxyId)}?telegramId=${encodeURIComponent(
         telegramId
@@ -326,5 +332,49 @@ export async function cdnDeleteProxy(proxyId: string, telegramId: number): Promi
       )}`,
       method: "DELETE",
     },
-  ]);
+  ];
+
+  if (domainName) {
+    attempts.push(
+      {
+        path: `/api/bot/delete-proxy`,
+        method: "POST",
+        body: { domainName, telegramId },
+      },
+      {
+        path: `/api/bot/delete-proxy`,
+        method: "POST",
+        body: { domain_name: domainName, telegram_id: telegramId },
+      },
+      {
+        path: `/api/bot/proxy/by-domain/${encodeURIComponent(domainName)}?telegramId=${encodeURIComponent(
+          telegramId
+        )}`,
+        method: "DELETE",
+      },
+      {
+        path: `/api/bot/proxy?domainName=${encodeURIComponent(domainName)}&telegramId=${encodeURIComponent(
+          telegramId
+        )}`,
+        method: "DELETE",
+      }
+    );
+  }
+
+  if (targetUrl) {
+    attempts.push(
+      {
+        path: `/api/bot/delete-proxy`,
+        method: "POST",
+        body: { proxyId, targetUrl, telegramId },
+      },
+      {
+        path: `/api/bot/delete-proxy`,
+        method: "POST",
+        body: { proxy_id: proxyId, target_url: targetUrl, telegram_id: telegramId },
+      }
+    );
+  }
+
+  return tryAction(attempts);
 }

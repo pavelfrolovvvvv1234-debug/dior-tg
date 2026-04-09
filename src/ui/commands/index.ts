@@ -50,7 +50,6 @@ export function registerCommands(bot: Bot<AppContext>): void {
     { command: "start", description: "Главное меню" },
     { command: "balance", description: "Проверить баланс" },
     { command: "services", description: "Услуги" },
-    { command: "admin", description: "Админ-панель (только для админов)" },
   ]).catch((error) => {
     Logger.error("Failed to set bot commands:", error);
   });

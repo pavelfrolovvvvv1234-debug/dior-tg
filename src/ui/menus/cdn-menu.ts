@@ -923,7 +923,11 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
     }
 
     if (action === "cdn_delok") {
-      const ok = await cdnDeleteProxy(proxyId, telegramId);
+      const proxyForDelete = await getProxyById(telegramId, proxyId);
+      const ok = await cdnDeleteProxy(proxyId, telegramId, {
+        domainName: proxyForDelete?.domain_name,
+        targetUrl: proxyForDelete?.target_url,
+      });
       if (ok) {
         const dataSource = await getAppDataSource();
         const repo = dataSource.getRepository(CdnProxyService);

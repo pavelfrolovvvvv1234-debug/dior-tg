@@ -250,7 +250,10 @@ export async function handleAdminCdnCallback(ctx: AppContext): Promise<void> {
     const id = parseInt(rest.slice(6), 10);
     const item = await repo.findOne({ where: { id } });
     if (!item) return;
-    const ok = await cdnDeleteProxy(item.proxyId, item.telegramId);
+    const ok = await cdnDeleteProxy(item.proxyId, item.telegramId, {
+      domainName: item.domainName,
+      targetUrl: item.targetUrl,
+    });
     if (ok) {
       item.isDeleted = true;
       item.deletedAt = new Date();
