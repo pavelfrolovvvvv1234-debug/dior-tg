@@ -841,8 +841,8 @@ provisioning-note-enter = Send internal note text for this provisioning ticket.
 provisioning-note-saved = Internal note saved.
 provisioning-complete-enter-message = Send final message for customer (credentials/details). It will be delivered and ticket marked completed.
 provisioning-completed = Ticket marked as completed.
-provisioning-user-ready-message = <strong>✅ Your dedicated server is ready</strong>\n\n<strong>Ticket:</strong> <code>#{$ticketId}</code>\n\n<strong>Access details:</strong>\n{$message}\n\nIf you need help with setup, just reply to this message.
-dedicated-provisioning-ticket-created = <strong>Order accepted.</strong>\nYour dedicated server request has been moved to manual setup.\n\nTicket ID: <code>#{$ticketId}</code>\nOrder ID: <code>#{$orderId}</code>\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}\n\nOur operations team will prepare your server and send details after completion.
+provisioning-user-ready-message = <strong>✅ Your dedicated server is ready</strong>\n\n<strong>Access details:</strong>\n{$message}\n\nIf you need help with setup, please contact our support @diorhost.
+dedicated-provisioning-ticket-created = <strong>Order accepted.</strong>\nYour dedicated server request has been moved to manual setup.\n\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}\n\nOur operations team will prepare your server and send details after completion.
 dedicated-provisioning-staff-notification = <strong>🛠 New dedicated setup ticket</strong>\nTicket: <code>#{$ticketId}</code>\nOrder: <code>#{$orderId}</code>\nUser: {$userId}\nAmount: {$amount} $\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}
 
 ticket-status-pending_review = 🟡 Pending review

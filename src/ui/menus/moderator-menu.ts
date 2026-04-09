@@ -112,31 +112,6 @@ export const moderatorMenu = new Menu<AppContext>("moderator-menu")
     }
   )
   .row()
-  .text(
-    (ctx) => ctx.t("button-tickets-new"),
-    async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      try {
-        await showTicketsList(ctx, TicketStatus.NEW);
-      } catch (error: any) {
-        Logger.error("Failed to get new tickets:", error);
-        await ctx.editMessageText(safeT(ctx, "error-unknown", { error: error.message || "Unknown error" }));
-      }
-    }
-  )
-  .text(
-    (ctx) => ctx.t("button-tickets-in-progress"),
-    async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      try {
-        await showTicketsList(ctx, TicketStatus.IN_PROGRESS);
-      } catch (error: any) {
-        Logger.error("Failed to get in-progress tickets:", error);
-        await ctx.editMessageText(safeT(ctx, "error-unknown", { error: error.message || "Unknown error" }));
-      }
-    }
-  )
-  .row()
   .back((ctx) => ctx.t("button-back"));
 
 /**
