@@ -573,7 +573,7 @@ export async function createBot(): Promise<{
   bot.use(domainQuestion.middleware());
   bot.use(vdsManageSpecific);
   bot.callbackQuery(
-    /^(cdn_(open|renew|autorenew|retryssl|delask|delok):|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle))$/,
+    /^(cdn_(open|renew|autorenew|retryssl|delask|delok):|cdn_target_auto|cdn_target_help|cdn_plan:(standard|bulletproof|bundle)|cdn_plan_back)$/,
     async (ctx) => {
       const { handleCdnActionCallback } = await import("../ui/menus/cdn-menu.js");
       await handleCdnActionCallback(ctx as AppContext);
