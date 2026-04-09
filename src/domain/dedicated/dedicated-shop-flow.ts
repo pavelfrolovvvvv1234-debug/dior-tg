@@ -293,7 +293,19 @@ export function registerDedicatedShopHandlers(bot: Bot<AppContext>): void {
   bot.callbackQuery(/^dsh:ord:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const id = Number.parseInt(ctx.match![1]!, 10);
-    await showDedicatedLocationPicker(ctx, id);
+    try {
+      const pricesList = await prices();
+      const server = pricesList.dedicated_servers?.[id];
+      if (!server) {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+        return;
+      }
+      await showDedicatedLocationPicker(ctx, id);
+    } catch (e: any) {
+      await ctx
+        .reply(ctx.t("error-unknown", { error: e?.message || "dsh:ord" }), { parse_mode: "HTML" })
+        .catch(() => {});
+    }
   });
 
   bot.callbackQuery(/^dsh:det:(\d+)$/, async (ctx) => {

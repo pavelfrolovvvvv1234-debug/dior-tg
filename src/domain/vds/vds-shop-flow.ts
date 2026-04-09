@@ -277,7 +277,6 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
   });
 
   bot.callbackQuery(/^vsh:ord:(\d+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
     const id = Number.parseInt(ctx.match![1]!, 10);
 
     if (isVdsPurchaseTemporarilyDisabled()) {
@@ -290,11 +289,16 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       return;
     }
 
+    await ctx.answerCallbackQuery().catch(() => {});
+
     const session = await ctx.session;
     ensureVpsShopSession(session);
     const pricesList = await prices();
     const rate = pricesList.virtual_vds?.[id];
-    if (!rate) return;
+    if (!rate) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
 
     const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
     const dataSource = ctx.appDataSource ?? (await getAppDataSource());

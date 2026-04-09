@@ -931,6 +931,26 @@ async function index() {
     await openCdnPurchaseFromServicesMenu(ctx as any);
   });
 
+  /** Inline shop (vsh:* / dsh:*) before Menu middleware so «Купить»/«Заказать» are not lost in the stack. */
+  registerDomainPurchaseFlow(bot);
+  registerDedicatedShopHandlers(bot);
+  registerVpsShopHandlers(bot);
+
+  /** Plain `dedicated-os:*` keys (after location) — before Menu stack so callbacks are not swallowed. */
+  bot.callbackQuery(/^dedicated-os:(.+)$/, async (ctx) => {
+    const payload = ctx.match[1];
+    if (payload === "back") {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      await ctx.editMessageText(
+        ctx.t("welcome", { balance: session.main.user.balance }),
+        { parse_mode: "HTML", reply_markup: mainMenu }
+      );
+    } else {
+      await handleDedicatedOsSelect(ctx, payload);
+    }
+  });
+
   // Conversations must be registered before menus that call ctx.conversation.enter(...)
   bot.use(conversations());
   registerPromoConversations(bot);
@@ -959,9 +979,6 @@ async function index() {
   bot.use(servicesMenu);
   bot.use(profileMenu);
   bot.use(manageSerivcesMenu);
-  registerDomainPurchaseFlow(bot);
-  registerDedicatedShopHandlers(bot);
-  registerVpsShopHandlers(bot);
   bot.use(domainsMenu);
   bot.use(vdsMenu);
   bot.use(dedicatedTypeMenu);
@@ -1002,20 +1019,6 @@ async function index() {
       reply_markup: depositMenu,
       parse_mode: "HTML",
     });
-  });
-
-  bot.callbackQuery(/^dedicated-os:(.+)$/, async (ctx) => {
-    const payload = ctx.match[1];
-    if (payload === "back") {
-      await ctx.answerCallbackQuery().catch(() => {});
-      const session = await ctx.session;
-      await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        { parse_mode: "HTML", reply_markup: mainMenu }
-      );
-    } else {
-      await handleDedicatedOsSelect(ctx, payload);
-    }
   });
 
   try {

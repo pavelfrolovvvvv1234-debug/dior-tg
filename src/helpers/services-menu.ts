@@ -693,7 +693,9 @@ export const dedicatedLocationMenu = new Menu<AppContext>("dedicated-location-me
     }
   })
   .row()
-  .back((ctx) => ctx.t("button-back"), async (ctx) => {
+  // `.text`, not `.back`: from the inline shop (`dsh:ord`) this menu has no Menu parent — `ctx.menu.back()` throws.
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     const selectedId = session.other.dedicatedType?.selectedDedicatedId ?? -1;
     const { showDedicatedShopStep4Card, showDedicatedShopStep3List } = await import(
