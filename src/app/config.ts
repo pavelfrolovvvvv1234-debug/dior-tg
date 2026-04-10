@@ -189,12 +189,12 @@ export const getPrimeChannelForCheck = (): number | string | null => {
 };
 
 /**
- * VPS/VDS в меню «Услуги» и «Управление услугами». По умолчанию включено.
- * Скрыть: SHOW_VPS_VDS_IN_MENUS=0 (или false/off/no).
+ * VPS/VDS в меню «Услуги» и «Управление услугами». По умолчанию скрыто.
+ * Показать: SHOW_VPS_VDS_IN_MENUS=1 (или true/on/yes).
  */
 export const showVpsVdsInServiceMenus = (): boolean => {
   const v = (process.env.SHOW_VPS_VDS_IN_MENUS ?? "").trim().toLowerCase();
-  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
-  return true;
+  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
+  return false;
 };
 
