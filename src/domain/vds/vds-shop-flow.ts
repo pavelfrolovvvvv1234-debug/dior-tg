@@ -229,24 +229,9 @@ export async function showVpsShopStep1(ctx: AppContext): Promise<void> {
 export async function showVpsShopStep2Tier(ctx: AppContext): Promise<void> {
   const session = await ctx.session;
   ensureVpsShopSession(session);
-  const bp = session.other.vdsRate.bulletproof;
-
-  let text = ctx.t("vds-shop-step2-title");
-  if (bp) {
-    text = `${text}\n\n${ctx.t("vds-shop-bulletproof-blurb")}`;
-  }
-
-  const kb = new InlineKeyboard();
-  for (const tier of TIER_ORDER) {
-    kb.text(ctx.t(`vds-shop-tier-${tier}`), `vsh:tier:${tier}`).row();
-  }
-  kb.text(ctx.t("button-back"), "vsh:back:type").row();
-
-  await ctx.editMessageText(text, {
-    parse_mode: "HTML",
-    reply_markup: kb,
-    link_preview_options: { is_disabled: true },
-  });
+  session.other.vdsRate.shopTier = null;
+  session.other.vdsRate.shopListPage = 0;
+  await showVpsShopStep3List(ctx, 0);
 }
 
 /** Step 3: plan list */
@@ -255,10 +240,6 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
   ensureVpsShopSession(session);
   const vr = session.other.vdsRate;
   const tier = vr.shopTier;
-  if (!tier) {
-    await showVpsShopStep2Tier(ctx);
-    return;
-  }
   const p = page ?? vr.shopListPage ?? 0;
   vr.shopListPage = p;
 
@@ -266,7 +247,8 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
   const list = pricesList.virtual_vds ?? [];
   assertVdsCatalogLength(list.length);
 
-  const ids = getVdsIndicesForTier(list, tier);
+  const ids =
+    tier == null ? list.map((_, idx) => idx) : getVdsIndicesForTier(list, tier);
   const totalPages = Math.max(1, Math.ceil(ids.length / VDS_SHOP_PAGE_SIZE));
   const safePage = Math.min(Math.max(0, p), totalPages - 1);
   vr.shopListPage = safePage;
@@ -274,10 +256,7 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
   const slice = ids.slice(start, start + VDS_SHOP_PAGE_SIZE);
 
   const typeKey = vr.bulletproof ? "vds-shop-type-bulletproof" : "vds-shop-type-standard";
-  const header = ctx.t("vds-shop-step3-header", {
-    typeLine: ctx.t(typeKey),
-    tierLine: ctx.t(`vds-shop-tier-${tier}-label`),
-  });
+  const header = `<b>🖥 ${ctx.t(typeKey)}</b>`;
 
   let body = `${header}\n\n${ctx.t("vds-shop-step3-prompt")}`;
   if (ids.length > VDS_SHOP_PAGE_SIZE) {
@@ -300,7 +279,7 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
       .row();
   }
 
-  appendVpsShopPrimeAndBack(kb, ctx, "vsh:back:tier");
+  appendVpsShopPrimeAndBack(kb, ctx, "vsh:back:type");
 
   await ctx.editMessageText(body, {
     parse_mode: "HTML",
@@ -431,7 +410,7 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery("vsh:back:tier", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    await showVpsShopStep2Tier(ctx);
+    await showVpsShopStep1(ctx);
   });
 
   bot.callbackQuery("vsh:back:list", async (ctx) => {

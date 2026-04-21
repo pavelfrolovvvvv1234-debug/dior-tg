@@ -95,24 +95,9 @@ export async function showDedicatedShopStep1(ctx: AppContext): Promise<void> {
 export async function showDedicatedShopStep2Tier(ctx: AppContext): Promise<void> {
   const session = await ctx.session;
   ensureDedicatedSession(session);
-  const bp = session.other.dedicatedType!.bulletproof;
-
-  let text = ctx.t("dedicated-shop-step2-title");
-  if (bp) {
-    text = `${text}\n\n${ctx.t("dedicated-shop-bulletproof-blurb")}`;
-  }
-
-  const kb = new InlineKeyboard();
-  for (const tier of TIER_ORDER) {
-    kb.text(ctx.t(`dedicated-shop-tier-${tier}`), `dsh:tier:${tier}`).row();
-  }
-  kb.text(ctx.t("button-back"), "dsh:back:type").row();
-
-  await ctx.editMessageText(text, {
-    parse_mode: "HTML",
-    reply_markup: kb,
-    link_preview_options: { is_disabled: true },
-  });
+  session.other.dedicatedType!.shopTier = null;
+  session.other.dedicatedType!.shopListPage = 0;
+  await showDedicatedShopStep3List(ctx, 0);
 }
 
 /** Step 3: server list (paginated) */
@@ -121,10 +106,6 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
   ensureDedicatedSession(session);
   const dt = session.other.dedicatedType!;
   const tier = dt.shopTier;
-  if (!tier) {
-    await showDedicatedShopStep2Tier(ctx);
-    return;
-  }
   const p = page ?? dt.shopListPage ?? 0;
   dt.shopListPage = p;
 
@@ -132,7 +113,13 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
   const list = pricesList.dedicated_servers ?? [];
   assertDedicatedCatalogLength(list.length);
 
-  const ids = getDedicatedIndicesForTypeAndTier(list, dt.bulletproof, tier);
+  const ids =
+    tier == null
+      ? list
+          .map((server, idx) => ({ server, idx }))
+          .filter(({ server }) => (server.category ?? "standard") === (dt.bulletproof ? "bulletproof" : "standard"))
+          .map(({ idx }) => idx)
+      : getDedicatedIndicesForTypeAndTier(list, dt.bulletproof, tier);
   const totalPages = Math.max(1, Math.ceil(ids.length / DEDICATED_SHOP_PAGE_SIZE));
   const safePage = Math.min(Math.max(0, p), totalPages - 1);
   dt.shopListPage = safePage;
@@ -140,10 +127,7 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
   const slice = ids.slice(start, start + DEDICATED_SHOP_PAGE_SIZE);
 
   const typeKey = dt.bulletproof ? "dedicated-shop-type-bulletproof" : "dedicated-shop-type-standard";
-  const header = ctx.t("dedicated-shop-step3-header", {
-    typeLine: ctx.t(typeKey),
-    tierLine: ctx.t(`dedicated-shop-tier-${tier}-label`),
-  });
+  const header = `<b>🖥 ${ctx.t(typeKey)}</b>`;
 
   let body = `${header}\n\n${ctx.t("dedicated-shop-step3-prompt")}`;
   if (ids.length > DEDICATED_SHOP_PAGE_SIZE) {
@@ -165,7 +149,7 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
       .row();
   }
 
-  appendDedicatedShopPrimeAndBack(kb, ctx, "dsh:back:tier");
+  appendDedicatedShopPrimeAndBack(kb, ctx, "dsh:back:type");
 
   await ctx.editMessageText(body, {
     parse_mode: "HTML",
@@ -404,7 +388,7 @@ export function registerDedicatedShopHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery("dsh:back:tier", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    await showDedicatedShopStep2Tier(ctx);
+    await showDedicatedShopStep1(ctx);
   });
 
   bot.callbackQuery("dsh:back:list", async (ctx) => {
