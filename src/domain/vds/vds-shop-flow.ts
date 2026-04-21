@@ -19,6 +19,7 @@ import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
 import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
+import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
@@ -44,7 +45,12 @@ async function getPriceWithPrimeDiscount(
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
-async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<void> {
+async function createVpsOrderTicket(
+  ctx: AppContext,
+  rateId: number,
+  locationKey?: string,
+  osKey?: string
+): Promise<void> {
   const session = await ctx.session;
   ensureVpsShopSession(session);
   const pricesList = await prices();
@@ -81,6 +87,8 @@ async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<vo
       ? `tgcb:${ctx.callbackQuery.id}`
       : `vps:${session.main.user.id}:${rateId}:${Date.now()}`;
     const category = session.other.vdsRate.bulletproof ? "bulletproof" : "standard";
+    const locationLabel = locationKey ? ctx.t(`dedicated-location-${locationKey}` as any) : "N/A";
+    const osLabel = osKey ? ctx.t(`dedicated-os-${osKey}` as any) : "N/A";
 
     const created = await provisioningService.createPaidOrderAndTicket({
       userId: user.id,
@@ -102,6 +110,10 @@ async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<vo
         storageType: "SSD",
         storageSize: rate.ssd != null ? `${rate.ssd} GB` : null,
         uplinkSpeed: rate.network != null ? `${rate.network}` : null,
+        locationKey: locationKey ?? null,
+        locationLabel,
+        osKey: osKey ?? null,
+        osLabel,
         ddosProtection: session.other.vdsRate.bulletproof ? "enhanced" : "standard",
         deploymentNotes: "Temporary VPS/VDS flow via provisioning tickets (as dedicated).",
       },
@@ -119,8 +131,8 @@ async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<vo
         ticketId: ticket.id,
         orderId: order.id,
         serviceName: rate.name ?? `VPS #${rateId}`,
-        location: "N/A",
-        os: "N/A",
+        location: locationLabel,
+        os: osLabel,
       })
     );
     await ctx.reply(buyerText, { parse_mode: "HTML" });
@@ -135,8 +147,8 @@ async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<vo
         userId: user.id,
         amount: price,
         serviceName: rate.name ?? `VPS #${rateId}`,
-        location: "N/A",
-        os: "N/A",
+        location: locationLabel,
+        os: osLabel,
       })
     );
     const staffKeyboard = new InlineKeyboard()
@@ -168,6 +180,43 @@ async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<vo
       .reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }), { parse_mode: "HTML" })
       .catch(() => {});
   }
+}
+
+async function showVpsLocationPicker(ctx: AppContext, rateId: number): Promise<void> {
+  const session = await ctx.session;
+  ensureVpsShopSession(session);
+  session.other.vdsRate.selectedRateId = rateId;
+  const kb = new InlineKeyboard();
+  for (const key of DEDICATED_LOCATION_KEYS) {
+    kb.text(ctx.t(`dedicated-location-${key}` as any), `vsh:loc:${key}`).row();
+  }
+  kb.text(ctx.t("button-back"), `vsh:card:${rateId}`).row();
+  await ctx.editMessageText(ctx.t("dedicated-location-select-title"), {
+    parse_mode: "HTML",
+    reply_markup: kb,
+    link_preview_options: { is_disabled: true },
+  });
+}
+
+async function showVpsOsPicker(ctx: AppContext, rateId: number, locationKey: string): Promise<void> {
+  const session = await ctx.session;
+  ensureVpsShopSession(session);
+  if (!session.other.dedicatedOrder) {
+    session.other.dedicatedOrder = { step: "idle", requirements: undefined };
+  }
+  session.other.dedicatedOrder.selectedLocationKey = locationKey;
+  session.other.vdsRate.selectedRateId = rateId;
+
+  const kb = new InlineKeyboard();
+  for (const key of DEDICATED_OS_KEYS) {
+    kb.text(ctx.t(`dedicated-os-${key}` as any), `vsh:os:${key}`).row();
+  }
+  kb.text(ctx.t("button-back"), `vsh:loc_back:${rateId}`).row();
+  await ctx.editMessageText(ctx.t("dedicated-os-select-title"), {
+    parse_mode: "HTML",
+    reply_markup: kb,
+    link_preview_options: { is_disabled: true },
+  });
 }
 
 function ensureVpsShopSession(session: SessionData): void {
@@ -388,7 +437,37 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
   bot.callbackQuery(/^vsh:ord:(\d+)$/, async (ctx) => {
     const id = Number.parseInt(ctx.match![1]!, 10);
     await ctx.answerCallbackQuery().catch(() => {});
-    await createVpsOrderTicket(ctx, id);
+    await showVpsLocationPicker(ctx, id);
+  });
+
+  bot.callbackQuery(/^vsh:loc:([a-z0-9-]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const locationKey = ctx.match![1]!;
+    const rateId = (await ctx.session).other.vdsRate.selectedRateId;
+    if (rateId < 0) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    await showVpsOsPicker(ctx, rateId, locationKey);
+  });
+
+  bot.callbackQuery(/^vsh:loc_back:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const rateId = Number.parseInt(ctx.match![1]!, 10);
+    await showVpsLocationPicker(ctx, rateId);
+  });
+
+  bot.callbackQuery(/^vsh:os:([a-z0-9-]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const osKey = ctx.match![1]!;
+    const session = await ctx.session;
+    const rateId = session.other.vdsRate.selectedRateId;
+    const locationKey = session.other.dedicatedOrder?.selectedLocationKey;
+    if (rateId < 0 || !locationKey) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    await createVpsOrderTicket(ctx, rateId, locationKey, osKey);
   });
 
   bot.callbackQuery(/^vsh:det:(\d+)$/, async (ctx) => {
