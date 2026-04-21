@@ -194,7 +194,7 @@ export const getPrimeChannelForCheck = (): number | string | null => {
  */
 export const showVpsVdsInServiceMenus = (): boolean => {
   const v = (process.env.SHOW_VPS_VDS_IN_MENUS ?? "").trim().toLowerCase();
-  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
-  return false;
+  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
+  return true;
 };
 

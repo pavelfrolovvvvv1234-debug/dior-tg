@@ -8,7 +8,7 @@ import type { AppContext } from "../../shared/types/context.js";
 import type { SessionData } from "../../shared/types/session.js";
 import prices from "../../helpers/prices.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
-import User from "../../entities/User.js";
+import User, { Role } from "../../entities/User.js";
 import {
   assertVdsCatalogLength,
   VDS_INDEX_TIER,
@@ -16,6 +16,9 @@ import {
   type VpsShopTier,
 } from "./vds-shop-config.js";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
+import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioningService.js";
+import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
+import { getModeratorChatId } from "../../shared/moderator-chat.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
@@ -37,6 +40,134 @@ async function getPriceWithPrimeDiscount(
   const user = await userRepo.findOneBy({ id: userId });
   const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
   return hasPrime ? Math.round(basePrice * 0.9 * 100) / 100 : basePrice;
+}
+
+const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
+
+async function createVpsOrderTicket(ctx: AppContext, rateId: number): Promise<void> {
+  const session = await ctx.session;
+  ensureVpsShopSession(session);
+  const pricesList = await prices();
+  const rate = pricesList.virtual_vds?.[rateId];
+  if (!rate) {
+    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+    return;
+  }
+
+  const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+  const usersRepo = dataSource.getRepository(User);
+  const user = await usersRepo.findOneBy({ id: session.main.user.id });
+  if (!user) {
+    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+    return;
+  }
+
+  const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
+  const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+  if (user.balance < price) {
+    await showTopupForMissingAmount(ctx, price - user.balance);
+    return;
+  }
+
+  let deducted = false;
+  try {
+    user.balance -= price;
+    await usersRepo.save(user);
+    deducted = true;
+    session.main.user.balance = user.balance;
+
+    const provisioningService = new DedicatedProvisioningService(dataSource);
+    const idempotencyKey = ctx.callbackQuery?.id
+      ? `tgcb:${ctx.callbackQuery.id}`
+      : `vps:${session.main.user.id}:${rateId}:${Date.now()}`;
+    const category = session.other.vdsRate.bulletproof ? "bulletproof" : "standard";
+
+    const created = await provisioningService.createPaidOrderAndTicket({
+      userId: user.id,
+      telegramUserId: ctx.from?.id ?? null,
+      telegramUsername: ctx.from?.username ?? null,
+      fullName: [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") || null,
+      customerLanguage: session.main.locale,
+      paymentAmount: price,
+      paymentMethod: "balance",
+      paymentStatus: DedicatedOrderPaymentStatus.PAID,
+      balanceUsedAmount: price,
+      idempotencyKey,
+      config: {
+        productId: `vps-${rateId}`,
+        productName: rate.name ?? `VPS #${rateId}`,
+        category,
+        cpuCores: Number(rate.cpu ?? 0) || null,
+        ram: rate.ram != null ? String(rate.ram) : null,
+        storageType: "SSD",
+        storageSize: rate.ssd != null ? `${rate.ssd} GB` : null,
+        uplinkSpeed: rate.network != null ? `${rate.network}` : null,
+        ddosProtection: session.other.vdsRate.bulletproof ? "enhanced" : "standard",
+        deploymentNotes: "Temporary VPS/VDS flow via provisioning tickets (as dedicated).",
+      },
+    });
+
+    const order = created.order;
+    const ticket = created.ticket;
+
+    await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
+      parse_mode: "HTML",
+    });
+
+    const buyerText = renderMultiline(
+      ctx.t("dedicated-provisioning-ticket-created", {
+        ticketId: ticket.id,
+        orderId: order.id,
+        serviceName: rate.name ?? `VPS #${rateId}`,
+        location: "N/A",
+        os: "N/A",
+      })
+    );
+    await ctx.reply(buyerText, { parse_mode: "HTML" });
+
+    const moderators = await usersRepo.find({
+      where: [{ role: Role.Admin }, { role: Role.Moderator }],
+    });
+    const staffText = renderMultiline(
+      ctx.t("dedicated-provisioning-staff-notification", {
+        ticketId: ticket.id,
+        orderId: order.id,
+        userId: user.id,
+        amount: price,
+        serviceName: rate.name ?? `VPS #${rateId}`,
+        location: "N/A",
+        os: "N/A",
+      })
+    );
+    const staffKeyboard = new InlineKeyboard()
+      .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
+      .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+    const recipientChatIds = new Set<number>();
+    for (const mod of moderators) recipientChatIds.add(mod.telegramId);
+    const moderatorChatId = getModeratorChatId();
+    if (moderatorChatId) recipientChatIds.add(moderatorChatId);
+    for (const chatId of recipientChatIds) {
+      await ctx.api
+        .sendMessage(chatId, staffText, {
+          parse_mode: "HTML",
+          reply_markup: staffKeyboard,
+        })
+        .catch(() => {});
+    }
+  } catch (error: any) {
+    if (deducted) {
+      try {
+        user.balance += price;
+        await usersRepo.save(user);
+        session.main.user.balance = user.balance;
+      } catch {
+        // ignore rollback failure, original error is still returned below
+      }
+    }
+    await ctx
+      .reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }), { parse_mode: "HTML" })
+      .catch(() => {});
+  }
 }
 
 function ensureVpsShopSession(session: SessionData): void {
@@ -277,41 +408,8 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery(/^vsh:ord:(\d+)$/, async (ctx) => {
     const id = Number.parseInt(ctx.match![1]!, 10);
-
     await ctx.answerCallbackQuery().catch(() => {});
-
-    const session = await ctx.session;
-    ensureVpsShopSession(session);
-    const pricesList = await prices();
-    const rate = pricesList.virtual_vds?.[id];
-    if (!rate) {
-      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
-      return;
-    }
-
-    const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
-    const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-    const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
-    const usersRepo = dataSource.getRepository(User);
-    const user = await usersRepo.findOneBy({ id: session.main.user.id });
-    if (!user) {
-      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
-      return;
-    }
-    if (user.balance < price) {
-      await showTopupForMissingAmount(ctx, price - user.balance);
-      return;
-    }
-    session.main.user.balance = user.balance;
-
-    session.other.vdsRate.selectedRateId = id;
-    session.other.vdsRate.selectedOs = -1;
-
-    const { vdsRateOs } = await import("../../helpers/services-menu.js");
-    await ctx.editMessageText(ctx.t("vds-os-select"), {
-      parse_mode: "HTML",
-      reply_markup: vdsRateOs,
-    });
+    await createVpsOrderTicket(ctx, id);
   });
 
   bot.callbackQuery(/^vsh:det:(\d+)$/, async (ctx) => {
