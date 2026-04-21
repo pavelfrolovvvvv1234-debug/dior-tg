@@ -218,21 +218,18 @@ function buildServicesMenu(): Menu<AppContext> {
 
   if (showVpsVdsInServiceMenus()) {
     m = m
-      .submenu(
-        (ctx) => ctx.t("button-vds"),
-        "vds-type-menu",
-        async (ctx) => {
-          const session = await ctx.session;
-          if (!session.other) (session as any).other = createInitialOtherSession();
-          session.other.vdsRate.bulletproof = true;
-          session.other.vdsRate.shopTier = null;
-          session.other.vdsRate.shopListPage = 0;
-          session.other.vdsRate.selectedRateId = -1;
-          session.other.vdsRate.selectedOs = -1;
-          const { showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
-          await showVpsShopStep2Tier(ctx);
-        }
-      )
+      .text((ctx) => ctx.t("button-vds"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        if (!session.other) (session as any).other = createInitialOtherSession();
+        session.other.vdsRate.bulletproof = true;
+        session.other.vdsRate.shopTier = null;
+        session.other.vdsRate.shopListPage = 0;
+        session.other.vdsRate.selectedRateId = -1;
+        session.other.vdsRate.selectedOs = -1;
+        const { showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
+        await showVpsShopStep2Tier(ctx);
+      })
       .row();
   }
 
