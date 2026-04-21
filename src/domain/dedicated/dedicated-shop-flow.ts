@@ -48,6 +48,11 @@ function cpuTitleFromName(name: string): string {
   return name.replace(/\s+\d+GB\s*$/i, "").trim();
 }
 
+function formatUsdShort(n: number): string {
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2);
+}
+
 function ensureDedicatedSession(session: SessionData): void {
   if (!session.other.dedicatedType) {
     session.other.dedicatedType = {
@@ -137,7 +142,11 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
   const kb = new InlineKeyboard();
 
   for (const id of slice) {
-    const label = DEDICATED_COMPACT_LABEL[id] ?? `#${id}`;
+    const server = list[id]!;
+    const basePrice = dt.bulletproof ? server.price?.bulletproof : server.price?.default;
+    const price = await getPriceWithPrimeDiscount(ctx.appDataSource, session.main.user.id, Number(basePrice ?? 0));
+    const labelBase = DEDICATED_COMPACT_LABEL[id] ?? `#${id}`;
+    const label = `${labelBase}  |  $${formatUsdShort(price)}`;
     kb.text(label, `dsh:sel:${id}`).row();
   }
 

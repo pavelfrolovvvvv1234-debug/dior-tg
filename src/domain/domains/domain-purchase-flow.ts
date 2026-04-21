@@ -150,7 +150,7 @@ async function buildTldListKeyboard(
     }
   }
 
-  kb.text(ctx.t("prime-button-menu-row"), "domshop:prime").row();
+  kb.text(ctx.t("prime-discount-domains"), "domshop:prime").row();
   kb.text(ctx.t("button-back"), "domshop:home").row();
   return kb;
 }

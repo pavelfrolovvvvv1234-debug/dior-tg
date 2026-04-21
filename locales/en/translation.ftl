@@ -1455,6 +1455,7 @@ prime-trial-subscribe-first-retry = Subscription not detected. Subscribe via the
 prime-channel-not-configured = Channel for free trial is not configured. Contact support.
 prime-discount-dedicated = 🔐 Prime — up to 10% off
 prime-discount-vds = 🔐 Prime — up to 10% off
+prime-discount-domains = 🔐 Prime — 10% off domains
 
 profile-prime-no = Prime: No
 profile-prime-until = Prime: until {$date}

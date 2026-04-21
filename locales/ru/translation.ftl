@@ -1458,6 +1458,7 @@ prime-trial-subscribe-first-retry = Подписка не обнаружена. 
 prime-channel-not-configured = Проверка подписки пока не настроена. Напишите в поддержку.
 prime-discount-dedicated = 🔐 Prime — скидки до 10%
 prime-discount-vds = 🔐 Prime — скидки до 10%
+prime-discount-domains = 🔐 Prime — скидка на домены 10%
 
 profile-prime-no = Подписка: нет
 profile-prime-until = Подписка: до {$date}

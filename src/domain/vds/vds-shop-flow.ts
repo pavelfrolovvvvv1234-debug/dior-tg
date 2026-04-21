@@ -205,7 +205,7 @@ async function compactPlanButtonLabel(
   const session = await ctx.session;
   const price = await getPriceWithPrimeDiscount(ds, session.main.user.id, basePrice);
   const p = formatUsdShort(price);
-  return `${rate.name} • ${rate.cpu}C / ${rate.ram}GB / ${rate.ssd}GB • $${p}`;
+  return `${rate.name} • ${rate.cpu}C / ${rate.ram}GB / ${rate.ssd}GB  |  $${p}`;
 }
 
 /** Step 1: VPS type (uses grammY vdsTypeMenu). */

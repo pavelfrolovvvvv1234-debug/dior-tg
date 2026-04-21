@@ -49,6 +49,7 @@ export function buildPrimeBlockText(
     lines.push(ctx.t("prime-subscription-status-until", { date: dateStr }));
   } else {
     lines.push(ctx.t("prime-subscription-trial-line"));
+    lines.push(ctx.t("prime-trial-activate", { monthlyPrice }));
   }
 
   // Fluent may leave literal "\n" in strings from .ftl; Telegram needs real newlines.
