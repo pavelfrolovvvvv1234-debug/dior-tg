@@ -76,28 +76,44 @@ export function assertDedicatedCatalogLength(catalogLen: number): void {
   }
 }
 
-/** Location keys (FTL: dedicated-location-{key}). Same rules as legacy Menu. */
-export const DEDICATED_LOCATION_KEYS = ["de-germany", "nl-amsterdam", "usa", "tr-istanbul"] as const;
+/** Location keys (FTL: dedicated-location-{key}). */
+export const DEDICATED_LOCATION_KEYS = ["nl-amsterdam", "de-germany", "usa", "tr-istanbul"] as const;
+
+const AUTOMATED_LOCATION_KEY = "nl-amsterdam";
+
+function prioritizeAutomatedLocation(keys: string[]): string[] {
+  return [...keys].sort((a, b) => {
+    if (a === AUTOMATED_LOCATION_KEY && b !== AUTOMATED_LOCATION_KEY) return -1;
+    if (b === AUTOMATED_LOCATION_KEY && a !== AUTOMATED_LOCATION_KEY) return 1;
+    return 0;
+  });
+}
 
 export function dedicatedLocationKeysForServer(server: { locations?: string[] } | undefined): string[] {
   const keys = DEDICATED_LOCATION_KEYS as readonly string[];
   if (server?.locations?.length && keys.filter((k) => server.locations!.includes(k)).length > 0) {
-    return (server.locations as string[]).filter((k) => keys.includes(k));
+    const filtered = (server.locations as string[]).filter((k) => keys.includes(k));
+    return prioritizeAutomatedLocation(filtered);
   }
-  return [...keys];
+  return prioritizeAutomatedLocation([...keys]);
 }
 
 /** OS keys (FTL: dedicated-os-{key}). */
 export const DEDICATED_OS_KEYS = [
   "winserver2019",
   "winserver2025",
+  "winserver2012",
+  "winserver2016",
+  "windows10",
   "windows11",
   "alma8",
   "alma9",
+  "rockylinux",
   "centos9",
   "debian11",
   "debian12",
   "debian13",
+  "freebsd",
   "ubuntu2204",
   "ubuntu2404",
 ] as const;

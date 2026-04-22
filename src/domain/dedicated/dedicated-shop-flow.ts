@@ -232,6 +232,7 @@ export async function showDedicatedShopFullSpec(ctx: AppContext, serverId: numbe
   const text = ctx.t("dedicated-rate-full-view", {
     rateName: server.name,
     price,
+    cpuModel: cpuTitleFromName(server.name ?? ""),
     cpu: server.cpu,
     cpuThreads: server.cpuThreads,
     ram: server.ram,

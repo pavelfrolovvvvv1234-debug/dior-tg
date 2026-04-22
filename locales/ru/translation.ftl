@@ -7,7 +7,7 @@ strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", m
 welcome = 🔷 DiorHost — Серверы, Домены, CDN
 
     Абузоустойчивая Инфраструктура
-    Стабильная сеть • Глобальное покрытие • 24/7 аптайм
+    Стабильная сеть • Глобальное покрытие • 99,9% аптайм
     
     👤 @{$username}
     ├ <b>Баланс:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
@@ -521,7 +521,7 @@ topup-select-method = 💳 Пополнение баланса
 topup-select-amount = Выберите сумму пополнения
 topup-method-cryptobot = 💳 CryptoBot
 topup-method-crystalpay = 💎 CrystalPay
-topup-method-bank = 🏦 Банковский перевод
+topup-method-bank = 🏦 Ручной перевод
 topup-method-back = ⬅️ Назад
 topup-manual-support = Для пополнения банковским переводом обратитесь в поддержку.
 topup-manual-support-message = Хочу пополнить баланс на {$amount} $. Подскажите реквизиты, пожалуйста.
@@ -579,7 +579,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
  
  {$abuse}
 
- <strong>🖥 CPU (Cores/Threads): </strong> {$cpu} cores / {$cpuThreads} threads
+ <strong>🖥 Процессор {$cpuModel} (Ядра): </strong> {$cpu}
  <strong>💾 RAM: </strong> {$ram} GB
  <strong>💽 Storage: </strong> {$storage} GB
  <strong>🚀 Network: </strong> {$network} Gbps
@@ -640,7 +640,7 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
  
  {$abuse}
 
- <strong>🖥 Процессор (Ядра): </strong> {$cpu}
+ <strong>🖥 Процессор {$cpuModel} (Ядра): </strong> {$cpu}
  <strong>💾 Оперативная память: </strong> {$ram} Гб
  <strong>💽 Диск (SSD/NVME): </strong> {$disk} Гб
  <strong>🚀 Скорость интернета: </strong> {$network} Мегабит/с
@@ -677,6 +677,7 @@ vds-shop-bulletproof-blurb =
     Приоритетная обработка.
 vds-shop-type-standard = Стандарт
 vds-shop-type-bulletproof = Абузоустойчивые
+vds-shop-bulletproof-list-header = 🖥 Абузоустойчивые VDS/VPS под проект любой сложности!
 vds-shop-tier-start = 🚀 Старт (Lite)
 vds-shop-tier-standard = ⚙️ Стандарт (Lite+ / Elite)
 vds-shop-tier-performance = 🔥 Производительность (Elite+)
@@ -686,7 +687,7 @@ vds-shop-tier-standard-label = Стандарт
 vds-shop-tier-performance-label = Производительность
 vds-shop-tier-enterprise-label = Enterprise
 vds-shop-step3-header = <b>🖥 {$typeLine} • {$tierLine}</b>
-vds-shop-step3-prompt = Выберите тариф:
+vds-shop-step3-prompt = Выберите конфигурацию:
 vds-shop-list-page = Стр. {$current} / {$total}
 vds-shop-page-prev = ⬅️ Пред.
 vds-shop-page-next = ➡️ След.
@@ -1077,19 +1078,24 @@ ticket-status-completed = ✅ Завершен
 ticket-status-cancelled = ⚫ Отменен
 # Dedicated locations (таблица: Germany, NL/USA/Turkey)
 dedicated-location-de-germany = 🇩🇪 Германия
-dedicated-location-nl-amsterdam = 🇳🇱 Нидерланды
+dedicated-location-nl-amsterdam = 🇳🇱 Нидерланды (Авто)
 dedicated-location-usa = 🇺🇸 США
 dedicated-location-tr-istanbul = 🇹🇷 Турция
 # Dedicated OS (таблица: Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24; или Любая на выбор)
 dedicated-os-winserver2019 = Windows Server 2019
 dedicated-os-winserver2025 = Windows Server 2025
+dedicated-os-winserver2012 = Windows Server 2012
+dedicated-os-winserver2016 = Windows Server 2016
+dedicated-os-windows10 = Windows 10
 dedicated-os-windows11 = Windows 11
 dedicated-os-alma8 = AlmaLinux 8
 dedicated-os-alma9 = AlmaLinux 9
+dedicated-os-rockylinux = Rocky Linux
 dedicated-os-centos9 = CentOS 9
 dedicated-os-debian11 = Debian 11
 dedicated-os-debian12 = Debian 12
 dedicated-os-debian13 = Debian 13
+dedicated-os-freebsd = FreeBSD
 dedicated-os-ubuntu2204 = Ubuntu 22.04
 dedicated-os-ubuntu2404 = Ubuntu 24.04
 dedicated-os-os-any = Любая на выбор

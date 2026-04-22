@@ -44,6 +44,12 @@ async function getPriceWithPrimeDiscount(
 }
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
+const DEFAULT_VPS_CPU_MODEL = "Xeon E5-2699v4";
+
+function getVpsCpuModel(rate: { cpuModel?: string }): string {
+  const model = rate.cpuModel?.trim();
+  return model && model.length > 0 ? model : DEFAULT_VPS_CPU_MODEL;
+}
 
 async function createVpsOrderTicket(
   ctx: AppContext,
@@ -304,8 +310,9 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
   const start = safePage * VDS_SHOP_PAGE_SIZE;
   const slice = ids.slice(start, start + VDS_SHOP_PAGE_SIZE);
 
-  const typeKey = vr.bulletproof ? "vds-shop-type-bulletproof" : "vds-shop-type-standard";
-  const header = `<b>🖥 ${ctx.t(typeKey)}</b>`;
+  const header = vr.bulletproof
+    ? `<b>${ctx.t("vds-shop-bulletproof-list-header")}</b>`
+    : `<b>🖥 ${ctx.t("vds-shop-type-standard")}</b>`;
 
   let body = `${header}\n\n${ctx.t("vds-shop-step3-prompt")}`;
   if (ids.length > VDS_SHOP_PAGE_SIZE) {
@@ -328,7 +335,7 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
       .row();
   }
 
-  appendVpsShopPrimeAndBack(kb, ctx, "vsh:back:type");
+  appendVpsShopPrimeAndBack(kb, ctx, "vsh:back:services");
 
   await ctx.editMessageText(body, {
     parse_mode: "HTML",
@@ -391,6 +398,7 @@ export async function showVpsShopFullDetails(ctx: AppContext, rateId: number): P
   const text = ctx.t("vds-rate-full-view", {
     rateName: rate.name,
     price,
+    cpuModel: getVpsCpuModel(rate as { cpuModel?: string }),
     ram: rate.ram,
     disk: rate.ssd,
     cpu: rate.cpu,
@@ -484,12 +492,29 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery("vsh:back:type", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    await showVpsShopStep1(ctx);
+    const { servicesMenu } = await import("../../helpers/services-menu.js");
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
   });
 
   bot.callbackQuery("vsh:back:tier", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    await showVpsShopStep1(ctx);
+    const { servicesMenu } = await import("../../helpers/services-menu.js");
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
+  });
+
+  bot.callbackQuery("vsh:back:services", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const { servicesMenu } = await import("../../helpers/services-menu.js");
+    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      parse_mode: "HTML",
+      reply_markup: servicesMenu,
+    });
   });
 
   bot.callbackQuery("vsh:back:list", async (ctx) => {

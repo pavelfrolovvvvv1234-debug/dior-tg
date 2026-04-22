@@ -31,6 +31,10 @@ import { getModeratorChatId } from "../shared/moderator-chat.js";
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
+function cpuModelFromDedicatedName(name: string): string {
+  return name.replace(/\s+\d+GB\s*$/i, "").trim();
+}
+
 // Note: amperDomainsMenu will be registered in broadcast-tickets-integration.ts
 
 /**
@@ -594,6 +598,7 @@ const editMessageDedicatedServer = async (
     ctx.t("dedicated-rate-full-view", {
       rateName: server.name,
       price,
+      cpuModel: cpuModelFromDedicatedName(server.name ?? ""),
       cpu: server.cpu,
       cpuThreads: server.cpuThreads,
       ram: server.ram,

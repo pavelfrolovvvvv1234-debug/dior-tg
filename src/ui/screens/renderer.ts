@@ -110,6 +110,7 @@ export class ScreenRenderer {
   renderVdsRate(data: {
     rateName: string;
     price: number;
+    cpuModel?: string;
     cpu: number;
     ram: number;
     disk: number;
@@ -120,6 +121,7 @@ export class ScreenRenderer {
       description: this.ctx.t("vds-rate-full-view", {
         rateName: data.rateName,
         price: this.formatCurrency(data.price),
+        cpuModel: data.cpuModel ?? "Xeon E5-2699v4",
         cpu: data.cpu,
         ram: data.ram,
         disk: data.disk,

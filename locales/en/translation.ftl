@@ -6,7 +6,7 @@ strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", m
 
 welcome = 🔷 DiorHost — Servers, Domains, CDN
     Bulletproof Infrastructure
-    High availability • Stable routing • 24/7 uptime
+    High availability • Stable routing • 99.9% uptime
     
     👤 @{$username}
     ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
@@ -581,7 +581,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
  
  {$abuse}
 
- <strong>🖥 CPU (Cores/Threads): </strong> {$cpu} cores / {$cpuThreads} threads
+ <strong>🖥 CPU {$cpuModel} (Cores): </strong> {$cpu}
  <strong>💾 RAM: </strong> {$ram} GB
  <strong>💽 Storage: </strong> {$storage} GB
  <strong>🚀 Network: </strong> {$network} Gbps
@@ -641,7 +641,7 @@ vds-rate-full-view = <strong>«{$rateName}»</strong>
  
  {$abuse}
 
- <strong>🖥 CPU (Cores): </strong> {$cpu}
+ <strong>🖥 CPU {$cpuModel} (Cores): </strong> {$cpu}
  <strong>💾 RAM: </strong> {$ram} Gb
  <strong>💽 Disk (SSD/NVME): </strong> {$disk} Gb
  <strong>🚀 Network Speed: </strong> {$network} Mbit/s
@@ -678,6 +678,7 @@ vds-shop-bulletproof-blurb =
     Priority handling.
 vds-shop-type-standard = Standard
 vds-shop-type-bulletproof = Bulletproof
+vds-shop-bulletproof-list-header = 🖥 Bulletproof VDS/VPS for projects of any complexity!
 vds-shop-tier-start = 🚀 Start
 vds-shop-tier-standard = ⚙️ Standard
 vds-shop-tier-performance = 🔥 Performance
@@ -687,7 +688,7 @@ vds-shop-tier-standard-label = Standard
 vds-shop-tier-performance-label = Performance
 vds-shop-tier-enterprise-label = Enterprise
 vds-shop-step3-header = <b>🖥 {$typeLine} • {$tierLine}</b>
-vds-shop-step3-prompt = Choose plan:
+vds-shop-step3-prompt = Choose configuration:
 vds-shop-list-page = Page {$current} / {$total}
 vds-shop-page-prev = ⬅️ Prev
 vds-shop-page-next = ➡️ Next
@@ -1079,19 +1080,24 @@ ticket-status-completed = ✅ Completed
 ticket-status-cancelled = ⚫ Cancelled
 # Dedicated locations (table: Germany, NL/USA/Turkey)
 dedicated-location-de-germany = 🇩🇪 Germany
-dedicated-location-nl-amsterdam = 🇳🇱 Netherlands
+dedicated-location-nl-amsterdam = 🇳🇱 Netherlands (Auto)
 dedicated-location-usa = 🇺🇸 USA
 dedicated-location-tr-istanbul = 🇹🇷 Turkey
 # Dedicated OS (table: Win Server 2019/2025, Win11, Alma 8/9, CentOS 9, Debian 11/12/13, Ubuntu 22/24; or Any)
 dedicated-os-winserver2019 = Windows Server 2019
 dedicated-os-winserver2025 = Windows Server 2025
+dedicated-os-winserver2012 = Windows Server 2012
+dedicated-os-winserver2016 = Windows Server 2016
+dedicated-os-windows10 = Windows 10
 dedicated-os-windows11 = Windows 11
 dedicated-os-alma8 = AlmaLinux 8
 dedicated-os-alma9 = AlmaLinux 9
+dedicated-os-rockylinux = Rocky Linux
 dedicated-os-centos9 = CentOS 9
 dedicated-os-debian11 = Debian 11
 dedicated-os-debian12 = Debian 12
 dedicated-os-debian13 = Debian 13
+dedicated-os-freebsd = FreeBSD
 dedicated-os-ubuntu2204 = Ubuntu 22.04
 dedicated-os-ubuntu2404 = Ubuntu 24.04
 dedicated-os-os-any = Any (your choice)
