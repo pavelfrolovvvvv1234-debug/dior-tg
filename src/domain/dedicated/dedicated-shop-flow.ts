@@ -186,7 +186,6 @@ export async function showDedicatedShopStep4Card(ctx: AppContext, serverId: numb
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
   const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
 
-  const tier = DEDICATED_INDEX_TIER[serverId] ?? "standard";
   const compact = DEDICATED_COMPACT_LABEL[serverId] ?? server.name;
   const cpu = cpuTitleFromName(server.name ?? "");
   const typeLine = ctx.t(isBp ? "dedicated-shop-type-bulletproof" : "dedicated-shop-type-standard");
@@ -196,7 +195,6 @@ export async function showDedicatedShopStep4Card(ctx: AppContext, serverId: numb
     ram: server.ram,
     storage: server.storage,
     typeLine,
-    tierLine: ctx.t(`dedicated-shop-tier-${tier}-label`),
     price,
   });
 

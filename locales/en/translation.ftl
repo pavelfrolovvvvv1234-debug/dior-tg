@@ -627,7 +627,6 @@ dedicated-shop-card =
     <b>RAM:</b> {$ram} GB
     <b>Storage:</b> {$storage} GB SSD / NVMe
     <b>Type:</b> {$typeLine}
-    <b>Tier:</b> {$tierLine}
 
     💳 <b>Price:</b> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
 dedicated-shop-order = 🛒 Order
