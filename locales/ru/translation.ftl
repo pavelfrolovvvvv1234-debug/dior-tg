@@ -623,7 +623,7 @@ dedicated-shop-card =
 
     <b>CPU:</b> {$cpu}
     <b>RAM:</b> {$ram} GB
-    <b>Диск:</b> {$storageLine}
+    <b>Диск:</b> {$storage} GB SSD / NVMe
     <b>Тип:</b> {$typeLine}
     <b>Линейка:</b> {$tierLine}
 
