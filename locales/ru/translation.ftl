@@ -581,7 +581,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
  <strong>🖥 Процессор {$cpuModel} (Ядра): </strong> {$cpu}
  <strong>💾 RAM: </strong> {$ram} GB
- <strong>💽 Storage: </strong> {$storage} GB
+ <strong>💽 Диск: </strong> {$storage} GB SSD / NVMe
  <strong>🚀 Network: </strong> {$network} Gbps
  <strong>🛜 Bandwidth: </strong> {$bandwidth}
 

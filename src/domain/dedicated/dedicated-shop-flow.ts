@@ -190,7 +190,7 @@ export async function showDedicatedShopStep4Card(ctx: AppContext, serverId: numb
   const compact = DEDICATED_COMPACT_LABEL[serverId] ?? server.name;
   const cpu = cpuTitleFromName(server.name ?? "");
   const typeLine = ctx.t(isBp ? "dedicated-shop-type-bulletproof" : "dedicated-shop-type-standard");
-  const storageLine = ctx.t("dedicated-shop-storage-line");
+  const storageLine = `${server.storage} GB SSD / NVMe`;
 
   const text = ctx.t("dedicated-shop-card", {
     title: compact,
