@@ -45,10 +45,20 @@ async function getPriceWithPrimeDiscount(
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 const DEFAULT_VPS_CPU_MODEL = "Xeon E5-2699v4";
+const VPS_LOCATION_AUTO_ONLY_KEY = "nl-amsterdam";
 
 function getVpsCpuModel(rate: { cpuModel?: string }): string {
   const model = rate.cpuModel?.trim();
   return model && model.length > 0 ? model : DEFAULT_VPS_CPU_MODEL;
+}
+
+function getAllowedVpsLocationKeys(rate: { cpu?: number; ram?: number; ssd?: number }): string[] {
+  const cpu = Number(rate.cpu ?? 0);
+  const ram = Number(rate.ram ?? 0);
+  const ssd = Number(rate.ssd ?? 0);
+  const isGlobalGeoTier = cpu >= 4 && ram >= 8 && ssd >= 80;
+  if (!isGlobalGeoTier) return [VPS_LOCATION_AUTO_ONLY_KEY];
+  return [...DEDICATED_LOCATION_KEYS];
 }
 
 async function createVpsOrderTicket(
@@ -192,8 +202,15 @@ async function showVpsLocationPicker(ctx: AppContext, rateId: number): Promise<v
   const session = await ctx.session;
   ensureVpsShopSession(session);
   session.other.vdsRate.selectedRateId = rateId;
+  const pricesList = await prices();
+  const rate = pricesList.virtual_vds?.[rateId];
+  if (!rate) {
+    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+    return;
+  }
+  const allowedLocationKeys = getAllowedVpsLocationKeys(rate);
   const kb = new InlineKeyboard();
-  for (const key of DEDICATED_LOCATION_KEYS) {
+  for (const key of allowedLocationKeys) {
     kb.text(ctx.t(`dedicated-location-${key}` as any), `vsh:loc:${key}`).row();
   }
   kb.text(ctx.t("button-back"), `vsh:card:${rateId}`).row();
@@ -451,8 +468,20 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
   bot.callbackQuery(/^vsh:loc:([a-z0-9-]+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const locationKey = ctx.match![1]!;
-    const rateId = (await ctx.session).other.vdsRate.selectedRateId;
+    const session = await ctx.session;
+    const rateId = session.other.vdsRate.selectedRateId;
     if (rateId < 0) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    const pricesList = await prices();
+    const rate = pricesList.virtual_vds?.[rateId];
+    if (!rate) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    const allowedLocationKeys = getAllowedVpsLocationKeys(rate);
+    if (!allowedLocationKeys.includes(locationKey)) {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
