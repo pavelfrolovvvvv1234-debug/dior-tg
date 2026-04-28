@@ -21,6 +21,15 @@ type ProxmoxTemplate = {
   template?: 0 | 1;
 };
 
+type ProxmoxNetworkIface = {
+  iface?: string;
+  address?: string;
+  cidr?: string;
+  gateway?: string;
+  type?: string;
+  active?: 0 | 1;
+};
+
 function normalizeOsKey(key: string): string {
   return key.trim().toLowerCase();
 }
@@ -73,6 +82,80 @@ export class ProxmoxProvider implements VmProvider {
   private async apiDelete<T>(url: string): Promise<T> {
     const { data } = await this.client.delete<{ data: T }>(url);
     return data.data;
+  }
+
+  private ipToInt(ip: string): number {
+    const parts = ip.split(".").map((p) => Number(p));
+    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return 0;
+    return (((parts[0] ?? 0) << 24) >>> 0) + ((parts[1] ?? 0) << 16) + ((parts[2] ?? 0) << 8) + (parts[3] ?? 0);
+  }
+
+  private intToIp(ipInt: number): string {
+    return [
+      (ipInt >>> 24) & 255,
+      (ipInt >>> 16) & 255,
+      (ipInt >>> 8) & 255,
+      ipInt & 255,
+    ].join(".");
+  }
+
+  private parseIpFromIpConfig(ipConfig?: string): string | undefined {
+    if (!ipConfig) return undefined;
+    const match = ipConfig.match(/(?:^|,)ip=([0-9.]+)\/\d+/);
+    return match?.[1];
+  }
+
+  private async getBridgeNetworkConfig(): Promise<{ cidr: string; gateway: string } | undefined> {
+    try {
+      const interfaces = await this.apiGet<ProxmoxNetworkIface[]>(`/nodes/${this.node}/network`);
+      const bridge = interfaces.find((iface) => iface.iface === this.bridge);
+      const cidr = bridge?.cidr ?? (bridge?.address?.includes("/") ? bridge.address : undefined);
+      const gateway = bridge?.gateway;
+      if (!cidr || !gateway) return undefined;
+      return { cidr, gateway };
+    } catch (error) {
+      Logger.warn("Failed to read Proxmox bridge network config", error);
+      return undefined;
+    }
+  }
+
+  private async pickFreeIpv4FromBridge(): Promise<{ ipconfig0: string; nameserver: string } | undefined> {
+    const bridgeConfig = await this.getBridgeNetworkConfig();
+    if (!bridgeConfig) return undefined;
+
+    const [networkIp, prefixStr] = bridgeConfig.cidr.split("/");
+    const prefix = Number(prefixStr);
+    if (!networkIp || !Number.isInteger(prefix) || prefix < 16 || prefix > 30) return undefined;
+
+    const networkInt = this.ipToInt(networkIp);
+    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+    const subnetBase = networkInt & mask;
+
+    const usedIps = new Set<string>([bridgeConfig.gateway, networkIp]);
+    try {
+      const vms = await this.apiGet<Array<{ vmid: number }>>(`/nodes/${this.node}/qemu`);
+      for (const vm of vms) {
+        const config = await this.apiGet<{ ipconfig0?: string }>(`/nodes/${this.node}/qemu/${vm.vmid}/config`).catch(() => undefined);
+        const existingIp = this.parseIpFromIpConfig(config?.ipconfig0);
+        if (existingIp) usedIps.add(existingIp);
+      }
+    } catch (error) {
+      Logger.warn("Failed to build used IPv4 set from Proxmox config", error);
+    }
+
+    // Keep a safe allocation range in the same /24-like segment.
+    const startHost = 100;
+    const endHost = 250;
+    for (let host = startHost; host <= endHost; host++) {
+      const candidate = this.intToIp((subnetBase + host) >>> 0);
+      if (usedIps.has(candidate)) continue;
+      return {
+        ipconfig0: `ip=${candidate}/${prefix},gw=${bridgeConfig.gateway}`,
+        nameserver: "1.1.1.1",
+      };
+    }
+
+    return undefined;
   }
 
   private buildOsItem(id: number, key: string): Os {
@@ -135,6 +218,7 @@ export class ProxmoxProvider implements VmProvider {
       const nextIdRaw = await this.apiGet<string>(`/cluster/nextid`);
       const newId = Number(nextIdRaw);
       if (Number.isNaN(newId)) return false;
+      const autoIpConfig = await this.pickFreeIpv4FromBridge();
 
       await this.apiPost(`/nodes/${this.node}/qemu/${templateId}/clone`, {
         newid: newId,
@@ -151,6 +235,8 @@ export class ProxmoxProvider implements VmProvider {
         cipassword: password,
         description: comment,
         net0: `virtio,bridge=${this.bridge}`,
+        ipconfig0: autoIpConfig?.ipconfig0,
+        nameserver: autoIpConfig?.nameserver,
       });
 
       await this.apiPost(`/nodes/${this.node}/qemu/${newId}/resize`, {
@@ -195,6 +281,7 @@ export class ProxmoxProvider implements VmProvider {
 
   async getIpv4AddrVM(id: number): Promise<{ list: Array<{ ip_addr: string }> } | undefined> {
     try {
+      const configData = await this.apiGet<{ ipconfig0?: string }>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined);
       const agent = await this.apiGet<{ result?: Array<{ "ip-addresses"?: Array<{ "ip-address"?: string }> }> }>(
         `/nodes/${this.node}/qemu/${id}/agent/network-get-interfaces`
       ).catch(() => null);
@@ -210,6 +297,10 @@ export class ProxmoxProvider implements VmProvider {
               !ip.startsWith("169.254.")
           ) ?? [];
       if (ips.length > 0) return { list: [{ ip_addr: ips[0]! }] };
+      const configuredIp = this.parseIpFromIpConfig(configData?.ipconfig0);
+      if (configuredIp && configuredIp !== "0.0.0.0" && configuredIp !== "127.0.0.1") {
+        return { list: [{ ip_addr: configuredIp }] };
+      }
       return { list: [{ ip_addr: "0.0.0.0" }] };
     } catch {
       return { list: [{ ip_addr: "0.0.0.0" }] };
