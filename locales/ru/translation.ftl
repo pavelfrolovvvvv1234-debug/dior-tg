@@ -747,9 +747,12 @@ admin-vds-empty = Список пуст.
 admin-vds-row = #{$id} — {$ip} — {$rate}
 admin-vds-detail = <strong>VDS #{$id}</strong>
 VM ID: {$vmId}
+Статус VM: {$vmState}
 IP: {$ip}
 Пользователь: {NUMBER($userId)}
 Тариф: {$rate}
+Логин: <code>{$login}</code>
+Пароль: <code>{$password}</code>
 {$flags}
 Истекает: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
 admin-vds-flag-blocked = 🔒 Заблокирован админом
@@ -761,6 +764,11 @@ admin-vds-transferred = Владелец изменён на user id {$userId}
 admin-vds-deleted = VDS удалена
 admin-vds-delete-confirm = <b>Удалить эту VDS и ВМ безвозвратно?</b>
 admin-vds-transfer-prompt = Введите <b>внутренний user id</b> нового владельца (число из БД):
+admin-vds-ip-synced = ✅ IP синхронизирован.
+admin-vds-ip-not-available = ⚠️ IP пока недоступен (guest agent/сеть еще не готовы).
+admin-vds-vm-started = ✅ VM запущена.
+admin-vds-vm-stopped = ✅ VM остановлена.
+admin-vds-vm-rebooted = ✅ VM перезагружена.
 
 admin-cdn-title = <strong>CDN — админ</strong>
 Поиск: proxyId, домен, origin. Страница {$page} / {$totalPages}

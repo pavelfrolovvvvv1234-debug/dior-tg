@@ -116,6 +116,8 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
 }
 
 async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Promise<string> {
+  const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
+  const vmState = vmInfo?.state ?? "unknown";
   const flags: string[] = [];
   if (v.adminBlocked) flags.push(ctx.t("admin-vds-flag-blocked"));
   if (v.managementLocked) flags.push(ctx.t("admin-vds-flag-locked"));
@@ -126,6 +128,9 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
     ip: v.ipv4Addr || "—",
     userId: v.targetUserId,
     rate: v.rateName,
+    login: v.login || "root",
+    password: v.password || "—",
+    vmState,
     flags: flagsStr,
     expireAt: v.expireAt,
   });
@@ -136,7 +141,12 @@ function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): Inlin
     .text("⛔/✅ Block", `adv:blk:${v.id}`)
     .text("+30d", `adv:ext:${v.id}`)
     .row()
-    .text("🔀 Transfer", `adv:tr:${v.id}`);
+    .text("🔀 Transfer", `adv:tr:${v.id}`)
+    .text("🔄 Sync IP", `adv:syncip:${v.id}`)
+    .row()
+    .text("▶ Start", `adv:start:${v.id}`)
+    .text("⏹ Stop", `adv:stop:${v.id}`)
+    .text("♻ Reboot", `adv:reboot:${v.id}`);
   if (deleteConfirm) {
     kb.text("✅ OK delete", `adv:delok:${v.id}`)
       .text("❌", `adv:sel:${v.id}`)
@@ -146,6 +156,20 @@ function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): Inlin
   }
   kb.row().text("◀ List", "adv:list");
   return kb;
+}
+
+async function syncVdsIp(ctx: AppContext, v: VirtualDedicatedServer): Promise<boolean> {
+  const ipResult = await ctx.vmmanager.getIpv4AddrVM(v.vdsId).catch(() => undefined);
+  const freshIp = ipResult?.list?.[0]?.ip_addr;
+  if (!freshIp || freshIp === "0.0.0.0" || freshIp === "127.0.0.1") {
+    return false;
+  }
+  if (v.ipv4Addr !== freshIp) {
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    v.ipv4Addr = freshIp;
+    await vdsRepo.save(v);
+  }
+  return true;
 }
 
 export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
@@ -224,6 +248,64 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
         reply_markup: detailKeyboard(v, true),
       }
     );
+    return;
+  }
+
+  if (rest.startsWith("syncip:")) {
+    const id = parseInt(rest.slice(7), 10);
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    const v = await vdsRepo.findById(id);
+    if (!v) {
+      await ctx.reply(ctx.t("bad-error"));
+      return;
+    }
+    const synced = await syncVdsIp(ctx, v);
+    const refreshed = await vdsRepo.findById(id);
+    if (!refreshed) return;
+    await ctx.reply(synced ? ctx.t("admin-vds-ip-synced") : ctx.t("admin-vds-ip-not-available"), { parse_mode: "HTML" });
+    await ctx.editMessageText(await buildDetailText(ctx, refreshed), {
+      parse_mode: "HTML",
+      reply_markup: detailKeyboard(refreshed, false),
+    });
+    return;
+  }
+
+  if (rest.startsWith("start:") || rest.startsWith("stop:") || rest.startsWith("reboot:")) {
+    const [action, idStr] = rest.split(":");
+    const id = parseInt(idStr ?? "", 10);
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    const v = await vdsRepo.findById(id);
+    if (!v) {
+      await ctx.reply(ctx.t("bad-error"));
+      return;
+    }
+    try {
+      if (action === "start") {
+        await ctx.vmmanager.startVM(v.vdsId);
+      } else if (action === "stop") {
+        await ctx.vmmanager.stopVM(v.vdsId);
+      } else {
+        await ctx.vmmanager.stopVM(v.vdsId).catch(() => {});
+        await ctx.vmmanager.startVM(v.vdsId);
+      }
+      await syncVdsIp(ctx, v).catch(() => {});
+      const refreshed = await vdsRepo.findById(id);
+      if (refreshed) {
+        const successMessage =
+          action === "start"
+            ? ctx.t("admin-vds-vm-started")
+            : action === "stop"
+              ? ctx.t("admin-vds-vm-stopped")
+              : ctx.t("admin-vds-vm-rebooted");
+        await ctx.reply(successMessage, { parse_mode: "HTML" });
+        await ctx.editMessageText(await buildDetailText(ctx, refreshed), {
+          parse_mode: "HTML",
+          reply_markup: detailKeyboard(refreshed, false),
+        });
+      }
+    } catch (e: any) {
+      await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }));
+    }
     return;
   }
 

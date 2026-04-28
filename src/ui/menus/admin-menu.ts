@@ -18,6 +18,7 @@ import { ScreenRenderer } from "../screens/renderer";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { DedicatedProvisioningService } from "../../domain/dedicated/DedicatedProvisioningService.js";
 import { ProvisioningTicketStatus } from "../../entities/ProvisioningTicket.js";
+import { openAdminVdsPanel } from "./admin-vds-menu.js";
 
 async function getPurchaseStats(
   dataSource: DataSource,
@@ -147,6 +148,26 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
           parse_mode: "HTML",
         });
         ctx.menu.nav("control-users");
+      });
+    }
+  )
+  .row()
+  .text(
+    (ctx) => ctx.t("button-admin-vds"),
+    async (ctx) => {
+      const session = await ctx.session;
+      const hasSessionUser = await ensureSessionUser(ctx);
+      if (!session || !hasSessionUser) {
+        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
+        return;
+      }
+      if (session.main.user.role !== Role.Admin) {
+        await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+        return;
+      }
+
+      await safeAdminAction(ctx, async () => {
+        await openAdminVdsPanel(ctx);
       });
     }
   )

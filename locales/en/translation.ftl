@@ -747,9 +747,12 @@ admin-vds-empty = No records.
 admin-vds-row = #{$id} — {$ip} — {$rate}
 admin-vds-detail = <strong>VDS #{$id}</strong>
 VM ID: {$vmId}
+VM state: {$vmState}
 IP: {$ip}
 User: {NUMBER($userId)}
 Plan: {$rate}
+Login: <code>{$login}</code>
+Password: <code>{$password}</code>
 {$flags}
 Expires: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
 admin-vds-flag-blocked = 🔒 Blocked by admin
@@ -761,6 +764,11 @@ admin-vds-transferred = Owner changed to user id {$userId}
 admin-vds-deleted = VDS removed
 admin-vds-delete-confirm = <b>Delete this VDS and VM permanently?</b>
 admin-vds-transfer-prompt = Send the new owner’s <b>internal user id</b> (DB id, number):
+admin-vds-ip-synced = ✅ IP synchronized.
+admin-vds-ip-not-available = ⚠️ IP is not available yet (guest agent/network still initializing).
+admin-vds-vm-started = ✅ VM started.
+admin-vds-vm-stopped = ✅ VM stopped.
+admin-vds-vm-rebooted = ✅ VM rebooted.
 
 admin-cdn-title = <strong>CDN — admin</strong>
 Search: proxyId, domain, origin. Page {$page} / {$totalPages}
