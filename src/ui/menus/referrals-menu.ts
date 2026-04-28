@@ -223,7 +223,7 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
         block(ctx.t("admin-statistics-all"), sAll.topupsCount, sAll.newClientsCount, sAll.profit),
       ].join("\n");
 
-      const keyboard = new InlineKeyboard().text(ctx.t("button-back"), "referral-stats-back");
+      const keyboard = new InlineKeyboard().text(ctx.t("button-back"), "back:profile");
       await ctx.editMessageText(text, {
         reply_markup: keyboard,
         parse_mode: "HTML",
@@ -235,6 +235,16 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       const session = await ctx.session;
+      if ((session as any)?.other?.profileNavSource === "profile") {
+        const { getProfileText, profileMenu } = await import("./profile-menu.js");
+        const profileText = await getProfileText(ctx);
+        await ctx.editMessageText(profileText, {
+          reply_markup: profileMenu,
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        });
+        return;
+      }
       const renderer = (await import("../screens/renderer.js")).ScreenRenderer.fromContext(ctx);
       const screen = renderer.renderWelcome({
         balance: session.main.user.balance,

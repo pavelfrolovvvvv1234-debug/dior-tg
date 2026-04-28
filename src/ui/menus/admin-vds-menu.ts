@@ -5,6 +5,7 @@
  */
 
 import { InlineKeyboard } from "grammy";
+import axios from "axios";
 import type { AppContext } from "../../shared/types/context.js";
 import { Role } from "../../entities/User.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
@@ -16,6 +17,91 @@ import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 
 const PAGE_SIZE = 10;
+const GEOIP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const geoIpCache = new Map<string, { value: string; expiresAt: number }>();
+const geoIpInFlight = new Map<string, Promise<string>>();
+const userDisplayCache = new Map<number, string>();
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function isPublicIpv4(ip: string): boolean {
+  const trimmed = ip.trim();
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(trimmed)) return false;
+  if (trimmed === "0.0.0.0" || trimmed === "127.0.0.1") return false;
+  if (trimmed.startsWith("10.") || trimmed.startsWith("192.168.")) return false;
+  if (trimmed.startsWith("169.254.")) return false;
+  const second = Number(trimmed.split(".")[1] ?? "0");
+  if (trimmed.startsWith("172.") && second >= 16 && second <= 31) return false;
+  return true;
+}
+
+async function lookupGeoLocation(ip: string): Promise<string> {
+  if (!isPublicIpv4(ip)) return "Unknown";
+  const cached = geoIpCache.get(ip);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.value;
+  const inFlight = geoIpInFlight.get(ip);
+  if (inFlight) return inFlight;
+
+  const request = (async () => {
+    try {
+      const { data } = await axios.get<{
+        success?: boolean;
+        country_code?: string;
+        country?: string;
+        city?: string;
+      }>(`https://ipwho.is/${encodeURIComponent(ip)}`, { timeout: 2500 });
+
+      const countryCode = String(data?.country_code || "").trim();
+      const country = String(data?.country || "").trim();
+      const city = String(data?.city || "").trim();
+      const location = countryCode
+        ? city
+          ? `${countryCode} / ${city}`
+          : countryCode
+        : country
+          ? city
+            ? `${country} / ${city}`
+            : country
+          : "Unknown";
+      geoIpCache.set(ip, { value: location, expiresAt: now + GEOIP_CACHE_TTL_MS });
+      return location;
+    } catch {
+      geoIpCache.set(ip, { value: "Unknown", expiresAt: now + 10 * 60 * 1000 });
+      return "Unknown";
+    } finally {
+      geoIpInFlight.delete(ip);
+    }
+  })();
+
+  geoIpInFlight.set(ip, request);
+  return request;
+}
+
+async function resolveBuyerDisplay(ctx: AppContext, telegramId?: number): Promise<string> {
+  if (!telegramId) return "ID: -";
+  const cached = userDisplayCache.get(telegramId);
+  if (cached) return cached;
+
+  let display = `ID: ${telegramId}`;
+  try {
+    const chat = await ctx.api.getChat(telegramId);
+    const username = "username" in chat ? String(chat.username || "").trim() : "";
+    if (username) {
+      display = `@${escapeHtml(username)} (ID: ${telegramId})`;
+    }
+  } catch {
+    // fallback already set
+  }
+
+  userDisplayCache.set(telegramId, display);
+  return display;
+}
 
 function vdsService(ctx: AppContext): VdsService {
   const vdsRepo = new VdsRepository(ctx.appDataSource);
@@ -120,9 +206,9 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
   const vmStateRaw = vmInfo?.state ?? "unknown";
   const userRepo = new UserRepository(ctx.appDataSource);
   const owner = await userRepo.findById(v.targetUserId);
-  const username = "-";
-  const ownerTelegramId = owner?.telegramId ? String(owner.telegramId) : "-";
+  const userDisplay = await resolveBuyerDisplay(ctx, owner?.telegramId ?? undefined);
   const ip = v.ipv4Addr || "-";
+  const location = await lookupGeoLocation(ip);
   const created = v.createdAt ? new Date(v.createdAt) : null;
   const expires = v.expireAt ? new Date(v.expireAt) : null;
   const now = Date.now();
@@ -141,24 +227,35 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
   const vmStateLabel =
     vmStateRaw === "active" ? "Running" : vmStateRaw === "stopped" ? "Stopped" : "Unknown";
   const provider = "Cloud";
-  const location = "-";
   const price = Number(v.renewalPrice ?? 0).toFixed(2);
   const planName = v.rateName || "-";
   const cpu = Number.isFinite(v.cpuCount) ? `${v.cpuCount} vCore` : "-";
   const ram = Number.isFinite(v.ramSize) ? `${v.ramSize}GB` : "-";
   const disk = Number.isFinite(v.diskSize) ? `${v.diskSize}GB` : "-";
   const daysSuffix = daysLeft == null ? "-" : `+${daysLeft}d`;
+  const login = (v.login || "root").trim() || "root";
+  const password = String(v.password || "").trim();
+  const passwordDisplay = password
+    ? escapeHtml(password)
+    : login.toLowerCase().includes("ssh")
+      ? "SSH Key Only"
+      : "Not set";
 
   return [
     `<b>VDS #${v.id} • ${operationalState}</b>`,
     "",
-    `👤 User: ${username} (ID: <code>${ownerTelegramId}</code>)`,
+    `👤 User: ${userDisplay}`,
     `💰 Plan: $${price}/mo (${planName})`,
     `📅 Created: ${formatIsoDate(created)}`,
     `⏳ Expires: ${formatIsoDate(expires)} (${daysSuffix})`,
     "",
     `🌍 IP: <code>${ip}</code>`,
     `📍 Location: ${location}`,
+    "",
+    `🔐 Access:`,
+    `👤 Login: ${escapeHtml(login)}`,
+    `🔑 Password: ${passwordDisplay}`,
+    "",
     `⚙️ CPU: ${cpu} | RAM: ${ram} | Disk: ${disk}`,
     "",
     `🔄 Status: ${vmStateLabel}`,

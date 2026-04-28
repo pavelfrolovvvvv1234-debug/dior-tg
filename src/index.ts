@@ -292,13 +292,20 @@ const supportMenu = new Menu<AppContext>("support-menu", {
     (ctx) => ctx.t("button-support-back"),
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
-      await ctx.editMessageText(
-        ctx.t("welcome", { balance: session.main.user.balance }),
-        {
+      if ((session as any)?.other?.profileNavSource === "profile") {
+        const { getProfileText } = await import("./ui/menus/profile-menu.js");
+        const profileText = await getProfileText(ctx);
+        await ctx.editMessageText(profileText, {
           parse_mode: "HTML",
-          reply_markup: mainMenu,
-        }
-      );
+          reply_markup: profileMenu,
+          link_preview_options: { is_disabled: true },
+        });
+        return;
+      }
+      await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+        parse_mode: "HTML",
+        reply_markup: mainMenu,
+      });
     }
   );
 
@@ -313,11 +320,15 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
   .text(
     (ctx) => ctx.t("button-subscription"),
     async (ctx) => {
+      const session = (await ctx.session) as SessionData;
+      (session as any).other.profileNavSource = "profile";
       try {
         const { getDomainsListWithPrimeScreen } = await import(
           "./ui/menus/amper-domains-menu.js"
         );
-        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any);
+        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any, {
+          backCallback: "back:profile",
+        });
         await ctx.editMessageText(fullText, {
           reply_markup: keyboard,
           parse_mode: "HTML",
@@ -336,6 +347,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
     async (ctx) => {
       try {
         const session = (await ctx.session) as SessionData;
+        (session as any).other.profileNavSource = "profile";
         const { ReferralService } = await import(
           "./domain/referral/ReferralService"
         );
@@ -436,6 +448,8 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
     (ctx) => ctx.t("button-support"),
     "support-menu",
     async (ctx) => {
+      const session = (await ctx.session) as SessionData;
+      (session as any).other.profileNavSource = "profile";
       await ctx.editMessageText(ctx.t("support"), {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
@@ -1043,6 +1057,25 @@ async function index() {
       parse_mode: "HTML",
       reply_markup: referralsMenu,
       link_preview_options: { is_disabled: true },
+    });
+  });
+
+  bot.callbackQuery("back:profile", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if ((session as any)?.other?.profileNavSource === "profile") {
+      const { getProfileText } = await import("./ui/menus/profile-menu.js");
+      const profileText = await getProfileText(ctx);
+      await ctx.editMessageText(profileText, {
+        parse_mode: "HTML",
+        reply_markup: profileMenu,
+        link_preview_options: { is_disabled: true },
+      });
+      return;
+    }
+    await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+      parse_mode: "HTML",
+      reply_markup: mainMenu,
     });
   });
 
