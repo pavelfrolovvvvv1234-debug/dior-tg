@@ -7,7 +7,6 @@
 import { Menu } from "@grammyjs/menu";
 import type { AppContext } from "../../shared/types/context.js";
 import { ScreenRenderer } from "../screens/renderer.js";
-import { topupMethodMenu } from "../../helpers/deposit-money.js";
 import { UserStatus } from "../../entities/User.js";
 import { Role } from "../../entities/User.js";
 import { invalidateUser } from "../../shared/user-cache.js";
@@ -36,16 +35,6 @@ export const mainMenu = new Menu<AppContext>("main-menu")
       });
     }
   )
-  .text(
-    (ctx) => ctx.t("button-balance"),
-    async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      await ctx.editMessageText(ctx.t("topup-select-method"), {
-        reply_markup: topupMethodMenu,
-        parse_mode: "HTML",
-      });
-    }
-  )
   .row()
   .submenu(
     (ctx) => ctx.t("button-personal-profile"),
@@ -61,16 +50,6 @@ export const mainMenu = new Menu<AppContext>("main-menu")
           link_preview_options: { is_disabled: true },
         });
       }
-    }
-  )
-  .submenu(
-    (ctx) => ctx.t("button-support"),
-    "support-menu",
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("support"), {
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-      });
     }
   );
 

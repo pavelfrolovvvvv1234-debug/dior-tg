@@ -704,10 +704,11 @@ vds-shop-order = 🛒 Order
 vds-shop-details = 📋 Details
 
 vds-os-select = <strong>Select the OS to be installed</strong>
+vds-provisioning-wait = ⏳ VPS preparation in progress, wait time is up to 60 seconds
 
 bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
 
-vds-created = The status can be monitored in the main menu. > Manage services
+vds-created = Server created successfully. Status is available in: Main menu → Manage services
 
 vds-manage-title = Manage VDS
 vds-manage-list-item = «{$rateName}» - {$ip} 🖥

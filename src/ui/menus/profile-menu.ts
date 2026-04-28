@@ -164,6 +164,17 @@ export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated
     }
   )
   .row()
+  .submenu(
+    (ctx) => ctx.t("button-support"),
+    "support-menu",
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("support"), {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      });
+    }
+  )
+  .row()
   .text((ctx) => ctx.t("button-change-locale"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;

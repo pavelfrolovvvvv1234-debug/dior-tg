@@ -240,12 +240,14 @@ async function createVpsOrderDirect(
   const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
   if (user.balance < price) {
     await showTopupForMissingAmount(ctx, price - user.balance);
-    return false;
+    // Already handled for the user; do not fall back to ticket flow,
+    // otherwise the same top-up prompt can be sent twice.
+    return true;
   }
 
   let deducted = false;
   try {
-    await ctx.reply("⏳ Создаем VPS в Proxmox, это может занять до 1 минуты...", {
+    await ctx.reply(ctx.t("vds-provisioning-wait"), {
       parse_mode: "HTML",
     }).catch(() => {});
 
