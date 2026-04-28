@@ -310,15 +310,24 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
       parse_mode: "HTML",
     });
   })
-  .row()
-  .submenu(
-    (ctx) => ctx.t("button-support"),
-    "support-menu",
+  .text(
+    (ctx) => ctx.t("button-subscription"),
     async (ctx) => {
-      await ctx.editMessageText(ctx.t("support"), {
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-      });
+      try {
+        const { getDomainsListWithPrimeScreen } = await import(
+          "./ui/menus/amper-domains-menu.js"
+        );
+        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any);
+        await ctx.editMessageText(fullText, {
+          reply_markup: keyboard,
+          parse_mode: "HTML",
+        });
+      } catch (error: any) {
+        await ctx.editMessageText(
+          ctx.t("error-unknown", { error: error?.message || "Error" }),
+          { parse_mode: "HTML" }
+        );
+      }
     }
   )
   .row()
@@ -373,25 +382,19 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
       }
     }
   )
-  .row()
   .text(
-    (ctx) => ctx.t("button-subscription"),
+    (ctx) => ctx.t("button-promocode"),
     async (ctx) => {
-      try {
-        const { getDomainsListWithPrimeScreen } = await import(
-          "./ui/menus/amper-domains-menu.js"
-        );
-        const { fullText, keyboard } = await getDomainsListWithPrimeScreen(ctx as any);
-        await ctx.editMessageText(fullText, {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
-      } catch (error: any) {
-        await ctx.editMessageText(
-          ctx.t("error-unknown", { error: error?.message || "Error" }),
-          { parse_mode: "HTML" }
-        );
-      }
+      const session = (await ctx.session) as SessionData;
+      session.other.promocode.awaitingInput = true;
+
+      await ctx.reply(ctx.t("promocode-input-question"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(
+          ctx.t("button-cancel"),
+          "promocode-cancel"
+        ),
+      });
     }
   )
   .row()
@@ -429,19 +432,13 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
       }).catch(() => {});
     }
   })
-  .row()
-  .text(
-    (ctx) => ctx.t("button-promocode"),
+  .submenu(
+    (ctx) => ctx.t("button-support"),
+    "support-menu",
     async (ctx) => {
-      const session = (await ctx.session) as SessionData;
-      session.other.promocode.awaitingInput = true;
-
-      await ctx.reply(ctx.t("promocode-input-question"), {
+      await ctx.editMessageText(ctx.t("support"), {
         parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text(
-          ctx.t("button-cancel"),
-          "promocode-cancel"
-        ),
+        link_preview_options: { is_disabled: true },
       });
     }
   )
