@@ -118,6 +118,9 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
 async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Promise<string> {
   const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
   const vmState = vmInfo?.state ?? "unknown";
+  const userRepo = new UserRepository(ctx.appDataSource);
+  const owner = await userRepo.findById(v.targetUserId);
+  const ownerTelegramId = owner?.telegramId ? String(owner.telegramId) : "—";
   const flags: string[] = [];
   if (v.adminBlocked) flags.push(ctx.t("admin-vds-flag-blocked"));
   if (v.managementLocked) flags.push(ctx.t("admin-vds-flag-locked"));
@@ -127,7 +130,9 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
     vmId: v.vdsId,
     ip: v.ipv4Addr || "—",
     userId: v.targetUserId,
+    ownerTelegramId,
     rate: v.rateName,
+    renewalPrice: Number(v.renewalPrice ?? 0).toFixed(2),
     login: v.login || "root",
     password: v.password || "—",
     vmState,
@@ -137,6 +142,16 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
 }
 
 function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): InlineKeyboard {
+  if (deleteConfirm) {
+    return new InlineKeyboard()
+      .text("✅ OK delete", `adv:delok:${v.id}`)
+      .text("❌ Cancel", `adv:sel:${v.id}`)
+      .row()
+      .text("◀ Back", `adv:sel:${v.id}`)
+      .row()
+      .text("◀ List", "adv:list");
+  }
+
   const kb = new InlineKeyboard()
     .text("⛔/✅ Block", `adv:blk:${v.id}`)
     .text("+30d", `adv:ext:${v.id}`)
@@ -147,13 +162,7 @@ function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): Inlin
     .text("▶ Start", `adv:start:${v.id}`)
     .text("⏹ Stop", `adv:stop:${v.id}`)
     .text("♻ Reboot", `adv:reboot:${v.id}`);
-  if (deleteConfirm) {
-    kb.text("✅ OK delete", `adv:delok:${v.id}`)
-      .text("❌", `adv:sel:${v.id}`)
-      .row();
-  } else {
-    kb.text("🗑 Delete", `adv:delask:${v.id}`).row();
-  }
+  kb.text("🗑 Delete", `adv:delask:${v.id}`).row();
   kb.row().text("◀ List", "adv:list");
   return kb;
 }

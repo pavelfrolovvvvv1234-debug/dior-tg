@@ -750,7 +750,9 @@ VM ID: {$vmId}
 Статус VM: {$vmState}
 IP: {$ip}
 Пользователь: {NUMBER($userId)}
+Telegram: <code>{$ownerTelegramId}</code>
 Тариф: {$rate}
+Цена тарифа: {$renewalPrice} USD / 30д
 Логин: <code>{$login}</code>
 Пароль: <code>{$password}</code>
 {$flags}
