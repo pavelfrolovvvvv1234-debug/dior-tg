@@ -117,28 +117,54 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
 
 async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Promise<string> {
   const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
-  const vmState = vmInfo?.state ?? "unknown";
+  const vmStateRaw = vmInfo?.state ?? "unknown";
   const userRepo = new UserRepository(ctx.appDataSource);
   const owner = await userRepo.findById(v.targetUserId);
-  const ownerTelegramId = owner?.telegramId ? String(owner.telegramId) : "—";
-  const flags: string[] = [];
-  if (v.adminBlocked) flags.push(ctx.t("admin-vds-flag-blocked"));
-  if (v.managementLocked) flags.push(ctx.t("admin-vds-flag-locked"));
-  const flagsStr = flags.length ? flags.join("\n") : "—";
-  return ctx.t("admin-vds-detail", {
-    id: v.id,
-    vmId: v.vdsId,
-    ip: v.ipv4Addr || "—",
-    userId: v.targetUserId,
-    ownerTelegramId,
-    rate: v.rateName,
-    renewalPrice: Number(v.renewalPrice ?? 0).toFixed(2),
-    login: v.login || "root",
-    password: v.password || "—",
-    vmState,
-    flags: flagsStr,
-    expireAt: v.expireAt,
-  });
+  const username = "-";
+  const ownerTelegramId = owner?.telegramId ? String(owner.telegramId) : "-";
+  const ip = v.ipv4Addr || "-";
+  const created = v.createdAt ? new Date(v.createdAt) : null;
+  const expires = v.expireAt ? new Date(v.expireAt) : null;
+  const now = Date.now();
+  const daysLeft =
+    expires && Number.isFinite(expires.getTime())
+      ? Math.max(0, Math.ceil((expires.getTime() - now) / (24 * 60 * 60 * 1000)))
+      : null;
+  const formatIsoDate = (d: Date | null): string =>
+    d && Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : "-";
+
+  let operationalState = "ACTIVE";
+  if (v.adminBlocked) operationalState = "BLOCKED";
+  else if (v.managementLocked) operationalState = "LOCKED";
+  else if (vmStateRaw === "stopped") operationalState = "STOPPED";
+
+  const vmStateLabel =
+    vmStateRaw === "active" ? "Running" : vmStateRaw === "stopped" ? "Stopped" : "Unknown";
+  const provider = "Cloud";
+  const location = "-";
+  const price = Number(v.renewalPrice ?? 0).toFixed(2);
+  const planName = v.rateName || "-";
+  const cpu = Number.isFinite(v.cpuCount) ? `${v.cpuCount} vCore` : "-";
+  const ram = Number.isFinite(v.ramSize) ? `${v.ramSize}GB` : "-";
+  const disk = Number.isFinite(v.diskSize) ? `${v.diskSize}GB` : "-";
+  const daysSuffix = daysLeft == null ? "-" : `+${daysLeft}d`;
+
+  return [
+    `<b>VDS #${v.id} • ${operationalState}</b>`,
+    "",
+    `👤 User: ${username} (ID: <code>${ownerTelegramId}</code>)`,
+    `💰 Plan: $${price}/mo (${planName})`,
+    `📅 Created: ${formatIsoDate(created)}`,
+    `⏳ Expires: ${formatIsoDate(expires)} (${daysSuffix})`,
+    "",
+    `🌍 IP: <code>${ip}</code>`,
+    `📍 Location: ${location}`,
+    `⚙️ CPU: ${cpu} | RAM: ${ram} | Disk: ${disk}`,
+    "",
+    `🔄 Status: ${vmStateLabel}`,
+    `🧱 Provider: ${provider}`,
+    `🆔 VMID: <code>${v.vdsId}</code>`,
+  ].join("\n");
 }
 
 function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): InlineKeyboard {
