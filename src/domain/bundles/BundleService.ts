@@ -13,7 +13,7 @@ import { getBundleConfig, calculateBundlePrice } from "./config.js";
 import { Logger } from "../../app/logger.js";
 import prices from "../../helpers/prices.js";
 import ms from "../../lib/multims.js";
-import type { VMManager } from "../../infrastructure/vmmanager/VMManager.js";
+import type { VmProvider } from "../../infrastructure/vmmanager/provider.js";
 
 /**
  * Bundle purchase result.
@@ -31,7 +31,7 @@ export interface BundlePurchaseResult {
 export class BundleService {
   constructor(
     private dataSource: DataSource,
-    private vmmanager: VMManager | null
+    private vmmanager: VmProvider | null
   ) {}
 
   /**

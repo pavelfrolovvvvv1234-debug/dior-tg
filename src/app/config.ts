@@ -33,6 +33,17 @@ const envSchema = z.object({
   VMM_EMAIL: z.string().email("VMM_EMAIL must be a valid email").optional().or(z.literal("")),
   VMM_PASSWORD: z.string().min(1, "VMM_PASSWORD is required").optional().or(z.literal("")),
   VMM_ENDPOINT_URL: z.string().url("VMM_ENDPOINT_URL must be a valid URL").optional().or(z.literal("")),
+  VM_PROVIDER: z.enum(["vmmanager", "proxmox"]).optional().default("vmmanager"),
+
+  // Proxmox API (optional)
+  PROXMOX_BASE_URL: z.string().url("PROXMOX_BASE_URL must be a valid URL").optional().or(z.literal("")),
+  PROXMOX_NODE: z.string().optional().or(z.literal("")),
+  PROXMOX_TOKEN_ID: z.string().optional().or(z.literal("")),
+  PROXMOX_TOKEN_SECRET: z.string().optional().or(z.literal("")),
+  PROXMOX_STORAGE: z.string().optional().or(z.literal("")),
+  PROXMOX_BRIDGE: z.string().optional().or(z.literal("")),
+  PROXMOX_TEMPLATE_MAP: z.string().optional().or(z.literal("")),
+  PROXMOX_INSECURE_TLS: z.string().optional().or(z.literal("")),
 
   // Webhook Configuration (optional)
   IS_WEBHOOK: z.string().url().optional().or(z.literal("")),
@@ -169,6 +180,39 @@ export const isVmManagerEnabled = (): boolean => {
     !isPlaceholderPassword &&
     !isPlaceholderEndpoint
   );
+};
+
+/** Whether Proxmox provider is selected and minimally configured. */
+export const isProxmoxEnabled = (): boolean => {
+  const provider = (config.VM_PROVIDER ?? process.env.VM_PROVIDER ?? "vmmanager").trim().toLowerCase();
+  if (provider !== "proxmox") return false;
+  const baseUrl = (config.PROXMOX_BASE_URL ?? process.env.PROXMOX_BASE_URL ?? "").trim();
+  const node = (config.PROXMOX_NODE ?? process.env.PROXMOX_NODE ?? "").trim();
+  const tokenId = (config.PROXMOX_TOKEN_ID ?? process.env.PROXMOX_TOKEN_ID ?? "").trim();
+  const tokenSecret = (config.PROXMOX_TOKEN_SECRET ?? process.env.PROXMOX_TOKEN_SECRET ?? "").trim();
+  return baseUrl.length > 0 && node.length > 0 && tokenId.length > 0 && tokenSecret.length > 0;
+};
+
+/** Parse PROXMOX_TEMPLATE_MAP JSON (osKey -> template VMID). */
+export const getProxmoxTemplateMap = (): Record<string, number> => {
+  const raw = (config.PROXMOX_TEMPLATE_MAP ?? process.env.PROXMOX_TEMPLATE_MAP ?? "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const id = Number(value);
+      if (!Number.isNaN(id) && id > 0) out[key] = id;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+export const isProxmoxInsecureTls = (): boolean => {
+  const value = (config.PROXMOX_INSECURE_TLS ?? process.env.PROXMOX_INSECURE_TLS ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
 };
 
 export const getPrimeChannelForCheck = (): number | string | null => {

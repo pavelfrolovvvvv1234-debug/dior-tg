@@ -9,7 +9,7 @@ import { FluentContextFlavor } from "@grammyjs/fluent";
 import { MenuFlavor } from "@grammyjs/menu";
 import { ConversationFlavor, Conversation } from "@grammyjs/conversations";
 import { DataSource } from "typeorm";
-import { VMManager, GetOsListResponse } from "../../infrastructure/vmmanager/VMManager.js";
+import type { GetOsListResponse, VmProvider } from "../../infrastructure/vmmanager/provider.js";
 import { SessionData } from "./session.js";
 import type User from "../../entities/User.js";
 
@@ -23,7 +23,7 @@ export type AppContext = ConversationFlavor<
     MenuFlavor & {
       availableLanguages: string[];
       appDataSource: DataSource;
-      vmmanager: VMManager;
+      vmmanager: VmProvider;
       osList: GetOsListResponse | null;
       /** User loaded in session middleware; use to avoid duplicate DB fetch (e.g. locale). */
       loadedUser?: User | null;

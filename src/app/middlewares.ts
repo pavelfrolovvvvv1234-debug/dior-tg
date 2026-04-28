@@ -104,7 +104,7 @@ export async function banCheckMiddleware(ctx: AppContext, next: () => Promise<vo
  * Middleware to setup VMManager and OS list in context.
  * OS list is read from in-memory cache (refreshed in background) so the request path never blocks on VMManager.
  */
-export function vmmanagerMiddleware(vmManager: import("../infrastructure/vmmanager/VMManager.js").VMManager) {
+export function vmmanagerMiddleware(vmManager: import("../infrastructure/vmmanager/provider.js").VmProvider) {
   return (ctx: AppContext, next: () => Promise<void>): Promise<void> => {
     ctx.vmmanager = vmManager;
     ctx.osList = getCachedOsList();

@@ -98,7 +98,8 @@ import { registerDedicatedShopHandlers } from "./domain/dedicated/dedicated-shop
 import { registerVpsShopHandlers } from "./domain/vds/vds-shop-flow.js";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 import ms from "./lib/multims";
-import { GetOsListResponse, VMManager } from "./infrastructure/vmmanager/VMManager";
+import type { GetOsListResponse } from "./infrastructure/vmmanager/provider.js";
+import { createVmProvider } from "./infrastructure/vmmanager/factory.js";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
 import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
@@ -618,10 +619,7 @@ async function index() {
     return next();
   });
 
-  const vmmanager = new VMManager(
-    process.env["VMM_EMAIL"] ?? "",
-    process.env["VMM_PASSWORD"] ?? ""
-  );
+  const vmmanager = createVmProvider();
 
   {
     const { ExpirationService } = await import("./domain/services/ExpirationService.js");

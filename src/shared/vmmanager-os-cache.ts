@@ -5,8 +5,7 @@
  * @module shared/vmmanager-os-cache
  */
 
-import type { GetOsListResponse } from "../infrastructure/vmmanager/VMManager.js";
-import type { VMManager } from "../infrastructure/vmmanager/VMManager.js";
+import type { GetOsListResponse, VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { Logger } from "../app/logger.js";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -24,7 +23,7 @@ export function getCachedOsList(): GetOsListResponse | null {
  * Starts background refresh of the OS list. Call once after creating VMManager.
  * Refreshes immediately and then every CACHE_TTL_MS.
  */
-export function startOsListBackgroundRefresh(vmManager: VMManager): void {
+export function startOsListBackgroundRefresh(vmManager: VmProvider): void {
   const refresh = (): void => {
     vmManager
       .getOsList()

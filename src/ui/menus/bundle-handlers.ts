@@ -163,7 +163,7 @@ export async function handleBundleConfirmPurchase(ctx: AppContext): Promise<void
       vpsOsId: bundle.vpsOsId ?? 1,
     };
     const dataSource = (ctx as any).appDataSource ?? (await getAppDataSource());
-    const vmmanager = (ctx as any).vmmanager as import("../../infrastructure/vmmanager/VMManager.js").VMManager | undefined;
+    const vmmanager = (ctx as any).vmmanager as import("../../infrastructure/vmmanager/provider.js").VmProvider | undefined;
     const apiToken = (process.env.AMPER_API_TOKEN || "").trim();
     let registerDomainFn: ((fullDomain: string, ns1: string, ns2: string) => Promise<{ success: boolean; domainId?: string; error?: string }>) | undefined;
     if (apiToken) {

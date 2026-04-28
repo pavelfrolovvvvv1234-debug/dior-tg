@@ -12,7 +12,7 @@ import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
 import { DomainRequestRepository } from "../../infrastructure/db/repositories/DomainRequestRepository.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
-import type { VMManager } from "../../infrastructure/vmmanager/VMManager.js";
+import type { VmProvider } from "../../infrastructure/vmmanager/provider.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import DomainRequest, { DomainRequestStatus } from "../../entities/DomainRequest.js";
 import User from "../../entities/User.js";
@@ -43,7 +43,7 @@ export class ExpirationService {
 
   constructor(
     private bot: Bot<any, Api<RawApi>>,
-    private vmManager: VMManager,
+    private vmManager: VmProvider,
     private fluent: FluentTranslator,
     private onGracePeriodStarted?: OnGracePeriodStarted,
     private onGraceDayCheck?: OnGraceDayCheck

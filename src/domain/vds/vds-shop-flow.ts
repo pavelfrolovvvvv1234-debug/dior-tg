@@ -9,6 +9,7 @@ import type { SessionData } from "../../shared/types/session.js";
 import prices from "../../helpers/prices.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import User, { Role } from "../../entities/User.js";
+import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../../entities/VirtualDedicatedServer.js";
 import {
   assertVdsCatalogLength,
   VDS_INDEX_TIER,
@@ -20,6 +21,8 @@ import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioning
 import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
+import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
+import ms from "../../lib/multims.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
@@ -195,6 +198,133 @@ async function createVpsOrderTicket(
     await ctx
       .reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }), { parse_mode: "HTML" })
       .catch(() => {});
+  }
+}
+
+async function createVpsOrderDirect(
+  ctx: AppContext,
+  rateId: number,
+  locationKey?: string,
+  osKey?: string
+): Promise<boolean> {
+  const session = await ctx.session;
+  ensureVpsShopSession(session);
+  const pricesList = await prices();
+  const rate = pricesList.virtual_vds?.[rateId];
+  if (!rate) {
+    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+    return false;
+  }
+  if (!osKey) {
+    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+    return false;
+  }
+
+  const templateMap = getProxmoxTemplateMap();
+  const osId = Number(templateMap[osKey] ?? 0);
+  if (!Number.isFinite(osId) || osId <= 0) {
+    await ctx.reply("Эта ОС пока не подключена для авто-развёртывания в Proxmox.", { parse_mode: "HTML" }).catch(() => {});
+    return false;
+  }
+
+  const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+  const usersRepo = dataSource.getRepository(User);
+  const vdsRepo = dataSource.getRepository(VirtualDedicatedServer);
+  const user = await usersRepo.findOneBy({ id: session.main.user.id });
+  if (!user) {
+    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+    return false;
+  }
+
+  const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
+  const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+  if (user.balance < price) {
+    await showTopupForMissingAmount(ctx, price - user.balance);
+    return false;
+  }
+
+  let deducted = false;
+  try {
+    user.balance -= price;
+    await usersRepo.save(user);
+    deducted = true;
+    session.main.user.balance = user.balance;
+
+    const generatedPassword = generatePassword(12);
+    const vmName = generateRandomName(13);
+    const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey}`;
+    const vmResult = await ctx.vmmanager.createVM(
+      vmName,
+      generatedPassword,
+      rate.cpu,
+      rate.ram,
+      osId,
+      comment,
+      rate.ssd,
+      1,
+      rate.network,
+      rate.network
+    );
+    if (!vmResult) {
+      throw new Error("createVM returned false");
+    }
+
+    let vmInfo: any | undefined;
+    for (let i = 0; i < 6; i++) {
+      vmInfo = await ctx.vmmanager.getInfoVM(vmResult.id);
+      if (vmInfo) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    let ipv4Addrs: { list: Array<{ ip_addr: string }> } | undefined;
+    for (let i = 0; i < 8; i++) {
+      ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(vmResult.id);
+      if (ipv4Addrs?.list?.[0]?.ip_addr) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    const ip = ipv4Addrs?.list?.[0]?.ip_addr ?? "0.0.0.0";
+
+    const vds = new VirtualDedicatedServer();
+    vds.vdsId = vmResult.id;
+    vds.login = "root";
+    vds.password = generatedPassword;
+    vds.ipv4Addr = ip;
+    vds.cpuCount = rate.cpu;
+    vds.networkSpeed = rate.network;
+    vds.isBulletproof = session.other.vdsRate.bulletproof;
+    vds.payDayAt = null;
+    vds.ramSize = rate.ram;
+    vds.diskSize = rate.ssd;
+    vds.lastOsId = osId;
+    vds.rateName = rate.name;
+    vds.expireAt = new Date(Date.now() + ms("30d"));
+    vds.targetUserId = user.id;
+    vds.renewalPrice = price;
+    vds.autoRenewEnabled = true;
+    vds.adminBlocked = false;
+    vds.managementLocked = false;
+    vds.extraIpv4Count = 0;
+    await vdsRepo.save(vds);
+
+    await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
+      parse_mode: "HTML",
+    });
+    await ctx.reply(ctx.t("vds-created"), { parse_mode: "HTML" });
+    return true;
+  } catch (error: any) {
+    if (deducted) {
+      try {
+        user.balance += price;
+        await usersRepo.save(user);
+        session.main.user.balance = user.balance;
+      } catch {
+        // ignore rollback failure
+      }
+    }
+    await ctx
+      .reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }), { parse_mode: "HTML" })
+      .catch(() => {});
+    return false;
   }
 }
 
@@ -503,6 +633,10 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
     if (rateId < 0 || !locationKey) {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
+    }
+    if (isProxmoxEnabled()) {
+      const directOk = await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
+      if (directOk) return;
     }
     await createVpsOrderTicket(ctx, rateId, locationKey, osKey);
   });

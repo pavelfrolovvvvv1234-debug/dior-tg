@@ -6,7 +6,7 @@
 
 import { DataSource } from "typeorm";
 import ms from "../../lib/multims";
-import type { VMManager } from "../../infrastructure/vmmanager/VMManager";
+import type { VmProvider } from "../../infrastructure/vmmanager/provider.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository";
 import { BillingService } from "../billing/BillingService";
 import VirtualDedicatedServer, {
@@ -49,7 +49,7 @@ export class VdsService {
     private dataSource: DataSource,
     private vdsRepository: VdsRepository,
     private billingService: BillingService,
-    private vmManager: VMManager
+    private vmManager: VmProvider
   ) {}
 
   /**

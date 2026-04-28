@@ -31,7 +31,7 @@ import {
 import { startOsListBackgroundRefresh } from "../shared/vmmanager-os-cache.js";
 import { initFluent } from "../fluent.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
-import { VMManager } from "../infrastructure/vmmanager/VMManager.js";
+import { createVmProvider } from "../infrastructure/vmmanager/factory.js";
 import { Role, UserStatus } from "../entities/User.js";
 import type { AppContext } from "../shared/types/context.js";
 import type { MainSessionData, OtherSessionData } from "../shared/types/session.js";
@@ -67,10 +67,10 @@ export async function createBot(): Promise<{
   const dataSource = await getAppDataSource();
   Logger.info("Database initialized");
 
-  // Initialize VMManager
-  const vmManager = new VMManager(config.VMM_EMAIL ?? "", config.VMM_PASSWORD ?? "");
+  // Initialize VM provider (VMManager/Proxmox)
+  const vmManager = createVmProvider();
   startOsListBackgroundRefresh(vmManager);
-  Logger.info("VMManager initialized");
+  Logger.info("VM provider initialized");
 
   // Initialize services
   const userRepo = new UserRepository(dataSource);
@@ -829,7 +829,7 @@ export async function createBot(): Promise<{
     paymentChecker.stop();
     servicePaymentChecker.stop();
     expirationService.stop();
-    vmManager.destroy();
+    vmManager.destroy?.();
     await getAppDataSource().then((ds) => ds.destroy()).catch(() => {});
     Logger.info("Cleanup completed");
   };
