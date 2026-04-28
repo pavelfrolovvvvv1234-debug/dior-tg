@@ -202,7 +202,13 @@ export class ProxmoxProvider implements VmProvider {
         agent?.result
           ?.flatMap((i) => i["ip-addresses"] ?? [])
           .map((ip) => ip["ip-address"] ?? "")
-          .filter((ip) => /^\d+\.\d+\.\d+\.\d+$/.test(ip)) ?? [];
+          .filter(
+            (ip) =>
+              /^\d+\.\d+\.\d+\.\d+$/.test(ip) &&
+              ip !== "0.0.0.0" &&
+              ip !== "127.0.0.1" &&
+              !ip.startsWith("169.254.")
+          ) ?? [];
       if (ips.length > 0) return { list: [{ ip_addr: ips[0]! }] };
       return { list: [{ ip_addr: "0.0.0.0" }] };
     } catch {

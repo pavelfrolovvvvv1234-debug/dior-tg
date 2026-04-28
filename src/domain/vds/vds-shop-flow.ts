@@ -277,10 +277,11 @@ async function createVpsOrderDirect(
     }
 
     let ipv4Addrs: { list: Array<{ ip_addr: string }> } | undefined;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 20; i++) {
       ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(vmResult.id);
-      if (ipv4Addrs?.list?.[0]?.ip_addr) break;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const ipCandidate = ipv4Addrs?.list?.[0]?.ip_addr;
+      if (ipCandidate && ipCandidate !== "0.0.0.0" && ipCandidate !== "127.0.0.1") break;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     const ip = ipv4Addrs?.list?.[0]?.ip_addr ?? "0.0.0.0";
 

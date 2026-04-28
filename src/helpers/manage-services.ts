@@ -125,6 +125,13 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
       info = await ctx.vmmanager.getInfoVM(vds.vdsId);
       if (info) break;
     }
+    // Refresh persisted IPv4 if it was unavailable at provisioning time.
+    const freshIpv4 = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
+    const freshIp = freshIpv4?.list?.[0]?.ip_addr;
+    if (freshIp && freshIp !== "0.0.0.0" && freshIp !== "127.0.0.1" && vds.ipv4Addr !== freshIp) {
+      vds.ipv4Addr = freshIp;
+      await vdsRepo.save(vds);
+    }
   }
 
   if (!info) {
