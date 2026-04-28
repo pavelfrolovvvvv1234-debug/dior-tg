@@ -1061,7 +1061,7 @@ button-go-to-support = Go to support
 support-message-dedicated-paid = Hello! I paid for the service "{$serviceName}", location: {$location}, OS: {$os}. Can you provide it?
 
 button-provisioning-tickets = 🛠 Server setup tickets
-provisioning-menu-title = <strong>🛠 Dedicated server setup tickets</strong>\n\nCurrent queue:\n• Open: {$open}\n• In progress: {$inWork}\n• Under review: {$review}\n• Closed: {$closed}\n• Total: {$total}\n\nChoose a status to open ticket list.
+provisioning-menu-title = <strong>🛠 Dedicated server setup tickets</strong>\n\n📊 Ticket statuses:\n\n🟡 Open: {$open}\n🔵 In progress: {$inProgress}\n⏸ Waiting: {$waiting}\n🟢 Done: {$done}\n\nTotal: {$total}\n\nChoose a status to open ticket list.
 provisioning-list-empty = No tickets in status: {$status}
 provisioning-list-title = <strong>Ticket queue:</strong> {$status}\nTotal: {$count}
 provisioning-ticket-view = <strong>🛠 Setup Ticket #{$ticketId}</strong>\nTicket: <code>{$ticketNumber}</code>\nOrder: <code>{$orderNumber}</code>\n\n<strong>Status:</strong> {$status}\n<strong>Assignee:</strong> {$assignee}\n<strong>User:</strong> {$userId}\n<strong>Amount:</strong> {$amount} {$currency}\n<strong>Server:</strong> {$serviceName}\n<strong>Location:</strong> {$location}\n<strong>OS:</strong> {$os}\n<strong>Checklist:</strong> {$checklist}\n<strong>Created:</strong> {$createdAt}
@@ -1088,6 +1088,9 @@ ticket-status-in_provisioning = 🔵 In setup
 ticket-status-awaiting_final_check = 🟣 Awaiting final check
 ticket-status-completed = ✅ Completed
 ticket-status-cancelled = ⚫ Cancelled
+ticket-status-open = 🟡 Open
+ticket-status-waiting = ⏸ Waiting
+ticket-status-done = 🟢 Done
 # Dedicated locations (table: Germany, NL/USA/Turkey)
 dedicated-location-de-germany = 🇩🇪 Germany
 dedicated-location-nl-amsterdam = 🇳🇱 Netherlands (Auto)

@@ -101,20 +101,19 @@ export const moderatorMenu = new Menu<AppContext>("moderator-menu")
       await ctx.answerCallbackQuery().catch(() => {});
       await ctx.editMessageText(renderMultiline(ctx.t("provisioning-menu-title", {
         open: 0,
-        inWork: 0,
-        review: 0,
-        closed: 0,
+        inProgress: 0,
+        waiting: 0,
+        done: 0,
         total: 0,
       })), {
         parse_mode: "HTML",
         reply_markup: new InlineKeyboard()
-          .text(ctx.t("ticket-status-new"), "prov_list_new")
-          .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+          .text(ctx.t("ticket-status-open"), "prov_list_open")
+          .text(ctx.t("ticket-status-in_progress"), "prov_list_in_progress")
           .row()
-          .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
-          .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+          .text(ctx.t("ticket-status-waiting"), "prov_list_waiting")
+          .text(ctx.t("ticket-status-done"), "prov_list_done")
           .row()
-          .text(ctx.t("ticket-status-completed"), "prov_list_completed")
           .text(ctx.t("button-back"), "tickets-menu-back"),
       });
     }

@@ -162,10 +162,7 @@ export class DedicatedProvisioningService {
       const ticket = new ProvisioningTicket();
       ticket.orderId = savedOrder.id;
       ticket.ticketNumber = `TMP-${Date.now()}`;
-      ticket.status =
-        input.paymentStatus === DedicatedOrderPaymentStatus.PAID
-          ? ProvisioningTicketStatus.PAID
-          : ProvisioningTicketStatus.AWAITING_PAYMENT;
+      ticket.status = ProvisioningTicketStatus.OPEN;
       ticket.assigneeUserId = null;
       ticket.linkedLegacyTicketId = null;
       ticket.completedAt = null;
@@ -271,11 +268,8 @@ export class DedicatedProvisioningService {
       if (!ticket) throw new Error("Provisioning ticket not found");
       const fromStatus = ticket.status;
       ticket.status = toStatus;
-      if (toStatus === ProvisioningTicketStatus.COMPLETED) {
+      if (toStatus === ProvisioningTicketStatus.DONE) {
         ticket.completedAt = new Date();
-      }
-      if (toStatus === ProvisioningTicketStatus.CANCELLED) {
-        ticket.cancelledAt = new Date();
       }
       await ticketRepo.save(ticket);
 

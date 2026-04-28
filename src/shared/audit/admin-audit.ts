@@ -3,6 +3,7 @@ import AdminAuditLog from "../../entities/AdminAuditLog.js";
 
 export type AdminAuditAction =
   | "role_changed"
+  | "role_auto_fixed"
   | "balance_changed"
   | "service_extended"
   | "service_blocked"

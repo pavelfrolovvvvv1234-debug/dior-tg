@@ -42,6 +42,7 @@ import {
 import { Logger } from "../../app/logger.js";
 import AdminAuditLog from "../../entities/AdminAuditLog.js";
 import { runRoleModelMigration } from "./role-migration.js";
+import { runProvisioningStatusMigration } from "./provisioning-status-migration.js";
 
 /**
  * TypeORM DataSource singleton instance.
@@ -108,6 +109,7 @@ export async function getAppDataSource(): Promise<DataSource> {
     try {
       await AppDataSource.initialize();
       await runRoleModelMigration(AppDataSource);
+      await runProvisioningStatusMigration(AppDataSource);
       Logger.info("Database DataSource initialized successfully");
     } catch (error) {
       Logger.error("Failed to initialize DataSource", error);

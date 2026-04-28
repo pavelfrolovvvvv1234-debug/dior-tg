@@ -157,57 +157,29 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
 
       await safeAdminAction(ctx, async () => {
         const service = new DedicatedProvisioningService(ctx.appDataSource);
-        const [
-          cntNew,
-          cntPendingReview,
-          cntPaid,
-          cntAwaitingStock,
-          cntInProvisioning,
-          cntAwaitingFinalCheck,
-          cntCompleted,
-          cntRejected,
-          cntCancelled,
-        ] = await Promise.all([
-          service.countTicketsByStatus(ProvisioningTicketStatus.NEW),
-          service.countTicketsByStatus(ProvisioningTicketStatus.PENDING_REVIEW),
-          service.countTicketsByStatus(ProvisioningTicketStatus.PAID),
-          service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_STOCK),
-          service.countTicketsByStatus(ProvisioningTicketStatus.IN_PROVISIONING),
-          service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_FINAL_CHECK),
-          service.countTicketsByStatus(ProvisioningTicketStatus.COMPLETED),
-          service.countTicketsByStatus(ProvisioningTicketStatus.REJECTED),
-          service.countTicketsByStatus(ProvisioningTicketStatus.CANCELLED),
+        const [cntOpen, cntInProgress, cntWaiting, cntDone] = await Promise.all([
+          service.countTicketsByStatus(ProvisioningTicketStatus.OPEN),
+          service.countTicketsByStatus(ProvisioningTicketStatus.IN_PROGRESS),
+          service.countTicketsByStatus(ProvisioningTicketStatus.WAITING),
+          service.countTicketsByStatus(ProvisioningTicketStatus.DONE),
         ]);
         const stats = {
-          open: cntNew + cntPaid + cntAwaitingStock + cntInProvisioning,
-          inWork: cntInProvisioning + cntAwaitingStock + cntPendingReview,
-          review: cntAwaitingFinalCheck + cntPendingReview,
-          closed: cntCompleted + cntRejected + cntCancelled,
-          total:
-            cntNew +
-            cntPendingReview +
-            cntPaid +
-            cntAwaitingStock +
-            cntInProvisioning +
-            cntAwaitingFinalCheck +
-            cntCompleted +
-            cntRejected +
-            cntCancelled,
+          open: cntOpen,
+          inProgress: cntInProgress,
+          waiting: cntWaiting,
+          done: cntDone,
+          total: cntOpen + cntInProgress + cntWaiting + cntDone,
         };
 
         await ctx.editMessageText(renderMultiline(ctx.t("provisioning-menu-title", stats)), {
           parse_mode: "HTML",
           reply_markup: new InlineKeyboard()
-            .text(ctx.t("ticket-status-new"), "prov_list_new")
-            .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+            .text(ctx.t("ticket-status-open"), "prov_list_open")
+            .text(ctx.t("ticket-status-in_progress"), "prov_list_in_progress")
             .row()
-            .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
-            .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+            .text(ctx.t("ticket-status-waiting"), "prov_list_waiting")
+            .text(ctx.t("ticket-status-done"), "prov_list_done")
             .row()
-            .text(ctx.t("ticket-status-pending_review"), "prov_list_pending_review")
-            .text(ctx.t("ticket-status-awaiting_stock"), "prov_list_awaiting_stock")
-            .row()
-            .text(ctx.t("ticket-status-completed"), "prov_list_completed")
             .text(ctx.t("button-back"), "admin-menu-back"),
         });
       });

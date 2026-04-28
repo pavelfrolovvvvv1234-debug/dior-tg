@@ -1,11 +1,15 @@
 import type { DataSource } from "typeorm";
-import User, { Role, UserStatus } from "../../entities/User.js";
+import User from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
+import {
+  normalizeLegacyRoleValue,
+  normalizeLegacyStatusValue,
+} from "../../shared/auth/role-fix.js";
 
 /**
  * Idempotent role/status migration:
- * - status newbie -> user
- * - status user -> moderator
+ * - status newbie/newbie(ru) -> user
+ * - status user/пользователь -> user
  * - status admin -> admin
  * - role values normalized to user/mod/admin
  */
@@ -15,35 +19,20 @@ export async function runRoleModelMigration(dataSource: DataSource): Promise<voi
   let changed = 0;
 
   for (const user of users) {
-    const oldRole = String(user.role || "").toLowerCase();
-    const oldStatus = String(user.status || "").toLowerCase();
+    const oldRole = String(user.role || "");
+    const oldStatus = String(user.status || "");
     let dirty = false;
 
-    if (oldRole === "newbie") {
-      user.role = Role.User;
-      dirty = true;
-    } else if (oldRole === "user") {
-      user.role = Role.User;
-      dirty = true;
-    } else if (oldRole === "mod" || oldRole === "moderator") {
-      user.role = Role.Moderator;
-      dirty = true;
-    } else if (oldRole === "admin") {
-      user.role = Role.Admin;
+    const nextRole = normalizeLegacyRoleValue(oldRole);
+    const nextStatus = normalizeLegacyStatusValue(oldStatus);
+
+    if (user.role !== nextRole) {
+      user.role = nextRole;
       dirty = true;
     }
 
-    if (oldStatus === "newbie") {
-      user.status = UserStatus.User;
-      dirty = true;
-    } else if (oldStatus === "user") {
-      user.status = UserStatus.Moderator;
-      dirty = true;
-    } else if (oldStatus === "moderator" || oldStatus === "mod") {
-      user.status = UserStatus.Moderator;
-      dirty = true;
-    } else if (oldStatus === "admin") {
-      user.status = UserStatus.Admin;
+    if (user.status !== nextStatus) {
+      user.status = nextStatus;
       dirty = true;
     }
 

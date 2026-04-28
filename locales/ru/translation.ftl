@@ -1059,7 +1059,7 @@ button-go-to-support = Перейти в поддержку
 support-message-dedicated-paid = Здравствуйте! Я оплатил услугу «{$serviceName}», локация: {$location}, ОС: {$os}. Можете выдать?
 
 button-provisioning-tickets = 🛠 Тикеты настройки серверов
-provisioning-menu-title = <strong>🛠 Тикеты настройки dedicated-серверов</strong>\n\nСейчас в очереди:\n• Открытые: {$open}\n• В работе: {$inWork}\n• На рассмотрении: {$review}\n• Закрытые: {$closed}\n• Всего: {$total}\n\nВыберите статус, чтобы открыть список тикетов.
+provisioning-menu-title = <strong>🛠 Тикеты настройки dedicated-серверов</strong>\n\n📊 Статусы тикетов:\n\n🟡 Открыт: {$open}\n🔵 В работе: {$inProgress}\n⏸ Ожидание: {$waiting}\n🟢 Завершен: {$done}\n\nВсего: {$total}\n\nВыберите статус, чтобы открыть список тикетов.
 provisioning-list-empty = Нет тикетов со статусом: {$status}
 provisioning-list-title = <strong>Очередь тикетов:</strong> {$status}\nВсего: {$count}
 provisioning-ticket-view = <strong>🛠 Тикет настройки #{$ticketId}</strong>\nТикет: <code>{$ticketNumber}</code>\nЗаказ: <code>{$orderNumber}</code>\n\n<strong>Статус:</strong> {$status}\n<strong>Ответственный:</strong> {$assignee}\n<strong>Клиент:</strong> {$userId}\n<strong>Сумма:</strong> {$amount} {$currency}\n<strong>Сервер:</strong> {$serviceName}\n<strong>Локация:</strong> {$location}\n<strong>ОС:</strong> {$os}\n<strong>Чеклист:</strong> {$checklist}\n<strong>Создан:</strong> {$createdAt}
@@ -1086,6 +1086,9 @@ ticket-status-in_provisioning = 🔵 В настройке
 ticket-status-awaiting_final_check = 🟣 Финальная проверка
 ticket-status-completed = ✅ Завершен
 ticket-status-cancelled = ⚫ Отменен
+ticket-status-open = 🟡 Открыт
+ticket-status-waiting = ⏸ Ожидание
+ticket-status-done = 🟢 Завершен
 # Dedicated locations (таблица: Germany, NL/USA/Turkey)
 dedicated-location-de-germany = 🇩🇪 Германия
 dedicated-location-nl-amsterdam = 🇳🇱 Нидерланды (Авто)

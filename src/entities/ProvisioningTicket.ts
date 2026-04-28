@@ -8,16 +8,21 @@ import {
 } from "typeorm";
 
 export enum ProvisioningTicketStatus {
-  NEW = "new",
-  PENDING_REVIEW = "pending_review",
-  AWAITING_PAYMENT = "awaiting_payment",
-  PAID = "paid",
-  AWAITING_STOCK = "awaiting_stock",
-  IN_PROVISIONING = "in_provisioning",
-  AWAITING_FINAL_CHECK = "awaiting_final_check",
-  COMPLETED = "completed",
-  REJECTED = "rejected",
-  CANCELLED = "cancelled",
+  OPEN = "open",
+  IN_PROGRESS = "in_progress",
+  WAITING = "waiting",
+  DONE = "done",
+  // Legacy aliases (same canonical values) for backward compatibility.
+  NEW = "open",
+  PENDING_REVIEW = "in_progress",
+  AWAITING_PAYMENT = "waiting",
+  PAID = "waiting",
+  AWAITING_STOCK = "waiting",
+  IN_PROVISIONING = "in_progress",
+  AWAITING_FINAL_CHECK = "in_progress",
+  COMPLETED = "done",
+  REJECTED = "done",
+  CANCELLED = "done",
 }
 
 @Entity("provisioning_tickets")
@@ -34,7 +39,7 @@ export default class ProvisioningTicket {
   @Column({ type: "varchar", unique: true })
   ticketNumber!: string;
 
-  @Column({ type: "varchar", default: ProvisioningTicketStatus.NEW })
+  @Column({ type: "varchar", default: ProvisioningTicketStatus.OPEN })
   status!: ProvisioningTicketStatus;
 
   @Column({ type: "integer", nullable: true })

@@ -110,8 +110,24 @@ const parseTicketPayload = (payload: string | null): Record<string, any> => {
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
 const toProvisioningStatus = (raw: string): ProvisioningTicketStatus | null => {
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  const legacyMap: Record<string, ProvisioningTicketStatus> = {
+    new: ProvisioningTicketStatus.OPEN,
+    paid: ProvisioningTicketStatus.WAITING,
+    awaiting_payment: ProvisioningTicketStatus.WAITING,
+    awaiting_stock: ProvisioningTicketStatus.WAITING,
+    pending_review: ProvisioningTicketStatus.IN_PROGRESS,
+    in_provisioning: ProvisioningTicketStatus.IN_PROGRESS,
+    awaiting_final_check: ProvisioningTicketStatus.IN_PROGRESS,
+    completed: ProvisioningTicketStatus.DONE,
+    rejected: ProvisioningTicketStatus.DONE,
+    cancelled: ProvisioningTicketStatus.DONE,
+  };
+  if (legacyMap[normalized]) {
+    return legacyMap[normalized];
+  }
   const values = new Set<string>(Object.values(ProvisioningTicketStatus));
-  return values.has(raw) ? (raw as ProvisioningTicketStatus) : null;
+  return values.has(normalized) ? (normalized as ProvisioningTicketStatus) : null;
 };
 
 const formatProvisioningStatus = (ctx: AppContext, status: ProvisioningTicketStatus): string => {
@@ -124,18 +140,18 @@ const formatProvisioningQueueSummary = (
   ctx: AppContext,
   stats: {
     open: number;
-    inWork: number;
-    review: number;
-    closed: number;
+    inProgress: number;
+    waiting: number;
+    done: number;
     total: number;
   }
 ): string =>
   renderMultiline(
     ctx.t("provisioning-menu-title", {
       open: stats.open,
-      inWork: stats.inWork,
-      review: stats.review,
-      closed: stats.closed,
+      inProgress: stats.inProgress,
+      waiting: stats.waiting,
+      done: stats.done,
       total: stats.total,
     })
   );
@@ -148,11 +164,11 @@ const provisioningTicketKeyboard = (
     .text(ctx.t("button-ticket-assign-self"), `prov_take_${ticketId}`)
     .text(ctx.t("button-ticket-ask-clarification"), `prov_note_${ticketId}`)
     .row()
-    .text(ctx.t("ticket-status-in_provisioning"), `prov_status_${ticketId}_in_provisioning`)
-    .text(ctx.t("ticket-status-awaiting_final_check"), `prov_status_${ticketId}_awaiting_final_check`)
+    .text(ctx.t("ticket-status-in_progress"), `prov_status_${ticketId}_in_progress`)
+    .text(ctx.t("ticket-status-waiting"), `prov_status_${ticketId}_waiting`)
     .row()
     .text(ctx.t("button-provisioning-send-credentials"), `prov_complete_${ticketId}`)
-    .text(ctx.t("button-ticket-reject"), `prov_status_${ticketId}_rejected`);
+    .text(ctx.t("ticket-status-done"), `prov_status_${ticketId}_done`);
 
 const resolveAskUserRecipientId = async (
   ctx: AppContext,
@@ -947,7 +963,7 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
           await ctx.reply(ctx.t("error-ticket-not-found"));
           return;
         }
-        await service.updateStatus(ticketId, ProvisioningTicketStatus.COMPLETED, session.main.user.id, "completed_by_staff");
+        await service.updateStatus(ticketId, ProvisioningTicketStatus.DONE, session.main.user.id, "completed_by_staff");
         await service.setChecklistItem(ticketId, "ticket_completed", true, session.main.user.id);
         await service.setChecklistItem(ticketId, "credentials_sent_to_customer", true, session.main.user.id);
         await ctx.api.sendMessage(order.telegramUserId || ctx.from!.id, renderMultiline(ctx.t("provisioning-user-ready-message", {
@@ -1155,17 +1171,26 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
     if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
       return;
     }
-    await ctx.reply(ctx.t("provisioning-menu-title"), {
+    await ctx.reply(
+      ctx.t("provisioning-menu-title", {
+        open: 0,
+        inProgress: 0,
+        waiting: 0,
+        done: 0,
+        total: 0,
+      }),
+      {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard()
-        .text(ctx.t("button-open"), "prov_list_new")
-        .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+        .text(ctx.t("ticket-status-open"), "prov_list_open")
+        .text(ctx.t("ticket-status-in_progress"), "prov_list_in_progress")
         .row()
-        .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
-        .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+        .text(ctx.t("ticket-status-waiting"), "prov_list_waiting")
+        .text(ctx.t("ticket-status-done"), "prov_list_done")
         .row()
-        .text(ctx.t("ticket-status-completed"), "prov_list_completed"),
-    });
+        .text(ctx.t("button-back"), "tickets-menu-back"),
+      }
+    );
   });
 
   bot.command("ticket", async (ctx) => {
@@ -1774,57 +1799,29 @@ Are you sure you want to proceed?`,
       return;
     }
     const service = new DedicatedProvisioningService(ctx.appDataSource);
-    const [
-      cntNew,
-      cntPendingReview,
-      cntPaid,
-      cntAwaitingStock,
-      cntInProvisioning,
-      cntAwaitingFinalCheck,
-      cntCompleted,
-      cntRejected,
-      cntCancelled,
-    ] = await Promise.all([
-      service.countTicketsByStatus(ProvisioningTicketStatus.NEW),
-      service.countTicketsByStatus(ProvisioningTicketStatus.PENDING_REVIEW),
-      service.countTicketsByStatus(ProvisioningTicketStatus.PAID),
-      service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_STOCK),
-      service.countTicketsByStatus(ProvisioningTicketStatus.IN_PROVISIONING),
-      service.countTicketsByStatus(ProvisioningTicketStatus.AWAITING_FINAL_CHECK),
-      service.countTicketsByStatus(ProvisioningTicketStatus.COMPLETED),
-      service.countTicketsByStatus(ProvisioningTicketStatus.REJECTED),
-      service.countTicketsByStatus(ProvisioningTicketStatus.CANCELLED),
+    const [cntOpen, cntInProgress, cntWaiting, cntDone] = await Promise.all([
+      service.countTicketsByStatus(ProvisioningTicketStatus.OPEN),
+      service.countTicketsByStatus(ProvisioningTicketStatus.IN_PROGRESS),
+      service.countTicketsByStatus(ProvisioningTicketStatus.WAITING),
+      service.countTicketsByStatus(ProvisioningTicketStatus.DONE),
     ]);
     const stats = {
-      open: cntNew + cntPaid + cntAwaitingStock + cntInProvisioning,
-      inWork: cntInProvisioning + cntAwaitingStock + cntPendingReview,
-      review: cntAwaitingFinalCheck + cntPendingReview,
-      closed: cntCompleted + cntRejected + cntCancelled,
-      total:
-        cntNew +
-        cntPendingReview +
-        cntPaid +
-        cntAwaitingStock +
-        cntInProvisioning +
-        cntAwaitingFinalCheck +
-        cntCompleted +
-        cntRejected +
-        cntCancelled,
+      open: cntOpen,
+      inProgress: cntInProgress,
+      waiting: cntWaiting,
+      done: cntDone,
+      total: cntOpen + cntInProgress + cntWaiting + cntDone,
     };
 
     await ctx.editMessageText(formatProvisioningQueueSummary(ctx, stats), {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard()
-        .text(ctx.t("ticket-status-new"), "prov_list_new")
-        .text(ctx.t("ticket-status-paid"), "prov_list_paid")
+        .text(ctx.t("ticket-status-open"), "prov_list_open")
+        .text(ctx.t("ticket-status-in_progress"), "prov_list_in_progress")
         .row()
-        .text(ctx.t("ticket-status-in_provisioning"), "prov_list_in_provisioning")
-        .text(ctx.t("ticket-status-awaiting_final_check"), "prov_list_awaiting_final_check")
+        .text(ctx.t("ticket-status-waiting"), "prov_list_waiting")
+        .text(ctx.t("ticket-status-done"), "prov_list_done")
         .row()
-        .text(ctx.t("ticket-status-pending_review"), "prov_list_pending_review")
-        .text(ctx.t("ticket-status-awaiting_stock"), "prov_list_awaiting_stock")
-        .row()
-        .text(ctx.t("ticket-status-completed"), "prov_list_completed")
         .text(ctx.t("button-back"), "tickets-menu-back"),
     });
   });
@@ -1960,7 +1957,7 @@ Are you sure you want to proceed?`,
     const service = new DedicatedProvisioningService(ctx.appDataSource);
     await service.setChecklistItem(ticketId, key, isChecked, session.main.user.id);
     if (isChecked && key === "ticket_completed") {
-      await service.updateStatus(ticketId, ProvisioningTicketStatus.COMPLETED, session.main.user.id, "checklist_completed");
+      await service.updateStatus(ticketId, ProvisioningTicketStatus.DONE, session.main.user.id, "checklist_completed");
     }
     await ctx.api.sendMessage(ctx.chat!.id, ctx.t("provisioning-checklist-updated"), {
       parse_mode: "HTML",

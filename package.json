@@ -17,11 +17,12 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/modules/automations/__tests__/evaluator.test.ts src/modules/automations/__tests__/nps-callback.test.ts",
+    "test": "node --import tsx --test src/modules/automations/__tests__/evaluator.test.ts src/modules/automations/__tests__/nps-callback.test.ts src/modules/automations/__tests__/role-migration-safety.test.ts",
     "check-payments": "ts-node scripts/check-payments.ts",
     "test-amper-api": "tsx scripts/test-amper-api.ts",
     "test-amper-register": "tsx scripts/test-amper-register.ts",
-    "amper-ping": "tsx scripts/amper-ping.ts"
+    "amper-ping": "tsx scripts/amper-ping.ts",
+    "fix:roles": "tsx scripts/fix-roles.ts"
   },
   "keywords": [],
   "author": "flexice <two.fl3xice@yandex.ru>",
