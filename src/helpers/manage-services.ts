@@ -49,6 +49,9 @@ const getStatusLabel = (
 const isVdsManagementBlocked = (vds: VirtualDedicatedServer): boolean =>
   vds.managementLocked === true || vds.adminBlocked === true;
 
+const isPlaceholderIpv4 = (ip?: string | null): boolean =>
+  !ip || ip === "0.0.0.0" || ip === "127.0.0.1";
+
 const buildVdsManageText = (
   ctx: AppContext,
   vds: VirtualDedicatedServer | null,
@@ -128,7 +131,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     // Refresh persisted IPv4 if it was unavailable at provisioning time.
     const freshIpv4 = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
     const freshIp = freshIpv4?.list?.[0]?.ip_addr;
-    if (freshIp && freshIp !== "0.0.0.0" && freshIp !== "127.0.0.1" && vds.ipv4Addr !== freshIp) {
+    if (freshIp && !isPlaceholderIpv4(freshIp) && vds.ipv4Addr !== freshIp) {
       vds.ipv4Addr = freshIp;
       await vdsRepo.save(vds);
     }
@@ -1029,6 +1032,18 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
     const maxPages = Math.ceil(total / LIMIT_ON_PAGE) - 1;
 
     for (const vds of vdsList) {
+      if (!isDemoVds(vds) && isPlaceholderIpv4(vds.ipv4Addr)) {
+        try {
+          const freshIpv4 = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId);
+          const freshIp = freshIpv4?.list?.[0]?.ip_addr;
+          if (freshIp && !isPlaceholderIpv4(freshIp)) {
+            vds.ipv4Addr = freshIp;
+            await vdsRepo.save(vds);
+          }
+        } catch {
+          // Ignore transient Proxmox/network errors on list rendering.
+        }
+      }
       const displayName = vds.displayName || vds.rateName || `VDS #${vds.id}`;
       range
         .text(
