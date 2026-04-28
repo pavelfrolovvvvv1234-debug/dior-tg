@@ -208,7 +208,6 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
       });
     }
   )
-  .row()
   .submenu(
     (ctx) => ctx.t("button-personal-profile"),
     "profile-menu",
