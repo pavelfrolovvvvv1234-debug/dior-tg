@@ -208,16 +208,6 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
       });
     }
   )
-  .text(
-    (ctx) => ctx.t("button-balance"),
-    async (ctx) => {
-      await ctx.answerCallbackQuery().catch(() => {});
-      await ctx.editMessageText(ctx.t("topup-select-method"), {
-        reply_markup: topupMethodMenu,
-        parse_mode: "HTML",
-      });
-    }
-  )
   .row()
   .submenu(
     (ctx) => ctx.t("button-personal-profile"),
@@ -233,16 +223,6 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
           link_preview_options: { is_disabled: true },
         });
       }
-    }
-  )
-  .submenu(
-    (ctx) => ctx.t("button-support"),
-    "support-menu",
-    async (ctx) => {
-      await ctx.editMessageText(ctx.t("support"), {
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-      });
     }
   )
   .row()
@@ -331,6 +311,17 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
       parse_mode: "HTML",
     });
   })
+  .row()
+  .submenu(
+    (ctx) => ctx.t("button-support"),
+    "support-menu",
+    async (ctx) => {
+      await ctx.editMessageText(ctx.t("support"), {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      });
+    }
+  )
   .row()
   .text(
     (ctx) => ctx.t("button-referrals"),
