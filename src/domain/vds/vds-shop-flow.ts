@@ -245,6 +245,10 @@ async function createVpsOrderDirect(
 
   let deducted = false;
   try {
+    await ctx.reply("⏳ Создаем VPS в Proxmox, это может занять до 1 минуты...", {
+      parse_mode: "HTML",
+    }).catch(() => {});
+
     user.balance -= price;
     await usersRepo.save(user);
     deducted = true;
@@ -253,18 +257,21 @@ async function createVpsOrderDirect(
     const generatedPassword = generatePassword(12);
     const vmName = generateRandomName(13);
     const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey}`;
-    const vmResult = await ctx.vmmanager.createVM(
-      vmName,
-      generatedPassword,
-      rate.cpu,
-      rate.ram,
-      osId,
-      comment,
-      rate.ssd,
-      1,
-      rate.network,
-      rate.network
-    );
+    const vmResult = await Promise.race([
+      ctx.vmmanager.createVM(
+        vmName,
+        generatedPassword,
+        rate.cpu,
+        rate.ram,
+        osId,
+        comment,
+        rate.ssd,
+        1,
+        rate.network,
+        rate.network
+      ),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 30000)),
+    ]);
     if (!vmResult) {
       throw new Error("createVM returned false");
     }
@@ -310,7 +317,14 @@ async function createVpsOrderDirect(
     await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
       parse_mode: "HTML",
     });
-    await ctx.reply(ctx.t("vds-created"), { parse_mode: "HTML" });
+    if (ip === "0.0.0.0") {
+      await ctx.reply(
+        `${ctx.t("vds-created")}\n\nIP может подтянуться с небольшой задержкой. Проверьте раздел «Управление VDS» через 30-90 секунд.`,
+        { parse_mode: "HTML" }
+      );
+    } else {
+      await ctx.reply(ctx.t("vds-created"), { parse_mode: "HTML" });
+    }
     return true;
   } catch (error: any) {
     if (deducted) {
