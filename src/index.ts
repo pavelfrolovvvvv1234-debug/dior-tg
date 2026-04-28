@@ -288,26 +288,24 @@ const supportMenu = new Menu<AppContext>("support-menu", {
       )}`
   )
   .row()
-  .back(
-    (ctx) => ctx.t("button-support-back"),
-    async (ctx) => {
-      const session = (await ctx.session) as SessionData;
-      if ((session as any)?.other?.profileNavSource === "profile") {
-        const { getProfileText } = await import("./ui/menus/profile-menu.js");
-        const profileText = await getProfileText(ctx);
-        await ctx.editMessageText(profileText, {
-          parse_mode: "HTML",
-          reply_markup: profileMenu,
-          link_preview_options: { is_disabled: true },
-        });
-        return;
-      }
-      await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+  .text((ctx) => ctx.t("button-support-back"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if ((session as any)?.other?.profileNavSource === "profile") {
+      const { getProfileText } = await import("./ui/menus/profile-menu.js");
+      const profileText = await getProfileText(ctx);
+      await ctx.editMessageText(profileText, {
         parse_mode: "HTML",
-        reply_markup: mainMenu,
+        reply_markup: profileMenu,
+        link_preview_options: { is_disabled: true },
       });
+      return;
     }
-  );
+    await ctx.editMessageText(ctx.t("welcome", { balance: session.main.user.balance }), {
+      parse_mode: "HTML",
+      reply_markup: mainMenu,
+    });
+  });
 
 const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
   .text((ctx) => ctx.t("button-deposit"), async (ctx) => {

@@ -231,29 +231,27 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
     }
   )
   .row()
-  .back(
-    (ctx) => ctx.t("button-back"),
-    async (ctx) => {
-      const session = await ctx.session;
-      if ((session as any)?.other?.profileNavSource === "profile") {
-        const { getProfileText, profileMenu } = await import("./profile-menu.js");
-        const profileText = await getProfileText(ctx);
-        await ctx.editMessageText(profileText, {
-          reply_markup: profileMenu,
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-        });
-        return;
-      }
-      const renderer = (await import("../screens/renderer.js")).ScreenRenderer.fromContext(ctx);
-      const screen = renderer.renderWelcome({
-        balance: session.main.user.balance,
+  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if ((session as any)?.other?.profileNavSource === "profile") {
+      const { getProfileText, profileMenu } = await import("./profile-menu.js");
+      const profileText = await getProfileText(ctx);
+      await ctx.editMessageText(profileText, {
+        reply_markup: profileMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
       });
-
-      const { getReplyMainMenu } = await import("./main-menu-registry.js");
-      await ctx.editMessageText(screen.text, {
-        reply_markup: await getReplyMainMenu(),
-        parse_mode: screen.parse_mode,
-      });
+      return;
     }
-  );
+    const renderer = (await import("../screens/renderer.js")).ScreenRenderer.fromContext(ctx);
+    const screen = renderer.renderWelcome({
+      balance: session.main.user.balance,
+    });
+
+    const { getReplyMainMenu } = await import("./main-menu-registry.js");
+    await ctx.editMessageText(screen.text, {
+      reply_markup: await getReplyMainMenu(),
+      parse_mode: screen.parse_mode,
+    });
+  });
