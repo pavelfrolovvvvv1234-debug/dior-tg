@@ -171,8 +171,8 @@ admin-user-status-active = Active
 admin-user-status-banned = Banned
 admin-prime-status-yes = Yes
 admin-prime-status-no = No
-admin-user-level-newbie = Beginner
 admin-user-level-user = User
+admin-user-level-moderator = Moderator
 admin-user-level-admin = Admin
 admin-date-format = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 
@@ -184,7 +184,7 @@ sort-desc = 🔼
 
 # Admin Panel
 button-admin-panel = ⚙️ Admin
-button-control-users = 👥 Manage Users
+button-control-users = 👥 Users
 button-tickets = 🎫 Tickets
 button-promocodes = 🎟 Promocodes
 button-automations = 📬 Automations & Notifications
@@ -557,7 +557,7 @@ promocode-not-exist = This promocode does not exist
 promocode-input-question = Enter the promocode
 promocode-used = The promo code was successfully used and you are credited on your balance {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
-menu-service-for-buy-choose = 📃 <strong>Select the category of services to purchase</strong>
+menu-service-for-buy-choose = 🚀 <strong>Select a service</strong>
 
 manage-services-header = 💼 Services
 
@@ -740,7 +740,7 @@ vds-password-manual-success = Password updated.
 vds-button-rename = ✏️ Rename
 
 # Admin VDS
-button-admin-vds = 🖥 VDS (admin)
+button-admin-vds = 🖥 Services
 button-admin-cdn = 🌍 CDN (admin)
 admin-vds-title = <strong>VDS — admin</strong>
 Search: ID, IP, name. Page {$page} / {$totalPages}
@@ -1327,8 +1327,8 @@ years = years
 default = Default
 
 # User Statuses
-user-status-newbie = 🆕 Newbie
 user-status-user = 👤 User
+user-status-moderator = 🛡 Moderator
 user-status-admin = 👑 Admin
 user-status-current = Current status: {$status}
 button-change-status = 🔄 Change Status
@@ -1443,20 +1443,20 @@ admin-user-referrals-summary = <strong>Referral</strong>
 
 # Prime Subscription (Dior Host)
 prime-subscription-title = 🔐 Prime
-prime-subscription-body = Extended terms for active users.
+prime-subscription-body = Extended access to platform capabilities:
 prime-subscription-benefits-block =
-    💸 Preferential pricing on services
+    ⚡ Priority processing
 
-    ⚡ Priority order processing
+    📊 Improved pricing conditions
 
-    📊 Better terms for volume
+    🛠 Enhanced-priority support
 
-    🛠 Priority support
+    🎯 Exclusive offers
 prime-subscription-trial-line = 🎁 Free access — 7 days
 prime-subscription-status-active = ✅ Subscription active
 prime-subscription-status-inactive = ❌ Subscription not active
 prime-subscription-status-until = Active until: {$date}
-prime-trial-activate = 🎁 Activate for $0 for 7 days (Then {$monthlyPrice}$/month)
+prime-trial-activate = 💳 Then — $ {$monthlyPrice} / month
 prime-trial-via-channel = Subscribe to our channel to get a free Prime subscription for 7 days
 prime-button-activate-trial = 🎁 Activate Prime
 prime-button-menu-row = 🔐 Prime

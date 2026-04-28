@@ -201,7 +201,7 @@ export async function createBot(): Promise<{
             balance: 0,
             referralBalance: 0,
             role: Role.User,
-            status: UserStatus.Newbie,
+            status: UserStatus.User,
             isBanned: false,
           },
           lastSumDepositsEntered: 0,

@@ -273,7 +273,7 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
     "cdn-my-proxies-list": "Ваши прокси",
     "cdn-proxy-item": `${vars?.domain ?? ""} → ${vars?.target ?? ""} (${vars?.status ?? ""})`,
     "manage-services-header": "💼 Услуги",
-    "menu-service-for-buy-choose": "Выберите категорию услуг для приобретения",
+    "menu-service-for-buy-choose": "🚀 Выберите услугу",
   };
   return ru[key] ?? key;
 }

@@ -40,6 +40,8 @@ import {
   ScenarioMetric,
 } from "../../entities/automations/index.js";
 import { Logger } from "../../app/logger.js";
+import AdminAuditLog from "../../entities/AdminAuditLog.js";
+import { runRoleModelMigration } from "./role-migration.js";
 
 /**
  * TypeORM DataSource singleton instance.
@@ -81,6 +83,7 @@ const AppDataSource = new DataSource({
     OfferInstance,
     AutomationEventLog,
     ScenarioMetric,
+    AdminAuditLog,
   ],
   enableWAL: true,
   logging: false,
@@ -104,6 +107,7 @@ export async function getAppDataSource(): Promise<DataSource> {
     initialized = true;
     try {
       await AppDataSource.initialize();
+      await runRoleModelMigration(AppDataSource);
       Logger.info("Database DataSource initialized successfully");
     } catch (error) {
       Logger.error("Failed to initialize DataSource", error);

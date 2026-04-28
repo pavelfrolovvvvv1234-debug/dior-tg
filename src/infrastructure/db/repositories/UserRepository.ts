@@ -35,7 +35,7 @@ export class UserRepository extends BaseRepository<User> {
     if (!user) {
       user = new User();
       user.telegramId = telegramId;
-      user.status = UserStatus.Newbie;
+      user.status = UserStatus.User;
       user = await this.save(user);
     }
 

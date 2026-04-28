@@ -13,7 +13,7 @@ const emptyUser: MainSessionData["user"] = {
   balance: 0,
   referralBalance: 0,
   role: Role.User,
-  status: UserStatus.Newbie,
+  status: UserStatus.User,
   isBanned: false,
 };
 
@@ -46,7 +46,7 @@ export const ensureSessionUser = async (ctx: AppContext): Promise<boolean> => {
       balance: 0,
       referralBalance: 0,
       role: Role.User,
-      status: UserStatus.Newbie,
+      status: UserStatus.User,
       isBanned: false,
     };
     return false;

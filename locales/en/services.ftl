@@ -18,11 +18,11 @@ Stable infrastructure for sensitive workloads.
 Priority handling.
 
 dedicated-server =
-  📃 Select the category of services to purchase
+  🚀 Select a service
 
   🖥 Dedicated Server
 
 abuse-dedicated-server =
-  📃 Select the category of services to purchase
+  🚀 Select a service
 
   🖥 Dedicated Server

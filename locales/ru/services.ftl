@@ -18,11 +18,11 @@ abuse-vds-service = 🛡 <strong>Абузоустойчивый VDS</strong>
 Приоритетная обработка.
 
 dedicated-server =
-  📃 Select the category of services to purchase
+  🚀 Выберите услугу
 
   🖥 Dedicated Server
 
 abuse-dedicated-server =
-  📃 Select the category of services to purchase
+  🚀 Выберите услугу
 
   🖥 Dedicated Server

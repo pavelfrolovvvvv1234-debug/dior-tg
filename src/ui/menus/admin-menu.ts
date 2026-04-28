@@ -100,36 +100,6 @@ const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
  */
 export const adminMenu = new Menu<AppContext>("admin-menu")
   .text(
-    (ctx) => ctx.t("button-broadcast"),
-    async (ctx) => {
-      const session = await ctx.session;
-      const hasSessionUser = await ensureSessionUser(ctx);
-      if (!session || !hasSessionUser) {
-        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
-        return;
-      }
-      if (session.main.user.role !== Role.Admin) {
-        await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
-        return;
-      }
-
-      await safeAdminAction(ctx, async () => {
-        session.other.broadcast = {
-          step: "awaiting_text",
-        };
-        const keyboard = new InlineKeyboard().text(
-          ctx.t("button-back"),
-          "admin-menu-back"
-        );
-        await safeEditMessageText(ctx, ctx.t("broadcast-instructions"), {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
-      });
-    }
-  )
-  .row()
-  .text(
     (ctx) => ctx.t("button-control-users"),
     async (ctx) => {
       const session = await ctx.session;
@@ -151,7 +121,6 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
       });
     }
   )
-  .row()
   .text(
     (ctx) => ctx.t("button-admin-vds"),
     async (ctx) => {
@@ -244,7 +213,6 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
       });
     }
   )
-  .row()
   .submenu(
     (ctx) => ctx.t("button-promocodes"),
     "admin-promos-menu",
@@ -273,6 +241,35 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
     }
   )
   .row()
+  .text(
+    (ctx) => ctx.t("button-broadcast"),
+    async (ctx) => {
+      const session = await ctx.session;
+      const hasSessionUser = await ensureSessionUser(ctx);
+      if (!session || !hasSessionUser) {
+        await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200));
+        return;
+      }
+      if (session.main.user.role !== Role.Admin) {
+        await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200));
+        return;
+      }
+
+      await safeAdminAction(ctx, async () => {
+        session.other.broadcast = {
+          step: "awaiting_text",
+        };
+        const keyboard = new InlineKeyboard().text(
+          ctx.t("button-back"),
+          "admin-menu-back"
+        );
+        await safeEditMessageText(ctx, ctx.t("broadcast-instructions"), {
+          reply_markup: keyboard,
+          parse_mode: "HTML",
+        });
+      });
+    }
+  )
   .text(
     (ctx) => ctx.t("button-statistics"),
     async (ctx) => {

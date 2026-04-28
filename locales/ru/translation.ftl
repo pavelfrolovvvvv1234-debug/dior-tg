@@ -173,8 +173,8 @@ admin-user-status-active = Активен
 admin-user-status-banned = Заблокирован
 admin-prime-status-yes = Есть
 admin-prime-status-no = Нет
-admin-user-level-newbie = Новичок
 admin-user-level-user = Пользователь
+admin-user-level-moderator = Модератор
 admin-user-level-admin = Админ
 admin-date-format = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 
@@ -186,7 +186,7 @@ sort-desc = 🔼
 
 # Admin Panel
 button-admin-panel = ⚙️ Админ
-button-control-users = 👥 Управление пользователями
+button-control-users = 👥 Пользователи
 button-tickets = 🎫 Тикеты
 button-promocodes = 🎟 Промокоды
 button-automations = 📬 Сценарии и уведомления
@@ -556,7 +556,7 @@ promocode-not-exist = Такого промокода не существует
 promocode-input-question = Введите промокод
 promocode-used = Промокод успешно использован вам на баланс начисленно {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
 
-menu-service-for-buy-choose = 📃 <strong>Выберите категорию услуг для приобретения</strong>
+menu-service-for-buy-choose = 🚀 <strong>Выберите услугу</strong>
 
 manage-services-header = 💼 Услуги
 
@@ -740,7 +740,7 @@ vds-password-manual-success = Пароль обновлён.
 vds-button-rename = ✏️ Переименовать
 
 # Admin VDS
-button-admin-vds = 🖥 VDS (админ)
+button-admin-vds = 🖥 Услуги
 button-admin-cdn = 🌍 CDN (админ)
 admin-vds-title = <strong>VDS — админ</strong>
 Поиск: ID, IP, имя. Страница {$page} / {$totalPages}
@@ -1330,8 +1330,8 @@ years = лет
 default = По умолчанию
 
 # User Statuses
-user-status-newbie = 🆕 Новичок
 user-status-user = 👤 Пользователь
+user-status-moderator = 🛡 Модератор
 user-status-admin = 👑 Админ
 user-status-current = Текущий статус: {$status}
 button-change-status = 🔄 Изменить статус
@@ -1446,20 +1446,20 @@ admin-user-referrals-summary = <strong>Реферал</strong>
 
 # Prime Subscription (Dior Host)
 prime-subscription-title = 🔐 Prime
-prime-subscription-body = Расширенные условия для активных пользователей.
+prime-subscription-body = Расширенный доступ к возможностям платформы:
 prime-subscription-benefits-block =
-    💸 Специальные условия на услуги
+    ⚡ Приоритетная обработка
 
-    ⚡ Приоритетная обработка заказов
+    📊 Улучшенные тарифные условия
 
-    📊 Улучшенные условия по объёмам
+    🛠 Поддержка с повышенным приоритетом
 
-    🛠 Приоритетная поддержка
+    🎯 Эксклюзивные предложения
 prime-subscription-trial-line = 🎁 Бесплатный доступ — 7 дней
 prime-subscription-status-active = ✅ Подписка активирована
 prime-subscription-status-inactive = ❌ Подписка не активирована
 prime-subscription-status-until = Активна до: {$date}
-prime-trial-activate = 🎁 Активировать за 0$ на 7 дней (Далее {$monthlyPrice}$/мес)
+prime-trial-activate = 💳 Далее — {$monthlyPrice} $ / месяц
 prime-trial-via-channel = Подпишись на наш канал, чтобы получить бесплатную Prime подписку на 7 дней
 prime-button-activate-trial = 🎁 Активировать Prime
 prime-button-menu-row = 🔐 Prime

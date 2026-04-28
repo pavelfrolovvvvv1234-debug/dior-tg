@@ -13,8 +13,8 @@ export enum Role {
 }
 
 export enum UserStatus {
-  Newbie = "newbie",
   User = "user",
+  Moderator = "moderator",
   Admin = "admin",
 }
 
@@ -39,7 +39,7 @@ export default class User {
   @Column({ default: Role.User, type: "varchar", nullable: false })
   role!: Role;
 
-  @Column({ default: UserStatus.Newbie, type: "varchar", nullable: false })
+  @Column({ default: UserStatus.User, type: "varchar", nullable: false })
   status!: UserStatus;
 
   @Column({ nullable: true, type: "varchar" })

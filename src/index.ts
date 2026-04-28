@@ -24,7 +24,19 @@ import {
   PREFIX_PROMOTE,
   promotePermissions,
 } from "./helpers/promote-permissions";
-import { buildControlPanelUserReply, buildReferralSummaryReply, controlUser, controlUserBalance, controlUsers, controlUserStatus, controlUserSubscription } from "./helpers/users-control";
+import {
+  buildControlPanelUserReply,
+  buildReferralSummaryReply,
+  controlUser,
+  controlUserBalance,
+  controlUserServices,
+  controlUserServicesAdd,
+  controlUserServicesDelete,
+  controlUsers,
+  controlUserStatus,
+  controlUserSubscription,
+  registerAdminServiceManagementCallbacks,
+} from "./helpers/users-control";
 import express from "express";
 import { run as grammyRun } from "@grammyjs/runner";
 import { adminMenu } from "./ui/menus/admin-menu";
@@ -705,7 +717,7 @@ async function index() {
           if (!user) {
             const newUser = new User();
             newUser.telegramId = ctx.chatId;
-            newUser.status = UserStatus.Newbie;
+            newUser.status = UserStatus.User;
             newUser.referrerId = null;
             user = await appDataSource.manager.save(newUser);
           }
@@ -2739,12 +2751,23 @@ async function index() {
     }
   }
   try {
+    controlUser.register(controlUserServices, "control-user");
+    controlUserServices.register(controlUserServicesAdd, "control-user-services");
+    controlUserServices.register(controlUserServicesDelete, "control-user-services");
+  } catch (error: any) {
+    if (!error.message?.includes("already registered")) {
+      console.error("[Bot] Failed to register controlUserServices menus:", error);
+    }
+  }
+  try {
     controlUserStatus.register(controlUser, "control-user-status");
   } catch (error: any) {
     if (!error.message?.includes("already registered")) {
       console.error("[Bot] Failed to register controlUser in controlUserStatus:", error);
     }
   }
+
+  registerAdminServiceManagementCallbacks(bot);
 
   registerDomainRegistrationMiddleware(bot);
 

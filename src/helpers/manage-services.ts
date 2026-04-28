@@ -802,11 +802,17 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
       if (expanded && expanded.targetUserId === session.main.user.id) {
         const showPassword = session.other.manageVds.showPassword;
         const blocked = isVdsManagementBlocked(expanded);
-
-        range.copyText(ctx.t("button-copy-ip"), expanded.ipv4Addr || "");
-        range.copyText(ctx.t("button-copy-login"), expanded.login || "");
-        range.copyText(ctx.t("button-copy-password"), expanded.password || "");
-        range.row();
+        const panelMode = (session.other.manageVds as any).panelMode || "main";
+        const demoMode = isDemoVds(expanded);
+        let powerState: ListItem["state"] = "active";
+        if (!demoMode) {
+          let liveInfo: ListItem | undefined;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            liveInfo = await ctx.vmmanager.getInfoVM(expanded.vdsId);
+            if (liveInfo?.state) break;
+          }
+          if (liveInfo?.state) powerState = liveInfo.state;
+        }
 
         range.text(
           showPassword ? ctx.t("button-hide-password") : ctx.t("button-show-password"),
@@ -818,12 +824,10 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
         );
         range.row();
 
-        const periods = [1, 3, 6, 12] as const;
-        for (const m of periods) {
-          const total = Math.round(expanded.renewalPrice * m * 100) / 100;
-          range.text(
-            (ctx) => ctx.t("vds-renew-period-label", { months: m, total }),
-            async (ctx) => {
+        if (panelMode === "renew") {
+          const periods = [1, 3, 6, 12] as const;
+          for (const m of periods) {
+            range.text(`📅 ${m} мес.`, async (ctx) => {
               await ctx.answerCallbackQuery().catch(() => {});
               const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
               const vds = await vdsRepo.findOneBy({ id: expandedId });
@@ -831,27 +835,31 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
                 await ctx.reply(ctx.t("bad-error"));
                 return;
               }
+              const total = Math.round(vds.renewalPrice * m * 100) / 100;
               const sess = await ctx.session;
               sess.other.manageVds.pendingRenewMonths = m;
-              await ctx.reply(
-                ctx.t("vds-renew-confirm-ask", { months: m, total }),
-                {
-                  parse_mode: "HTML",
-                  reply_markup: new InlineKeyboard()
-                    .text(ctx.t("button-confirm"), `vds-renew-yes:${expandedId}:${m}`)
-                    .text(ctx.t("button-cancel"), `vds-renew-no:${expandedId}`),
-                }
-              );
-            }
-          );
+              await ctx.reply(ctx.t("vds-renew-confirm-ask", { months: m, total }), {
+                parse_mode: "HTML",
+                reply_markup: new InlineKeyboard()
+                  .text(ctx.t("button-confirm"), `vds-renew-yes:${expandedId}:${m}`)
+                  .text(ctx.t("button-cancel"), `vds-renew-no:${expandedId}`),
+              });
+            });
+            if (m === 3) range.row();
+          }
+          range.row();
+          range.text("⬅️ Назад к услуге", async (ctx) => {
+            const session = await ctx.session;
+            (session.other.manageVds as any).panelMode = "main";
+            await ctx.menu.update();
+          });
+          return;
         }
-        range.row();
 
-        range.text(
-          expanded.autoRenewEnabled !== false
-            ? ctx.t("vds-autorenew-disable")
-            : ctx.t("vds-autorenew-enable"),
-          async (ctx) => {
+        if (panelMode === "more") {
+          const autoRenewToggleLabel =
+            expanded.autoRenewEnabled !== false ? "⏸ Отключить автопродление" : "▶️ Включить автопродление";
+          range.text(autoRenewToggleLabel, async (ctx) => {
             await ctx.answerCallbackQuery().catch(() => {});
             const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
             const vds = await vdsRepo.findOneBy({ id: expandedId });
@@ -864,11 +872,9 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             const cur = vds.autoRenewEnabled !== false;
             await vdsService.setAutoRenewEnabled(expandedId, session.main.user.id, !cur);
             await updateVdsManageView(ctx);
-          }
-        );
-        range.row();
+          });
+          range.row();
 
-        if (!blocked) {
           range.text(ctx.t("vds-buy-extra-ip"), async (ctx) => {
             await ctx.answerCallbackQuery().catch(() => {});
             const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
@@ -889,10 +895,8 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             }
           });
           range.row();
-        }
 
-        if (!blocked) {
-          range.text(ctx.t("button-reinstall-os"), async (ctx) => {
+          range.text("💿 Переустановить OS", async (ctx) => {
             const session = await ctx.session;
             session.other.manageVds.lastPickedId = expandedId;
             const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
@@ -907,25 +911,9 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             }
             await ctx.menu.nav("vds-select-os-reinstall");
           });
-
-          range.text(ctx.t("button-reboot"), async (ctx) => {
-            const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
-            const vds = await vdsRepo.findOneBy({ id: expandedId });
-            if (!vds) {
-              await ctx.reply(ctx.t("bad-error"));
-              return;
-            }
-            if (isDemoVds(vds)) {
-              await replyDemoOperation(ctx);
-              return;
-            }
-            await ctx.vmmanager.stopVM(vds.vdsId);
-            await ctx.vmmanager.startVM(vds.vdsId);
-            await updateVdsManageView(ctx);
-          });
           range.row();
 
-          range.text(ctx.t("vds-password-generate"), async (ctx) => {
+          range.text("🔁 Новый пароль", async (ctx) => {
             const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
             const vds = await vdsRepo.findOneBy({ id: expandedId });
             if (!vds) {
@@ -945,7 +933,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             await updateVdsManageView(ctx);
           });
 
-          range.text(ctx.t("vds-password-manual"), async (ctx) => {
+          range.text("✏️ Задать пароль", async (ctx) => {
             const session = await ctx.session;
             session.other.manageVds.lastPickedId = expandedId;
             try {
@@ -958,7 +946,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           });
           range.row();
 
-          range.text(ctx.t("vds-button-rename"), async (ctx) => {
+          range.text("✏️ Переименовать", async (ctx) => {
             const session = await ctx.session;
             session.other.manageVds.lastPickedId = expandedId;
             try {
@@ -971,43 +959,84 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           });
           range.row();
 
-          range.text(ctx.t("vds-button-start-machine"), async (ctx) => {
-            const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
-            const vds = await vdsRepo.findOneBy({ id: expandedId });
-            if (!vds) {
-              await ctx.reply(ctx.t("bad-error"));
-              return;
-            }
-            if (isDemoVds(vds)) {
-              await replyDemoOperation(ctx);
-              return;
-            }
-            await ctx.vmmanager.startVM(vds.vdsId);
-            await updateVdsManageView(ctx);
-          });
-          range.text(ctx.t("vds-button-stop-machine"), async (ctx) => {
-            const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
-            const vds = await vdsRepo.findOneBy({ id: expandedId });
-            if (!vds) {
-              await ctx.reply(ctx.t("bad-error"));
-              return;
-            }
-            if (isDemoVds(vds)) {
-              await replyDemoOperation(ctx);
-              return;
-            }
-            await ctx.vmmanager.stopVM(vds.vdsId);
-            await updateVdsManageView(ctx);
-          });
-          range.row();
-        }
-
-        range.text(ctx.t("button-other-request"), async (ctx) => {
+          range.text("🛠 Запрос в поддержку", async (ctx) => {
           await ctx.reply(ctx.t("support"), {
             parse_mode: "HTML",
             link_preview_options: { is_disabled: true },
           });
         });
+          range.row();
+          range.text("⬅️ Назад к услуге", async (ctx) => {
+            const session = await ctx.session;
+            (session.other.manageVds as any).panelMode = "main";
+            await ctx.menu.update();
+          });
+          return;
+        }
+
+        if (!blocked) {
+          if (powerState === "active") {
+            range.text("🔄 Перезагрузить", async (ctx) => {
+              const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+              const vds = await vdsRepo.findOneBy({ id: expandedId });
+              if (!vds) {
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
+              if (isDemoVds(vds)) {
+                await replyDemoOperation(ctx);
+                return;
+              }
+              await ctx.vmmanager.stopVM(vds.vdsId);
+              await ctx.vmmanager.startVM(vds.vdsId);
+              await updateVdsManageView(ctx);
+            });
+            range.text("🔴 Выключить", async (ctx) => {
+              const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+              const vds = await vdsRepo.findOneBy({ id: expandedId });
+              if (!vds) {
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
+              if (isDemoVds(vds)) {
+                await replyDemoOperation(ctx);
+                return;
+              }
+              await ctx.vmmanager.stopVM(vds.vdsId);
+              await updateVdsManageView(ctx);
+            });
+            range.row();
+          } else {
+            range.text("🟢 Включить", async (ctx) => {
+              const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+              const vds = await vdsRepo.findOneBy({ id: expandedId });
+              if (!vds) {
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
+              if (isDemoVds(vds)) {
+                await replyDemoOperation(ctx);
+                return;
+              }
+              await ctx.vmmanager.startVM(vds.vdsId);
+              await updateVdsManageView(ctx);
+            });
+            range.row();
+          }
+        }
+
+        range.text("📅 Продлить", async (ctx) => {
+          const session = await ctx.session;
+          (session.other.manageVds as any).panelMode = "renew";
+          await ctx.menu.update();
+        });
+        if (!blocked) {
+          range.text("⚙️ Еще", async (ctx) => {
+            const session = await ctx.session;
+            (session.other.manageVds as any).panelMode = "more";
+            await ctx.menu.update();
+          });
+        }
       }
       return;
     }
@@ -1077,10 +1106,12 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             if (current === vds.id) {
               session.other.manageVds.expandedId = null;
               session.other.manageVds.showPassword = false;
+              (session.other.manageVds as any).panelMode = "main";
             } else {
               session.other.manageVds.expandedId = vds.id;
               session.other.manageVds.showPassword = false;
               session.other.manageVds.lastPickedId = vds.id;
+              (session.other.manageVds as any).panelMode = "main";
             }
 
             await updateVdsManageView(ctx);
@@ -1130,6 +1161,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
       if (session.other.manageVds.expandedId) {
         session.other.manageVds.expandedId = null;
         session.other.manageVds.showPassword = false;
+        (session.other.manageVds as any).panelMode = "main";
         await updateVdsManageView(ctx);
         return;
       }
