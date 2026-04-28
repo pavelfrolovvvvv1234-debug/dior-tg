@@ -84,6 +84,19 @@ export class ProxmoxProvider implements VmProvider {
     return data.data;
   }
 
+  private async waitForVmStopped(id: number, timeoutMs = 20000): Promise<void> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const status = await this.apiGet<{ status?: string }>(`/nodes/${this.node}/qemu/${id}/status/current`).catch(
+        () => undefined
+      );
+      if (!status || status.status === "stopped") {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
   private ipToInt(ip: string): number {
     const parts = ip.split(".").map((p) => Number(p));
     if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return 0;
@@ -320,7 +333,18 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   async deleteVM(id: number): Promise<unknown> {
-    return this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1`);
+    try {
+      return await this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1`);
+    } catch (firstError) {
+      Logger.warn(`Proxmox direct delete failed for VM ${id}, trying stop+delete`, firstError);
+    }
+
+    await this.stopVM(id).catch((stopError) => {
+      Logger.warn(`Proxmox stop before delete failed for VM ${id}`, stopError);
+    });
+    await this.waitForVmStopped(id).catch(() => {});
+
+    return this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`);
   }
 
   async reinstallOS(id: number, osId: number, password?: string): Promise<unknown> {
