@@ -101,11 +101,14 @@ async function cdnFetch<T>(
   };
 
   const url = `${base}${path}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   const res = await fetch(url, {
     method,
     headers,
+    signal: controller.signal,
     ...(body != null ? { body: JSON.stringify(body) } : {}),
-  });
+  }).finally(() => clearTimeout(timeout));
 
   const raw = await res.text();
   let data: unknown = {};
@@ -161,6 +164,11 @@ export async function cdnCreateProxy(params: {
   const forceHttps = params.forceHttps ?? true;
   const hostHeader = params.hostHeader ?? "incoming";
   const cachingEnabled = params.cachingEnabled ?? false;
+  const detectedPlan =
+    String(params.description ?? "")
+      .replace(/^plan=/, "")
+      .trim()
+      .toLowerCase() || "standard";
 
   const rawBody = snake
     ? {
@@ -187,24 +195,80 @@ export async function cdnCreateProxy(params: {
   const body = Object.fromEntries(
     Object.entries(rawBody).filter(([, v]) => v !== undefined)
   ) as Record<string, unknown>;
+  const bodyWithPlan = {
+    ...body,
+    plan: detectedPlan,
+    planId: detectedPlan,
+    tariff: detectedPlan,
+  };
+  const bodyWithPlanSnake = {
+    ...body,
+    plan: detectedPlan,
+    plan_id: detectedPlan,
+    tariff: detectedPlan,
+  };
 
-  return cdnFetch<CdnCreateProxyResponse>("/api/bot/create-proxy", {
-    method: "POST",
-    body,
-  });
+  const attempts: Array<{ path: string; body: Record<string, unknown> }> = [
+    { path: "/api/bot/create-proxy", body },
+    { path: "/api/bot/create-proxy", body: bodyWithPlan },
+    { path: "/api/bot/create-proxy", body: bodyWithPlanSnake },
+    { path: "/api/bot/proxy/create", body },
+    { path: "/api/bot/proxy/create", body: bodyWithPlan },
+    { path: "/api/bot/proxy/create", body: bodyWithPlanSnake },
+  ];
+
+  let lastError: unknown;
+  for (const attempt of attempts) {
+    try {
+      const out = await cdnFetch<CdnCreateProxyResponse>(attempt.path, {
+        method: "POST",
+        body: attempt.body,
+      });
+      if (out.success) {
+        return out;
+      }
+      const err = new Error(out.error ?? "Create failed");
+      (err as any).code = out.code;
+      lastError = err;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error("Failed to create CDN proxy");
 }
 
 /**
  * List reverse proxies for the given Telegram user.
  */
 export async function cdnListProxies(telegramId: number): Promise<CdnProxyItem[]> {
-  const out = await cdnFetch<CdnListProxiesResponse>(
-    `/api/bot/proxies?telegramId=${encodeURIComponent(telegramId)}`
-  );
-  if (!out.success) {
-    throw new Error(out.error ?? "Failed to list CDN proxies");
+  const variants = [
+    `/api/bot/proxies?telegramId=${encodeURIComponent(telegramId)}`,
+    `/api/bot/proxies?telegram_id=${encodeURIComponent(telegramId)}`,
+    `/api/bot/list-proxies?telegramId=${encodeURIComponent(telegramId)}`,
+    `/api/bot/list-proxies?telegram_id=${encodeURIComponent(telegramId)}`,
+  ];
+
+  let lastError: unknown;
+  for (const path of variants) {
+    try {
+      const out = await cdnFetch<CdnListProxiesResponse>(path);
+      if (out.success) {
+        return out.data ?? [];
+      }
+      lastError = new Error(out.error ?? "Failed to list CDN proxies");
+    } catch (error) {
+      lastError = error;
+    }
   }
-  return out.data ?? [];
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error("Failed to list CDN proxies");
 }
 
 async function tryAction(
