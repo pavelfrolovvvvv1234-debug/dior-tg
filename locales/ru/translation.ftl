@@ -425,7 +425,7 @@ cdn-target-help = <strong>Где взять origin URL?</strong>
     Если не знаете — нажмите «Подобрать автоматически».
 cdn-target-auto-not-ready = Сначала введите домен для проксирования.
 cdn-target-auto-picked = Подставил origin автоматически: <code>{$targetUrl}</code>
-cdn-my-proxies-empty = У вас пока нет прокси. Добавьте через <b>Тарифы CDN</b> → <b>Подключить</b>.
+cdn-my-proxies-empty =
 cdn-my-proxies-list = 🔗 <strong>Ваши прокси</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})
 button-cdn-confirm = ✅ Подтвердить

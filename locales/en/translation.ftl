@@ -423,7 +423,7 @@ cdn-target-help = <strong>Where can I get origin URL?</strong>
     If you are not sure, tap “Auto-pick”.
 cdn-target-auto-not-ready = First enter the domain to proxy.
 cdn-target-auto-picked = Origin was auto-filled: <code>{$targetUrl}</code>
-cdn-my-proxies-empty = You have no proxies yet. Add one via <b>CDN Plans</b> → <b>Connect</b>.
+cdn-my-proxies-empty =
 cdn-my-proxies-list = 🔗 <strong>Your proxies</strong>
 cdn-proxy-item = • {$domain} → {$target} ({$status})
 button-cdn-confirm = ✅ Confirm

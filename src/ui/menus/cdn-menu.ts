@@ -269,7 +269,7 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
     "button-back": "⬅️ Назад",
     "cdn-not-configured": "Услуга CDN пока не подключена.",
     "cdn-error": "Ошибка CDN: " + (vars?.error ?? ""),
-    "cdn-my-proxies-empty": "У вас пока нет прокси.",
+    "cdn-my-proxies-empty": "",
     "cdn-my-proxies-list": "Ваши прокси",
     "cdn-proxy-item": `${vars?.domain ?? ""} → ${vars?.target ?? ""} (${vars?.status ?? ""})`,
     "manage-services-header": "💼 Услуги",
@@ -754,6 +754,21 @@ function buildProxyListKeyboard(ctx: AppContext, proxies: CdnProxyItem[]): Inlin
 }
 
 export async function openCdnManageList(ctx: AppContext, notice?: string): Promise<void> {
+  const render = async (text: string, keyboard: InlineKeyboard): Promise<void> => {
+    // For callback-driven menus prefer edit to avoid duplicate messages.
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      }).catch(() => {});
+      return;
+    }
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  };
+
   const telegramId = ctx.from?.id ?? ctx.loadedUser?.telegramId;
   if (!telegramId) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
@@ -762,26 +777,18 @@ export async function openCdnManageList(ctx: AppContext, notice?: string): Promi
 
   let proxies: CdnProxyItem[] = [];
   try {
-    proxies = await cdnListProxies(telegramId);
+    proxies = await Promise.race<CdnProxyItem[]>([
+      cdnListProxies(telegramId),
+      new Promise<CdnProxyItem[]>((resolve) => setTimeout(() => resolve([]), 2500)),
+    ]);
   } catch {
     const title = ctx.t("cdn-manage-services-title");
-    const fallbackNotice = notice ?? ctx.t("cdn-my-proxies-empty");
-    const text = `${title}\n\n${fallbackNotice}`;
+    const text = notice ? `${title}\n\n${notice}` : title;
     const keyboard = new InlineKeyboard()
       .text(ctx.t("list-empty"), "cdn_empty_row")
       .row()
       .text(ctx.t("button-back"), "cdn_back_to_manage");
-    try {
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: keyboard,
-      });
-    } catch {
-      await ctx.reply(text, {
-        parse_mode: "HTML",
-        reply_markup: keyboard,
-      });
-    }
+    await render(text, keyboard);
     return;
   }
   const active = proxies.filter((p) => (p.lifecycle_status || p.status) !== "deleted");
@@ -792,33 +799,13 @@ export async function openCdnManageList(ctx: AppContext, notice?: string): Promi
       .text(ctx.t("list-empty"), "cdn_empty_row")
       .row()
       .text(ctx.t("button-back"), "cdn_back_to_manage");
-    try {
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: keyboard,
-      });
-    } catch {
-      await ctx.reply(text, {
-        parse_mode: "HTML",
-        reply_markup: keyboard,
-      });
-    }
+    await render(text, keyboard);
     return;
   }
 
   const text = notice ? `${ctx.t("cdn-my-proxies-list")}\n\n${notice}` : ctx.t("cdn-my-proxies-list");
   const keyboard = buildProxyListKeyboard(ctx, active);
-  try {
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: keyboard,
-    });
-  } catch {
-    await ctx.reply(text, {
-      parse_mode: "HTML",
-      reply_markup: keyboard,
-    });
-  }
+  await render(text, keyboard);
 }
 
 export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
