@@ -360,6 +360,21 @@ function buildManagedServiceCard(item: ManagedServiceItem): string {
   ].join("\n");
 }
 
+async function buildManagedServicesSummaryText(
+  ctx: AppContext,
+  userId: number
+): Promise<string> {
+  const { counts } = await getManagedServiceData(ctx.appDataSource, userId);
+  return [
+    "📦 <b>Услуги пользователя</b>",
+    "",
+    `VPS/VDS: ${counts.vps}`,
+    `Dedicated: ${counts.dedicated}`,
+    `Domains: ${counts.domains}`,
+    `CDN: ${counts.cdn}`,
+  ].join("\n");
+}
+
 async function removeManagedService(
   ctx: AppContext,
   userId: number,
@@ -588,7 +603,20 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 
     // Row 1: 💳 Баланс | 💼 Услуги
     range.text((ctx) => ctx.t("button-balance-short"), (ctx) => ctx.menu.nav("control-user-balance"));
-    range.text("📦 Управление услугами", (ctx) => ctx.menu.nav("control-user-services"));
+    range.text("📦 Управление услугами", async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      const picked = session.other.controlUsersPage?.pickedUserData?.id;
+      if (!picked || !canManageServices(session.main.user.role)) {
+        await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+        return;
+      }
+      const text = await buildManagedServicesSummaryText(ctx, picked);
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: controlUserServices,
+      });
+    });
     range.row();
 
     // Row 2: 📨 Сообщение | 🎫 Тикеты
@@ -820,17 +848,6 @@ export const controlUserServices = new Menu<AppContext>("control-user-services",
       range.text((ctx) => ctx.t("button-back"), (ctx) => ctx.menu.back());
       return;
     }
-    const { counts } = await getManagedServiceData(ctx.appDataSource, picked);
-    const text = [
-      "📦 <b>Услуги пользователя</b>",
-      "",
-      `VPS/VDS: ${counts.vps}`,
-      `Dedicated: ${counts.dedicated}`,
-      `Domains: ${counts.domains}`,
-      `CDN: ${counts.cdn}`,
-    ].join("\n");
-    await ctx.editMessageText(text, { parse_mode: "HTML" }).catch(() => {});
-
     range.text("➕ Добавить услугу", (ctx) => ctx.menu.nav("control-user-services-add"));
     range.text("➖ Удалить услугу", (ctx) => ctx.menu.nav("control-user-services-delete"));
     range.row();

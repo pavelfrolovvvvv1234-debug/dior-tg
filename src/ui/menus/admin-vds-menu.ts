@@ -167,11 +167,25 @@ async function buildListText(ctx: AppContext): Promise<string> {
   if (list.length === 0) {
     return `${header}\n\n${ctx.t("admin-vds-empty")}`;
   }
-  const lines = list.map((v) =>
-    ctx.t("admin-vds-row", {
-      id: v.id,
-      ip: v.ipv4Addr || "—",
-      rate: v.rateName,
+  const lines = await Promise.all(
+    list.map(async (v) => {
+      const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
+      const vmState = String(vmInfo?.state ?? "").toLowerCase();
+      const status =
+        v.managementLocked || v.adminBlocked
+          ? "expired"
+          : vmState === "active"
+            ? "running"
+            : vmState === "stopped"
+              ? "stopped"
+              : "unknown";
+
+      return ctx.t("admin-vds-row", {
+        id: v.id,
+        ip: v.ipv4Addr || "—",
+        rate: v.rateName,
+        status,
+      });
     })
   );
   return `${header}\n\n${lines.join("\n")}`;
@@ -197,7 +211,7 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
       .text("▶", `adv:pg:${Math.min(totalPages - 1, ad.page + 1)}`)
       .row();
   }
-  kb.text("🔍", "adv:search").text(ctx.t("button-back"), "admin-menu-back");
+  kb.text(ctx.t("button-back"), "admin-menu-back");
   return kb;
 }
 
@@ -270,9 +284,7 @@ function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): Inlin
       .text("✅ OK delete", `adv:delok:${v.id}`)
       .text("❌ Cancel", `adv:sel:${v.id}`)
       .row()
-      .text("◀ Back", `adv:sel:${v.id}`)
-      .row()
-      .text("◀ List", "adv:list");
+      .text("◀ Back", `adv:sel:${v.id}`);
   }
 
   const kb = new InlineKeyboard()
@@ -373,13 +385,10 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
       return;
     }
     ad.selectedVdsId = id;
-    await ctx.editMessageText(
-      `${await buildDetailText(ctx, v)}\n\n${ctx.t("admin-vds-delete-confirm")}`,
-      {
-        parse_mode: "HTML",
-        reply_markup: detailKeyboard(v, true),
-      }
-    );
+    await ctx.editMessageText(ctx.t("admin-vds-delete-confirm"), {
+      parse_mode: "HTML",
+      reply_markup: detailKeyboard(v, true),
+    });
     return;
   }
 

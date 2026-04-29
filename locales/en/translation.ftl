@@ -745,7 +745,12 @@ button-admin-cdn = 🌍 CDN (admin)
 admin-vds-title = <strong>VDS — admin</strong>
 Search: ID, IP, name. Page {$page} / {$totalPages}
 admin-vds-empty = No records.
-admin-vds-row = #{$id} — {$ip} — {$rate}
+admin-vds-row = <b>VDS #{$id}</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
+  [running] 🟢 Running
+  [stopped] 🔴 Stopped
+  [expired] ⚫ Expired
+ *[unknown] ⚪ Unknown
+}
 admin-vds-detail = <strong>VDS #{$id}</strong>
 VM ID: {$vmId}
 VM state: {$vmState}
@@ -1461,7 +1466,7 @@ prime-subscription-status-inactive = ❌ Subscription not active
 prime-subscription-status-until = Active until: {$date}
 prime-trial-activate = 💳 Then — $ {$monthlyPrice} / month
 prime-trial-via-channel = Subscribe to our channel to get a free Prime subscription for 7 days
-prime-button-activate-trial = 🎁 Activate Prime
+prime-button-activate-trial = 🎁 Activate for $0
 prime-button-menu-row = 🔐 Prime
 prime-button-go-subscribe = ↗️ Go and subscribe
 prime-button-i-subscribed = ✅ I have subscribed

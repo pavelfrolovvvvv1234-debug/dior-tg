@@ -745,7 +745,12 @@ button-admin-cdn = 🌍 CDN (админ)
 admin-vds-title = <strong>VDS — админ</strong>
 Поиск: ID, IP, имя. Страница {$page} / {$totalPages}
 admin-vds-empty = Список пуст.
-admin-vds-row = #{$id} — {$ip} — {$rate}
+admin-vds-row = <b>VDS #{$id}</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
+  [running] 🟢 Running
+  [stopped] 🔴 Stopped
+  [expired] ⚫ Expired
+ *[unknown] ⚪ Unknown
+}
 admin-vds-detail = <strong>VDS #{$id}</strong>
 VM ID: {$vmId}
 Статус VM: {$vmState}
@@ -1462,9 +1467,9 @@ prime-subscription-trial-line = 🎁 Бесплатный доступ — 7 д�
 prime-subscription-status-active = ✅ Подписка активирована
 prime-subscription-status-inactive = ❌ Подписка не активирована
 prime-subscription-status-until = Активна до: {$date}
-prime-trial-activate = 💳 Далее — {$monthlyPrice} $ / месяц
+prime-trial-activate = 💳 Далее — $ {$monthlyPrice} / месяц
 prime-trial-via-channel = Подпишись на наш канал, чтобы получить бесплатную Prime подписку на 7 дней
-prime-button-activate-trial = 🎁 Активировать Prime
+prime-button-activate-trial = 🎁 Активировать за 0$
 prime-button-menu-row = 🔐 Prime
 prime-button-go-subscribe = ↗️ Перейти и подписаться
 prime-button-i-subscribed = ✅ Я подписался
