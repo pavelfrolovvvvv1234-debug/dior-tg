@@ -760,7 +760,30 @@ export async function openCdnManageList(ctx: AppContext, notice?: string): Promi
     return;
   }
 
-  const proxies = await cdnListProxies(telegramId);
+  let proxies: CdnProxyItem[] = [];
+  try {
+    proxies = await cdnListProxies(telegramId);
+  } catch {
+    const title = ctx.t("cdn-manage-services-title");
+    const fallbackNotice = notice ?? ctx.t("cdn-my-proxies-empty");
+    const text = `${title}\n\n${fallbackNotice}`;
+    const keyboard = new InlineKeyboard()
+      .text(ctx.t("list-empty"), "cdn_empty_row")
+      .row()
+      .text(ctx.t("button-back"), "cdn_back_to_manage");
+    try {
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    } catch {
+      await ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    }
+    return;
+  }
   const active = proxies.filter((p) => (p.lifecycle_status || p.status) !== "deleted");
   if (active.length === 0) {
     const title = ctx.t("cdn-manage-services-title");

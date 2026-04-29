@@ -278,7 +278,11 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
   ].join("\n");
 }
 
-function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): InlineKeyboard {
+function detailKeyboard(
+  v: VirtualDedicatedServer,
+  deleteConfirm = false,
+  vmState: "active" | "stopped" | "unknown" = "unknown"
+): InlineKeyboard {
   if (deleteConfirm) {
     return new InlineKeyboard()
       .text("✅ OK delete", `adv:delok:${v.id}`)
@@ -292,11 +296,16 @@ function detailKeyboard(v: VirtualDedicatedServer, deleteConfirm = false): Inlin
     .text("+30d", `adv:ext:${v.id}`)
     .row()
     .text("🔀 Transfer", `adv:tr:${v.id}`)
-    .text("🔄 Sync IP", `adv:syncip:${v.id}`)
-    .row()
-    .text("▶ Start", `adv:start:${v.id}`)
-    .text("⏹ Stop", `adv:stop:${v.id}`)
-    .text("♻ Reboot", `adv:reboot:${v.id}`);
+    .text("🔄 Sync IP", `adv:syncip:${v.id}`);
+
+  kb.row();
+  if (vmState === "active") {
+    kb.text("⏹ Stop", `adv:stop:${v.id}`).text("♻ Reboot", `adv:reboot:${v.id}`);
+  } else if (vmState === "stopped") {
+    kb.text("▶ Start", `adv:start:${v.id}`);
+  } else {
+    kb.text("▶ Start", `adv:start:${v.id}`).text("⏹ Stop", `adv:stop:${v.id}`);
+  }
   kb.text("🗑 Delete", `adv:delask:${v.id}`).row();
   kb.row().text("◀ List", "adv:list");
   return kb;
@@ -369,9 +378,13 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
       return;
     }
     ad.selectedVdsId = id;
+    const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
+    const vmStateRaw = String(vmInfo?.state ?? "").toLowerCase();
+    const vmState: "active" | "stopped" | "unknown" =
+      vmStateRaw === "active" ? "active" : vmStateRaw === "stopped" ? "stopped" : "unknown";
     await ctx.editMessageText(await buildDetailText(ctx, v), {
       parse_mode: "HTML",
-      reply_markup: detailKeyboard(v, false),
+      reply_markup: detailKeyboard(v, false, vmState),
     });
     return;
   }
@@ -406,7 +419,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
     await ctx.reply(synced ? ctx.t("admin-vds-ip-synced") : ctx.t("admin-vds-ip-not-available"), { parse_mode: "HTML" });
     await ctx.editMessageText(await buildDetailText(ctx, refreshed), {
       parse_mode: "HTML",
-      reply_markup: detailKeyboard(refreshed, false),
+      reply_markup: detailKeyboard(refreshed, false, "unknown"),
     });
     return;
   }
@@ -441,7 +454,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
         await ctx.reply(successMessage, { parse_mode: "HTML" });
         await ctx.editMessageText(await buildDetailText(ctx, refreshed), {
           parse_mode: "HTML",
-          reply_markup: detailKeyboard(refreshed, false),
+          reply_markup: detailKeyboard(refreshed, false, action === "start" ? "active" : action === "stop" ? "stopped" : "unknown"),
         });
       }
     } catch (e: any) {
@@ -461,7 +474,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
     if (v2) {
       await ctx.editMessageText(await buildDetailText(ctx, v2), {
         parse_mode: "HTML",
-        reply_markup: detailKeyboard(v2, false),
+        reply_markup: detailKeyboard(v2, false, "unknown"),
       });
     }
     return;
@@ -477,7 +490,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
       await ctx.reply(ctx.t("admin-vds-extended", { days: 30 }));
       await ctx.editMessageText(await buildDetailText(ctx, v2), {
         parse_mode: "HTML",
-        reply_markup: detailKeyboard(v2, false),
+        reply_markup: detailKeyboard(v2, false, "unknown"),
       });
     }
     return;
