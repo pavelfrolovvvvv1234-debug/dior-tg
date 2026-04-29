@@ -101,14 +101,46 @@ async function cdnFetch<T>(
   };
 
   const url = `${base}${path}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  const res = await fetch(url, {
-    method,
-    headers,
-    signal: controller.signal,
-    ...(body != null ? { body: JSON.stringify(body) } : {}),
-  }).finally(() => clearTimeout(timeout));
+  const timeoutMs = Number.parseInt(process.env.CDN_HTTP_TIMEOUT_MS ?? "20000", 10);
+  const effectiveTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs >= 3000 ? timeoutMs : 20000;
+  const maxAttempts = 2;
+  let res: Response | null = null;
+  let lastTransportError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), effectiveTimeoutMs);
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        signal: controller.signal,
+        ...(body != null ? { body: JSON.stringify(body) } : {}),
+      });
+      break;
+    } catch (error) {
+      lastTransportError = error;
+      const isAbort = (error as { name?: string })?.name === "AbortError";
+      if (isAbort && attempt < maxAttempts) {
+        continue;
+      }
+      if (isAbort) {
+        throw new Error("CDN API timeout. Try again in a moment.");
+      }
+      if (attempt >= maxAttempts) {
+        throw new Error(
+          `CDN request failed: ${(error as { message?: string })?.message || "Network error"}`
+        );
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  if (!res) {
+    if (lastTransportError instanceof Error) throw lastTransportError;
+    throw new Error("CDN request failed");
+  }
 
   const raw = await res.text();
   let data: unknown = {};
