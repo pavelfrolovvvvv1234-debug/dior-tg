@@ -193,8 +193,8 @@ export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<
   if (!session.other.cdn) session.other.cdn = { step: "idle" };
   session.other.cdn.fromManage = false;
   try {
-    const { showCdnMainHub } = await import("../ui/menus/cdn-menu.js");
-    await showCdnMainHub(ctx);
+    const { showCdnTariffsScreen } = await import("../ui/menus/cdn-menu.js");
+    await showCdnTariffsScreen(ctx);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[Bot] CDN menu open error:", msg);

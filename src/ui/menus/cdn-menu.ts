@@ -111,7 +111,7 @@ function buildCdnTariffsKeyboard(ctx: AppContext): InlineKeyboard {
     .row()
     .text(ctx.t("button-cdn-prime-row"), "cdn_prime_row")
     .row()
-    .text(ctx.t("button-back"), "cdn_nav:main")
+    .text(ctx.t("button-back"), "cdn_exit_services")
     .row();
   return kb;
 }
@@ -845,7 +845,7 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
   }
 
   if (data === "cdn_nav:main") {
-    await showCdnMainHub(ctx);
+    await showCdnTariffsScreen(ctx);
     return;
   }
 
@@ -964,7 +964,7 @@ export async function handleCdnActionCallback(ctx: AppContext): Promise<void> {
     if (fromManage) {
       await openCdnManageList(ctx);
     } else {
-      await showCdnMainHub(ctx);
+      await showCdnTariffsScreen(ctx);
     }
     return;
   }

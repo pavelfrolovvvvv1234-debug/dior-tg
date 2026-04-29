@@ -200,12 +200,12 @@ function buildManageServicesMenu(): Menu<AppContext> {
         const session = await ctx.session;
         if (!session.other) (session as any).other = createInitialOtherSession();
         if (!session.other.cdn) session.other.cdn = { step: "idle" };
-        session.other.cdn.fromManage = false;
+        session.other.cdn.fromManage = true;
         try {
-          const { showCdnTariffsScreen } = await import("../ui/menus/cdn-menu.js");
-          await showCdnTariffsScreen(ctx);
+          const { openCdnManageList } = await import("../ui/menus/cdn-menu.js");
+          await openCdnManageList(ctx);
         } catch {
-          await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN tariffs" }), {
+          await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN list" }), {
             parse_mode: "HTML",
           });
         }
