@@ -101,9 +101,9 @@ async function cdnFetch<T>(
   };
 
   const url = `${base}${path}`;
-  const timeoutMs = Number.parseInt(process.env.CDN_HTTP_TIMEOUT_MS ?? "20000", 10);
-  const effectiveTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs >= 3000 ? timeoutMs : 20000;
-  const maxAttempts = 2;
+  const timeoutMs = Number.parseInt(process.env.CDN_HTTP_TIMEOUT_MS ?? "7000", 10);
+  const effectiveTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs >= 2000 ? timeoutMs : 7000;
+  const maxAttempts = 1;
   let res: Response | null = null;
   let lastTransportError: unknown;
 
@@ -241,11 +241,8 @@ export async function cdnCreateProxy(params: {
   };
 
   const attempts: Array<{ path: string; body: Record<string, unknown> }> = [
-    { path: "/api/bot/create-proxy", body },
-    { path: "/api/bot/create-proxy", body: bodyWithPlan },
     { path: "/api/bot/create-proxy", body: bodyWithPlanSnake },
-    { path: "/api/bot/proxy/create", body },
-    { path: "/api/bot/proxy/create", body: bodyWithPlan },
+    { path: "/api/bot/create-proxy", body: bodyWithPlan },
     { path: "/api/bot/proxy/create", body: bodyWithPlanSnake },
   ];
 

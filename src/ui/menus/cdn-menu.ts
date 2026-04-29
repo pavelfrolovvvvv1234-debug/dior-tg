@@ -541,6 +541,10 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
   await userRepo.save(user);
   session.main.user.balance = user.balance;
 
+  await ctx.reply("⏳ Подключаем CDN, обычно это занимает до 30 секунд...", {
+    parse_mode: "HTML",
+  }).catch(() => {});
+
   try {
     const planId = cdnPlanIdOrDefault(session);
     const result = await cdnCreateProxy({
