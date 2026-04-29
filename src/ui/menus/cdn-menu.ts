@@ -37,14 +37,15 @@ function cdnPlanIdOrDefault(session: { other?: { cdn?: { planId?: string } } }):
 
 /** Tariff from session, or legacy single price from CDN API. */
 async function resolveCdnChargeUsd(session: any): Promise<number> {
+  // Always trust selected plan first to avoid stale session.price values.
+  const planId = cdnPlanIdOrDefault(session);
+  const planPrice = Number(getCdnPlan(planId)?.priceUsd ?? Number.NaN);
+  if (Number.isFinite(planPrice) && planPrice > 0) return planPrice;
+
   const p = session?.other?.cdn?.price;
   const parsedPrice =
     typeof p === "number" ? p : typeof p === "string" ? Number.parseFloat(p) : Number.NaN;
   if (Number.isFinite(parsedPrice) && parsedPrice > 0) return parsedPrice;
-
-  const planId = cdnPlanIdOrDefault(session);
-  const planPrice = Number(getCdnPlan(planId)?.priceUsd ?? Number.NaN);
-  if (Number.isFinite(planPrice) && planPrice > 0) return planPrice;
 
   return cdnGetPrice();
 }
