@@ -134,6 +134,8 @@ export interface OtherSessionData {
   };
   deposit: {
     awaitingAmount: boolean;
+    prefilledAmount: boolean;
+    selectedAmount: number;
   };
   /** Admin balance edit: awaiting amount for add/deduct */
   balanceEdit?: {

@@ -173,6 +173,9 @@ export function registerCommands(bot: Bot<AppContext>): void {
       }
 
       const session = await ctx.session;
+      session.other.deposit.prefilledAmount = false;
+      session.other.deposit.selectedAmount = 50;
+      session.main.lastSumDepositsEntered = 0;
       
       if (!ctx.hasChatType("private")) {
         return;

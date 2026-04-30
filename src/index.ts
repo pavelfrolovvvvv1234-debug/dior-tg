@@ -75,6 +75,7 @@ import {
   depositMenu,
   depositMoneyConversation,
   depositPaymentSystemChoose,
+  renderTopupAmountsText,
   topupMethodMenu,
 } from "./helpers/deposit-money";
 // Admin menu will be loaded dynamically to avoid circular dependencies
@@ -322,6 +323,10 @@ const supportMenu = new Menu<AppContext>("support-menu", {
 const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
   .text((ctx) => ctx.t("button-deposit"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    session.other.deposit.prefilledAmount = false;
+    session.other.deposit.selectedAmount = 50;
+    session.main.lastSumDepositsEntered = 0;
     await ctx.editMessageText(ctx.t("topup-select-method"), {
       reply_markup: topupMethodMenu,
       parse_mode: "HTML",
@@ -1016,6 +1021,8 @@ async function index() {
 
   bot.callbackQuery("topup_manual_back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    session.other.deposit.prefilledAmount = false;
     await ctx.editMessageText(ctx.t("topup-select-method"), {
       reply_markup: topupMethodMenu,
       parse_mode: "HTML",
@@ -2282,18 +2289,19 @@ async function index() {
 
     session.other.deposit.awaitingAmount = false;
 
-    const sumToDeposit = Number.parseInt(
-      input.replaceAll("$", "").replaceAll(",", "").replaceAll(".", "").replaceAll(" ", "").trim()
+    const sumToDeposit = Number.parseFloat(
+      input.replaceAll("$", "").replaceAll(",", "").replaceAll(" ", "").trim()
     );
 
-    if (isNaN(sumToDeposit) || sumToDeposit <= 0 || sumToDeposit > 1_500_000) {
+    if (isNaN(sumToDeposit) || sumToDeposit < 5 || sumToDeposit > 1_500_000) {
       await ctx.reply(ctx.t("deposit-money-incorrect-sum"), { parse_mode: "HTML" });
       return;
     }
 
     session.main.lastSumDepositsEntered = sumToDeposit;
-    await ctx.reply(ctx.t("deposit-success-sum", { amount: sumToDeposit }), {
-      reply_markup: depositPaymentSystemChoose,
+    session.other.deposit.selectedAmount = sumToDeposit;
+    await ctx.reply(renderTopupAmountsText(ctx as AppContext), {
+      reply_markup: depositMenu,
       parse_mode: "HTML",
     });
   });
@@ -2440,6 +2448,9 @@ async function index() {
       }
 
       const session = (await ctx.session) as SessionData;
+      session.other.deposit.prefilledAmount = false;
+      session.other.deposit.selectedAmount = 50;
+      session.main.lastSumDepositsEntered = 0;
       
       if (!ctx.hasChatType("private")) {
         return;

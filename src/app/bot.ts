@@ -174,6 +174,8 @@ export async function createBot(): Promise<{
           },
           deposit: {
             awaitingAmount: false,
+            prefilledAmount: false,
+            selectedAmount: 50,
           },
           promocode: {
             awaitingInput: false,

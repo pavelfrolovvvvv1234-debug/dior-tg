@@ -121,6 +121,10 @@ ${links}`;
 export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false })
   .text((ctx) => ctx.t("button-deposit"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.other.deposit.prefilledAmount = false;
+    session.other.deposit.selectedAmount = 50;
+    session.main.lastSumDepositsEntered = 0;
     await ctx.editMessageText(ctx.t("topup-select-method"), {
       reply_markup: topupMethodMenu,
       parse_mode: "HTML",

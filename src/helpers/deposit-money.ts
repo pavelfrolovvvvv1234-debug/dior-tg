@@ -2,23 +2,72 @@ import { Menu } from "@grammyjs/menu";
 import { Context, InlineKeyboard } from "grammy";
 import type { AppContext, AppConversation } from "../shared/types/context";
 import { PaymentBuilder } from "@/api/payment";
-import { Logger } from "@/app/logger";
 
-const depositValuesOptions = ["10$", "30$", "50$", "100$"];
+const DEPOSIT_PRESETS = [30, 50, 100] as const;
+const MIN_TOPUP_USD = 5;
+const MAX_TOPUP_USD = 1_500_000;
 
 type TopupMethod = "crystalpay" | "cryptobot" | "heleket" | "manual";
+
+function shouldAutoProceedWithPrefilledAmount(session: any): boolean {
+  return session.other.deposit.prefilledAmount && session.main.lastSumDepositsEntered > 0;
+}
 
 function renderTopupMethodText(ctx: AppContext): string {
   return ctx.t("topup-select-method");
 }
 
-function renderTopupAmountsText(ctx: AppContext): string {
-  return ctx.t("button-deposit");
+function normalizeTopupAmount(raw: number): number {
+  if (!Number.isFinite(raw)) return 50;
+  const normalized = Math.round(raw * 100) / 100;
+  if (normalized < MIN_TOPUP_USD) return MIN_TOPUP_USD;
+  if (normalized > MAX_TOPUP_USD) return MAX_TOPUP_USD;
+  return normalized;
+}
+
+function getSelectedTopupAmount(session: any): number {
+  const selected = normalizeTopupAmount(
+    session.other.deposit.selectedAmount || session.main.lastSumDepositsEntered || 50
+  );
+  session.other.deposit.selectedAmount = selected;
+  return selected;
+}
+
+export function renderTopupAmountsText(ctx: AppContext): string {
+  const session = ctx.session as any;
+  const selectedAmount = getSelectedTopupAmount(session);
+  const isPreset = DEPOSIT_PRESETS.includes(selectedAmount as (typeof DEPOSIT_PRESETS)[number]);
+  const selectedLabel = Number.isInteger(selectedAmount) ? `${selectedAmount}` : selectedAmount.toFixed(2);
+
+  return [
+    "💳 <b>Top up balance</b>",
+    "",
+    "Choose an amount or enter your own.",
+    "",
+    "┌────────────────────┐",
+    `│  Selected: $${selectedLabel.padEnd(9, " ")}│`,
+    "└────────────────────┘",
+    "",
+    isPreset
+      ? "Preset selected. You can continue or switch to custom amount."
+      : "Custom amount selected. You can change it anytime.",
+    "",
+    `Limits: $${MIN_TOPUP_USD} - $${MAX_TOPUP_USD.toLocaleString("en-US")}`,
+  ].join("\n");
 }
 
 async function showTopupMethodMenu(ctx: AppContext): Promise<void> {
   await ctx.editMessageText(renderTopupMethodText(ctx), {
     reply_markup: topupMethodMenu,
+    parse_mode: "HTML",
+  });
+}
+
+async function openAmountPicker(ctx: AppContext): Promise<void> {
+  const session = await ctx.session;
+  getSelectedTopupAmount(session);
+  await ctx.editMessageText(renderTopupAmountsText(ctx), {
+    reply_markup: depositMenu,
     parse_mode: "HTML",
   });
 }
@@ -116,53 +165,48 @@ async function handleTopupByMethod(
 }
 
 export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
+  .text((ctx) => ctx.t("topup-method-heleket"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.main.topupMethod = "heleket";
+    if (shouldAutoProceedWithPrefilledAmount(session)) {
+      session.other.deposit.prefilledAmount = false;
+      await handleTopupByMethod(ctx, "heleket", session.main.lastSumDepositsEntered);
+      return;
+    }
+    await openAmountPicker(ctx);
+  })
+  .row()
   .text((ctx) => ctx.t("topup-method-cryptobot"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "cryptobot";
-    if (session.main.lastSumDepositsEntered > 0) {
+    if (shouldAutoProceedWithPrefilledAmount(session)) {
+      session.other.deposit.prefilledAmount = false;
       await handleTopupByMethod(ctx, "cryptobot", session.main.lastSumDepositsEntered);
       return;
     }
-    await ctx.editMessageText(renderTopupAmountsText(ctx), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
+    await openAmountPicker(ctx);
   })
   .row()
   .text((ctx) => ctx.t("topup-method-crystalpay"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "crystalpay";
-    if (session.main.lastSumDepositsEntered > 0) {
+    if (shouldAutoProceedWithPrefilledAmount(session)) {
+      session.other.deposit.prefilledAmount = false;
       await handleTopupByMethod(ctx, "crystalpay", session.main.lastSumDepositsEntered);
       return;
     }
-    await ctx.editMessageText(renderTopupAmountsText(ctx), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
-  })
-  .row()
-  .text((ctx) => ctx.t("topup-method-heleket"), async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
-    session.main.topupMethod = "heleket";
-    if (session.main.lastSumDepositsEntered > 0) {
-      await handleTopupByMethod(ctx, "heleket", session.main.lastSumDepositsEntered);
-      return;
-    }
-    await ctx.editMessageText(renderTopupAmountsText(ctx), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
+    await openAmountPicker(ctx);
   })
   .row()
   .text((ctx) => ctx.t("topup-method-bank"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     session.main.topupMethod = "manual";
-    if (session.main.lastSumDepositsEntered > 0) {
+    if (shouldAutoProceedWithPrefilledAmount(session)) {
+      session.other.deposit.prefilledAmount = false;
       await handleTopupByMethod(ctx, "manual", session.main.lastSumDepositsEntered);
       return;
     }
@@ -189,6 +233,8 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
 export async function showTopupForMissingAmount(ctx: AppContext, missingAmount: number): Promise<void> {
   const session = await ctx.session;
   session.main.lastSumDepositsEntered = Math.round(missingAmount * 100) / 100;
+  session.other.deposit.selectedAmount = session.main.lastSumDepositsEntered;
+  session.other.deposit.prefilledAmount = true;
   await ctx.reply(ctx.t("money-not-enough-go-topup", { amount: session.main.lastSumDepositsEntered }), {
     reply_markup: topupMethodMenu,
     parse_mode: "HTML",
@@ -196,48 +242,73 @@ export async function showTopupForMissingAmount(ctx: AppContext, missingAmount: 
 }
 
 export const depositMenu = new Menu<AppContext>("deposit-menu")
-  .dynamic((_ctx, range) => {
-    for (let i = 0; i < depositValuesOptions.length; i++) {
-      range.text(depositValuesOptions[i], async (ctx) => {
+  .dynamic((ctx, range) => {
+    const session = ctx.session as any;
+    const selected = getSelectedTopupAmount(session);
+    const formatPreset = (value: number): string => {
+      const isSelected = value === selected;
+      const isPopular = value === 50;
+      if (isSelected && isPopular) return `✅ $${value} • Popular`;
+      if (isSelected) return `✅ $${value}`;
+      if (isPopular) return `$${value} • Popular`;
+      return `$${value}`;
+    };
+
+    range
+      .text(formatPreset(30), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        session.other.deposit.selectedAmount = 30;
+        session.main.lastSumDepositsEntered = 30;
+        session.other.deposit.prefilledAmount = false;
+        await openAmountPicker(ctx);
+      })
+      .text(formatPreset(50), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        session.other.deposit.selectedAmount = 50;
+        session.main.lastSumDepositsEntered = 50;
+        session.other.deposit.prefilledAmount = false;
+        await openAmountPicker(ctx);
+      })
+      .row()
+      .text(formatPreset(100), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        session.other.deposit.selectedAmount = 100;
+        session.main.lastSumDepositsEntered = 100;
+        session.other.deposit.prefilledAmount = false;
+        await openAmountPicker(ctx);
+      })
+      .text("⌨️ Enter custom amount", async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const method = await ensureTopupMethod(ctx);
+        if (!method) return;
+        const session = await ctx.session;
+        session.other.deposit.awaitingAmount = true;
+        session.other.deposit.prefilledAmount = false;
+        await ctx.reply("Enter custom amount (USD):", {
+          reply_markup: new InlineKeyboard().text(ctx.t("button-cancel"), "deposit-cancel"),
+          parse_mode: "HTML",
+        });
+      })
+      .row()
+      .text(`💳 Top up $${Number.isInteger(selected) ? selected : selected.toFixed(2)}`, async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
         const method = await ensureTopupMethod(ctx);
         if (!method) return;
-
-        const amount = Number.parseInt(depositValuesOptions[i]);
+        const amount = getSelectedTopupAmount(session);
         session.main.lastSumDepositsEntered = amount;
+        session.other.deposit.prefilledAmount = false;
         await handleTopupByMethod(ctx, method, amount);
       });
-
-      if (i % 2 === 0) {
-        range.row();
-      }
-    }
-
-    range.row();
-    range.text(
-      (ctx) => ctx.t("button-any-sum"),
-      async (ctx) => {
-        await ctx.answerCallbackQuery().catch(() => {});
-        const method = await ensureTopupMethod(ctx);
-        if (!method) return;
-        try {
-          await ctx.conversation.enter("depositMoneyConversation");
-        } catch (error: any) {
-          Logger.error("Failed to start deposit money conversation:", error);
-          const session = await ctx.session;
-          session.other.deposit.awaitingAmount = true;
-          await ctx.reply(ctx.t("deposit-money-enter-sum"), {
-            reply_markup: new InlineKeyboard().text(ctx.t("button-cancel"), "deposit-cancel"),
-            parse_mode: "HTML",
-          });
-        }
-      }
-    );
   })
   .row()
   .back((ctx) => ctx.t("button-back"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.other.deposit.prefilledAmount = false;
     await ctx.editMessageText(renderTopupMethodText(ctx), {
       reply_markup: topupMethodMenu,
       parse_mode: "HTML",
@@ -362,5 +433,5 @@ function handleRawSum(rawText: string): number {
     .replaceAll(" ", "")
     .trim();
 
-  return Number.parseInt(text);
+  return Number.parseFloat(text);
 }
