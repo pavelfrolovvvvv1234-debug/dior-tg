@@ -3,7 +3,7 @@ import { Context, InlineKeyboard } from "grammy";
 import type { AppContext, AppConversation } from "../shared/types/context";
 import { PaymentBuilder } from "@/api/payment";
 
-const DEPOSIT_PRESETS = [30, 50, 100] as const;
+const DEPOSIT_PRESETS = [30, 50, 100, 150] as const;
 const MIN_TOPUP_USD = 5;
 const MAX_TOPUP_USD = 1_500_000;
 
@@ -35,25 +35,8 @@ function getSelectedTopupAmount(session: any): number {
 
 export function renderTopupAmountsText(ctx: AppContext): string {
   const session = ctx.session as any;
-  const selectedAmount = getSelectedTopupAmount(session);
-  const isPreset = DEPOSIT_PRESETS.includes(selectedAmount as (typeof DEPOSIT_PRESETS)[number]);
-  const selectedLabel = Number.isInteger(selectedAmount) ? `${selectedAmount}` : selectedAmount.toFixed(2);
-
-  return [
-    "💳 <b>Top up balance</b>",
-    "",
-    "Choose an amount or enter your own.",
-    "",
-    "┌────────────────────┐",
-    `│  Selected: $${selectedLabel.padEnd(9, " ")}│`,
-    "└────────────────────┘",
-    "",
-    isPreset
-      ? "Preset selected. You can continue or switch to custom amount."
-      : "Custom amount selected. You can change it anytime.",
-    "",
-    `Limits: $${MIN_TOPUP_USD} - $${MAX_TOPUP_USD.toLocaleString("en-US")}`,
-  ].join("\n");
+  getSelectedTopupAmount(session);
+  return ctx.t("topup-amounts-title");
 }
 
 async function showTopupMethodMenu(ctx: AppContext): Promise<void> {
@@ -248,9 +231,9 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
     const formatPreset = (value: number): string => {
       const isSelected = value === selected;
       const isPopular = value === 50;
-      if (isSelected && isPopular) return `✅ $${value} • Popular`;
+      if (isSelected && isPopular) return `✅ $${value} • ${ctx.t("topup-popular-badge")}`;
       if (isSelected) return `✅ $${value}`;
-      if (isPopular) return `$${value} • Popular`;
+      if (isPopular) return `$${value} • ${ctx.t("topup-popular-badge")}`;
       return `$${value}`;
     };
 
@@ -258,50 +241,56 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
       .text(formatPreset(30), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
+        const method = await ensureTopupMethod(ctx);
+        if (!method) return;
         session.other.deposit.selectedAmount = 30;
         session.main.lastSumDepositsEntered = 30;
         session.other.deposit.prefilledAmount = false;
-        await openAmountPicker(ctx);
+        await handleTopupByMethod(ctx, method, 30);
       })
       .text(formatPreset(50), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
+        const method = await ensureTopupMethod(ctx);
+        if (!method) return;
         session.other.deposit.selectedAmount = 50;
         session.main.lastSumDepositsEntered = 50;
         session.other.deposit.prefilledAmount = false;
-        await openAmountPicker(ctx);
+        await handleTopupByMethod(ctx, method, 50);
       })
       .row()
       .text(formatPreset(100), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
+        const method = await ensureTopupMethod(ctx);
+        if (!method) return;
         session.other.deposit.selectedAmount = 100;
         session.main.lastSumDepositsEntered = 100;
         session.other.deposit.prefilledAmount = false;
-        await openAmountPicker(ctx);
+        await handleTopupByMethod(ctx, method, 100);
       })
-      .text("⌨️ Enter custom amount", async (ctx) => {
+      .text(formatPreset(150), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const session = await ctx.session;
+        const method = await ensureTopupMethod(ctx);
+        if (!method) return;
+        session.other.deposit.selectedAmount = 150;
+        session.main.lastSumDepositsEntered = 150;
+        session.other.deposit.prefilledAmount = false;
+        await handleTopupByMethod(ctx, method, 150);
+      })
+      .row()
+      .text((ctx) => ctx.t("topup-enter-custom-button"), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
         const method = await ensureTopupMethod(ctx);
         if (!method) return;
         const session = await ctx.session;
         session.other.deposit.awaitingAmount = true;
         session.other.deposit.prefilledAmount = false;
-        await ctx.reply("Enter custom amount (USD):", {
+        await ctx.reply(ctx.t("topup-enter-custom-prompt"), {
           reply_markup: new InlineKeyboard().text(ctx.t("button-cancel"), "deposit-cancel"),
           parse_mode: "HTML",
         });
-      })
-      .row()
-      .text(`💳 Top up $${Number.isInteger(selected) ? selected : selected.toFixed(2)}`, async (ctx) => {
-        await ctx.answerCallbackQuery().catch(() => {});
-        const session = await ctx.session;
-        const method = await ensureTopupMethod(ctx);
-        if (!method) return;
-        const amount = getSelectedTopupAmount(session);
-        session.main.lastSumDepositsEntered = amount;
-        session.other.deposit.prefilledAmount = false;
-        await handleTopupByMethod(ctx, method, amount);
       });
   })
   .row()
