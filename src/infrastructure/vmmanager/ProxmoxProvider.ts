@@ -350,28 +350,76 @@ export class ProxmoxProvider implements VmProvider {
   async reinstallOS(id: number, osId: number, password?: string): Promise<unknown> {
     const templateId = this.reverseTemplateMap[osId] ? osId : this.templateMap[normalizeOsKey(String(osId))];
     if (!templateId) return false;
+    const existingConfig = await this.apiGet<{
+      name?: string;
+      cores?: number;
+      memory?: number;
+      net0?: string;
+      description?: string;
+      ipconfig0?: string;
+      nameserver?: string;
+      scsi0?: string;
+    }>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined);
+    if (!existingConfig) return false;
+
+    const parseDiskSize = (scsi0?: string): string | undefined => {
+      const m = scsi0?.match(/size=([0-9.]+[KMGTP])/i);
+      return m?.[1];
+    };
+
     await this.stopVM(id).catch(() => {});
     await this.deleteVM(id).catch(() => {});
-    return this.createVM(
-      `reinstall-${id}`,
-      password ?? generatePassword(12),
-      1,
-      1,
-      templateId,
-      "reinstall",
-      10,
-      1,
-      100,
-      100
-    );
+
+    await this.apiPost(`/nodes/${this.node}/qemu/${templateId}/clone`, {
+      newid: id,
+      name: existingConfig.name || `vm-${id}`,
+      target: this.node,
+      full: 1,
+      storage: this.storage || undefined,
+    });
+
+    await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+      cores: Number(existingConfig.cores ?? 1),
+      memory: Number(existingConfig.memory ?? 1024),
+      ciuser: "root",
+      cipassword: password ?? generatePassword(12),
+      description: existingConfig.description ?? "reinstall",
+      net0: existingConfig.net0 ?? `virtio,bridge=${this.bridge}`,
+      ipconfig0: existingConfig.ipconfig0,
+      nameserver: existingConfig.nameserver,
+    });
+
+    const diskSize = parseDiskSize(existingConfig.scsi0);
+    if (diskSize) {
+      await this.apiPost(`/nodes/${this.node}/qemu/${id}/resize`, {
+        disk: "scsi0",
+        size: diskSize,
+      }).catch(() => {});
+    }
+
+    await this.apiPost(`/nodes/${this.node}/qemu/${id}/status/start`);
+
+    return {
+      id,
+      task: Date.now(),
+      recipe_task_list: [],
+      recipe_task: 0,
+      spice_task: 0,
+    };
   }
 
-  async changePasswordVM(_id: number): Promise<string> {
+  async changePasswordVM(id: number): Promise<string> {
     const password = generatePassword(12);
+    await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+      cipassword: password,
+    });
     return password;
   }
 
-  async changePasswordVMCustom(_id: number, _password: string): Promise<boolean> {
+  async changePasswordVMCustom(id: number, password: string): Promise<boolean> {
+    await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+      cipassword: password,
+    });
     return true;
   }
 }
