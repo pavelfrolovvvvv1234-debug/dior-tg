@@ -7,6 +7,7 @@
 import type { IPaymentProvider, PaymentProviderName } from "./types";
 import { CrystalPayProvider } from "./crystalpay";
 import { CryptoBotProvider } from "./cryptobot";
+import { HeleketProvider } from "./heleket";
 
 /**
  * Create a payment provider instance by name.
@@ -21,6 +22,8 @@ export function createPaymentProvider(name: PaymentProviderName): IPaymentProvid
       return new CrystalPayProvider();
     case "cryptobot":
       return new CryptoBotProvider();
+    case "heleket":
+      return new HeleketProvider();
     default:
       throw new Error(`Unknown payment provider: ${name}`);
   }
@@ -32,5 +35,5 @@ export function createPaymentProvider(name: PaymentProviderName): IPaymentProvid
  * @returns Array of payment provider instances
  */
 export function getAllPaymentProviders(): IPaymentProvider[] {
-  return [new CrystalPayProvider(), new CryptoBotProvider()];
+  return [new CrystalPayProvider(), new CryptoBotProvider(), new HeleketProvider()];
 }

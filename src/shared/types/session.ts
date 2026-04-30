@@ -20,7 +20,7 @@ export interface MainSessionData {
     isBanned: boolean;
   };
   lastSumDepositsEntered: number;
-  topupMethod: "crystalpay" | "cryptobot" | "manual" | null;
+  topupMethod: "crystalpay" | "cryptobot" | "heleket" | "manual" | null;
 }
 
 /**

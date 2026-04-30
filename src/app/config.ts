@@ -33,6 +33,7 @@ const envSchema = z.object({
   VMM_EMAIL: z.string().email("VMM_EMAIL must be a valid email").optional().or(z.literal("")),
   VMM_PASSWORD: z.string().min(1, "VMM_PASSWORD is required").optional().or(z.literal("")),
   VMM_ENDPOINT_URL: z.string().url("VMM_ENDPOINT_URL must be a valid URL").optional().or(z.literal("")),
+  VMM_ALLOWED_OS_IDS: z.string().optional(),
   VM_PROVIDER: z.enum(["vmmanager", "proxmox"]).optional().default("vmmanager"),
 
   // Proxmox API (optional)
@@ -240,5 +241,19 @@ export const showVpsVdsInServiceMenus = (): boolean => {
   const v = (process.env.SHOW_VPS_VDS_IN_MENUS ?? "").trim().toLowerCase();
   if (v === "0" || v === "false" || v === "no" || v === "off") return false;
   return true;
+};
+
+/**
+ * Allowed VMManager OS template IDs for VPS/VDS flows.
+ * If env is not set, includes project defaults provided by ops.
+ */
+export const getVmManagerAllowedOsIds = (): Set<number> => {
+  const defaults = [920, 921, 922, 923, 924];
+  const raw = (config.VMM_ALLOWED_OS_IDS ?? process.env.VMM_ALLOWED_OS_IDS ?? "").trim();
+  const parsed = raw
+    .split(",")
+    .map((s) => Number.parseInt(s.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return new Set(parsed.length > 0 ? parsed : defaults);
 };
 

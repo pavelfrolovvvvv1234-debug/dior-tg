@@ -1,6 +1,6 @@
 import { getAppDataSource } from "@/database";
 import TopUp, { TopUpStatus } from "@entities/TopUp";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { CrystalPayClient } from "./crystal-pay";
 import User from "@entities/User";
 import { Api, Bot, RawApi } from "grammy";
@@ -10,6 +10,7 @@ import axios from "axios";
 import { notifyAdminsAboutTopUp, notifyReferrerAboutReferralTopUp } from "../helpers/notifier.js";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
+const HELEKET_API_URL = process.env["PAYMENT_HELEKET_API_URL"]?.trim() || "https://api.heleket.com";
 
 type CryptoBotInvoiceResult = {
   invoice_id: number;
@@ -37,6 +38,100 @@ function getCryptoBotToken(): string {
     );
   }
   return token;
+}
+
+function getHeleketConfig(): { merchant: string; apiKey: string } {
+  const merchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
+  const apiKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
+  if (!merchant || !apiKey) {
+    throw new Error("PAYMENT_HELEKET_MERCHANT and PAYMENT_HELEKET_API_KEY are required");
+  }
+  return { merchant, apiKey };
+}
+
+function signHeleket(body: string, apiKey: string): string {
+  return createHash("md5").update(Buffer.from(body).toString("base64") + apiKey).digest("hex");
+}
+
+type HeleketPaymentResult = {
+  uuid?: string;
+  order_id?: string;
+  url?: string;
+  status?: string;
+  payment_status?: string;
+};
+
+type HeleketResponse<T> = {
+  state?: number;
+  result?: T;
+  error_message?: string;
+  message?: string;
+};
+
+async function createHeleketInvoice(
+  amount: number,
+  orderId: string
+): Promise<{ orderId: string; url: string }> {
+  const { merchant, apiKey } = getHeleketConfig();
+  const payload = {
+    amount: amount.toFixed(2),
+    currency: "USD",
+    order_id: orderId,
+  };
+  const body = JSON.stringify(payload);
+  const sign = signHeleket(body, apiKey);
+
+  const response = await axios.post<HeleketResponse<HeleketPaymentResult>>(
+    `${HELEKET_API_URL}/v1/payment`,
+    payload,
+    {
+      headers: {
+        merchant,
+        sign,
+        "Content-Type": "application/json",
+      },
+      timeout: 15_000,
+    }
+  );
+
+  const result = response.data?.result;
+  const url = String(result?.url || "").trim();
+  if (!url) {
+    const err = response.data?.error_message || response.data?.message || "Heleket invoice failed";
+    throw new Error(err);
+  }
+  return {
+    orderId: String(result?.order_id || orderId),
+    url,
+  };
+}
+
+async function getHeleketInvoiceStatus(orderId: string): Promise<string> {
+  const { merchant, apiKey } = getHeleketConfig();
+  const payload = { order_id: orderId };
+  const body = JSON.stringify(payload);
+  const sign = signHeleket(body, apiKey);
+
+  const response = await axios.post<HeleketResponse<HeleketPaymentResult>>(
+    `${HELEKET_API_URL}/v1/payment/info`,
+    payload,
+    {
+      headers: {
+        merchant,
+        sign,
+        "Content-Type": "application/json",
+      },
+      timeout: 15_000,
+    }
+  );
+
+  const result = response.data?.result;
+  const status = String(result?.payment_status || result?.status || "").trim().toLowerCase();
+  if (!status) {
+    const err = response.data?.error_message || response.data?.message || "Heleket invoice not found";
+    throw new Error(err);
+  }
+  return status;
 }
 
 async function createCryptoBotInvoice(amount: number): Promise<CryptoBotInvoiceResult> {
@@ -132,6 +227,22 @@ export class PaymentBuilder {
 
     return await repo.save(topUp);
   }
+
+  async createHeleketPayment(): Promise<TopUp> {
+    const appdatasource = await getAppDataSource();
+    const repo = appdatasource.getRepository(TopUp);
+    const topUp = new TopUp();
+    const orderId = this.generatedOrderId();
+    const invoice = await createHeleketInvoice(this.amount, orderId);
+
+    topUp.orderId = invoice.orderId;
+    topUp.amount = this.amount;
+    topUp.target_user_id = this.targetUser;
+    topUp.paymentSystem = "heleket";
+    topUp.url = invoice.url;
+
+    return await repo.save(topUp);
+  }
 }
 
 export async function startCheckTopUpStatus(
@@ -202,6 +313,36 @@ export async function startCheckTopUpStatus(
             }
           } catch (err) {
             console.error(`[Payment] CryptoBot status check failed for ${topUp.orderId}:`, err);
+          }
+          break;
+        }
+        case "heleket": {
+          const merchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
+          const apiKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
+          if (!merchant || !apiKey) {
+            break;
+          }
+          try {
+            const status = await getHeleketInvoiceStatus(topUp.orderId);
+            if (status === "paid" || status === "paid_over") {
+              topUp.status = TopUpStatus.Completed;
+              await repo.save(topUp);
+              paymentSuccess(topUp.target_user_id, topUp.id, bot).then();
+            }
+            if (
+              status === "cancel" ||
+              status === "fail" ||
+              status === "wrong_amount" ||
+              status === "system_fail" ||
+              status === "refund_process" ||
+              status === "refund_fail" ||
+              status === "refund_paid"
+            ) {
+              topUp.status = TopUpStatus.Expired;
+              await repo.save(topUp);
+            }
+          } catch (err) {
+            console.error(`[Payment] Heleket status check failed for ${topUp.orderId}:`, err);
           }
           break;
         }

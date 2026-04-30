@@ -80,6 +80,8 @@ export async function notifyAdminsAboutTopUp(
         ? "CryptoBot"
         : methodRaw === "crystalpay"
           ? "CrystalPay"
+          : methodRaw === "heleket"
+            ? "Heleket"
           : methodRaw
             ? paymentMethod
             : "—";

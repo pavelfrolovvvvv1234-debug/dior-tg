@@ -101,6 +101,10 @@ export const depositPaymentSystemChoose = new Menu<AppContext>(
       await handlePaymentSelection(ctx, "cryptobot");
       return;
     }
+    if (method === "heleket") {
+      await handlePaymentSelection(ctx, "heleket");
+      return;
+    }
 
     await handlePaymentSelection(ctx, "crystalpay");
   })
@@ -118,7 +122,7 @@ export const depositPaymentSystemChoose = new Menu<AppContext>(
  */
 async function handlePaymentSelection(
   ctx: AppContext,
-  provider: "crystalpay" | "cryptobot"
+  provider: "crystalpay" | "cryptobot" | "heleket"
 ): Promise<void> {
   if (!ctx.chat) return;
 

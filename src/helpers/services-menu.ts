@@ -21,6 +21,7 @@ import {
   showDomainCategoryTlds,
 } from "../domain/domains/domain-purchase-flow.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
+import { getVmManagerAllowedOsIds } from "../app/config.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import {
   DEDICATED_OS_KEYS,
@@ -402,13 +403,15 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
     }
 
     let count = 0;
+    const allowedOsIds = getVmManagerAllowedOsIds();
     osList.list
       .filter(
         (os) =>
-          !os.adminonly &&
-          os.name != "NoOS" &&
-          os.state == "active" &&
-          os.repository != "ISPsystem LXD"
+          allowedOsIds.has(os.id) ||
+          (!os.adminonly &&
+            os.name != "NoOS" &&
+            os.state == "active" &&
+            os.repository != "ISPsystem LXD")
       )
       .forEach((os) => {
         range.text(`${os.name}`, async (ctx) => {

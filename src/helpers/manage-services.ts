@@ -19,6 +19,7 @@ import { buildServiceInfoBlock } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
 import { createInitialOtherSession } from "@/shared/session-initial.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
+import { getVmManagerAllowedOsIds } from "../app/config.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -273,13 +274,15 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
     }
 
     let count = 0;
+    const allowedOsIds = getVmManagerAllowedOsIds();
     osList.list
       .filter(
         (os) =>
-          !os.adminonly &&
-          os.name != "NoOS" &&
-          os.state == "active" &&
-          os.repository != "ISPsystem LXD"
+          allowedOsIds.has(os.id) ||
+          (!os.adminonly &&
+            os.name != "NoOS" &&
+            os.state == "active" &&
+            os.repository != "ISPsystem LXD")
       )
       .forEach((os) => {
         range.text(os.name, async (ctx) => {

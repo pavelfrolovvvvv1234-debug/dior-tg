@@ -7,7 +7,7 @@
 /**
  * Payment provider identifier.
  */
-export type PaymentProviderName = "crystalpay" | "cryptobot";
+export type PaymentProviderName = "crystalpay" | "cryptobot" | "heleket";
 
 /**
  * Invoice status.

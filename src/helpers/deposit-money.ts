@@ -6,7 +6,7 @@ import { Logger } from "@/app/logger";
 
 const depositValuesOptions = ["10$", "30$", "50$", "100$"];
 
-type TopupMethod = "crystalpay" | "cryptobot" | "manual";
+type TopupMethod = "crystalpay" | "cryptobot" | "heleket" | "manual";
 
 function renderTopupMethodText(ctx: AppContext): string {
   return ctx.t("topup-select-method");
@@ -84,6 +84,16 @@ async function handleTopupByMethod(
     return;
   }
 
+  const heleketMerchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
+  const heleketKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
+  if (method === "heleket" && (!heleketMerchant || !heleketKey)) {
+    await ctx.editMessageText(ctx.t("topup-heleket-not-configured"), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_manual_back"),
+    });
+    return;
+  }
+
   await ctx.editMessageText(ctx.t("payment-information"), {
     reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
     parse_mode: "HTML",
@@ -93,7 +103,9 @@ async function handleTopupByMethod(
   const result =
     method === "crystalpay"
       ? await builder.createCrystalPayment()
-      : await builder.createCryptoBotPayment();
+      : method === "cryptobot"
+        ? await builder.createCryptoBotPayment()
+        : await builder.createHeleketPayment();
 
   await ctx.editMessageReplyMarkup({
     reply_markup: new InlineKeyboard()
@@ -124,6 +136,20 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
     session.main.topupMethod = "crystalpay";
     if (session.main.lastSumDepositsEntered > 0) {
       await handleTopupByMethod(ctx, "crystalpay", session.main.lastSumDepositsEntered);
+      return;
+    }
+    await ctx.editMessageText(renderTopupAmountsText(ctx), {
+      reply_markup: depositMenu,
+      parse_mode: "HTML",
+    });
+  })
+  .row()
+  .text((ctx) => ctx.t("topup-method-heleket"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    session.main.topupMethod = "heleket";
+    if (session.main.lastSumDepositsEntered > 0) {
+      await handleTopupByMethod(ctx, "heleket", session.main.lastSumDepositsEntered);
       return;
     }
     await ctx.editMessageText(renderTopupAmountsText(ctx), {
@@ -240,6 +266,16 @@ export const depositPaymentSystemChoose = new Menu<AppContext>(
       return;
     }
 
+    const heleketMerchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
+    const heleketKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
+    if (method === "heleket" && (!heleketMerchant || !heleketKey)) {
+      await ctx.editMessageText(ctx.t("topup-heleket-not-configured"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_manual_back"),
+      });
+      return;
+    }
+
     await ctx.editMessageText(ctx.t("payment-information"), {
       reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
       parse_mode: "HTML",
@@ -249,7 +285,9 @@ export const depositPaymentSystemChoose = new Menu<AppContext>(
     const result =
       method === "cryptobot"
         ? await builder.createCryptoBotPayment()
-        : await builder.createCrystalPayment();
+        : method === "heleket"
+          ? await builder.createHeleketPayment()
+          : await builder.createCrystalPayment();
 
     await ctx.editMessageReplyMarkup({
       reply_markup: new InlineKeyboard()

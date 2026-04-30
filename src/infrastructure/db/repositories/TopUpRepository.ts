@@ -49,7 +49,7 @@ export class TopUpRepository extends BaseRepository<TopUp> {
    * Find top-ups by payment system.
    */
   async findByPaymentSystem(
-    paymentSystem: "crystalpay" | "cryptobot"
+    paymentSystem: "crystalpay" | "cryptobot" | "heleket"
   ): Promise<TopUp[]> {
     return this.repository.find({
       where: { paymentSystem },

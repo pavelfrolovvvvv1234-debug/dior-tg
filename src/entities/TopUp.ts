@@ -30,7 +30,7 @@ export default class TopUp {
   orderId!: string;
 
   @Column({ nullable: false, type: "varchar" })
-  paymentSystem!: "crystalpay" | "cryptobot";
+  paymentSystem!: "crystalpay" | "cryptobot" | "heleket";
 
   @Column({ nullable: false, type: "integer" })
   target_user_id!: number;
