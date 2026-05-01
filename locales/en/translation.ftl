@@ -191,6 +191,7 @@ button-promocodes = 🎟 Promocodes
 button-automations = 📬 Automations & Notifications
 button-statistics = 📊 Statistics
 button-resellers = 🤝 Resellers
+admin-resellers-line-mrr = • MRR (Monthly Recurring Revenue), est.: <b>{ $amount }</b>
 admin-automations-header = <strong>📬 Automations & Notifications</strong>
 admin-automations-description = Enable or disable scenarios. Full config in web panel.
 admin-automations-empty = No scenarios. Add them via API or web panel.
@@ -753,7 +754,7 @@ button-admin-cdn = 🌍 CDN (admin)
 admin-vds-title = <strong>VDS — admin</strong>
 Search: ID, IP, name. Page {$page} / {$totalPages}
 admin-vds-empty = No records.
-admin-vds-row = <b>VDS #{$id}</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
+admin-vds-row = <b>{$n}.</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
   [running] 🟢 Running
   [stopped] 🔴 Stopped
   [expired] ⚫ Expired

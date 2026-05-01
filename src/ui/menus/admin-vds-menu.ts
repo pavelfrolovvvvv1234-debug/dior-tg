@@ -168,7 +168,7 @@ async function buildListText(ctx: AppContext): Promise<string> {
     return `${header}\n\n${ctx.t("admin-vds-empty")}`;
   }
   const lines = await Promise.all(
-    list.map(async (v) => {
+    list.map(async (v, idx) => {
       const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
       const vmState = String(vmInfo?.state ?? "").toLowerCase();
       const status =
@@ -180,8 +180,9 @@ async function buildListText(ctx: AppContext): Promise<string> {
               ? "stopped"
               : "unknown";
 
+      const n = ad.page * PAGE_SIZE + idx + 1;
       return ctx.t("admin-vds-row", {
-        id: v.id,
+        n,
         ip: v.ipv4Addr || "—",
         rate: v.rateName,
         status,
@@ -202,9 +203,12 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
   );
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const kb = new InlineKeyboard();
-  for (const v of list) {
-    kb.text(`#${v.id} ${v.ipv4Addr || ""}`.substring(0, 60), `adv:sel:${v.id}`).row();
-  }
+  list.forEach((v, idx) => {
+    const n = ad.page * PAGE_SIZE + idx + 1;
+    const ip = (v.ipv4Addr || "—").trim();
+    const label = `${n}. ${ip}`.substring(0, 64);
+    kb.text(label, `adv:sel:${v.id}`).row();
+  });
   if (totalPages > 1) {
     kb.text("◀", `adv:pg:${Math.max(0, ad.page - 1)}`)
       .text(`${ad.page + 1}/${totalPages}`, "adv:noop")

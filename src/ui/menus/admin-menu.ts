@@ -126,7 +126,7 @@ async function buildResellerOverview(ctx: AppContext): Promise<{ text: string; k
     `• Resellers: <b>${uniqueResellers.size}</b>`,
     `• Services: <b>${totalServices}</b>`,
     `• Active: <b>${activeServices}</b>`,
-    `• MRR (calc): <b>$${totalMonthly.toFixed(2)}</b>`,
+    ctx.t("admin-resellers-line-mrr", { amount: `$${totalMonthly.toFixed(2)}` }),
     "",
     "<b>Top resellers by MRR:</b>",
   ];
@@ -198,7 +198,7 @@ async function buildResellerDetails(
     `👤 <b>Reseller:</b> <code>${escapeUserInput(resellerId)}</code>`,
     `• Services: <b>${services.length}</b>`,
     `• Active: <b>${active}</b>`,
-    `• MRR (calc): <b>$${totalMonthly.toFixed(2)}</b>`,
+    ctx.t("admin-resellers-line-mrr", { amount: `$${totalMonthly.toFixed(2)}` }),
     "",
     "<b>Services:</b>",
   ];

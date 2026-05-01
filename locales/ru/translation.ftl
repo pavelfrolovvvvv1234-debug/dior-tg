@@ -193,6 +193,8 @@ button-promocodes = 🎟 Промокоды
 button-automations = 📬 Сценарии и уведомления
 button-statistics = 📊 Статистика
 button-resellers = 🤝 Реселлеры
+# MRR = Monthly Recurring Revenue; коротко по-русски без простыни
+admin-resellers-line-mrr = • MRR (ежемесячная выручка), оценка: <b>{ $amount }</b>
 admin-automations-header = <strong>📬 Сценарии и уведомления</strong>
 admin-automations-description = Включите/выключите сценарии. Полная настройка — в веб-панели.
 admin-automations-empty = Нет сценариев. Добавьте их через API или веб-панель.
@@ -768,7 +770,7 @@ button-admin-cdn = 🌍 CDN (админ)
 admin-vds-title = <strong>VDS — админ</strong>
 Поиск: ID, IP, имя. Страница {$page} / {$totalPages}
 admin-vds-empty = Список пуст.
-admin-vds-row = <b>VDS #{$id}</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
+admin-vds-row = <b>{$n}.</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
   [running] 🟢 Running
   [stopped] 🔴 Stopped
   [expired] ⚫ Expired
