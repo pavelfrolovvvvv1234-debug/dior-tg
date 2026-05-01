@@ -550,23 +550,23 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   app.use(withRequestId);
   app.use(
     express.json({
-      verify: (req, _res, buf) => {
+      verify: (req: Request, _res: Response, buf: Buffer) => {
         (req as AuthRequest).rawBody = buf.toString("utf8");
       },
     })
   );
 
-  app.get("/reseller/health", (_req, res) => {
+  app.get("/reseller/health", (_req: Request, res: Response) => {
     res.json({ ok: true, service: "reseller-api" });
   });
 
-  app.get("/reseller/openapi.json", (req, res) => {
+  app.get("/reseller/openapi.json", (req: Request, res: Response) => {
     const host = req.header("host") || `localhost:${process.env.RESELLER_API_PORT ?? "3003"}`;
     const proto = (req.header("x-forwarded-proto") || req.protocol || "https").toString();
     res.json(buildOpenApiDoc(`${proto}://${host}`));
   });
 
-  app.get("/reseller/docs", (_req, res) => {
+  app.get("/reseller/docs", (_req: Request, res: Response) => {
     res.type("text/plain").send(
       [
         "DiorHost Reseller API docs:",

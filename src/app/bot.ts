@@ -16,7 +16,7 @@ import { FileAdapter } from "@grammyjs/storage-file";
 import { useFluent } from "@grammyjs/fluent";
 import { conversations } from "@grammyjs/conversations";
 import { run as grammyRun } from "@grammyjs/runner";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 
 import { config, isWebhookMode, getWebhookPort } from "./config.js";
 import { Logger } from "./logger.js";
@@ -856,14 +856,14 @@ export async function startBot(bot: Bot<AppContext>): Promise<void> {
 
     app.use(
       express.json({
-        verify: (req, _res, buf) => {
+        verify: (req: Request, _res: Response, buf: Buffer) => {
           (req as any).rawBody = buf.toString("utf8");
         },
       })
     );
 
     const corsOrigin = process.env.CORS_ORIGIN ?? "*";
-    app.use("/api/admin/automations", (req, res, next) => {
+    app.use("/api/admin/automations", (req: Request, res: Response, next: NextFunction) => {
       res.setHeader("Access-Control-Allow-Origin", corsOrigin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-API-Key, Authorization");
@@ -879,7 +879,7 @@ export async function startBot(bot: Bot<AppContext>): Promise<void> {
       next();
     });
 
-    app.post("/webhooks/cryptopay", (req, res) =>
+    app.post("/webhooks/cryptopay", (req: Request, res: Response) =>
       handleCryptoPayWebhook(req, res, bot)
     );
 

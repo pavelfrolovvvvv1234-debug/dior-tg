@@ -90,6 +90,7 @@ button-agree = ✅ Agree
 update-button = 🔄 Update
 
 button-back = ⬅️ Back
+button-back-to-panel = ⬅️ Back to panel
 
 # Profile root menu only
 button-profile-back = ⬅️ Back
@@ -189,6 +190,7 @@ button-tickets = 🎫 Tickets
 button-promocodes = 🎟 Promocodes
 button-automations = 📬 Automations & Notifications
 button-statistics = 📊 Statistics
+button-resellers = 🤝 Resellers
 admin-automations-header = <strong>📬 Automations & Notifications</strong>
 admin-automations-description = Enable or disable scenarios. Full config in web panel.
 admin-automations-empty = No scenarios. Add them via API or web panel.

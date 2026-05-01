@@ -92,6 +92,7 @@ button-agree = ✅ Согласен
 update-button = 🔄 Обновить
 
 button-back = ⬅️ Назад
+button-back-to-panel = ⬅️ Назад к панели
 
 # Только меню профиля (главный экран профиля)
 button-profile-back = ⬅️ Назад
@@ -191,6 +192,7 @@ button-tickets = 🎫 Тикеты
 button-promocodes = 🎟 Промокоды
 button-automations = 📬 Сценарии и уведомления
 button-statistics = 📊 Статистика
+button-resellers = 🤝 Реселлеры
 admin-automations-header = <strong>📬 Сценарии и уведомления</strong>
 admin-automations-description = Включите/выключите сценарии. Полная настройка — в веб-панели.
 admin-automations-empty = Нет сценариев. Добавьте их через API или веб-панель.

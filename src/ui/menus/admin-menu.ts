@@ -177,9 +177,7 @@ async function buildResellerServicesList(ctx: AppContext): Promise<{ text: strin
   }
 
   const keyboard = new InlineKeyboard()
-    .text("⬅️ Back to panel", "admin-resellers-open")
-    .row()
-    .text(ctx.t("button-back"), "admin-menu-back");
+    .text(ctx.t("button-back-to-panel"), "admin-resellers-open");
   return { text: lines.join("\n"), keyboard };
 }
 
@@ -219,9 +217,7 @@ async function buildResellerDetails(
   }
 
   const keyboard = new InlineKeyboard()
-    .text("⬅️ Back to panel", "admin-resellers-open")
-    .row()
-    .text(ctx.t("button-back"), "admin-menu-back");
+    .text(ctx.t("button-back-to-panel"), "admin-resellers-open");
   return { text: lines.join("\n"), keyboard };
 }
 
@@ -361,7 +357,7 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
     }
   )
   .row()
-  .text("🤝 Resellers", async (ctx) => {
+  .text((ctx) => ctx.t("button-resellers"), async (ctx) => {
     const session = await ctx.session;
     const hasSessionUser = await ensureSessionUser(ctx);
     if (!session || !hasSessionUser) {

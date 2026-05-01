@@ -1,8 +1,8 @@
-import Promo from "@entities/Promo";
+import Promo from "../entities/Promo.js";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../shared/types/context";
-import User from "@entities/User";
+import User from "../entities/User.js";
 import { invalidateUser } from "../shared/user-cache.js";
 
 /**

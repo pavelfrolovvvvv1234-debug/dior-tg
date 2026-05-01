@@ -1,5 +1,5 @@
-import DomainRequest, { DomainRequestStatus } from "@entities/DomainRequest";
-import User, { Role } from "@entities/User";
+import DomainRequest, { DomainRequestStatus } from "../entities/DomainRequest.js";
+import User, { Role } from "../entities/User.js";
 import { Bot, Api, RawApi } from "grammy";
 import type { AppContext } from "../shared/types/context";
 import prices from "./prices";

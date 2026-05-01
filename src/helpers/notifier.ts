@@ -1,5 +1,5 @@
 import type { AppContext } from "../shared/types/context";
-import User, { Role } from "@entities/User";
+import User, { Role } from "../entities/User.js";
 import type { Api, Bot, RawApi } from "grammy";
 import { getAdminTelegramIds } from "../app/config.js";
 import type { ReferralRewardApplied } from "../domain/referral/ReferralService.js";

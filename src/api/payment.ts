@@ -1,8 +1,8 @@
 import { getAppDataSource } from "@/database";
-import TopUp, { TopUpStatus } from "@entities/TopUp";
+import TopUp, { TopUpStatus } from "../entities/TopUp.js";
 import { createHash, randomUUID } from "crypto";
 import { CrystalPayClient } from "./crystal-pay";
-import User from "@entities/User";
+import User from "../entities/User.js";
 import { Api, Bot, RawApi } from "grammy";
 import type { AppContext } from "../shared/types/context";
 import { invalidateUser } from "../shared/user-cache.js";

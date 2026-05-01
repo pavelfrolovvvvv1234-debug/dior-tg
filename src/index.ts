@@ -37,7 +37,7 @@ import {
   controlUserSubscription,
   registerAdminServiceManagementCallbacks,
 } from "./helpers/users-control";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import { run as grammyRun } from "@grammyjs/runner";
 import { adminMenu, openResellerDetails, openResellerPanel, openResellerServicesList } from "./ui/menus/admin-menu";
 import { ticketViewMenu } from "./ui/menus/moderator-menu";
@@ -3254,12 +3254,12 @@ async function index() {
 
       app.use(
         express.json({
-          verify: (req, _res, buf) => {
+          verify: (req: Request, _res: Response, buf: Buffer) => {
             (req as any).rawBody = buf.toString("utf8");
           },
         })
       );
-      app.post("/webhooks/cryptopay", (req, res) =>
+      app.post("/webhooks/cryptopay", (req: Request, res: Response) =>
         handleCryptoPayWebhook(req, res, bot)
       );
       app.use(
