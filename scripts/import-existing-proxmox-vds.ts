@@ -28,11 +28,38 @@ type VdsPlan = {
 };
 
 const INPUT_ROWS: ImportRow[] = [
-  { vmid: 202, username: "herwincamargo", rateName: "Lite 1", expireAt: "21.05.26", ipv4Addr: "45.74.7.22" },
-  { vmid: 204, username: "strategicity", rateName: "Lite 1", expireAt: "22.05.26", ipv4Addr: "45.74.7.26" },
-  { vmid: 205, username: "nemolodey", rateName: "Elite 1", expireAt: "21.05.26", ipv4Addr: "45.74.7.24" },
+  {
+    vmid: 202,
+    username: "herwincamargo",
+    rateName: "Lite 1",
+    expireAt: "21.05.26",
+    ipv4Addr: "45.74.7.22",
+    telegramId: 174931767,
+  },
+  {
+    vmid: 204,
+    username: "strategicity",
+    rateName: "Lite 1",
+    expireAt: "22.05.26",
+    ipv4Addr: "45.74.7.26",
+    telegramId: 8275274794,
+  },
+  {
+    vmid: 205,
+    username: "nemolodey",
+    rateName: "Elite 1",
+    expireAt: "21.05.26",
+    ipv4Addr: "45.74.7.24",
+    telegramId: 8312712170,
+  },
   { vmid: 206, username: "lapd_k", rateName: "Elite 1", expireAt: "28.05.26", ipv4Addr: "45.74.7.27" },
-  { vmid: 207, username: "YOUNEVERKNOW540", rateName: "Lite 1", expireAt: "22.05.26" },
+  {
+    vmid: 207,
+    username: "YOUNEVERKNOW540",
+    rateName: "Lite 1",
+    expireAt: "22.05.26",
+    telegramId: 1433641210,
+  },
   {
     vmid: 209,
     username: "kexiques",
@@ -47,6 +74,7 @@ const INPUT_ROWS: ImportRow[] = [
     rateName: "Lite 2",
     expireAt: "24.05.26",
     ipv4Addr: "45.74.7.32",
+    telegramId: 7775138536,
   },
   {
     vmid: 107,
@@ -56,7 +84,14 @@ const INPUT_ROWS: ImportRow[] = [
     ipv4Addr: "45.74.7.31",
     telegramId: 945503167,
   },
-  { vmid: 215, username: "amaistrov", rateName: "Lite 3", expireAt: "27.05.26", ipv4Addr: "45.74.7.34" },
+  {
+    vmid: 215,
+    username: "amaistrov",
+    rateName: "Lite 3",
+    expireAt: "27.05.26",
+    ipv4Addr: "45.74.7.34",
+    telegramId: 1379702166,
+  },
   {
     vmid: 216,
     username: "TrenbolonEnantatovich12",
@@ -73,7 +108,14 @@ const INPUT_ROWS: ImportRow[] = [
     ipv4Addr: "45.74.7.38",
     telegramId: 7820027592,
   },
-  { vmid: 221, username: "jugg43", rateName: "Lite 1", expireAt: "29.05.26", ipv4Addr: "45.74.7.39" },
+  {
+    vmid: 221,
+    username: "jugg43",
+    rateName: "Lite 1",
+    expireAt: "29.05.26",
+    ipv4Addr: "45.74.7.39",
+    telegramId: 7624082930,
+  },
   { vmid: 224, username: "lapd_k", rateName: "Lite 1", expireAt: "30.05.26", ipv4Addr: "45.74.7.42" },
 ];
 
