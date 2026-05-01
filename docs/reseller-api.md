@@ -22,6 +22,21 @@ Reference:
 
 ## Endpoints
 
+### `POST /reseller/v1/services/create` — поля тела (JSON)
+
+**Обязательные**
+
+- `rateName` — тариф (как в вашем прайсе, например `Lite 1`).
+- `clientExternalId` — строка: ваш внутренний id клиента у реселлера (до 128 символов).
+
+**Необязательные**
+
+- `osId` — число, шаблон ОС в Proxmox. **Можно не передавать:** тогда подставляется значение по умолчанию (**900** в текущей сборке).
+- `name` — имя ВМ; если не указано — генерируется автоматически.
+- `displayName` — подпись услуги в боте; если не указано — берётся `clientExternalId`.
+
+### Маршруты
+
 - `GET /reseller/health`
 - `GET /reseller/v1/services`
 - `POST /reseller/v1/services/create`
