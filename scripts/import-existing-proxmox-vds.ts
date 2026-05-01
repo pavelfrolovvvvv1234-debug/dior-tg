@@ -11,6 +11,8 @@ type ImportRow = {
   rateName: string;
   expireAt: string; // DD.MM.YY
   ipv4Addr?: string;
+  /** Если указан — не дергаем Telegram API по username (удобно, когда есть числовой id от поддержки). */
+  telegramId?: number;
 };
 
 type VdsPlan = {
@@ -31,7 +33,14 @@ const INPUT_ROWS: ImportRow[] = [
   { vmid: 205, username: "nemolodey", rateName: "Elite 1", expireAt: "21.05.26", ipv4Addr: "45.74.7.24" },
   { vmid: 206, username: "lapd_k", rateName: "Elite 1", expireAt: "28.05.26", ipv4Addr: "45.74.7.27" },
   { vmid: 207, username: "YOUNEVERKNOW540", rateName: "Lite 1", expireAt: "22.05.26" },
-  { vmid: 209, username: "kexiques", rateName: "Elite 2", expireAt: "24.05.26", ipv4Addr: "45.74.7.30" },
+  {
+    vmid: 209,
+    username: "kexiques",
+    rateName: "Elite 2",
+    expireAt: "24.05.26",
+    ipv4Addr: "45.74.7.30",
+    telegramId: 5133187370,
+  },
   {
     vmid: 211,
     username: "lockbitxzxnvhvbashdngnaihgnjiamk",
@@ -39,10 +48,31 @@ const INPUT_ROWS: ImportRow[] = [
     expireAt: "24.05.26",
     ipv4Addr: "45.74.7.32",
   },
-  { vmid: 107, username: "killall2s", rateName: "Lite 1", expireAt: "24.05.26", ipv4Addr: "45.74.7.31" },
+  {
+    vmid: 107,
+    username: "killall2s",
+    rateName: "Lite 1",
+    expireAt: "24.05.26",
+    ipv4Addr: "45.74.7.31",
+    telegramId: 945503167,
+  },
   { vmid: 215, username: "amaistrov", rateName: "Lite 3", expireAt: "27.05.26", ipv4Addr: "45.74.7.34" },
-  { vmid: 216, username: "TrenbolonEnantatovich12", rateName: "Lite 2", expireAt: "28.05.26", ipv4Addr: "45.74.7.35" },
-  { vmid: 219, username: "TrenbolonEnantatovich12", rateName: "Lite 2", expireAt: "28.05.26", ipv4Addr: "45.74.7.38" },
+  {
+    vmid: 216,
+    username: "TrenbolonEnantatovich12",
+    rateName: "Lite 2",
+    expireAt: "28.05.26",
+    ipv4Addr: "45.74.7.35",
+    telegramId: 7820027592,
+  },
+  {
+    vmid: 219,
+    username: "TrenbolonEnantatovich12",
+    rateName: "Lite 2",
+    expireAt: "28.05.26",
+    ipv4Addr: "45.74.7.38",
+    telegramId: 7820027592,
+  },
   { vmid: 221, username: "jugg43", rateName: "Lite 1", expireAt: "29.05.26", ipv4Addr: "45.74.7.39" },
   { vmid: 224, username: "lapd_k", rateName: "Lite 1", expireAt: "30.05.26", ipv4Addr: "45.74.7.42" },
 ];
@@ -57,6 +87,16 @@ function parseDate(input: string): Date {
 
 function normalizeUsername(username: string): string {
   return username.replace(/^@/, "").trim();
+}
+
+/** Убирает невидимые символы и всё кроме цифр из «скопированного» id в чате. */
+function parseNumericTelegramId(value: number | string | undefined): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.floor(value);
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return null;
+  const n = Number(digits);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 async function resolveTelegramIdByUsername(username: string, botToken: string): Promise<number | null> {
@@ -86,9 +126,12 @@ async function main(): Promise<void> {
   const isApply = process.argv.includes("--apply");
   const isDryRun = !isApply;
   const botToken = (process.env.BOT_TOKEN ?? "").trim();
+  const needsBotTokenForResolve = INPUT_ROWS.some((r) => parseNumericTelegramId(r.telegramId) == null);
 
-  if (!botToken) {
-    throw new Error("BOT_TOKEN is required in .env to resolve usernames.");
+  if (needsBotTokenForResolve && !botToken) {
+    throw new Error(
+      "BOT_TOKEN is required in .env to resolve usernames for rows without telegramId."
+    );
   }
 
   const ds = await getAppDataSource();
@@ -109,7 +152,10 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const telegramId = await resolveTelegramIdByUsername(row.username, botToken);
+    let telegramId = parseNumericTelegramId(row.telegramId);
+    if (!telegramId) {
+      telegramId = await resolveTelegramIdByUsername(row.username, botToken);
+    }
     if (!telegramId) {
       missingUsers.push(row.username);
       report.push({ vmid: row.vmid, username: row.username, status: "username_not_resolved" });
