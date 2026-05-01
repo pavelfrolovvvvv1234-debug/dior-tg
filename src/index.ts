@@ -39,7 +39,7 @@ import {
 } from "./helpers/users-control";
 import express from "express";
 import { run as grammyRun } from "@grammyjs/runner";
-import { adminMenu } from "./ui/menus/admin-menu";
+import { adminMenu, openResellerDetails, openResellerPanel, openResellerServicesList } from "./ui/menus/admin-menu";
 import { ticketViewMenu } from "./ui/menus/moderator-menu";
 import { moderatorMenu } from "./ui/menus/moderator-menu";
 import {
@@ -113,6 +113,7 @@ import { registerDomainRegistrationMiddleware } from "./helpers/domain-registrat
 import ms from "./lib/multims";
 import type { GetOsListResponse } from "./infrastructure/vmmanager/provider.js";
 import { createVmProvider } from "./infrastructure/vmmanager/factory.js";
+import { startResellerApiServer } from "./api/reseller-api.js";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
 import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
@@ -636,6 +637,7 @@ async function index() {
   });
 
   const vmmanager = createVmProvider();
+  startResellerApiServer({ dataSource: appDataSource, vmProvider: vmmanager, botApi: bot.api });
 
   {
     const { ExpirationService } = await import("./domain/services/ExpirationService.js");
@@ -1393,6 +1395,38 @@ async function index() {
       }
       throw error;
     }
+  });
+
+  bot.callbackQuery("admin-resellers-open", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+      return;
+    }
+    await openResellerPanel(ctx as AppContext);
+  });
+
+  bot.callbackQuery("admin-resellers-services", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+      return;
+    }
+    await openResellerServicesList(ctx as AppContext);
+  });
+
+  bot.callbackQuery(/^admin-reseller:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+      return;
+    }
+    const resellerId = String(ctx.match?.[1] ?? "").trim();
+    if (!resellerId) return;
+    await openResellerDetails(ctx as AppContext, resellerId);
   });
 
   bot.callbackQuery("dev-po-back", async (ctx) => {

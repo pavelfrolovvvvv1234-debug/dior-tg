@@ -22,7 +22,8 @@
     "test-amper-api": "tsx scripts/test-amper-api.ts",
     "test-amper-register": "tsx scripts/test-amper-register.ts",
     "amper-ping": "tsx scripts/amper-ping.ts",
-    "fix:roles": "tsx scripts/fix-roles.ts"
+    "fix:roles": "tsx scripts/fix-roles.ts",
+    "import:proxmox-vds": "tsx scripts/import-existing-proxmox-vds.ts"
   },
   "keywords": [],
   "author": "flexice <two.fl3xice@yandex.ru>",

@@ -70,6 +70,14 @@ export default class VirtualDedicatedServer {
   @Column({ nullable: true, type: "varchar" })
   bundleType!: string | null;
 
+  /** Optional reseller owner identifier for API-scoped access. */
+  @Column({ nullable: true, type: "varchar" })
+  resellerId!: string | null;
+
+  /** Optional reseller client identifier (their CRM/customer ID). */
+  @Column({ nullable: true, type: "varchar" })
+  resellerClientId!: string | null;
+
   /** Monthly auto-renewal from balance when the period ends. */
   @Column({ default: true, type: "boolean" })
   autoRenewEnabled!: boolean;
