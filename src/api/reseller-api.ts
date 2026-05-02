@@ -1,15 +1,16 @@
 import crypto from "crypto";
 import { isIPv4 } from "node:net";
 import express, { type NextFunction, type Request, type Response } from "express";
-import axios from "axios";
+import axios, { type AxiosError } from "axios";
 import type { Api, RawApi } from "grammy";
-import type { DataSource, Repository } from "typeorm";
+import { QueryFailedError, type DataSource, type Repository } from "typeorm";
 import { z } from "zod";
 import User, { Role, UserStatus } from "../entities/User.js";
 import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../entities/VirtualDedicatedServer.js";
 import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { getAdminTelegramIds } from "../app/config.js";
 import { retry } from "../shared/utils/retry.js";
+import { AppError, ExternalApiError } from "../shared/errors/index.js";
 
 type ResellerAuthInfo = {
   resellerId: string;
@@ -426,6 +427,33 @@ function parsePositiveInt(value: unknown): number | null {
   return n;
 }
 
+function parsePositiveIntEnv(key: string, fallback: number): number {
+  const n = Number.parseInt(process.env[key] ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  if (!(err instanceof QueryFailedError)) return false;
+  const msg = String(err.message ?? "");
+  return /unique|UNIQUE constraint|SQLITE_CONSTRAINT_UNIQUE/i.test(msg);
+}
+
+/** Poll hypervisor until VM has a real IPv4 (same idea as vds-shop-flow). */
+async function pollResellerVmIpv4(vmProvider: VmProvider, vmid: number): Promise<string> {
+  const maxAttempts = parsePositiveIntEnv("RESELLER_VDS_IP_POLL_MAX_ATTEMPTS", 20);
+  const delayMs = parsePositiveIntEnv("RESELLER_VDS_IP_POLL_MS", 2000);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const ipData = await vmProvider.getIpv4AddrVM(vmid).catch(() => undefined);
+    const candidate = ipData?.list?.[0]?.ip_addr;
+    if (candidate && candidate !== "0.0.0.0" && candidate !== "127.0.0.1") {
+      return candidate;
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  const last = await vmProvider.getIpv4AddrVM(vmid).catch(() => undefined);
+  return last?.list?.[0]?.ip_addr ?? "0.0.0.0";
+}
+
 function stableNegativeId(input: string): number {
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
@@ -587,11 +615,64 @@ async function notifyAdminsAboutResellerVps(
   );
 }
 
-async function routeGuarded(res: Response, fn: () => Promise<void>): Promise<void> {
+function unwrapAxiosFromChain(err: unknown): AxiosError | undefined {
+  if (axios.isAxiosError(err)) return err;
+  if (err instanceof ExternalApiError && err.originalError !== undefined) {
+    return unwrapAxiosFromChain(err.originalError);
+  }
+  return undefined;
+}
+
+/** Safe excerpt from VMManager / Proxmox HTTP response for reseller diagnostics. */
+function describeUpstreamFailure(err: unknown): { upstreamStatus?: number; upstreamDetail?: string } {
+  const ax = unwrapAxiosFromChain(err);
+  if (!ax?.response) return {};
+  const status = ax.response.status;
+  const data = ax.response.data as unknown;
+  let upstreamDetail: string | undefined;
+  if (data !== undefined && data !== null) {
+    if (typeof data === "string") upstreamDetail = data.slice(0, 1200);
+    else {
+      try {
+        upstreamDetail = JSON.stringify(data).slice(0, 1200);
+      } catch {
+        upstreamDetail = undefined;
+      }
+    }
+  }
+  return { upstreamStatus: status, upstreamDetail };
+}
+
+function clientCodeForAppError(err: AppError): string {
+  if (err.code === "EXTERNAL_API_ERROR") return "upstream_error";
+  return err.code.toLowerCase();
+}
+
+async function routeGuarded(req: AuthRequest, res: Response, fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
-  } catch (error: any) {
-    res.status(500).json({ ok: false, error: error?.message || "internal_error" });
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      const payload: Record<string, unknown> = {
+        ok: false,
+        error: clientCodeForAppError(error),
+        ...requestMeta(req),
+      };
+      if (error.code === "EXTERNAL_API_ERROR") {
+        Object.assign(payload, describeUpstreamFailure(error));
+      }
+      if (process.env.NODE_ENV !== "production" && error.message) {
+        payload.message = error.message;
+      }
+      res.status(error.statusCode).json(payload);
+      return;
+    }
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      ok: false,
+      error: process.env.NODE_ENV === "production" ? "internal_error" : msg || "internal_error",
+      ...requestMeta(req),
+    });
   }
 }
 
@@ -644,7 +725,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   );
 
   app.get("/reseller/v1/services", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(res, async () => {
+    await routeGuarded(req, res, async () => {
       const resellerId = req.resellerAuth!.resellerId;
       const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
       const services = await vdsRepo.find({
@@ -657,7 +738,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   });
 
   app.post("/reseller/v1/services/import-existing", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(res, async () => {
+    await routeGuarded(req, res, async () => {
       cleanupSecurityCaches();
       const idem = checkIdempotency(req);
       if ("conflict" in idem) {
@@ -754,7 +835,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   });
 
   app.post("/reseller/v1/services/create", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(res, async () => {
+    await routeGuarded(req, res, async () => {
       cleanupSecurityCaches();
       const idem = checkIdempotency(req);
       if ("conflict" in idem) {
@@ -809,10 +890,20 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       }
 
       const vmid = vm.id;
-      const ipData = await options.vmProvider.getIpv4AddrVM(vmid).catch(() => undefined);
-      const ip = ipData?.list?.[0]?.ip_addr ?? "0.0.0.0";
-      const clientUser = await getOrCreateClientUser(options.dataSource, resellerId, clientExternalId);
       const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
+      const existingByVmid = await vdsRepo.findOneBy({ vdsId: vmid });
+      if (existingByVmid) {
+        res.status(409).json({
+          ok: false,
+          error: "vmid_already_registered",
+          vmid,
+          ...requestMeta(req),
+        });
+        return;
+      }
+
+      const ip = await pollResellerVmIpv4(options.vmProvider, vmid);
+      const clientUser = await getOrCreateClientUser(options.dataSource, resellerId, clientExternalId);
       const entity = vdsRepo.create({
         vdsId: vmid,
         login: "root",
@@ -838,7 +929,21 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         resellerId,
         resellerClientId: clientExternalId,
       });
-      const saved = await vdsRepo.save(entity);
+      let saved: VirtualDedicatedServer;
+      try {
+        saved = await vdsRepo.save(entity);
+      } catch (err) {
+        if (isUniqueConstraintError(err)) {
+          res.status(409).json({
+            ok: false,
+            error: "vmid_duplicate",
+            vmid,
+            ...requestMeta(req),
+          });
+          return;
+        }
+        throw err;
+      }
       const mapped = mapService(saved);
       await notifyAdminsAboutResellerVps(options, {
         action: "created",
@@ -861,7 +966,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   });
 
   app.post("/reseller/v1/services/delete-by-ip", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(res, async () => {
+    await routeGuarded(req, res, async () => {
       const bodyParsed = parseBody(deleteByIpSchema, req.body);
       if (!bodyParsed.ok) {
         res.status(400).json({ ok: false, error: bodyParsed.error, ...requestMeta(req) });
@@ -892,7 +997,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   });
 
   app.get("/reseller/v1/services/:id", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(res, async () => {
+    await routeGuarded(req, res, async () => {
       const resellerId = req.resellerAuth!.resellerId;
       const serviceId = parsePositiveInt(req.params.id);
       if (!serviceId) {
@@ -919,7 +1024,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   });
 
   app.post("/reseller/v1/services/:id/actions/:action", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(res, async () => {
+    await routeGuarded(req, res, async () => {
       const auth = req.resellerAuth!;
       const resellerId = auth.resellerId;
       const serviceId = parsePositiveInt(req.params.id);

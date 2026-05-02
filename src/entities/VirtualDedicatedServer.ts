@@ -16,7 +16,8 @@ export default class VirtualDedicatedServer {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ type: "integer", nullable: false })
+  /** Proxmox / VMManager host id — must be unique per row. */
+  @Column({ type: "integer", nullable: false, unique: true })
   vdsId!: number;
 
   @Column({ default: "root", type: "varchar", nullable: false })
