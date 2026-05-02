@@ -8,6 +8,7 @@ import User, { Role, UserStatus } from "../entities/User.js";
 import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../entities/VirtualDedicatedServer.js";
 import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { getAdminTelegramIds } from "../app/config.js";
+import { retry } from "../shared/utils/retry.js";
 
 type ResellerAuthInfo = {
   resellerId: string;
@@ -51,7 +52,8 @@ type WebhookEventType =
   | "service_password_reset"
   | "service_password_set"
   | "service_renewed"
-  | "service_reinstall_started";
+  | "service_reinstall_started"
+  | "service_deleted";
 
 type WebhookPayload = {
   event: WebhookEventType;
@@ -931,6 +933,28 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         await vdsRepo.save(vds);
         await emit("service_reinstall_started", { osId });
         res.json({ ok: true });
+        return;
+      }
+      if (action === "delete") {
+        const itemSnapshot = mapService(vds);
+        try {
+          await retry(() => options.vmProvider.deleteVM(vds.vdsId), {
+            maxAttempts: 3,
+            delayMs: 2000,
+            exponentialBackoff: true,
+          });
+        } catch {
+          res.status(502).json({ ok: false, error: "delete_failed", ...requestMeta(req) });
+          return;
+        }
+        await vdsRepo.delete({ id: vds.id });
+        await emitWebhook(auth, {
+          event: "service_deleted",
+          resellerId,
+          timestamp: new Date().toISOString(),
+          data: itemSnapshot,
+        });
+        res.json({ ok: true, deleted: { serviceId: vds.id, vmid: vds.vdsId } });
         return;
       }
 

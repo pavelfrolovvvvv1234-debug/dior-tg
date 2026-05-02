@@ -75,6 +75,7 @@ Reference:
 | `set-password` | **`{"password":"..."}`** — обязательно, 8–128 символов | Свой пароль root |
 | `renew` | **`{"months": N}`** необязательно; `N` — положительное целое | Продление срока |
 | `reinstall` | **`{"osId": N}`** необязательно | Переустановка ОС; если не указать `osId` — берётся сохранённый/дефолт |
+| `delete` | *(нет)* | Удаление VM на ноде и записи услуги (**необратимо**) |
 
 Остальные `action` → `400 unknown_action`.
 
@@ -98,6 +99,7 @@ Action values:
 - `set-password`
 - `renew`
 - `reinstall`
+- `delete`
 
 ## Isolation model
 
@@ -114,6 +116,7 @@ API key is bound to one `reseller_id`; data is isolated by `resellerId`.
 - `service_password_set`
 - `service_renewed`
 - `service_reinstall_started`
+- `service_deleted`
 
 Webhook signing (optional) uses the same timestamp/signature scheme.
 
