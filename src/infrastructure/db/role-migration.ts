@@ -1,5 +1,5 @@
 import type { DataSource } from "typeorm";
-import User from "../../entities/User.js";
+import User, { UserStatus } from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import {
   normalizeLegacyRoleValue,
@@ -24,7 +24,15 @@ export async function runRoleModelMigration(dataSource: DataSource): Promise<voi
     let dirty = false;
 
     const nextRole = normalizeLegacyRoleValue(oldRole);
-    const nextStatus = normalizeLegacyStatusValue(oldStatus);
+    const normalizedStatus = normalizeLegacyStatusValue(oldStatus);
+    const statusByRole =
+      nextRole === "admin"
+        ? UserStatus.Admin
+        : nextRole === "mod"
+          ? UserStatus.Moderator
+          : UserStatus.User;
+    // Keep status aligned with effective role so regular users never appear as moderators/admins.
+    const nextStatus = statusByRole !== normalizedStatus ? statusByRole : normalizedStatus;
 
     if (user.role !== nextRole) {
       user.role = nextRole;

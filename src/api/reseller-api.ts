@@ -456,6 +456,20 @@ async function getOrCreateClientUser(
   return await userRepo.save(user);
 }
 
+/** Env allowlist + admins/moderators from DB (same staff who see admin menus). */
+async function getResellerAlertRecipientTelegramIds(dataSource: DataSource): Promise<number[]> {
+  const fromEnv = getAdminTelegramIds();
+  const repo = dataSource.getRepository(User);
+  const staff = await repo.find({
+    where: [{ role: Role.Admin }, { role: Role.Moderator }],
+    select: ["telegramId"],
+  });
+  const fromDb = staff
+    .map((u) => Number(u.telegramId))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  return [...new Set([...fromEnv, ...fromDb])];
+}
+
 function mapService(vds: VirtualDedicatedServer) {
   return {
     serviceId: vds.id,
@@ -538,7 +552,7 @@ async function notifyAdminsAboutResellerVps(
     password: string;
   }
 ): Promise<void> {
-  const adminIds = getAdminTelegramIds();
+  const adminIds = await getResellerAlertRecipientTelegramIds(options.dataSource);
   if (adminIds.length === 0) return;
 
   const price = Number(payload.vds.renewalPrice || 0);
