@@ -1,8 +1,9 @@
 import crypto from "crypto";
+import { isIPv4 } from "node:net";
 import express, { type NextFunction, type Request, type Response } from "express";
 import axios from "axios";
 import type { Api, RawApi } from "grammy";
-import type { DataSource } from "typeorm";
+import type { DataSource, Repository } from "typeorm";
 import { z } from "zod";
 import User, { Role, UserStatus } from "../entities/User.js";
 import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../entities/VirtualDedicatedServer.js";
@@ -99,6 +100,10 @@ const actionRenewSchema = z.object({
 
 const actionReinstallSchema = z.object({
   osId: z.number().int().positive().optional(),
+});
+
+const deleteByIpSchema = z.object({
+  ip: z.string().min(1).max(64),
 });
 
 function parseBooleanEnv(value: string | undefined): boolean {
@@ -483,6 +488,45 @@ async function emitWebhook(auth: ResellerAuthInfo, payload: WebhookPayload): Pro
   await axios.post(auth.webhookUrl, payload, { headers, timeout: 10000 }).catch(() => {});
 }
 
+function normalizeResellerIpv4(raw: string): string | null {
+  const t = raw.trim();
+  if (!isIPv4(t)) return null;
+  return t;
+}
+
+async function performResellerServiceDelete(
+  options: ResellerApiOptions,
+  auth: ResellerAuthInfo,
+  resellerId: string,
+  vds: VirtualDedicatedServer,
+  vdsRepo: Repository<VirtualDedicatedServer>,
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  const itemSnapshot = mapService(vds);
+  try {
+    await retry(() => options.vmProvider.deleteVM(vds.vdsId), {
+      maxAttempts: 3,
+      delayMs: 2000,
+      exponentialBackoff: true,
+    });
+  } catch {
+    res.status(502).json({ ok: false, error: "delete_failed", ...requestMeta(req) });
+    return;
+  }
+  await vdsRepo.delete({ id: vds.id });
+  await emitWebhook(auth, {
+    event: "service_deleted",
+    resellerId,
+    timestamp: new Date().toISOString(),
+    data: itemSnapshot,
+  });
+  res.json({
+    ok: true,
+    deleted: { serviceId: vds.id, vmid: vds.vdsId, ip: vds.ipv4Addr },
+  });
+}
+
 async function notifyAdminsAboutResellerVps(
   options: ResellerApiOptions,
   payload: {
@@ -802,6 +846,37 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
     });
   });
 
+  app.post("/reseller/v1/services/delete-by-ip", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(res, async () => {
+      const bodyParsed = parseBody(deleteByIpSchema, req.body);
+      if (!bodyParsed.ok) {
+        res.status(400).json({ ok: false, error: bodyParsed.error, ...requestMeta(req) });
+        return;
+      }
+      const ipNorm = normalizeResellerIpv4(bodyParsed.data.ip);
+      if (!ipNorm || ipNorm === "0.0.0.0") {
+        res.status(400).json({ ok: false, error: "invalid_ip", ...requestMeta(req) });
+        return;
+      }
+      const auth = req.resellerAuth!;
+      const resellerId = auth.resellerId;
+      const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
+      const matches = await vdsRepo.find({
+        where: { resellerId, ipv4Addr: ipNorm },
+        take: 2,
+      });
+      if (matches.length === 0) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      if (matches.length > 1) {
+        res.status(409).json({ ok: false, error: "ambiguous_ip", ...requestMeta(req) });
+        return;
+      }
+      await performResellerServiceDelete(options, auth, resellerId, matches[0]!, vdsRepo, req, res);
+    });
+  });
+
   app.get("/reseller/v1/services/:id", async (req: AuthRequest, res: Response) => {
     await routeGuarded(res, async () => {
       const resellerId = req.resellerAuth!.resellerId;
@@ -936,25 +1011,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         return;
       }
       if (action === "delete") {
-        const itemSnapshot = mapService(vds);
-        try {
-          await retry(() => options.vmProvider.deleteVM(vds.vdsId), {
-            maxAttempts: 3,
-            delayMs: 2000,
-            exponentialBackoff: true,
-          });
-        } catch {
-          res.status(502).json({ ok: false, error: "delete_failed", ...requestMeta(req) });
-          return;
-        }
-        await vdsRepo.delete({ id: vds.id });
-        await emitWebhook(auth, {
-          event: "service_deleted",
-          resellerId,
-          timestamp: new Date().toISOString(),
-          data: itemSnapshot,
-        });
-        res.json({ ok: true, deleted: { serviceId: vds.id, vmid: vds.vdsId } });
+        await performResellerServiceDelete(options, auth, resellerId, vds, vdsRepo, req, res);
         return;
       }
 

@@ -56,6 +56,20 @@ Reference:
 
 ---
 
+### `POST /reseller/v1/services/delete-by-ip`
+
+Удалить услугу по **IPv4**, если запись в базе с этим IP и с **вашим** `resellerId` (тот же эффект, что `actions/delete`, но без `serviceId`).
+
+**Тело (JSON):**
+
+- `ip` — IPv4, например `45.74.7.104`.
+
+**Ответ:** как у `delete` (`deleted.serviceId`, `deleted.vmid`, `deleted.ip`).
+
+**Ошибки:** `invalid_ip` — не IPv4 или `0.0.0.0`; `404 service_not_found` — нет услуги с таким IP у реселлера; `409 ambiguous_ip` — два совпадения (аномалия, пиши в саппорт).
+
+---
+
 ### `GET /reseller/v1/services/:id`
 
 Тело не нужно. В пути `:id` — **`serviceId`** (внутренний id услуги в ответах API), только свои услуги данного реселлера.
@@ -87,6 +101,7 @@ Reference:
 - `GET /reseller/v1/services`
 - `POST /reseller/v1/services/create`
 - `POST /reseller/v1/services/import-existing`
+- `POST /reseller/v1/services/delete-by-ip`
 - `GET /reseller/v1/services/:id`
 - `POST /reseller/v1/services/:id/actions/:action`
 
