@@ -1,36 +1,22 @@
 /**
- * Optional custom emoji icons on the welcome inline keyboard (Telegram iOS Icons / any pack).
- * Uses Bot API field `icon_custom_emoji_id` on InlineKeyboardButton — shown left of `text`.
- *
- * Requires Telegram Premium on the **bot owner account** (or Fragment-linked bot per Bot API).
- *
- * Grid matches {@link registerWelcomeMainMenu} layout in `src/index.ts`:
- * row 0: purchase | row 1: manage, profile | row 2: dev, exchange
- *
- * Env: `MAIN_MENU_ICON_IDS_JSON` — e.g.
- * `{"0-0":"123...","1-0":"456...","1-1":"789...","2-0":"...","2-1":"..."}`
- *
- * Keys are hex row/col from menu callback_data (`main-menu/<rowHex>/<colHex>/...`).
+ * Grid fallback when welcome menu button labels have **no** leading emoji
+ * (MAIN_MENU_ICON_IDS_JSON keyed by menu callback grid `row-col` hex).
  */
 
 import { Logger } from "../app/logger.js";
 
 const MENU_ID = "main-menu";
 
-export type MainMenuIconGridJson = Record<string, string>;
-
-let cachedParsed: MainMenuGridIds | null = null;
+let cachedParsed: Record<string, string> | null = null;
 let cachedRaw = "";
 
-export type MainMenuGridIds = Record<string, string>;
-
-function parseEnvMapping(): MainMenuGridIds {
+function parseEnvMapping(): Record<string, string> {
   const raw = (process.env.MAIN_MENU_ICON_IDS_JSON ?? "").trim();
   if (!raw) return {};
   if (raw === cachedRaw && cachedParsed) return cachedParsed;
   try {
     const obj = JSON.parse(raw) as Record<string, unknown>;
-    const out: MainMenuGridIds = {};
+    const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(obj)) {
       const key = String(k).trim();
       const id = String(v ?? "").trim();
@@ -40,15 +26,12 @@ function parseEnvMapping(): MainMenuGridIds {
     cachedParsed = out;
     return out;
   } catch (e) {
-    Logger.warn("[main-menu icons] MAIN_MENU_ICON_IDS_JSON parse failed", e);
+    Logger.warn("[main-menu grid icons] MAIN_MENU_ICON_IDS_JSON parse failed", e);
     return {};
   }
 }
 
-/**
- * Mutates reply_markup.inline_keyboard in place when mapping is configured.
- */
-export function injectMainMenuCustomEmojiIcons(replyMarkup: unknown): void {
+export function injectMainMenuGridIcons(replyMarkup: unknown): void {
   const mapping = parseEnvMapping();
   if (Object.keys(mapping).length === 0) return;
 
@@ -75,7 +58,7 @@ export function injectMainMenuCustomEmojiIcons(replyMarkup: unknown): void {
 
       const key = `${r}-${c}`;
       const emojiId = mapping[key];
-      if (!emojiId) continue;
+      if (!emojiId || rec.icon_custom_emoji_id) continue;
 
       rec.icon_custom_emoji_id = emojiId;
     }

@@ -43,9 +43,9 @@ profile = ┠💻 ПРОФИЛЬ DIOR
 
 Правила (https://telegra.ph/Pravila-i-Usloviya-ispolzovaniya-servisa-1REG-05-26) | Поддержка (https://t.me/one_reg_talk) | Новости (https://t.me/+kOkatN8cTig1ZGRk)
 
-button-purchase = Выбрать тариф
-button-manage-services = Услуги
-button-personal-profile = Профиль
+button-purchase = 🔎 Выбрать тариф
+button-manage-services = 💼 Услуги
+button-personal-profile = 👤 Профиль
 button-support = 🛠 Поддержка
 button-about-us = 📖 О нас
 button-change-locale = 🌐 Язык
@@ -76,9 +76,9 @@ button-service-buy-domains = 🌐 Домены
 button-service-buy-cdn = 🛡 CDN
 button-service-buy-dedicated = 🖥 Дедики
 
-button-dev-po = Разработка ПО
+button-dev-po = ⚙️ Разработка ПО
 button-dev-po-discuss = 💬 Обсудить проект
-button-crypto-exchange = Обменник
+button-crypto-exchange = 🔁 Обменник
 button-crypto-exchange-go = 💱 Перейти к обменнику
 service-crypto-exchange = <b>💱 Криптообменник</b><br><br>Быстрый обмен криптовалюты в нашем боте DiorChange — без лишних регистраций и задержек. Выберите пару, укажите сумму (от 2$) и получите обмен по выгодному курсу.<br><br>Нажмите кнопку ниже, чтобы открыть бот-обменник DiorChange.
 service-dev-po = <b>💻 Development &amp; Infrastructure</b><br><br>Мы проектируем и масштабируем цифровые продукты — от кода до трафика и инфраструктуры.<br><br>🌐 <b>Web Development</b><br>Высокопроизводительные сайты, SEO-ready структура, интерфейсы под конверсию<br><br>⚙️ <b>Backend &amp; Systems</b><br>API, аутентификация, биллинг, масштабируемая архитектура<br><br>🤖 <b>Automation &amp; Bots</b><br>Telegram / Discord боты, админ-панели, кастомные workflow<br><br>🧱 <b>Infrastructure &amp; DevOps</b><br>VPS / Dedicated, Docker, Cloudflare, безопасный деплой<br><br>📊 <b>SEO &amp; Analytics</b><br>Техническое SEO, системы аналитики, архитектура под трафик<br><br>🚀 <b>Product Launch &amp; Scaling</b><br>От MVP до продакшена с полной инфраструктурной поддержкой<br><br>Чтобы обсудить проект, свяжитесь с поддержкой и отправьте бриф с вашими требованиями.

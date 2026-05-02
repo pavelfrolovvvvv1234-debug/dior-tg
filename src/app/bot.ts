@@ -47,7 +47,7 @@ import {
   adminPromosMenu,
   registerAdminPromosHandlers,
 } from "../ui/menus/admin-promocodes-menu.js";
-import { injectMainMenuCustomEmojiIcons } from "../shared/main-menu-icon-emoji.js";
+import { transformOutboundCustomEmoji } from "../shared/outbound-custom-emoji.js";
 
 /**
  * Initialize and configure the Telegram bot.
@@ -82,11 +82,9 @@ export async function createBot(): Promise<{
   // Create bot instance first
   const bot = new Bot<AppContext>(config.BOT_TOKEN, {});
 
-  /** Optional `icon_custom_emoji_id` on welcome menu buttons (MAIN_MENU_ICON_IDS_JSON). */
+  /** Custom emoji packs: CUSTOM_EMOJI_ICON_MAP_JSON (+ optional MAIN_MENU_ICON_IDS_JSON grid). */
   bot.api.config.use((prev, method, payload, signal) => {
-    if (payload && typeof payload === "object" && payload !== null && "reply_markup" in payload) {
-      injectMainMenuCustomEmojiIcons((payload as { reply_markup?: unknown }).reply_markup);
-    }
+    transformOutboundCustomEmoji(method, payload);
     return prev(method, payload, signal);
   });
 
