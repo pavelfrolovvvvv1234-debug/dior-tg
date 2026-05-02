@@ -17,6 +17,7 @@ import type {
   CreateVMSuccesffulyResponse,
   GetOsListResponse,
   GetVMResponse,
+  ListItem,
 } from "../../api/vmmanager.js";
 
 // Re-export types
@@ -26,6 +27,20 @@ export type {
   GetVMResponse,
   ListItem,
 } from "../../api/vmmanager.js";
+
+/**
+ * Map common hypervisor / VMManager state names to ListItem values (`active` / `stopped` / `creating`).
+ */
+function normalizeVmStateShape(obj: Record<string, unknown>): Record<string, unknown> {
+  const s = String(obj.state ?? "").toLowerCase();
+  if (s === "running" || s === "started") {
+    return { ...obj, state: "active" };
+  }
+  if (s === "paused" || s === "suspended") {
+    return { ...obj, state: "stopped" };
+  }
+  return obj;
+}
 
 /**
  * VMManager API client with automatic retry and error handling.
@@ -245,9 +260,28 @@ export class VMManager {
   }
 
   /**
+   * ISP VMManager may return either a flat host object or `{ list: [ host ] }` (see GetVMResponse).
+   */
+  private normalizeHostGetPayload(data: unknown): unknown {
+    if (!data || typeof data !== "object") return data;
+    const d = data as Record<string, unknown>;
+    if (typeof d.state === "string") {
+      return normalizeVmStateShape(d);
+    }
+    const list = d.list;
+    if (Array.isArray(list) && list.length > 0 && list[0] && typeof list[0] === "object") {
+      const first = list[0] as Record<string, unknown>;
+      if (typeof first.state === "string") {
+        return normalizeVmStateShape(first);
+      }
+    }
+    return data;
+  }
+
+  /**
    * Get VM info.
    */
-  async getInfoVM(id: number) {
+  async getInfoVM(id: number): Promise<ListItem | undefined> {
     return this.handleApiCall(async () => {
       const { status, data } = await axios.get(
         `${this.baseUrl}vm/v3/host/${id}`,
@@ -258,7 +292,8 @@ export class VMManager {
       );
 
       if (status === 200) {
-        return data;
+        const normalized = this.normalizeHostGetPayload(data);
+        return normalized as ListItem | undefined;
       }
       throw new Error(`Unexpected status: ${status}`);
     }, "getInfoVM");
