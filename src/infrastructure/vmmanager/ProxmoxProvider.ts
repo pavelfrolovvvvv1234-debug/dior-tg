@@ -272,13 +272,58 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
+  /**
+   * When `/qemu/{id}/status/current` returns 5xx (seen on some PVE builds), list VMs on the node and match vmid.
+   */
+  private async getQemuStatusFallback(vmid: number): Promise<{ status?: string } | undefined> {
+    try {
+      const list = await this.apiGet<Array<{ vmid?: number; status?: string; qmpstatus?: string }>>(
+        `/nodes/${this.node}/qemu`
+      );
+      const row = Array.isArray(list) ? list.find((v) => Number(v.vmid) === vmid) : undefined;
+      if (!row) return undefined;
+      const s = String(row.status ?? row.qmpstatus ?? "").toLowerCase();
+      if (s === "running") return { status: "running" };
+      if (s === "stopped") return { status: "stopped" };
+      if (s === "paused") return { status: "stopped" };
+      return row.status ? { status: row.status } : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private qemuStatusToListState(status?: string): "active" | "stopped" | "creating" {
+    const s = String(status ?? "").toLowerCase();
+    if (s === "running") return "active";
+    if (s === "stopped" || s === "paused") return "stopped";
+    return "creating";
+  }
+
   async getInfoVM(id: number): Promise<ListItem | undefined> {
     try {
-      const status = await this.apiGet<{ status?: string }>(`/nodes/${this.node}/qemu/${id}/status/current`);
+      let statusPayload = await this.apiGet<{ status?: string }>(
+        `/nodes/${this.node}/qemu/${id}/status/current`
+      ).catch(() => undefined);
+
+      if (!statusPayload?.status) {
+        const fb = await this.getQemuStatusFallback(id);
+        if (fb?.status) {
+          Logger.warn(`Proxmox getInfoVM: used node qemu list fallback for vm ${id} (status/current unavailable)`);
+          statusPayload = fb;
+        }
+      }
+
       const configData = await this.apiGet<{ name?: string; cores?: number; memory?: number; net0?: string }>(
         `/nodes/${this.node}/qemu/${id}/config`
       ).catch(() => undefined);
-      const state = status?.status === "running" ? "active" : status?.status === "stopped" ? "stopped" : "creating";
+
+      if (!statusPayload && !configData) {
+        Logger.warn(`Proxmox getInfoVM: no status or config for vm ${id}`);
+        return undefined;
+      }
+
+      const state = this.qemuStatusToListState(statusPayload?.status);
+
       return {
         id,
         name: configData?.name ?? `vm-${id}`,
