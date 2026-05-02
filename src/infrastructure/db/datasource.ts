@@ -43,6 +43,7 @@ import { Logger } from "../../app/logger.js";
 import AdminAuditLog from "../../entities/AdminAuditLog.js";
 import { runRoleModelMigration } from "./role-migration.js";
 import { runProvisioningStatusMigration } from "./provisioning-status-migration.js";
+import { dedupeVdslistDuplicateVdsIds } from "./vdslist-dedupe.js";
 
 /**
  * TypeORM DataSource singleton instance.
@@ -107,6 +108,12 @@ export async function getAppDataSource(): Promise<DataSource> {
   if (!initialized) {
     initialized = true;
     try {
+      const dbPath =
+        typeof AppDataSource.options.database === "string"
+          ? AppDataSource.options.database
+          : "data.db";
+      dedupeVdslistDuplicateVdsIds(dbPath);
+
       await AppDataSource.initialize();
       await runRoleModelMigration(AppDataSource);
       await runProvisioningStatusMigration(AppDataSource);
