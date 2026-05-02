@@ -30,6 +30,26 @@ type ProxmoxNetworkIface = {
   active?: 0 | 1;
 };
 
+type ProxmoxGuestKind = "qemu" | "lxc";
+
+/** QEMU/LXC config snippets from GET …/config */
+type ProxmoxGuestConfig = {
+  name?: string;
+  hostname?: string;
+  cores?: number;
+  memory?: number;
+  net0?: string;
+};
+
+type ClusterVmRow = {
+  node?: string;
+  status?: string;
+  name?: string;
+  maxcpu?: number;
+  maxmem?: number;
+  virtType?: ProxmoxGuestKind;
+};
+
 function normalizeOsKey(key: string): string {
   return key.trim().toLowerCase();
 }
@@ -273,15 +293,9 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   /**
-   * Find QEMU guest anywhere in the cluster (vm may not live on PROXMOX_NODE).
+   * Find QEMU or LXC guest via cluster index (correct node + virt type).
    */
-  private async getClusterQemuResource(vmid: number): Promise<{
-    node?: string;
-    status?: string;
-    name?: string;
-    maxcpu?: number;
-    maxmem?: number;
-  } | undefined> {
+  private async getClusterVmResource(vmid: number): Promise<ClusterVmRow | undefined> {
     try {
       const resources = await this.apiGet<
         Array<{
@@ -295,24 +309,35 @@ export class ProxmoxProvider implements VmProvider {
         }>
       >(`/cluster/resources?type=vm`);
       if (!Array.isArray(resources)) return undefined;
-      let row = resources.find((r) => Number(r.vmid) === vmid && r.type === "qemu");
-      if (!row) row = resources.find((r) => Number(r.vmid) === vmid);
-      return row ?? undefined;
+      const row = resources.find((r) => Number(r.vmid) === vmid);
+      if (!row) return undefined;
+      const virtType: ProxmoxGuestKind | undefined =
+        row.type === "lxc" ? "lxc" : row.type === "qemu" ? "qemu" : undefined;
+      return {
+        node: row.node,
+        status: row.status,
+        name: row.name,
+        maxcpu: row.maxcpu,
+        maxmem: row.maxmem,
+        virtType,
+      };
     } catch {
       return undefined;
     }
   }
 
   /**
-   * When `/qemu/{id}/status/current` returns 5xx, list VMs on a node and match vmid.
+   * When `/status/current` returns 5xx, match vmid in node-local guest list.
    */
-  private async getQemuStatusFallbackOnNode(
+  private async getGuestListFallbackOnNode(
     node: string,
-    vmid: number
+    vmid: number,
+    kind: ProxmoxGuestKind
   ): Promise<{ status?: string } | undefined> {
+    const seg = kind === "qemu" ? "qemu" : "lxc";
     try {
       const list = await this.apiGet<Array<{ vmid?: number; status?: string; qmpstatus?: string }>>(
-        `/nodes/${node}/qemu`
+        `/nodes/${node}/${seg}`
       );
       const row = Array.isArray(list) ? list.find((v) => Number(v.vmid) === vmid) : undefined;
       if (!row) return undefined;
@@ -333,73 +358,105 @@ export class ProxmoxProvider implements VmProvider {
     return "creating";
   }
 
-  async getInfoVM(id: number): Promise<ListItem | undefined> {
-    try {
-      const clusterVm = await this.getClusterQemuResource(id);
-      const nodeCandidates = [...new Set([this.node, clusterVm?.node].filter((n): n is string => Boolean(n?.trim())))];
+  private async fetchGuestInfoFromNodes(
+    vmid: number,
+    nodes: string[],
+    kind: ProxmoxGuestKind
+  ): Promise<{ statusPayload?: { status?: string }; configData?: ProxmoxGuestConfig }> {
+    const seg = kind === "qemu" ? "qemu" : "lxc";
+    let statusPayload: { status?: string } | undefined;
 
-      let statusPayload: { status?: string } | undefined;
+    for (const node of nodes) {
+      const s = await this.apiGet<{ status?: string }>(
+        `/nodes/${node}/${seg}/${vmid}/status/current`
+      ).catch(() => undefined);
+      if (s?.status) {
+        statusPayload = s;
+        break;
+      }
+    }
 
-      for (const node of nodeCandidates) {
-        const s = await this.apiGet<{ status?: string }>(
-          `/nodes/${node}/qemu/${id}/status/current`
-        ).catch(() => undefined);
-        if (s?.status) {
-          statusPayload = s;
+    if (!statusPayload?.status) {
+      for (const node of nodes) {
+        const fb = await this.getGuestListFallbackOnNode(node, vmid, kind);
+        if (fb?.status) {
+          Logger.warn(
+            `Proxmox getInfoVM: used ${seg} list on node ${node} for guest ${vmid} (status/current unavailable)`
+          );
+          statusPayload = fb;
           break;
         }
       }
+    }
 
-      if (!statusPayload?.status) {
-        for (const node of nodeCandidates) {
-          const fb = await this.getQemuStatusFallbackOnNode(node, id);
-          if (fb?.status) {
-            Logger.warn(
-              `Proxmox getInfoVM: used qemu list on node ${node} for vm ${id} (status/current unavailable)`
-            );
-            statusPayload = fb;
-            break;
-          }
-        }
-      }
+    let configData: ProxmoxGuestConfig | undefined;
+    for (const node of nodes) {
+      configData = await this.apiGet<ProxmoxGuestConfig>(
+        `/nodes/${node}/${seg}/${vmid}/config`
+      ).catch(() => undefined);
+      if (configData) break;
+    }
 
-      if (!statusPayload?.status && clusterVm?.status) {
-        statusPayload = { status: clusterVm.status };
-        Logger.warn(`Proxmox getInfoVM: used cluster/resources status for vm ${id}`);
-      }
+    return { statusPayload, configData };
+  }
 
-      let configData:
-        | { name?: string; cores?: number; memory?: number; net0?: string }
-        | undefined;
-      for (const node of nodeCandidates) {
-        configData = await this.apiGet<{
-          name?: string;
-          cores?: number;
-          memory?: number;
-          net0?: string;
-        }>(`/nodes/${node}/qemu/${id}/config`).catch(() => undefined);
-        if (configData) break;
-      }
+  private buildListItemFromGuestParts(
+    vmid: number,
+    part: { statusPayload?: { status?: string }; configData?: ProxmoxGuestConfig },
+    clusterVm?: ClusterVmRow
+  ): ListItem {
+    const ramFromCluster =
+      clusterVm?.maxmem != null && clusterVm.maxmem > 0
+        ? Math.round(clusterVm.maxmem / (1024 * 1024))
+        : undefined;
+    const cfg = part.configData;
+    const state = this.qemuStatusToListState(part.statusPayload?.status ?? clusterVm?.status);
+    const displayName = cfg?.name ?? cfg?.hostname ?? clusterVm?.name ?? `vm-${vmid}`;
+    return {
+      id: vmid,
+      name: displayName,
+      state,
+      cpu_number: Number(cfg?.cores ?? clusterVm?.maxcpu ?? 1),
+      ram_mib: Number(cfg?.memory ?? ramFromCluster ?? 1024),
+    } as ListItem;
+  }
 
-      const ramFromCluster =
-        clusterVm?.maxmem != null && clusterVm.maxmem > 0
-          ? Math.round(clusterVm.maxmem / (1024 * 1024))
-          : undefined;
-
-      if (!statusPayload?.status && !configData && !clusterVm) {
-        Logger.warn(`Proxmox getInfoVM: no status or config for vm ${id} (check token scope / vm exists)`);
+  async getInfoVM(id: number): Promise<ListItem | undefined> {
+    try {
+      const clusterVm = await this.getClusterVmResource(id);
+      const nodeCandidates = [...new Set([this.node, clusterVm?.node].filter((n): n is string => Boolean(n?.trim())))];
+      if (nodeCandidates.length === 0) {
         return undefined;
       }
 
-      const state = this.qemuStatusToListState(statusPayload?.status ?? clusterVm?.status);
+      const kindsOrder: ProxmoxGuestKind[] =
+        clusterVm?.virtType === "lxc"
+          ? ["lxc"]
+          : clusterVm?.virtType === "qemu"
+            ? ["qemu"]
+            : ["qemu", "lxc"];
 
-      return {
-        id,
-        name: configData?.name ?? clusterVm?.name ?? `vm-${id}`,
-        state,
-        cpu_number: Number(configData?.cores ?? clusterVm?.maxcpu ?? 1),
-        ram_mib: Number(configData?.memory ?? ramFromCluster ?? 1024),
-      } as ListItem;
+      for (const kind of kindsOrder) {
+        const part = await this.fetchGuestInfoFromNodes(id, nodeCandidates, kind);
+        if (part.statusPayload?.status || part.configData) {
+          return this.buildListItemFromGuestParts(id, part, clusterVm);
+        }
+      }
+
+      if (clusterVm && (clusterVm.status || clusterVm.name || clusterVm.maxcpu != null)) {
+        Logger.debug(`Proxmox getInfoVM: cluster/resources-only row for guest ${id} (${clusterVm.virtType ?? "?"})`);
+        return this.buildListItemFromGuestParts(
+          id,
+          {
+            statusPayload: clusterVm.status ? { status: clusterVm.status } : undefined,
+            configData: undefined,
+          },
+          clusterVm
+        );
+      }
+
+      Logger.warn(`Proxmox getInfoVM: no status or config for guest ${id} (check token scope / vm exists)`);
+      return undefined;
     } catch (error) {
       Logger.error("Proxmox getInfoVM failed", error);
       return undefined;
