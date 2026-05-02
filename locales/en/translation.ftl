@@ -41,9 +41,9 @@ profile = ┠💻 1REG PROFILE
 
 Terms of service (https://telegra.ph/Pravila-i-Usloviya-ispolzovaniya-servisa-1REG-05-26) | Support (https://t.me/one_reg_talk) | 1REG News (https://t.me/+kOkatN8cTig1ZGRk)
 
-button-purchase = 🔎 Select Plan
-button-manage-services = 💼 Services
-button-personal-profile = 👤 Profile
+button-purchase = Select Plan
+button-manage-services = Services
+button-personal-profile = Profile
 button-support = 🛠 Support
 button-about-us = 📖 About us
 button-change-locale = 🌐 Language
@@ -74,9 +74,9 @@ button-service-buy-domains = 🌐 Domains
 button-service-buy-cdn = 🛡 CDN
 button-service-buy-dedicated = 🖥 Dedicated
 
-button-dev-po = ⚙️ Development
+button-dev-po = Development
 button-dev-po-discuss = 💬 Discuss project
-button-crypto-exchange = 🔁 Exchange
+button-crypto-exchange = Exchange
 button-crypto-exchange-go = 💱 Go to exchanger
 service-crypto-exchange = <b>💱 Crypto Exchange</b><br><br>Fast cryptocurrency exchange in our DiorChange bot — no extra registration or delays. Choose a pair, enter the amount (from $2) and get the exchange at a competitive rate.<br><br>Press the button below to open the DiorChange exchanger bot.
 service-dev-po = <b>💻 Development &amp; Infrastructure</b><br><br>We design and scale digital products — from code to traffic and infrastructure.<br><br>🌐 <b>Web Development</b><br>High-performance websites, SEO-ready structure, conversion-focused UI<br><br>⚙️ <b>Backend &amp; Systems</b><br>APIs, authentication, billing, scalable architecture<br><br>🤖 <b>Automation &amp; Bots</b><br>Telegram / Discord bots, admin panels, custom workflows<br><br>🧱 <b>Infrastructure &amp; DevOps</b><br>VPS / Dedicated, Docker, Cloudflare, secure deployment<br><br>📊 <b>SEO &amp; Analytics</b><br>Technical SEO, tracking systems, traffic-ready architecture<br><br>🚀 <b>Product Launch &amp; Scaling</b><br>From MVP to production with full infrastructure support<br><br>To discuss your project, contact support and send a brief with your requirements.

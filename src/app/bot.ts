@@ -47,6 +47,7 @@ import {
   adminPromosMenu,
   registerAdminPromosHandlers,
 } from "../ui/menus/admin-promocodes-menu.js";
+import { injectMainMenuCustomEmojiIcons } from "../shared/main-menu-icon-emoji.js";
 
 /**
  * Initialize and configure the Telegram bot.
@@ -80,6 +81,14 @@ export async function createBot(): Promise<{
 
   // Create bot instance first
   const bot = new Bot<AppContext>(config.BOT_TOKEN, {});
+
+  /** Optional `icon_custom_emoji_id` on welcome menu buttons (MAIN_MENU_ICON_IDS_JSON). */
+  bot.api.config.use((prev, method, payload, signal) => {
+    if (payload && typeof payload === "object" && payload !== null && "reply_markup" in payload) {
+      injectMainMenuCustomEmojiIcons((payload as { reply_markup?: unknown }).reply_markup);
+    }
+    return prev(method, payload, signal);
+  });
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Placeholder "Search..." = BotFather.
   bot.use(async (ctx, next) => {
