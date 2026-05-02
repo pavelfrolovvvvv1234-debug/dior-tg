@@ -273,12 +273,46 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   /**
-   * When `/qemu/{id}/status/current` returns 5xx (seen on some PVE builds), list VMs on the node and match vmid.
+   * Find QEMU guest anywhere in the cluster (vm may not live on PROXMOX_NODE).
    */
-  private async getQemuStatusFallback(vmid: number): Promise<{ status?: string } | undefined> {
+  private async getClusterQemuResource(vmid: number): Promise<{
+    node?: string;
+    status?: string;
+    name?: string;
+    maxcpu?: number;
+    maxmem?: number;
+  } | undefined> {
+    try {
+      const resources = await this.apiGet<
+        Array<{
+          type?: string;
+          vmid?: number;
+          node?: string;
+          status?: string;
+          name?: string;
+          maxcpu?: number;
+          maxmem?: number;
+        }>
+      >(`/cluster/resources?type=vm`);
+      if (!Array.isArray(resources)) return undefined;
+      let row = resources.find((r) => Number(r.vmid) === vmid && r.type === "qemu");
+      if (!row) row = resources.find((r) => Number(r.vmid) === vmid);
+      return row ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * When `/qemu/{id}/status/current` returns 5xx, list VMs on a node and match vmid.
+   */
+  private async getQemuStatusFallbackOnNode(
+    node: string,
+    vmid: number
+  ): Promise<{ status?: string } | undefined> {
     try {
       const list = await this.apiGet<Array<{ vmid?: number; status?: string; qmpstatus?: string }>>(
-        `/nodes/${this.node}/qemu`
+        `/nodes/${node}/qemu`
       );
       const row = Array.isArray(list) ? list.find((v) => Number(v.vmid) === vmid) : undefined;
       if (!row) return undefined;
@@ -301,35 +335,70 @@ export class ProxmoxProvider implements VmProvider {
 
   async getInfoVM(id: number): Promise<ListItem | undefined> {
     try {
-      let statusPayload = await this.apiGet<{ status?: string }>(
-        `/nodes/${this.node}/qemu/${id}/status/current`
-      ).catch(() => undefined);
+      const clusterVm = await this.getClusterQemuResource(id);
+      const nodeCandidates = [...new Set([this.node, clusterVm?.node].filter((n): n is string => Boolean(n?.trim())))];
 
-      if (!statusPayload?.status) {
-        const fb = await this.getQemuStatusFallback(id);
-        if (fb?.status) {
-          Logger.warn(`Proxmox getInfoVM: used node qemu list fallback for vm ${id} (status/current unavailable)`);
-          statusPayload = fb;
+      let statusPayload: { status?: string } | undefined;
+
+      for (const node of nodeCandidates) {
+        const s = await this.apiGet<{ status?: string }>(
+          `/nodes/${node}/qemu/${id}/status/current`
+        ).catch(() => undefined);
+        if (s?.status) {
+          statusPayload = s;
+          break;
         }
       }
 
-      const configData = await this.apiGet<{ name?: string; cores?: number; memory?: number; net0?: string }>(
-        `/nodes/${this.node}/qemu/${id}/config`
-      ).catch(() => undefined);
+      if (!statusPayload?.status) {
+        for (const node of nodeCandidates) {
+          const fb = await this.getQemuStatusFallbackOnNode(node, id);
+          if (fb?.status) {
+            Logger.warn(
+              `Proxmox getInfoVM: used qemu list on node ${node} for vm ${id} (status/current unavailable)`
+            );
+            statusPayload = fb;
+            break;
+          }
+        }
+      }
 
-      if (!statusPayload && !configData) {
-        Logger.warn(`Proxmox getInfoVM: no status or config for vm ${id}`);
+      if (!statusPayload?.status && clusterVm?.status) {
+        statusPayload = { status: clusterVm.status };
+        Logger.warn(`Proxmox getInfoVM: used cluster/resources status for vm ${id}`);
+      }
+
+      let configData:
+        | { name?: string; cores?: number; memory?: number; net0?: string }
+        | undefined;
+      for (const node of nodeCandidates) {
+        configData = await this.apiGet<{
+          name?: string;
+          cores?: number;
+          memory?: number;
+          net0?: string;
+        }>(`/nodes/${node}/qemu/${id}/config`).catch(() => undefined);
+        if (configData) break;
+      }
+
+      const ramFromCluster =
+        clusterVm?.maxmem != null && clusterVm.maxmem > 0
+          ? Math.round(clusterVm.maxmem / (1024 * 1024))
+          : undefined;
+
+      if (!statusPayload?.status && !configData && !clusterVm) {
+        Logger.warn(`Proxmox getInfoVM: no status or config for vm ${id} (check token scope / vm exists)`);
         return undefined;
       }
 
-      const state = this.qemuStatusToListState(statusPayload?.status);
+      const state = this.qemuStatusToListState(statusPayload?.status ?? clusterVm?.status);
 
       return {
         id,
-        name: configData?.name ?? `vm-${id}`,
+        name: configData?.name ?? clusterVm?.name ?? `vm-${id}`,
         state,
-        cpu_number: Number(configData?.cores ?? 1),
-        ram_mib: Number(configData?.memory ?? 1024),
+        cpu_number: Number(configData?.cores ?? clusterVm?.maxcpu ?? 1),
+        ram_mib: Number(configData?.memory ?? ramFromCluster ?? 1024),
       } as ListItem;
     } catch (error) {
       Logger.error("Proxmox getInfoVM failed", error);
