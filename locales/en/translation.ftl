@@ -67,12 +67,12 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
 
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
-button-dedicated-server = 🖥 Dedicated Servers
+button-dedicated-server = 🔒 🖥 Dedicated Servers
 
 # Purchase services — labels for current locale (3 buttons + language toggle)
 button-service-buy-domains = 🌐 Domains
 button-service-buy-cdn = 🛡 CDN
-button-service-buy-dedicated = 🖥 Dedicated
+button-service-buy-dedicated = 🔒 🖥 Dedicated
 
 button-dev-po = ⚙️ Development
 button-dev-po-discuss = 💬 Discuss project
@@ -580,7 +580,7 @@ manage-services-header = 💼 Services
 button-manage-domains = 🌐 Domains
 button-manage-cdn = 🛡 CDN
 cdn-manage-services-title = <strong>CDN</strong>
-button-manage-dedicated = 🖥 Dedicated
+button-manage-dedicated = 🔒 🖥 Dedicated
 button-manage-services-back = ⬅️ Back
 
 
@@ -608,7 +608,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
 # Dedicated server shop (multi-step)
 dedicated-shop-step1-text =
-    <b>🖥 Dedicated</b>
+    <b>🔒 🖥 Dedicated</b>
 
     Choose infrastructure type:
 dedicated-shop-btn-standard = ⚙️ Standard
@@ -629,14 +629,14 @@ dedicated-shop-tier-start-label = Start
 dedicated-shop-tier-standard-label = Standard
 dedicated-shop-tier-performance-label = Performance
 dedicated-shop-tier-enterprise-label = Enterprise
-dedicated-shop-step3-header = <b>🖥 {$typeLine} • {$tierLine}</b>
+dedicated-shop-step3-header = <b>🔒 🖥 {$typeLine} • {$tierLine}</b>
 dedicated-shop-step3-prompt = Choose server:
 dedicated-shop-list-page = Page {$current} / {$total}
 dedicated-shop-page-prev = ⬅️ Prev
 dedicated-shop-page-next = ➡️ Next
 dedicated-shop-storage-line = SSD / NVMe
 dedicated-shop-card =
-    <b>🖥 {$title}</b>
+    <b>🔒 🖥 {$title}</b>
 
     <b>CPU:</b> {$cpu}
     <b>RAM:</b> {$ram} GB
@@ -1008,7 +1008,7 @@ ticket-request-server = Server
 
 # Dedicated Servers
 button-order-dedicated = 💳 Make Order
-button-my-dedicated = 🖥 Dedicated Servers
+button-my-dedicated = 🔒 🖥 Dedicated Servers
 button-my-tickets = 🎫 My Requests
 dedicated-none = You don't have any dedicated servers
 dedicated-status-requested = <strong>Dedicated Server Request</strong>
@@ -1023,7 +1023,7 @@ Status: REQUESTED
 
 Please wait for moderator to process your request.
 dedicated-no-credentials = Dedicated server credentials not available yet
-dedicated-info = <strong>My Dedicated Server</strong>
+dedicated-info = <strong>🔒 My Dedicated Server</strong>
 
 <strong>IP:</strong> {$ip}
 <strong>Login:</strong> {$login}
@@ -1081,7 +1081,7 @@ not-assigned = Not assigned
 ticket-view = Ticket view (placeholder - using inline)
 ticket-user-view = Ticket user view (placeholder - using inline)
 dedicated-operation-confirm = Confirm operation (placeholder - using inline)
-dedicated-menu-header = <strong>Dedicated Servers</strong>
+dedicated-menu-header = <strong>🔒 Dedicated Servers</strong>
 
 Choose an option:
 dedicated-location-select-title = Start with location selection.
