@@ -634,6 +634,9 @@ export async function createBot(): Promise<{
       return;
     }
 
+    const { clearAdminVdsPanelState } = await import("../ui/menus/admin-vds-menu.js");
+    clearAdminVdsPanelState(session.other);
+
     try {
       const { adminMenu } = await import("../ui/menus/admin-menu");
       await ctx.editMessageText(ctx.t("admin-panel-header"), {

@@ -7,6 +7,7 @@
 import { InlineKeyboard } from "grammy";
 import axios from "axios";
 import type { AppContext } from "../../shared/types/context.js";
+import type { SessionData } from "../../shared/types/session.js";
 import { Role } from "../../entities/User.js";
 import { VdsRepository } from "../../infrastructure/db/repositories/VdsRepository.js";
 import { VdsService } from "../../domain/services/VdsService.js";
@@ -111,6 +112,19 @@ function vdsService(ctx: AppContext): VdsService {
   return new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
 }
 
+/**
+ * Clears VDS admin list filters when leaving the section (back to admin root).
+ * Prevents an old search from hiding all rows on the next visit.
+ */
+export function clearAdminVdsPanelState(other: SessionData["other"]): void {
+  if (!other.adminVds) return;
+  other.adminVds.searchQuery = "";
+  other.adminVds.page = 0;
+  other.adminVds.selectedVdsId = null;
+  other.adminVds.awaitingSearch = false;
+  other.adminVds.awaitingTransferUserId = false;
+}
+
 async function requireAdmin(ctx: AppContext): Promise<boolean> {
   const ok = await ensureSessionUser(ctx);
   const session = await ctx.session;
@@ -144,7 +158,7 @@ export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
       awaitingTransferUserId: false,
     };
   }
-  session.other.adminVds.selectedVdsId = null;
+  clearAdminVdsPanelState(session.other);
   const text = await buildListText(ctx);
   const kb = await buildListKeyboard(ctx);
   await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });

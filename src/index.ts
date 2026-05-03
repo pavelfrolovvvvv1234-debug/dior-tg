@@ -1394,6 +1394,9 @@ async function index() {
       return;
     }
 
+    const { clearAdminVdsPanelState } = await import("./ui/menus/admin-vds-menu.js");
+    clearAdminVdsPanelState(session.other);
+
     try {
       await ctx.editMessageText(ctx.t("admin-panel-header"), {
         reply_markup: adminMenu,
