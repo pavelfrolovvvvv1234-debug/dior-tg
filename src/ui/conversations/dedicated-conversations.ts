@@ -182,6 +182,8 @@ export async function createDedicatedOrderTicket(
   const session = await ctx.session;
   const ticketService = new TicketService(ctx.appDataSource);
   const dedicatedService = new DedicatedService(ctx.appDataSource);
+  const buyerIsStaff =
+    session.main.user.role === Role.Admin || session.main.user.role === Role.Moderator;
 
   try {
     const payload = {
@@ -192,7 +194,8 @@ export async function createDedicatedOrderTicket(
     const ticket = await ticketService.createTicket(
       session.main.user.id,
       TicketType.DEDICATED_ORDER,
-      payload
+      payload,
+      { excludeFromUserStats: buyerIsStaff }
     );
 
     // Create dedicated server request
@@ -202,64 +205,66 @@ export async function createDedicatedOrderTicket(
       undefined
     );
 
-    // Notify moderators
     const userRepo = ctx.appDataSource.getRepository(User);
-    const moderators = await userRepo.find({
-      where: [{ role: Role.Moderator }, { role: Role.Admin }],
-    });
 
-    for (const mod of moderators) {
-      try {
-        const { InlineKeyboard } = await import("grammy");
-        const keyboard = new InlineKeyboard()
-          .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-          .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+    if (!buyerIsStaff) {
+      const moderators = await userRepo.find({
+        where: [{ role: Role.Moderator }, { role: Role.Admin }],
+      });
 
-        await ctx.api.sendMessage(
-          mod.telegramId,
-          ctx.t("ticket-moderator-notification", {
-            ticketId: ticket.id,
-            userId: session.main.user.id,
-            username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-            type: ctx.t(`ticket-type-${ticket.type}`),
-            amountLine: "",
-            detailsLine: "",
-          }),
-          {
-            reply_markup: keyboard,
-            parse_mode: "HTML",
-          }
-        );
-      } catch (error) {
-        // Moderator might have blocked bot
-        Logger.warn(`Failed to notify moderator ${mod.telegramId} about ticket ${ticket.id}:`, error);
+      for (const mod of moderators) {
+        try {
+          const { InlineKeyboard } = await import("grammy");
+          const keyboard = new InlineKeyboard()
+            .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
+            .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+
+          await ctx.api.sendMessage(
+            mod.telegramId,
+            ctx.t("ticket-moderator-notification", {
+              ticketId: ticket.id,
+              userId: session.main.user.id,
+              username: ctx.from?.username || ctx.from?.first_name || "Unknown",
+              type: ctx.t(`ticket-type-${ticket.type}`),
+              amountLine: "",
+              detailsLine: "",
+            }),
+            {
+              reply_markup: keyboard,
+              parse_mode: "HTML",
+            }
+          );
+        } catch (error) {
+          // Moderator might have blocked bot
+          Logger.warn(`Failed to notify moderator ${mod.telegramId} about ticket ${ticket.id}:`, error);
+        }
       }
-    }
 
-    const moderatorChatId = getModeratorChatId();
-    if (moderatorChatId) {
-      try {
-        const { InlineKeyboard } = await import("grammy");
-        const keyboard = new InlineKeyboard()
-          .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-          .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-        await ctx.api.sendMessage(
-          moderatorChatId,
-          ctx.t("ticket-moderator-notification", {
-            ticketId: ticket.id,
-            userId: session.main.user.id,
-            username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-            type: ctx.t(`ticket-type-${ticket.type}`),
-            amountLine: "",
-            detailsLine: "",
-          }),
-          {
-            reply_markup: keyboard,
-            parse_mode: "HTML",
-          }
-        );
-      } catch (error) {
-        Logger.warn(`Failed to notify moderator chat about ticket ${ticket.id}:`, error);
+      const moderatorChatId = getModeratorChatId();
+      if (moderatorChatId) {
+        try {
+          const { InlineKeyboard } = await import("grammy");
+          const keyboard = new InlineKeyboard()
+            .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
+            .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+          await ctx.api.sendMessage(
+            moderatorChatId,
+            ctx.t("ticket-moderator-notification", {
+              ticketId: ticket.id,
+              userId: session.main.user.id,
+              username: ctx.from?.username || ctx.from?.first_name || "Unknown",
+              type: ctx.t(`ticket-type-${ticket.type}`),
+              amountLine: "",
+              detailsLine: "",
+            }),
+            {
+              reply_markup: keyboard,
+              parse_mode: "HTML",
+            }
+          );
+        } catch (error) {
+          Logger.warn(`Failed to notify moderator chat about ticket ${ticket.id}:`, error);
+        }
       }
     }
 

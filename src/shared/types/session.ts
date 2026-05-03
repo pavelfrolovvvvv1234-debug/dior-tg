@@ -38,6 +38,8 @@ export interface OtherSessionData {
     pickedUserData?: {
       id: number;
     };
+    /** Staff: next private text message is interpreted as user lookup (DB id, Telegram id, or @username). */
+    awaitingUserLookup?: boolean;
   };
   vdsRate: {
     bulletproof: boolean;

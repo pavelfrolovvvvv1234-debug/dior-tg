@@ -66,6 +66,8 @@ export type CreateProvisioningInput = {
   promoCode?: string | null;
   discountAmount?: number | null;
   idempotencyKey?: string | null;
+  /** Admin/mod purchases: do not count toward user «orders» in control panel. */
+  excludeFromUserStats?: boolean;
   config: DedicatedSelectionConfig;
 };
 
@@ -154,6 +156,7 @@ export class DedicatedProvisioningService {
       order.osLabel = input.config.osLabel ?? null;
       order.configurationSnapshot = JSON.stringify(input.config);
       order.paidAt = input.paymentStatus === DedicatedOrderPaymentStatus.PAID ? new Date() : null;
+      order.excludeFromUserStats = input.excludeFromUserStats === true;
 
       const savedOrder = await orderRepo.save(order);
       savedOrder.orderNumber = this.buildOrderNumber(savedOrder.id);

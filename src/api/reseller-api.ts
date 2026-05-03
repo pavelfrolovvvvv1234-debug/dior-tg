@@ -11,6 +11,7 @@ import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { getAdminTelegramIds } from "../app/config.js";
 import { retry } from "../shared/utils/retry.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
+import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
 
 type ResellerAuthInfo = {
   resellerId: string;
@@ -1118,10 +1119,33 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
           return;
         }
         const osId = bodyParsed.data.osId ?? (vds.lastOsId || 900);
-        const result = await options.vmProvider.reinstallOS(vds.vdsId, osId, vds.password);
+        const rootPw = vds.password?.trim() || generatePassword(12);
+        let result: unknown;
+        try {
+          result = await options.vmProvider.reinstallOS(
+            vds.vdsId,
+            osId,
+            rootPw,
+            buildVdsProxmoxDescriptionLine(vds)
+          );
+        } catch {
+          res.status(502).json({ ok: false, error: "reinstall_failed" });
+          return;
+        }
         if (!result) {
           res.status(502).json({ ok: false, error: "reinstall_failed" });
           return;
+        }
+        if (
+          typeof result === "object" &&
+          result !== null &&
+          "_rootPassword" in result &&
+          typeof (result as { _rootPassword?: string })._rootPassword === "string"
+        ) {
+          const np = (result as { _rootPassword: string })._rootPassword;
+          if (np) vds.password = np;
+        } else {
+          vds.password = rootPw;
         }
         vds.lastOsId = osId;
         await vdsRepo.save(vds);

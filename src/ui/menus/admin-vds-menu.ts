@@ -215,6 +215,7 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
       .text("▶", `adv:pg:${Math.min(totalPages - 1, ad.page + 1)}`)
       .row();
   }
+  kb.text(ctx.t("admin-vds-search-button"), "adv:search").row();
   kb.text(ctx.t("button-back"), "admin-menu-back");
   return kb;
 }
@@ -279,6 +280,9 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
     `🔄 Status: ${vmStateLabel}`,
     `🧱 Provider: ${provider}`,
     `🆔 VMID: <code>${v.vdsId}</code>`,
+    "",
+    ctx.t("admin-vds-proxmox-search-hint", { vmid: v.vdsId }),
+    ctx.t("admin-vds-bot-ids-line", { serviceId: v.id, userId: v.targetUserId }),
   ].join("\n");
 }
 

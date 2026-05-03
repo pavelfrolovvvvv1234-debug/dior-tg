@@ -417,7 +417,7 @@ export class VMManager {
   /**
    * Reinstall OS on VM.
    */
-  async reinstallOS(id: number, osId: number, password?: string) {
+  async reinstallOS(id: number, osId: number, password?: string, _managementDescription?: string) {
     return this.handleApiCall(async () => {
       const { status, data } = await axios.post<{
         id: number;

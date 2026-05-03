@@ -72,4 +72,8 @@ export default class Ticket {
 
   @Column({ type: "datetime", nullable: true })
   resolvedAt!: Date | null;
+
+  /** Staff/internal purchases: omit from admin panel user stats (tickets & orders counters). */
+  @Column({ default: false, type: "boolean", nullable: false })
+  excludeFromUserStats!: boolean;
 }

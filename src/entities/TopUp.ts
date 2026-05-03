@@ -40,4 +40,8 @@ export default class TopUp {
 
   @UpdateDateColumn()
   lastUpdateAt!: Date;
+
+  /** Set when balance was applied (either via api/payment or BillingService.applyPayment); prevents double credit. */
+  @Column({ type: "datetime", nullable: true, default: null })
+  balanceCreditedAt: Date | null = null;
 }

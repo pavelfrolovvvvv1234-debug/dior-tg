@@ -116,6 +116,10 @@ export default class DedicatedServerOrder {
   @Column({ type: "datetime", nullable: true })
   paidAt!: Date | null;
 
+  /** Staff/internal provisioning orders: omit from admin panel «orders» counter. */
+  @Column({ default: false, type: "boolean", nullable: false })
+  excludeFromUserStats!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 

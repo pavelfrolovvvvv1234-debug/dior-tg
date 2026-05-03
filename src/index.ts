@@ -1795,6 +1795,22 @@ async function index() {
       return;
     }
 
+    const controlUsersPage = session.other.controlUsersPage;
+    if (
+      controlUsersPage?.awaitingUserLookup &&
+      (session.main.user.role === Role.Admin || session.main.user.role === Role.Moderator)
+    ) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      const lookupInput = ctx.message.text.trim();
+      if (lookupInput.startsWith("/")) {
+        return next();
+      }
+      const { handleAdminUserLookupText } = await import("./helpers/users-control.js");
+      if (await handleAdminUserLookupText(ctx as AppContext, lookupInput)) return;
+    }
+
     const adminVds = session.other.adminVds;
     if (adminVds?.awaitingSearch && session.main.user.role === Role.Admin) {
       if (!ctx.hasChatType("private")) {

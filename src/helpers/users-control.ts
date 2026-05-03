@@ -11,6 +11,9 @@ import Domain, { DomainStatus } from "../entities/Domain.js";
 import CdnProxyService from "../entities/CdnProxyService.js";
 import TopUp, { TopUpStatus } from "../entities/TopUp.js";
 import Ticket, { TicketType } from "../entities/Ticket.js";
+import DedicatedServerOrder, {
+  DedicatedOrderPaymentStatus,
+} from "../entities/DedicatedServerOrder.js";
 import ReferralReward from "../entities/ReferralReward.js";
 import { UserRepository } from "../infrastructure/db/repositories/UserRepository";
 import { ReferralService } from "../domain/referral/ReferralService";
@@ -56,25 +59,38 @@ async function getQuickUserStats(
   });
   const lastDepositAt = lastDeposit?.createdAt ?? null;
 
-  const [activeVds, activeDedicated, activeDomain, totalVds, totalDedicated, totalDomain, ticketsCount, ordersCount] =
-    await Promise.all([
-      dataSource.manager.count(VirtualDedicatedServer, {
-        where: { targetUserId: userId, expireAt: MoreThan(now) },
-      }),
-      dataSource.manager.count(DedicatedServer, {
-        where: { userId, status: DedicatedServerStatus.ACTIVE },
-      }),
-      dataSource.manager.count(Domain, {
-        where: { userId, status: DomainStatus.REGISTERED },
-      }),
-      dataSource.manager.count(VirtualDedicatedServer, { where: { targetUserId: userId } }),
-      dataSource.manager.count(DedicatedServer, { where: { userId } }),
-      dataSource.manager.count(Domain, { where: { userId } }),
-      dataSource.manager.count(Ticket, { where: { userId } }),
-      dataSource.manager.count(Ticket, {
-        where: { userId, type: TicketType.DEDICATED_ORDER },
-      }),
-    ]);
+  const [
+    activeVds,
+    activeDedicated,
+    activeDomain,
+    totalVds,
+    totalDedicated,
+    totalDomain,
+    ticketsCount,
+    legacyOrdersCount,
+    provisioningOrdersCount,
+  ] = await Promise.all([
+    dataSource.manager.count(VirtualDedicatedServer, {
+      where: { targetUserId: userId, expireAt: MoreThan(now) },
+    }),
+    dataSource.manager.count(DedicatedServer, {
+      where: { userId, status: DedicatedServerStatus.ACTIVE },
+    }),
+    dataSource.manager.count(Domain, {
+      where: { userId, status: DomainStatus.REGISTERED },
+    }),
+    dataSource.manager.count(VirtualDedicatedServer, { where: { targetUserId: userId } }),
+    dataSource.manager.count(DedicatedServer, { where: { userId } }),
+    dataSource.manager.count(Domain, { where: { userId } }),
+    dataSource.manager.count(Ticket, { where: { userId, excludeFromUserStats: false } }),
+    dataSource.manager.count(Ticket, {
+      where: { userId, type: TicketType.DEDICATED_ORDER, excludeFromUserStats: false },
+    }),
+    dataSource.manager.count(DedicatedServerOrder, {
+      where: { userId, paymentStatus: DedicatedOrderPaymentStatus.PAID, excludeFromUserStats: false },
+    }),
+  ]);
+  const ordersCount = legacyOrdersCount + provisioningOrdersCount;
   const activeServicesCount = activeVds + activeDedicated + activeDomain;
   const totalServicesCount = totalVds + totalDedicated + totalDomain;
 
@@ -475,6 +491,29 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
     }
 
     if (session.main.user.role != Role.User) {
+      range.text(ctx.t("admin-lookup-user-button"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        session.other.controlUsersPage.awaitingUserLookup = true;
+        await ctx.reply(ctx.t("admin-lookup-user-prompt"), { parse_mode: "HTML" });
+      });
+      if (session.main.user.role === Role.Admin) {
+        range.text(ctx.t("admin-lookup-vds-button"), async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
+          if (!session.other.adminVds) {
+            session.other.adminVds = {
+              page: 0,
+              searchQuery: "",
+              selectedVdsId: null,
+              awaitingSearch: false,
+              awaitingTransferUserId: false,
+            };
+          }
+          session.other.adminVds.awaitingSearch = true;
+          await ctx.reply(ctx.t("admin-vds-search-prompt"), { parse_mode: "HTML" });
+        });
+      }
+      range.row();
+
       const [users, total] = await ctx.appDataSource.manager.findAndCount(
         User,
         {
@@ -684,6 +723,51 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 );
 
 _controlUserMenu = controlUser;
+
+async function resolveUserFromAdminLookup(ctx: AppContext, raw: string): Promise<User | null> {
+  const input = raw.trim();
+  if (!input) return null;
+  const repo = ctx.appDataSource.getRepository(User);
+  if (/^\d+$/.test(input)) {
+    const n = parseInt(input, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    let u = await repo.findOne({ where: { id: n } });
+    if (u) return u;
+    u = await repo.findOne({ where: { telegramId: n } });
+    return u;
+  }
+  const username = input.replace(/^@+/, "").trim();
+  if (!username || !/^[a-zA-Z_][a-zA-Z0-9_]{4,31}$/.test(username)) {
+    return null;
+  }
+  try {
+    const chat = await ctx.api.getChat(`@${username}`);
+    if (chat.type !== "private") return null;
+    const tid = "id" in chat ? Number(chat.id) : NaN;
+    if (!Number.isFinite(tid)) return null;
+    return repo.findOne({ where: { telegramId: tid } });
+  } catch {
+    return null;
+  }
+}
+
+/** Staff text handler: lookup user by DB id, Telegram id, or @username. Returns true if the message was consumed. */
+export async function handleAdminUserLookupText(ctx: AppContext, raw: string): Promise<boolean> {
+  const session = await ctx.session;
+  if (!session.other.controlUsersPage?.awaitingUserLookup) return false;
+  session.other.controlUsersPage.awaitingUserLookup = false;
+
+  const user = await resolveUserFromAdminLookup(ctx, raw);
+  if (!user) {
+    await ctx.reply(ctx.t("admin-lookup-user-not-found"), { parse_mode: "HTML" });
+    return true;
+  }
+  session.other.controlUsersPage.pickedUserData = { id: user.id };
+  const menu = getControlUserMenu();
+  const { text, reply_markup } = await buildControlPanelUserReply(ctx, user, undefined, menu);
+  await ctx.reply(text, { parse_mode: "HTML", reply_markup });
+  return true;
+}
 
 /** Balance submenu: add / deduct. */
 export const controlUserBalance = new Menu<AppContext>("control-user-balance", {})

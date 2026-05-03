@@ -18,7 +18,12 @@ import { Logger } from "../../app/logger";
 import { retry } from "../../shared/utils/retry";
 import type { ReferralRewardApplied } from "../referral/ReferralService.js";
 
-export type ApplyPaymentResult = { amount: number; referralNotify?: ReferralRewardApplied };
+export type ApplyPaymentResult = {
+  amount: number;
+  referralNotify?: ReferralRewardApplied;
+  /** Same row already settled by another worker (e.g. api/payment finalize). */
+  skippedDuplicate?: boolean;
+};
 
 /**
  * Billing service for managing payments, invoices, and balance operations.
@@ -175,6 +180,13 @@ export class BillingService {
         );
       }
 
+      if (topUp.balanceCreditedAt != null) {
+        return {
+          amount: topUp.amount,
+          skippedDuplicate: true,
+        };
+      }
+
       // Get user with lock
       const user = await userRepo.findOne({
         where: { id: topUp.target_user_id },
@@ -186,6 +198,7 @@ export class BillingService {
 
       // Apply balance
       user.balance += topUp.amount;
+      topUp.balanceCreditedAt = new Date();
 
       // Save both in transaction
       await userRepo.save(user);
@@ -218,7 +231,7 @@ export class BillingService {
         // Don't fail payment if referral reward fails
       }
 
-      return { amount: topUp.amount, referralNotify };
+      return { amount: topUp.amount, referralNotify, skippedDuplicate: false };
     });
   }
 

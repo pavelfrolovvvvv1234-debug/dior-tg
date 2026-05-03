@@ -25,7 +25,8 @@ export interface VmProvider {
   startVM(id: number): Promise<unknown>;
   stopVM(id: number): Promise<unknown>;
   deleteVM(id: number): Promise<unknown>;
-  reinstallOS(id: number, osId: number, password?: string): Promise<unknown>;
+  /** Proxmox: optional line set on guest description so staff can find VM (search «DiorHost» / vmid). */
+  reinstallOS(id: number, osId: number, password?: string, managementDescription?: string): Promise<unknown>;
   changePasswordVM(id: number): Promise<string>;
   changePasswordVMCustom(id: number, password: string): Promise<boolean>;
   destroy?(): void;

@@ -80,9 +80,14 @@ export class PaymentStatusChecker {
           topUp.id
         );
 
-        // If completed, apply to balance
+        // If completed, apply to balance (idempotent vs api/payment.ts finalizePaidTopUp)
         if (updatedTopUp.status === TopUpStatus.Completed) {
           const result = await this.billingService.applyPayment(topUp.id);
+
+          if (result.skippedDuplicate) {
+            continue;
+          }
+
           const amount = result.amount;
 
           const userRepo = new UserRepository(dataSource);
@@ -103,7 +108,7 @@ export class PaymentStatusChecker {
           // Notify user
           await this.notifyUser(topUp.target_user_id, amount);
 
-          // Notify admins (same as in api/payment.ts paymentSuccess)
+          // Notify admins (parallel path to api/payment.ts side effects)
           if (user) {
             try {
               await notifyAdminsAboutTopUp(this.bot, user, amount, topUp.paymentSystem);

@@ -20,6 +20,11 @@ import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
 import { createInitialOtherSession } from "@/shared/session-initial.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { getVmManagerAllowedOsIds } from "../app/config.js";
+import { escapeUserInput } from "./formatting.js";
+import { humanizeVmmOsName } from "../shared/vmm-os-display.js";
+import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
+import { buildVdsProxmoxDescriptionLine } from "@/shared/vds-proxmox-label.js";
+import { Logger } from "../app/logger.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -76,6 +81,7 @@ const buildVdsManageText = (
     statusLabel: getStatusLabel(ctx, info.state),
     createdAt: vds.createdAt,
     paidUntil: vds.expireAt,
+    vmHostId: vds.vdsId,
   });
 
   const ipv4Total = 1 + (vds.extraIpv4Count ?? 0);
@@ -285,7 +291,9 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
             os.repository != "ISPsystem LXD")
       )
       .forEach((os) => {
-        range.text(os.name, async (ctx) => {
+        const label = humanizeVmmOsName(os.name);
+        range.text({ text: label, payload: `ros-${os.id}` }, async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
           const session = await ctx.session;
 
           // Run function for create VM and buy it
@@ -304,25 +312,57 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
               await ctx.reply(ctx.t("bad-error"));
               return;
             }
+            if (isDemoVds(vds)) {
+              await replyDemoOperation(ctx);
+              return;
+            }
             if (isVdsManagementBlocked(vds)) {
               await ctx.reply(ctx.t("vds-management-locked-notice"));
               return;
             }
 
-            await ctx.editMessageText(ctx.t("await-please"));
-            ctx.menu.close();
+            await ctx.editMessageText(ctx.t("await-please"), {
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: true },
+              reply_markup: clearedInlineKeyboard(),
+            });
+            // Avoid ctx.menu.close() here: deferred editMessageReplyMarkup would restore the OS grid after the long reinstall.
 
-            let reinstall;
-            for (let attempt = 0; attempt < 4; attempt++) {
-              reinstall = await ctx.vmmanager.reinstallOS(vds.vdsId, os.id);
-              if (reinstall) break;
-            }
-
-            if (!reinstall) {
-              await ctx.reply(ctx.t("bad-error"));
+            const rootPassword = vds.password?.trim() || generatePassword(12);
+            const proxmoxMarker = buildVdsProxmoxDescriptionLine(vds);
+            let reinstall: unknown;
+            try {
+              for (let attempt = 0; attempt < 4; attempt++) {
+                reinstall = await ctx.vmmanager.reinstallOS(
+                  vds.vdsId,
+                  os.id,
+                  rootPassword,
+                  proxmoxMarker
+                );
+                if (reinstall) break;
+              }
+            } catch (error) {
+              Logger.error("VDS reinstallOS failed", error);
+              await ctx.reply(ctx.t("vds-reinstall-failed"), { parse_mode: "HTML" });
               return;
             }
 
+            if (!reinstall) {
+              await ctx.reply(ctx.t("vds-reinstall-failed"), { parse_mode: "HTML" });
+              return;
+            }
+
+            if (
+              typeof reinstall === "object" &&
+              reinstall !== null &&
+              "_rootPassword" in reinstall &&
+              typeof (reinstall as { _rootPassword?: string })._rootPassword === "string"
+            ) {
+              const np = (reinstall as { _rootPassword: string })._rootPassword;
+              if (np) vds.password = np;
+            } else {
+              vds.password = rootPassword;
+            }
             vds.lastOsId = os.id;
 
             await vdsRepo.save(vds);
@@ -603,13 +643,17 @@ export const vdsManageSpecific = new Menu<AppContext>(
         payload: vdsId.toString(),
       },
       async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
-        session.other.manageVds.lastPickedId = Number(ctx.match);
+        session.other.manageVds.lastPickedId = vdsId;
         try {
           await ctx.conversation.enter("renameVdsConversation");
         } catch (error: any) {
           console.error("Failed to start rename conversation:", error);
-          await ctx.answerCallbackQuery(ctx.t("error-unknown", { error: error.message || "Unknown error" }).substring(0, 200));
+          await ctx.reply(
+            ctx.t("error-unknown", { error: error.message || "Unknown error" }).substring(0, 200),
+            { parse_mode: "HTML" }
+          );
         }
       }
     );
@@ -631,6 +675,7 @@ export async function renameVdsConversation(
   conversation: AppConversation,
   ctx: AppContext
 ) {
+  let replyCtx: AppContext = ctx;
   const session = await ctx.session;
   const vdsId = session.other.manageVds.lastPickedId;
 
@@ -647,6 +692,15 @@ export async function renameVdsConversation(
     return;
   }
 
+  if (isDemoVds(vds)) {
+    await ctx.reply(ctx.t("demo-operation-not-available"));
+    return;
+  }
+  if (isVdsManagementBlocked(vds)) {
+    await ctx.reply(ctx.t("vds-management-locked-notice"));
+    return;
+  }
+
   await ctx.reply(ctx.t("vds-rename-enter-name", {
     currentName: vds.displayName || vds.rateName || `VDS #${vds.id}`,
     minLength: 3,
@@ -656,11 +710,12 @@ export async function renameVdsConversation(
   });
 
   const nameCtx = await conversation.waitFor("message:text");
+  replyCtx = nameCtx as AppContext;
   const newName = nameCtx.message.text.trim();
 
   // Validate
   if (newName.length < 3 || newName.length > 32) {
-    await ctx.reply(ctx.t("vds-rename-invalid-length", {
+    await replyCtx.reply(ctx.t("vds-rename-invalid-length", {
       minLength: 3,
       maxLength: 32,
     }));
@@ -668,7 +723,7 @@ export async function renameVdsConversation(
   }
 
   if (newName.includes("\n") || newName.includes("\r")) {
-    await ctx.reply(ctx.t("vds-rename-no-linebreaks"));
+    await replyCtx.reply(ctx.t("vds-rename-no-linebreaks"));
     return;
   }
 
@@ -681,30 +736,32 @@ export async function renameVdsConversation(
 
     await vdsService.renameVds(vdsId, session.main.user.id, newName);
 
-    await ctx.reply(ctx.t("vds-rename-success", {
+    await replyCtx.reply(ctx.t("vds-rename-success", {
       newName: newName,
     }), {
       parse_mode: "HTML",
     });
 
-    // Update menu
     const updatedVds = await vdsRepo.findOneBy({ id: vdsId });
     if (updatedVds) {
-      let info;
+      const sessAfter = await replyCtx.session;
+      let info: ListItem | undefined;
       for (let attempt = 0; attempt < 4; attempt++) {
-        info = await ctx.vmmanager.getInfoVM(updatedVds.vdsId);
+        info = await replyCtx.vmmanager.getInfoVM(updatedVds.vdsId);
         if (info) break;
       }
-      if (info) {
-        await ctx.reply(vdsInfoText(ctx, updatedVds, info), {
+      const fallback = { state: "active" } as ListItem;
+      await replyCtx.reply(
+        buildVdsManageText(replyCtx, updatedVds, info ?? fallback, sessAfter.other.manageVds.showPassword),
+        {
           parse_mode: "HTML",
-          reply_markup: vdsManageSpecific,
-        });
-      }
+          reply_markup: vdsManageServiceMenu,
+        }
+      );
     }
   } catch (error: any) {
     console.error("Failed to rename VDS:", error);
-    await ctx.reply(ctx.t("error-unknown", {
+    await replyCtx.reply(ctx.t("error-unknown", {
       error: error.message || "Unknown error",
     }));
   }
@@ -937,26 +994,49 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           });
 
           range.text("✏️ Задать пароль", async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             const session = await ctx.session;
             session.other.manageVds.lastPickedId = expandedId;
             try {
               await ctx.conversation.enter("vdsPasswordManualConversation");
             } catch (error: any) {
-              await ctx.answerCallbackQuery(
-                ctx.t("error-unknown", { error: error.message || "Unknown error" }).substring(0, 200)
+              await ctx.reply(
+                ctx.t("error-unknown", { error: error.message || "Unknown error" }).substring(0, 200),
+                { parse_mode: "HTML" }
               );
             }
           });
           range.row();
 
+          range.text(ctx.t("vds-button-plan-change"), async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
+            const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+            const cur = await vdsRepo.findOneBy({ id: expandedId });
+            if (!cur) {
+              await ctx.reply(ctx.t("bad-error"));
+              return;
+            }
+            await ctx.reply(
+              ctx.t("vds-plan-change-support-body", {
+                vmHostId: cur.vdsId,
+                serviceId: cur.id,
+                rateName: escapeUserInput(cur.rateName || ""),
+              }),
+              { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+            );
+          });
+          range.row();
+
           range.text("✏️ Переименовать", async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             const session = await ctx.session;
             session.other.manageVds.lastPickedId = expandedId;
             try {
               await ctx.conversation.enter("renameVdsConversation");
             } catch (error: any) {
-              await ctx.answerCallbackQuery(
-                ctx.t("error-unknown", { error: error.message || "Unknown error" }).substring(0, 200)
+              await ctx.reply(
+                ctx.t("error-unknown", { error: error.message || "Unknown error" }).substring(0, 200),
+                { parse_mode: "HTML" }
               );
             }
           });

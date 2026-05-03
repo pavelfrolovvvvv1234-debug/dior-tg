@@ -39,7 +39,7 @@ async function formatUserLabelForAdminNotify(
 
 /**
  * Notify admins (by ADMIN_TELEGRAM_IDS) about a balance top-up.
- * Used from both api/payment.ts (startCheckTopUpStatus) and PaymentStatusChecker.
+ * Used from both api/payment.ts (finalizePaidTopUp side effects) and PaymentStatusChecker.
  */
 export async function notifyAdminsAboutTopUp(
   bot: Bot<any, Api<RawApi>>,

@@ -62,6 +62,7 @@ export class VdsRepository extends BaseRepository<VirtualDedicatedServer> {
       qb.where(
         new Brackets((w) => {
           w.where("CAST(v.id AS TEXT) LIKE :q", { q })
+            .orWhere("CAST(v.vdsId AS TEXT) LIKE :q", { q })
             .orWhere("v.ipv4Addr LIKE :q", { q })
             .orWhere("COALESCE(v.displayName, '') LIKE :q", { q })
             .orWhere("v.rateName LIKE :q", { q });

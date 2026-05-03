@@ -8,6 +8,7 @@ import type { AppContext } from "../shared/types/context";
 import { invalidateUser } from "../shared/user-cache.js";
 import axios from "axios";
 import { notifyAdminsAboutTopUp, notifyReferrerAboutReferralTopUp } from "../helpers/notifier.js";
+import { Logger } from "../app/logger.js";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const HELEKET_API_URL = process.env["PAYMENT_HELEKET_API_URL"]?.trim() || "https://api.heleket.com";
@@ -245,141 +246,195 @@ export class PaymentBuilder {
   }
 }
 
-export async function startCheckTopUpStatus(
-  bot: Bot<AppContext, Api<RawApi>>
-) {
-  // Every 10 seconds
-  setInterval(async () => {
-    const appdatasource = await getAppDataSource();
-    const repo = appdatasource.getRepository(TopUp);
+const TOP_UP_POLL_MS = 10_000;
 
-    const allTopUps = await repo.find({
-      where: {
-        status: TopUpStatus.Created,
-      },
+/** Atomically: Created → Completed + credit user balance. Idempotent via single-row CAS on status. */
+async function claimPaidTopUpCredit(
+  topUpId: number
+): Promise<{ user: User; topUp: TopUp } | null> {
+  const datasource = await getAppDataSource();
+  return datasource.transaction(async (em) => {
+    const tup = await em.findOne(TopUp, {
+      where: { id: topUpId, status: TopUpStatus.Created },
     });
+    if (!tup) {
+      return null;
+    }
+    const u = await em.findOneBy(User, { id: tup.target_user_id });
+    if (!u) {
+      Logger.error("[Payment] claimPaidTopUpCredit: user missing for TopUp", { topUpId, target: tup.target_user_id });
+      return null;
+    }
+    const updateRes = await em
+      .getRepository(TopUp)
+      .createQueryBuilder()
+      .update(TopUp)
+      .set({ status: TopUpStatus.Completed })
+      .where("id = :id AND status = :st", {
+        id: topUpId,
+        st: TopUpStatus.Created,
+      })
+      .execute();
+    if ((updateRes.affected ?? 0) < 1) {
+      return null;
+    }
 
-    for (const topUp of allTopUps) {
-      switch (topUp.paymentSystem) {
-        case "crystalpay": {
-          const cpayId = process.env["PAYMENT_CRYSTALPAY_ID"];
-          const cpaySecret = process.env["PAYMENT_CRYSTALPAY_SECRET_ONE"];
-          if (!cpayId || !cpaySecret) break;
-          const crystalpay = new CrystalPayClient(cpayId, cpaySecret);
+    const amount = tup.amount;
+    u.balance += amount;
+    await em.save(u);
+    await em.update(TopUp, { id: topUpId }, { balanceCreditedAt: new Date() });
 
-          const invoiceInfo = await crystalpay.getInvoice(topUp.orderId);
+    const topUpFresh = await em.findOneBy(TopUp, { id: topUpId });
+    if (!topUpFresh) {
+      return null;
+    }
+    return { user: u, topUp: topUpFresh };
+  });
+}
 
-          if (invoiceInfo.state === "payed") {
-            topUp.status = TopUpStatus.Completed;
-            await repo.save(topUp);
-            paymentSuccess(topUp.target_user_id, topUp.id, bot).then();
+/** After gateways report paid status: grant balance once, then referrals / notifies / hooks. */
+export async function finalizePaidTopUp(bot: Bot<AppContext, Api<RawApi>>, topUpId: number): Promise<void> {
+  const claimed = await claimPaidTopUpCredit(topUpId);
+  if (!claimed) {
+    return;
+  }
+
+  invalidateUser(claimed.user.telegramId);
+
+  try {
+    await runPostTopUpCreditSideEffects(bot, claimed.user, claimed.topUp);
+  } catch (error) {
+    Logger.error("[Payment] post-topup side effects failed (balance already credited)", error, {
+      topUpId: claimed.topUp.id,
+      userId: claimed.user.id,
+    });
+    try {
+      await bot.api.sendMessage(
+        claimed.user.telegramId,
+        "Пополнение зачислено. Дополнительные уведомления временно недоступны — обратитесь в поддержку при вопросах."
+      );
+    } catch {
+      /* best effort */
+    }
+  }
+}
+
+async function checkTopUpsOnce(bot: Bot<AppContext, Api<RawApi>>): Promise<void> {
+  const appdatasource = await getAppDataSource();
+  const repo = appdatasource.getRepository(TopUp);
+
+  const allTopUps = await repo.find({
+    where: {
+      status: TopUpStatus.Created,
+    },
+  });
+
+  for (const topUp of allTopUps) {
+    switch (topUp.paymentSystem) {
+      case "crystalpay": {
+        const cpayId = process.env["PAYMENT_CRYSTALPAY_ID"];
+        const cpaySecret = process.env["PAYMENT_CRYSTALPAY_SECRET_ONE"];
+        if (!cpayId || !cpaySecret) break;
+        const crystalpay = new CrystalPayClient(cpayId, cpaySecret);
+
+        const invoiceInfo = await crystalpay.getInvoice(topUp.orderId);
+
+        if (invoiceInfo.state === "payed") {
+          await finalizePaidTopUp(bot, topUp.id);
+          break;
+        }
+
+        if (invoiceInfo.state === "failed" || invoiceInfo.state === "unavailable") {
+          topUp.status = TopUpStatus.Expired;
+          await repo.save(topUp);
+          break;
+        }
+
+        const expiredAt = new Date(invoiceInfo.expired_at + " UTC+3");
+        if (expiredAt < new Date()) {
+          topUp.status = TopUpStatus.Expired;
+          await repo.save(topUp);
+        }
+
+        break;
+      }
+      case "cryptobot": {
+        const cryptopayToken =
+          process.env["PAYMENT_CRYPTOBOT_TOKEN"]?.trim() ||
+          process.env["PAYMENT_CRYPTO_PAY_TOKEN"]?.trim();
+        if (!cryptopayToken) {
+          break;
+        }
+        try {
+          const status = await getCryptoBotInvoiceStatus(topUp.orderId);
+
+          if (status === "paid" || status === "paid_over") {
+            await finalizePaidTopUp(bot, topUp.id);
           }
 
+          if (status === "expired") {
+            topUp.status = TopUpStatus.Expired;
+            await repo.save(topUp);
+          }
+        } catch (err) {
+          console.error(`[Payment] CryptoBot status check failed for ${topUp.orderId}:`, err);
+        }
+        break;
+      }
+      case "heleket": {
+        const merchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
+        const apiKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
+        if (!merchant || !apiKey) {
+          break;
+        }
+        try {
+          const status = await getHeleketInvoiceStatus(topUp.orderId);
+          if (status === "paid" || status === "paid_over") {
+            await finalizePaidTopUp(bot, topUp.id);
+          }
           if (
-            invoiceInfo.state === "failed" ||
-            invoiceInfo.state === "unavailable"
+            status === "cancel" ||
+            status === "fail" ||
+            status === "wrong_amount" ||
+            status === "system_fail" ||
+            status === "refund_process" ||
+            status === "refund_fail" ||
+            status === "refund_paid"
           ) {
             topUp.status = TopUpStatus.Expired;
             await repo.save(topUp);
           }
-
-          const expiredAt = new Date(invoiceInfo.expired_at + " UTC+3");
-          if (expiredAt < new Date()) {
-            topUp.status = TopUpStatus.Expired;
-            await repo.save(topUp);
-          }
-
-          break;
+        } catch (err) {
+          console.error(`[Payment] Heleket status check failed for ${topUp.orderId}:`, err);
         }
-        case "cryptobot": {
-          const cryptopayToken =
-            process.env["PAYMENT_CRYPTOBOT_TOKEN"]?.trim() ||
-            process.env["PAYMENT_CRYPTO_PAY_TOKEN"]?.trim();
-          if (!cryptopayToken) {
-            break;
-          }
-          try {
-            const status = await getCryptoBotInvoiceStatus(topUp.orderId);
-
-            if (status === "paid" || status === "paid_over") {
-              topUp.status = TopUpStatus.Completed;
-              await repo.save(topUp);
-              paymentSuccess(topUp.target_user_id, topUp.id, bot).then();
-            }
-
-            if (status === "expired") {
-              topUp.status = TopUpStatus.Expired;
-              await repo.save(topUp);
-            }
-          } catch (err) {
-            console.error(`[Payment] CryptoBot status check failed for ${topUp.orderId}:`, err);
-          }
-          break;
-        }
-        case "heleket": {
-          const merchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
-          const apiKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
-          if (!merchant || !apiKey) {
-            break;
-          }
-          try {
-            const status = await getHeleketInvoiceStatus(topUp.orderId);
-            if (status === "paid" || status === "paid_over") {
-              topUp.status = TopUpStatus.Completed;
-              await repo.save(topUp);
-              paymentSuccess(topUp.target_user_id, topUp.id, bot).then();
-            }
-            if (
-              status === "cancel" ||
-              status === "fail" ||
-              status === "wrong_amount" ||
-              status === "system_fail" ||
-              status === "refund_process" ||
-              status === "refund_fail" ||
-              status === "refund_paid"
-            ) {
-              topUp.status = TopUpStatus.Expired;
-              await repo.save(topUp);
-            }
-          } catch (err) {
-            console.error(`[Payment] Heleket status check failed for ${topUp.orderId}:`, err);
-          }
-          break;
-        }
+        break;
       }
     }
-  }, 10_000);
+  }
 }
 
-async function paymentSuccess(
-  targetUser: number,
-  topUpId: number,
-  bot: Bot<AppContext, Api<RawApi>>
+export async function startCheckTopUpStatus(bot: Bot<AppContext, Api<RawApi>>): Promise<void> {
+  try {
+    await checkTopUpsOnce(bot);
+  } catch (e) {
+    Logger.error("[Payment] initial top-up poll failed", e);
+  }
+
+  setInterval(() => {
+    void checkTopUpsOnce(bot).catch((e) =>
+      Logger.error("[Payment] top-up polling tick failed", e)
+    );
+  }, TOP_UP_POLL_MS);
+}
+
+async function runPostTopUpCreditSideEffects(
+  bot: Bot<AppContext, Api<RawApi>>,
+  user: User,
+  topUp: TopUp
 ) {
+  const targetUser = user.id;
+  const topUpId = topUp.id;
   const datasource = await getAppDataSource();
-  const topUpRepo = datasource.getRepository(TopUp);
-  const usersRepo = datasource.getRepository(User);
-
-  const user = await usersRepo.findOneBy({
-    id: targetUser,
-  });
-
-  if (!user) {
-    return;
-  }
-
-  const topUp = await topUpRepo.findOneBy({
-    id: topUpId,
-  });
-
-  if (!topUp) {
-    return;
-  }
-
-  user.balance += topUp.amount;
-
-  await usersRepo.save(user);
-  invalidateUser(user.telegramId);
 
   // Apply referral reward if applicable and notify referrer
   try {
@@ -394,11 +449,11 @@ async function paymentSuccess(
     );
 
     if (referralResult && typeof referralResult === "object") {
-      console.log(`[Referral] Applied reward ${referralResult.rewardAmount} for topUp ${topUpId}`);
+      Logger.info(`[Referral] Applied reward ${referralResult.rewardAmount} for topUp ${topUpId}`);
       await notifyReferrerAboutReferralTopUp(bot, referralResult, topUp.amount);
     }
-  } catch (error: any) {
-    console.error(`[Referral] Failed to apply referral reward:`, error);
+  } catch (error: unknown) {
+    console.error("[Referral] Failed to apply referral reward:", error);
     // Don't fail payment if referral reward fails
   }
 
@@ -417,15 +472,17 @@ async function paymentSuccess(
       balanceMessage += `\n+ бонус возврата ${growthResult.reactivationBonusApplied.toFixed(2)} $`;
     }
     if (growthResult.upsellOfferCreated && growthResult.messageOffer) {
-      bot.api
+      await bot.api
         .sendMessage(user.telegramId, growthResult.messageOffer, { parse_mode: "HTML" })
         .catch(() => {});
     }
-  } catch (growthErr: any) {
-    console.error(`[Growth] handleTopUpSuccess failed:`, growthErr);
+  } catch (growthErr: unknown) {
+    console.error("[Growth] handleTopUpSuccess failed:", growthErr);
   }
 
-  bot.api.sendMessage(user.telegramId, balanceMessage).then();
+  await bot.api.sendMessage(user.telegramId, balanceMessage).catch((err: unknown) => {
+    Logger.error("[Payment] send balance notification failed", err);
+  });
 
   await notifyAdminsAboutTopUp(bot, user, topUp.amount, topUp.paymentSystem);
 
@@ -491,7 +548,7 @@ async function paymentSuccess(
         }
       }
     }
-  } catch (campaignErr: any) {
-    console.error(`[Growth] Post-payment campaigns failed:`, campaignErr);
+  } catch (campaignErr: unknown) {
+    console.error("[Growth] Post-payment campaigns failed:", campaignErr);
   }
 }

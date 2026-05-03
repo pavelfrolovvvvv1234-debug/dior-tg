@@ -38,6 +38,8 @@ export interface ServiceInfoBlockData {
   statusLabel: string;
   createdAt?: Date | null;
   paidUntil?: Date | null;
+  /** Proxmox/VM Manager guest VMID */
+  vmHostId?: number | null;
 }
 
 /**
@@ -51,7 +53,7 @@ export const buildServiceInfoBlock = (
     ? formatValue(ctx, data.password)
     : maskPassword(data.password || "");
 
-  return [
+  const lines = [
     `<strong>${ctx.t("service-info-header")}</strong>`,
     `<strong>${ctx.t("service-label-ip")}:</strong> ${formatValue(ctx, data.ip)}`,
     `<strong>${ctx.t("service-label-login")}:</strong> ${formatValue(ctx, data.login)}`,
@@ -60,5 +62,11 @@ export const buildServiceInfoBlock = (
     `<strong>${ctx.t("service-label-status")}:</strong> ${data.statusLabel}`,
     `<strong>${ctx.t("service-label-created-at")}:</strong> ${formatDate(ctx, data.createdAt)}`,
     `<strong>${ctx.t("service-label-paid-until")}:</strong> ${formatDate(ctx, data.paidUntil)}`,
-  ].join("\n");
+  ];
+  if (data.vmHostId != null && Number.isFinite(Number(data.vmHostId))) {
+    lines.push(
+      `<strong>${ctx.t("service-label-vm-host-id")}:</strong> <code>${escapeUserInput(String(data.vmHostId))}</code>`
+    );
+  }
+  return lines.join("\n");
 };

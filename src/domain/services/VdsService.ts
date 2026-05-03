@@ -17,6 +17,7 @@ import User from "../../entities/User";
 import { NotFoundError, BusinessError, ExternalApiError } from "../../shared/errors/index";
 import { Logger } from "../../app/logger";
 import { retry } from "../../shared/utils/retry";
+import { buildVdsProxmoxDescriptionLine } from "../../shared/vds-proxmox-label.js";
 
 /**
  * VDS rate structure from prices.json.
@@ -270,8 +271,10 @@ export class VdsService {
       throw new BusinessError("VDS is blocked by administrator.");
     }
 
+    const rootPassword = vds.password?.trim() || generatePassword(12);
+    const proxmoxMarker = buildVdsProxmoxDescriptionLine(vds);
     const result = await retry(
-      () => this.vmManager.reinstallOS(vds.vdsId, osId),
+      () => this.vmManager.reinstallOS(vds.vdsId, osId, rootPassword, proxmoxMarker),
       {
         maxAttempts: 3,
         delayMs: 2000,
@@ -290,7 +293,19 @@ export class VdsService {
       throw new ExternalApiError("OS reinstall failed", "VMManager");
     }
 
-    // Update VDS OS ID
+    if (
+      typeof result === "object" &&
+      result !== null &&
+      "_rootPassword" in result &&
+      typeof (result as { _rootPassword?: string })._rootPassword === "string"
+    ) {
+      const np = (result as { _rootPassword: string })._rootPassword;
+      if (np) {
+        vds.password = np;
+      }
+    } else {
+      vds.password = rootPassword;
+    }
     vds.lastOsId = osId;
     await this.vdsRepository.save(vds);
 

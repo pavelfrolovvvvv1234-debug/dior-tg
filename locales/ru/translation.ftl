@@ -147,6 +147,11 @@ admin-notification-topup = 💳 <strong>Пополнение баланса</str
 
 control-panel-users = {-users-list}
 
+admin-lookup-user-button = 🔍 Найти пользователя
+admin-lookup-user-prompt = Отправьте <b>внутренний ID</b> пользователя из БД, <b>Telegram ID</b> (число) или публичный <b>@username</b> (5–32 символа).
+admin-lookup-user-not-found = Пользователь не найден. Проверьте число или username; для @username аккаунт должен быть доступен боту через Telegram API.
+admin-lookup-vds-button = 🔍 Найти VDS
+
 control-panel-about-user =
     <b>👤 Пользователь</b>{$gap}
     ID: {$id} • {$usernameDisplay}
@@ -493,6 +498,7 @@ service-label-os = ОС
 service-label-status = Статус
 service-label-created-at = Дата создания
 service-label-paid-until = Оплачено до
+service-label-vm-host-id = ID ВМ (VMID)
 service-date = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 status-active = Активен
 status-suspended = Приостановлен
@@ -763,12 +769,19 @@ vds-password-manual-invalid = Пароль должен быть от 8 до 128
 vds-password-manual-success = Пароль обновлён.
 
 vds-button-rename = ✏️ Переименовать
+vds-button-plan-change = 📈 Смена конфигурации
+vds-plan-change-support-body =
+    Чтобы сменить конфигурацию или тариф (например, апгрейд Lite), напишите в поддержку и приложите:
+    
+    • ID ВМ (VMID): <code>{$vmHostId}</code>
+    • ID услуги в боте: <code>{$serviceId}</code>
+    • Текущий тариф: {$rateName}
 
 # Admin VDS
 button-admin-vds = 🖥 Услуги
 button-admin-cdn = 🌍 CDN (админ)
 admin-vds-title = <strong>VDS — админ</strong>
-Поиск: ID, IP, имя. Страница {$page} / {$totalPages}
+Поиск: ID услуги, ID ВМ, IP, имя. Страница {$page} / {$totalPages}
 admin-vds-empty = Список пуст.
 admin-vds-row = <b>{$n}.</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
   [running] 🟢 Running
@@ -790,7 +803,8 @@ Telegram: <code>{$ownerTelegramId}</code>
 Истекает: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
 admin-vds-flag-blocked = 🔒 Заблокирован админом
 admin-vds-flag-locked = ⛔ Управление отключено (просрочка)
-admin-vds-search-prompt = Отправьте строку поиска (ID, IP или имя) или «очистить» для сброса.
+admin-vds-search-button = 🔍 Поиск
+admin-vds-search-prompt = Отправьте строку поиска (ID услуги, ID ВМ, IP, имя тарифа или отображаемое имя) или «очистить» для сброса.
 admin-vds-search-done = Фильтр: «{$query}»
 admin-vds-extended = Срок продлён на {$days} дн.
 admin-vds-transferred = Владелец изменён на user id {$userId}
@@ -802,6 +816,8 @@ admin-vds-ip-not-available = ⚠️ IP пока недоступен (guest agen
 admin-vds-vm-started = ✅ VM запущена.
 admin-vds-vm-stopped = ✅ VM остановлена.
 admin-vds-vm-rebooted = ✅ VM перезагружена.
+admin-vds-proxmox-search-hint = <b>Proxmox:</b> ищите ВМ по <b>VMID</b> <code>{$vmid}</code> в списке гостей / журнале задач; в «Описании» гостя может быть метка <code>DiorHost</code>.
+admin-vds-bot-ids-line = <b>Бот:</b> id услуги (БД) <code>{$serviceId}</code> · id клиента <code>{$userId}</code>
 
 admin-cdn-title = <strong>CDN — админ</strong>
 Поиск: proxyId, домен, origin. Страница {$page} / {$totalPages}
@@ -853,6 +869,7 @@ vds-button-copy-password = ⤵️ Скопировать пароль
 vds-new-password = Новый пароль: <tg-spoiler>{$password}</tg-spoiler>
 
 vds-reinstall-started = Переустановка запущена, пожалуйста подождите. За статусом можете следить в > Управление услугами
+vds-reinstall-failed = ❌ Не удалось переустановить ОС (ошибка связи с гипервизором или таймаут клонирования). Проверьте логи бота и задачи Proxmox для VMID услуги.
 
 dedicated-servers = Этот раздел скоро будет доступен, а пока вы можете ознакомится с выделенными машинами через ЛС в ТП.
 

@@ -145,6 +145,11 @@ admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$userna
 
 control-panel-users = {-users-list}
 
+admin-lookup-user-button = 🔍 Find user
+admin-lookup-user-prompt = Send the user’s <b>internal DB id</b>, numeric <b>Telegram id</b>, or public <b>@username</b> (5–32 chars).
+admin-lookup-user-not-found = User not found. Check the id or username; for @username the account must be visible to the bot via Telegram API.
+admin-lookup-vds-button = 🔍 Find VDS
+
 control-panel-about-user =
     <b>👤 User</b>{$gap}
     ID: {$id} • {$usernameDisplay}
@@ -473,6 +478,7 @@ service-label-os = OS
 service-label-status = Status
 service-label-created-at = Created
 service-label-paid-until = Paid until
+service-label-vm-host-id = VM ID (hypervisor)
 service-date = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 status-active = Active
 status-suspended = Suspended
@@ -747,12 +753,19 @@ vds-password-manual-invalid = Password must be 8–128 characters.
 vds-password-manual-success = Password updated.
 
 vds-button-rename = ✏️ Rename
+vds-button-plan-change = 📈 Change plan / upgrade
+vds-plan-change-support-body =
+    To change configuration or upgrade your plan (e.g. Lite tier), contact support and include:
+    
+    • VM ID (hypervisor): <code>{$vmHostId}</code>
+    • Service id in the bot: <code>{$serviceId}</code>
+    • Current plan name: {$rateName}
 
 # Admin VDS
 button-admin-vds = 🖥 Services
 button-admin-cdn = 🌍 CDN (admin)
 admin-vds-title = <strong>VDS — admin</strong>
-Search: ID, IP, name. Page {$page} / {$totalPages}
+Search: service id, VM id, IP, name. Page {$page} / {$totalPages}
 admin-vds-empty = No records.
 admin-vds-row = <b>{$n}.</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
   [running] 🟢 Running
@@ -774,7 +787,8 @@ Password: <code>{$password}</code>
 Expires: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
 admin-vds-flag-blocked = 🔒 Blocked by admin
 admin-vds-flag-locked = ⛔ Management locked (overdue)
-admin-vds-search-prompt = Send the search string (ID, IP or name) or «clear» to reset.
+admin-vds-search-button = 🔍 Search
+admin-vds-search-prompt = Send a search string (service id, VM id, IP, plan or display name) or «clear» to reset.
 admin-vds-search-done = Filter: «{$query}»
 admin-vds-extended = Extended by {$days} days.
 admin-vds-transferred = Owner changed to user id {$userId}
@@ -786,6 +800,8 @@ admin-vds-ip-not-available = ⚠️ IP is not available yet (guest agent/network
 admin-vds-vm-started = ✅ VM started.
 admin-vds-vm-stopped = ✅ VM stopped.
 admin-vds-vm-rebooted = ✅ VM rebooted.
+admin-vds-proxmox-search-hint = <b>Proxmox:</b> find the guest by <b>VMID</b> <code>{$vmid}</code> in the VM list / task log; guest <b>Notes/Description</b> may contain <code>DiorHost</code>.
+admin-vds-bot-ids-line = <b>Bot:</b> service id <code>{$serviceId}</code> · customer user id <code>{$userId}</code>
 
 admin-cdn-title = <strong>CDN — admin</strong>
 Search: proxyId, domain, origin. Page {$page} / {$totalPages}
@@ -837,6 +853,7 @@ vds-button-copy-password = ⤵️ Copy Password
 vds-new-password = New Password: <tg-spoiler>{$password}</tg-spoiler>
 
 vds-reinstall-started = Reinstallation is running, please wait. You can monitor the status in > Manage services
+vds-reinstall-failed = ❌ OS reinstall failed (hypervisor error or clone timeout). Check bot logs and Proxmox tasks for the service VMID.
 
 dedicated-servers = This section will be available soon. In the meantime, you can get information about dedicated servers via DM in tech support.
 

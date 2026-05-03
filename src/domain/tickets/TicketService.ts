@@ -29,7 +29,8 @@ export class TicketService {
   async createTicket(
     userId: number,
     type: TicketType,
-    payload?: Record<string, any>
+    payload?: Record<string, any>,
+    options?: { excludeFromUserStats?: boolean }
   ): Promise<Ticket> {
     const ticketRepo = this.dataSource.getRepository(Ticket);
 
@@ -41,6 +42,7 @@ export class TicketService {
     ticket.payload = payload ? JSON.stringify(payload) : null;
     ticket.result = null;
     ticket.resolvedAt = null;
+    ticket.excludeFromUserStats = options?.excludeFromUserStats === true;
 
     const saved = await ticketRepo.save(ticket);
     Logger.info(`Created ticket ${saved.id} of type ${type} for user ${userId}`);

@@ -117,6 +117,40 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
+  /** Map OS list id / template key to source template vmid for clone. */
+  private resolveTemplateSourceVmid(osId: number): number | undefined {
+    if (Number.isFinite(osId) && this.reverseTemplateMap[osId]) {
+      return osId;
+    }
+    return this.templateMap[normalizeOsKey(String(osId))];
+  }
+
+  private async waitUntilQemuGuestAbsent(vmid: number, timeoutMs = 90000): Promise<boolean> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const list = await this.apiGet<Array<{ vmid?: number }>>(`/nodes/${this.node}/qemu`).catch(() => undefined);
+      const exists = Array.isArray(list) && list.some((v) => Number(v.vmid) === vmid);
+      if (!exists) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+    return false;
+  }
+
+  /** After async clone, config may not exist until Proxmox finishes disk copy. */
+  private async waitUntilGuestConfigReadable(vmid: number, timeoutMs = 180000): Promise<boolean> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const cfg = await this.apiGet<unknown>(`/nodes/${this.node}/qemu/${vmid}/config`).catch(() => undefined);
+      if (cfg != null) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    return false;
+  }
+
   private ipToInt(ip: string): number {
     const parts = ip.split(".").map((p) => Number(p));
     if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return 0;
@@ -243,7 +277,7 @@ export class ProxmoxProvider implements VmProvider {
     networkOut: number
   ): Promise<CreateVMSuccesffulyResponse | false> {
     try {
-      const templateId = this.reverseTemplateMap[osId] ? osId : this.templateMap[normalizeOsKey(String(osId))];
+      const templateId = this.resolveTemplateSourceVmid(osId);
       if (!templateId) {
         Logger.warn(`Proxmox template not found for osId=${osId}`);
         return false;
@@ -518,9 +552,13 @@ export class ProxmoxProvider implements VmProvider {
     return this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`);
   }
 
-  async reinstallOS(id: number, osId: number, password?: string): Promise<unknown> {
-    const templateId = this.reverseTemplateMap[osId] ? osId : this.templateMap[normalizeOsKey(String(osId))];
-    if (!templateId) return false;
+  async reinstallOS(id: number, osId: number, password?: string, managementDescription?: string): Promise<unknown> {
+    const templateId = this.resolveTemplateSourceVmid(osId);
+    if (!templateId || templateId === id) {
+      Logger.warn(`Proxmox reinstallOS: invalid template for osId=${osId}, templateVmId=${templateId}, guestVmId=${id}`);
+      return false;
+    }
+
     const existingConfig = await this.apiGet<{
       name?: string;
       cores?: number;
@@ -538,45 +576,72 @@ export class ProxmoxProvider implements VmProvider {
       return m?.[1];
     };
 
-    await this.stopVM(id).catch(() => {});
-    await this.deleteVM(id).catch(() => {});
+    const rootPassword = password?.trim() ? password : generatePassword(12);
+    const descriptionMerged = [
+      managementDescription?.trim(),
+      existingConfig.description?.trim(),
+    ]
+      .filter(Boolean)
+      .join(" | ")
+      .slice(0, 8000);
 
-    await this.apiPost(`/nodes/${this.node}/qemu/${templateId}/clone`, {
-      newid: id,
-      name: existingConfig.name || `vm-${id}`,
-      target: this.node,
-      full: 1,
-      storage: this.storage || undefined,
-    });
+    try {
+      await this.stopVM(id);
+      await this.waitForVmStopped(id, 60000).catch(() => {});
 
-    await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
-      cores: Number(existingConfig.cores ?? 1),
-      memory: Number(existingConfig.memory ?? 1024),
-      ciuser: "root",
-      cipassword: password ?? generatePassword(12),
-      description: existingConfig.description ?? "reinstall",
-      net0: existingConfig.net0 ?? `virtio,bridge=${this.bridge}`,
-      ipconfig0: existingConfig.ipconfig0,
-      nameserver: existingConfig.nameserver,
-    });
+      await this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`);
 
-    const diskSize = parseDiskSize(existingConfig.scsi0);
-    if (diskSize) {
-      await this.apiPost(`/nodes/${this.node}/qemu/${id}/resize`, {
-        disk: "scsi0",
-        size: diskSize,
-      }).catch(() => {});
+      const removed = await this.waitUntilQemuGuestAbsent(id, 90000);
+      if (!removed) {
+        throw new Error(`Proxmox reinstall: VM ${id} still exists after purge`);
+      }
+
+      await this.apiPost(`/nodes/${this.node}/qemu/${templateId}/clone`, {
+        newid: id,
+        name: existingConfig.name || `vm-${id}`,
+        target: this.node,
+        full: 1,
+        storage: this.storage || undefined,
+      });
+
+      const cloned = await this.waitUntilGuestConfigReadable(id, 180000);
+      if (!cloned) {
+        throw new Error(`Proxmox reinstall: clone to vmid ${id} never became readable (timeout)`);
+      }
+
+      await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+        cores: Number(existingConfig.cores ?? 1),
+        memory: Number(existingConfig.memory ?? 1024),
+        ciuser: "root",
+        cipassword: rootPassword,
+        description: descriptionMerged || "DiorHost reinstall",
+        net0: existingConfig.net0 ?? `virtio,bridge=${this.bridge}`,
+        ipconfig0: existingConfig.ipconfig0,
+        nameserver: existingConfig.nameserver,
+      });
+
+      const diskSize = parseDiskSize(existingConfig.scsi0);
+      if (diskSize) {
+        await this.apiPost(`/nodes/${this.node}/qemu/${id}/resize`, {
+          disk: "scsi0",
+          size: diskSize,
+        }).catch(() => {});
+      }
+
+      await this.apiPost(`/nodes/${this.node}/qemu/${id}/status/start`);
+
+      return {
+        id,
+        task: Date.now(),
+        recipe_task_list: [],
+        recipe_task: 0,
+        spice_task: 0,
+        _rootPassword: rootPassword !== password?.trim() ? rootPassword : undefined,
+      };
+    } catch (error) {
+      Logger.error(`Proxmox reinstall failed guest=${id} template=${templateId}`, error);
+      throw error;
     }
-
-    await this.apiPost(`/nodes/${this.node}/qemu/${id}/status/start`);
-
-    return {
-      id,
-      task: Date.now(),
-      recipe_task_list: [],
-      recipe_task: 0,
-      spice_task: 0,
-    };
   }
 
   async changePasswordVM(id: number): Promise<string> {

@@ -22,6 +22,8 @@ import {
 } from "../domain/domains/domain-purchase-flow.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { getVmManagerAllowedOsIds } from "../app/config.js";
+import { humanizeVmmOsName } from "../shared/vmm-os-display.js";
+import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import {
   DEDICATED_OS_KEYS,
@@ -372,10 +374,15 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
 
     if (session.other.vdsRate.selectedOs != -1) {
       range.text(ctx.t("vds-select-os-next"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
 
-        ctx.menu.close();
-        await ctx.editMessageText(ctx.t("await-please"));
+        await ctx.editMessageText(ctx.t("await-please"), {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+          reply_markup: clearedInlineKeyboard(),
+        });
+        // Avoid ctx.menu.close(): same handler awaits createAndBuyVDS — menu middleware would reinject buttons afterward.
 
         const result = await createAndBuyVDS(
           ctx,
@@ -414,21 +421,20 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
             os.repository != "ISPsystem LXD")
       )
       .forEach((os) => {
-        range.text(`${os.name}`, async (ctx) => {
+        const label = humanizeVmmOsName(os.name);
+        range.text({ text: label, payload: `vos-${os.id}` }, async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
           const session = await ctx.session;
-
-          // console.log(`${os.name} : ${os.id}`);
 
           session.other.vdsRate.selectedOs = os.id;
 
           await ctx.editMessageText(
             ctx.t("vds-select-os-confirm", {
-              osName: os.name,
-            })
+              osName: escapeUserInput(label),
+            }),
+            { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
           );
-
-          // ctx.menu.update();
-          // Run function for create VM and buy it
+          await ctx.menu.update({ immediate: true });
         });
 
         count++;
@@ -728,6 +734,7 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       ? `tgcb:${ctx.callbackQuery.id}`
       : `dedicated:${session.main.user.id}:${selectedId}:${locationKey}:${osKey}:${Date.now()}`;
     const category = session.other.dedicatedType?.bulletproof ? "bulletproof" : "standard";
+    const buyerIsStaff = user.role === Role.Admin || user.role === Role.Moderator;
     const created = await provisioningService.createPaidOrderAndTicket({
       userId: user.id,
       telegramUserId: ctx.from?.id ?? null,
@@ -739,6 +746,7 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       paymentStatus: DedicatedOrderPaymentStatus.PAID,
       balanceUsedAmount: price,
       idempotencyKey,
+      excludeFromUserStats: buyerIsStaff,
       config: {
         productId: String(selectedId),
         productName: server.name ?? `Dedicated #${selectedId}`,
@@ -777,37 +785,39 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       parse_mode: "HTML",
     });
 
-    const moderators = await usersRepo.find({
-      where: [{ role: Role.Admin }, { role: Role.Moderator }],
-    });
-    const staffText = renderMultiline(ctx.t("dedicated-provisioning-staff-notification", {
-      ticketId: ticket.id,
-      orderId: order.id,
-      userId: user.id,
-      amount: price,
-      serviceName: server.name ?? `#${selectedId}`,
-      location,
-      os,
-    }));
-    const staffKeyboard = new InlineKeyboard()
-      .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
-      .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-    const recipientChatIds = new Set<number>();
-    for (const mod of moderators) {
-      recipientChatIds.add(mod.telegramId);
-    }
-    const moderatorChatId = getModeratorChatId();
-    if (moderatorChatId) {
-      recipientChatIds.add(moderatorChatId);
-    }
+    if (!buyerIsStaff) {
+      const moderators = await usersRepo.find({
+        where: [{ role: Role.Admin }, { role: Role.Moderator }],
+      });
+      const staffText = renderMultiline(ctx.t("dedicated-provisioning-staff-notification", {
+        ticketId: ticket.id,
+        orderId: order.id,
+        userId: user.id,
+        amount: price,
+        serviceName: server.name ?? `#${selectedId}`,
+        location,
+        os,
+      }));
+      const staffKeyboard = new InlineKeyboard()
+        .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
+        .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+      const recipientChatIds = new Set<number>();
+      for (const mod of moderators) {
+        recipientChatIds.add(mod.telegramId);
+      }
+      const moderatorChatId = getModeratorChatId();
+      if (moderatorChatId) {
+        recipientChatIds.add(moderatorChatId);
+      }
 
-    for (const chatId of recipientChatIds) {
-      await ctx.api
-        .sendMessage(chatId, staffText, {
-          parse_mode: "HTML",
-          reply_markup: staffKeyboard,
-        })
-        .catch(() => {});
+      for (const chatId of recipientChatIds) {
+        await ctx.api
+          .sendMessage(chatId, staffText, {
+            parse_mode: "HTML",
+            reply_markup: staffKeyboard,
+          })
+          .catch(() => {});
+      }
     }
   } catch (error: any) {
     if (deducted && user) {

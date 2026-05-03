@@ -559,6 +559,10 @@ export async function createBot(): Promise<{
 
   // Register conversations (createConversation imported above)
   bot.use(createConversation(depositMoneyConversation, "depositMoneyConversation"));
+  const { renameVdsConversation, vdsPasswordManualConversation } = await import("../helpers/manage-services.js");
+  bot.use(createConversation(renameVdsConversation as any, "renameVdsConversation"));
+  bot.use(createConversation(vdsPasswordManualConversation as any, "vdsPasswordManualConversation"));
+
 
   // Register broadcast and tickets functionality before text handlers
   const { registerBroadcastAndTickets } = await import("../ui/integration/broadcast-tickets-integration.js");

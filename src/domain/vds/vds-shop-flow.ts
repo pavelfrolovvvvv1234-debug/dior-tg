@@ -109,6 +109,7 @@ async function createVpsOrderTicket(
     const locationLabel = locationKey ? ctx.t(`dedicated-location-${locationKey}` as any) : "N/A";
     const osLabel = osKey ? ctx.t(`dedicated-os-${osKey}` as any) : "N/A";
 
+    const buyerIsStaff = user.role === Role.Admin || user.role === Role.Moderator;
     const created = await provisioningService.createPaidOrderAndTicket({
       userId: user.id,
       telegramUserId: ctx.from?.id ?? null,
@@ -120,6 +121,7 @@ async function createVpsOrderTicket(
       paymentStatus: DedicatedOrderPaymentStatus.PAID,
       balanceUsedAmount: price,
       idempotencyKey,
+      excludeFromUserStats: buyerIsStaff,
       config: {
         productId: `vps-${rateId}`,
         productName: rate.name ?? `VPS #${rateId}`,
@@ -156,34 +158,36 @@ async function createVpsOrderTicket(
     );
     await ctx.reply(buyerText, { parse_mode: "HTML" });
 
-    const moderators = await usersRepo.find({
-      where: [{ role: Role.Admin }, { role: Role.Moderator }],
-    });
-    const staffText = renderMultiline(
-      ctx.t("dedicated-provisioning-staff-notification", {
-        ticketId: ticket.id,
-        orderId: order.id,
-        userId: user.id,
-        amount: price,
-        serviceName: rate.name ?? `VPS #${rateId}`,
-        location: locationLabel,
-        os: osLabel,
-      })
-    );
-    const staffKeyboard = new InlineKeyboard()
-      .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
-      .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-    const recipientChatIds = new Set<number>();
-    for (const mod of moderators) recipientChatIds.add(mod.telegramId);
-    const moderatorChatId = getModeratorChatId();
-    if (moderatorChatId) recipientChatIds.add(moderatorChatId);
-    for (const chatId of recipientChatIds) {
-      await ctx.api
-        .sendMessage(chatId, staffText, {
-          parse_mode: "HTML",
-          reply_markup: staffKeyboard,
+    if (!buyerIsStaff) {
+      const moderators = await usersRepo.find({
+        where: [{ role: Role.Admin }, { role: Role.Moderator }],
+      });
+      const staffText = renderMultiline(
+        ctx.t("dedicated-provisioning-staff-notification", {
+          ticketId: ticket.id,
+          orderId: order.id,
+          userId: user.id,
+          amount: price,
+          serviceName: rate.name ?? `VPS #${rateId}`,
+          location: locationLabel,
+          os: osLabel,
         })
-        .catch(() => {});
+      );
+      const staffKeyboard = new InlineKeyboard()
+        .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
+        .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+      const recipientChatIds = new Set<number>();
+      for (const mod of moderators) recipientChatIds.add(mod.telegramId);
+      const moderatorChatId = getModeratorChatId();
+      if (moderatorChatId) recipientChatIds.add(moderatorChatId);
+      for (const chatId of recipientChatIds) {
+        await ctx.api
+          .sendMessage(chatId, staffText, {
+            parse_mode: "HTML",
+            reply_markup: staffKeyboard,
+          })
+          .catch(() => {});
+      }
     }
   } catch (error: any) {
     if (deducted) {
