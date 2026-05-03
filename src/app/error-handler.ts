@@ -6,7 +6,6 @@
  */
 
 import type { Bot } from "grammy";
-import { GrammyError } from "grammy";
 import { Logger } from "./logger.js";
 import type { AppContext } from "../shared/types/context.js";
 import { AppError, BusinessError, ExternalApiError, PaymentError } from "../shared/errors/index.js";
@@ -45,14 +44,10 @@ export function setupErrorHandler(bot: Bot<AppContext>): void {
 }
 
 function isMessageNotModifiedError(error: unknown): boolean {
-  if (!(error instanceof GrammyError)) {
+  if (!(error instanceof Error)) {
     return false;
   }
-
-  return Boolean(
-    error.message?.includes("message is not modified") ||
-      error.message?.includes("message is not modified: specified new message content and reply markup")
-  );
+  return error.message.includes("message is not modified");
 }
 
 /**

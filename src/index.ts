@@ -567,6 +567,17 @@ const changeLocaleMenu = new Menu<AppContext>("change-locale-menu", {
   })
   .back((ctx) => ctx.t("button-back"));
 
+/** Harmless Telegram 400s (menus often re-edit identical markup/text). Avoid error-log spam in production. */
+function isIgnoredTelegramBotNoise(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return (
+    msg.includes("message is not modified") ||
+    msg.includes("query is too old") ||
+    msg.includes("message to edit not found") ||
+    msg.includes("MESSAGE_ID_INVALID")
+  );
+}
+
 async function index() {
   const { fluent, availableLocales } = await initFluent();
   const appDataSource = await getAppDataSource();
@@ -3297,6 +3308,9 @@ async function index() {
       await bot.api.deleteWebhook();
 
       bot.catch((err) => {
+        if (isIgnoredTelegramBotNoise(err)) {
+          return;
+        }
         console.error("[Bot Error]", err.name, err.message);
         if (process.env["NODE_ENV"] == "development") {
           console.error(err.stack);
