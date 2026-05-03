@@ -67,12 +67,12 @@ bundle-manage-header = <strong>🚀 Infrastructure Bundle</strong>
 
     Services purchased as a bundle (domain + VPS):
 bundle-manage-empty = You have no bundle services yet
-button-dedicated-server = 🔒 🖥 Dedicated Servers
+button-dedicated-server = 🔒 Dedicated Servers
 
 # Purchase services — labels for current locale (3 buttons + language toggle)
 button-service-buy-domains = 🌐 Domains
 button-service-buy-cdn = 🛡 CDN
-button-service-buy-dedicated = 🔒 🖥 Dedicated
+button-service-buy-dedicated = 🔒 Dedicated
 
 button-dev-po = ⚙️ Development
 button-dev-po-discuss = 💬 Discuss project
@@ -219,7 +219,7 @@ admin-service-percent-dedicated-block = <b>Dedicated</b>: Standard {$standard}%,
 admin-service-percents-prompt = Tap a button and enter percentage (0–100).
 admin-service-percents-submenu = percentages
 admin-service-percents-vds-header = <strong>🖥 VDS percentages</strong>
-admin-service-percents-dedicated-header = <strong>🖥 Dedicated percentages</strong>
+admin-service-percents-dedicated-header = <strong>🔒 Dedicated percentages</strong>
 admin-service-percent-enter = Enter percentage (0–100) for «{$name}»:
 admin-service-percent-success = Percentage for «{$name}» set to {$percent}%.
 button-delete = 🗑 Delete
@@ -580,7 +580,7 @@ manage-services-header = 💼 Services
 button-manage-domains = 🌐 Domains
 button-manage-cdn = 🛡 CDN
 cdn-manage-services-title = <strong>CDN</strong>
-button-manage-dedicated = 🔒 🖥 Dedicated
+button-manage-dedicated = 🔒 Dedicated
 button-manage-services-back = ⬅️ Back
 
 
@@ -608,7 +608,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
 # Dedicated server shop (multi-step)
 dedicated-shop-step1-text =
-    <b>🔒 🖥 Dedicated</b>
+    <b>🔒 Dedicated</b>
 
     Choose infrastructure type:
 dedicated-shop-btn-standard = ⚙️ Standard
@@ -629,14 +629,14 @@ dedicated-shop-tier-start-label = Start
 dedicated-shop-tier-standard-label = Standard
 dedicated-shop-tier-performance-label = Performance
 dedicated-shop-tier-enterprise-label = Enterprise
-dedicated-shop-step3-header = <b>🔒 🖥 {$typeLine} • {$tierLine}</b>
+dedicated-shop-step3-header = <b>🔒 {$typeLine} • {$tierLine}</b>
 dedicated-shop-step3-prompt = Choose server:
 dedicated-shop-list-page = Page {$current} / {$total}
 dedicated-shop-page-prev = ⬅️ Prev
 dedicated-shop-page-next = ➡️ Next
 dedicated-shop-storage-line = SSD / NVMe
 dedicated-shop-card =
-    <b>🔒 🖥 {$title}</b>
+    <b>🔒 {$title}</b>
 
     <b>CPU:</b> {$cpu}
     <b>RAM:</b> {$ram} GB
@@ -1008,7 +1008,7 @@ ticket-request-server = Server
 
 # Dedicated Servers
 button-order-dedicated = 💳 Make Order
-button-my-dedicated = 🔒 🖥 Dedicated Servers
+button-my-dedicated = 🔒 Dedicated Servers
 button-my-tickets = 🎫 My Requests
 dedicated-none = You don't have any dedicated servers
 dedicated-status-requested = <strong>Dedicated Server Request</strong>

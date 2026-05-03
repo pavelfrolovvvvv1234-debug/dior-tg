@@ -20,9 +20,9 @@ abuse-vds-service = 🛡 <strong>Абузоустойчивый VDS</strong>
 dedicated-server =
   🚀 Выберите услугу
 
-  🖥 Dedicated Server
+  🔒 Dedicated Server
 
 abuse-dedicated-server =
   🚀 Выберите услугу
 
-  🖥 Dedicated Server
+  🔒 Dedicated Server

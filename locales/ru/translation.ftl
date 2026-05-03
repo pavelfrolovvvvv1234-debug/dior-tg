@@ -69,12 +69,12 @@ bundle-manage-header = <strong>🚀 Инфраструктурный пакет<
 
     Услуги, купленные пакетом (домен + VPS):
 bundle-manage-empty = У вас пока нет услуг по пакетам
-button-dedicated-server = 🔒 🖥 Выделенные серверы
+button-dedicated-server = 🔒 Выделенные серверы
 
 # Экран «Покупка услуг» — подписи по текущей локали (3 кнопки + переключатель языка)
 button-service-buy-domains = 🌐 Домены
 button-service-buy-cdn = 🛡 CDN
-button-service-buy-dedicated = 🔒 🖥 Дедики
+button-service-buy-dedicated = 🔒 Дедики
 
 button-dev-po = ⚙️ Разработка ПО
 button-dev-po-discuss = 💬 Обсудить проект
@@ -222,7 +222,7 @@ admin-service-percent-dedicated-block = <b>Dedicated</b>: Стандарт {$sta
 admin-service-percents-prompt = Нажмите кнопку и введите процент (0–100).
 admin-service-percents-submenu = проценты
 admin-service-percents-vds-header = <strong>🖥 Проценты VDS</strong>
-admin-service-percents-dedicated-header = <strong>🖥 Проценты Dedicated</strong>
+admin-service-percents-dedicated-header = <strong>🔒 Проценты Dedicated</strong>
 admin-service-percent-enter = Введите процент (0–100) для «{$name}»:
 admin-service-percent-success = Процент для «{$name}» установлен: {$percent}%.
 button-delete = 🗑 Удалить
@@ -595,7 +595,7 @@ manage-services-header = 💼 Услуги
 button-manage-domains = 🌐 Домены
 button-manage-cdn = 🛡 CDN
 cdn-manage-services-title = <strong>CDN</strong>
-button-manage-dedicated = 🔒 🖥 Дедики
+button-manage-dedicated = 🔒 Дедики
 button-manage-services-back = ⬅️ Назад
 
 vds-menu-select = Выберете интересующий вас тариф
@@ -622,7 +622,7 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 
 # Магазин дедиков (пошагово)
 dedicated-shop-step1-text =
-    <b>🔒 🖥 Дедики</b>
+    <b>🔒 Дедики</b>
 
     Выберите тип инфраструктуры:
 dedicated-shop-btn-standard = ⚙️ Стандартные
@@ -643,14 +643,14 @@ dedicated-shop-tier-start-label = Старт
 dedicated-shop-tier-standard-label = Стандарт
 dedicated-shop-tier-performance-label = Производительность
 dedicated-shop-tier-enterprise-label = Enterprise
-dedicated-shop-step3-header = <b>🔒 🖥 {$typeLine} • {$tierLine}</b>
+dedicated-shop-step3-header = <b>🔒 {$typeLine} • {$tierLine}</b>
 dedicated-shop-step3-prompt = Выберите сервер:
 dedicated-shop-list-page = Стр. {$current} / {$total}
 dedicated-shop-page-prev = ⬅️ Пред.
 dedicated-shop-page-next = ➡️ След.
 dedicated-shop-storage-line = SSD / NVMe
 dedicated-shop-card =
-    <b>🔒 🖥 {$title}</b>
+    <b>🔒 {$title}</b>
 
     <b>CPU:</b> {$cpu}
     <b>RAM:</b> {$ram} GB
@@ -1025,7 +1025,7 @@ ticket-request-server = Сервер
 
 # Выделенные серверы
 button-order-dedicated = 💳 Оформить заказ
-button-my-dedicated = 🔒 🖥 Выделенные серверы
+button-my-dedicated = 🔒 Выделенные серверы
 button-my-tickets = 🎫 Мои запросы
 dedicated-none = У вас нет выделенных серверов
 dedicated-status-requested = <strong>Запрос выделенного сервера</strong>

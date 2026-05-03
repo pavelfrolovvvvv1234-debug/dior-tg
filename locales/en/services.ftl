@@ -20,9 +20,9 @@ Priority handling.
 dedicated-server =
   🚀 Select a service
 
-  🖥 Dedicated Server
+  🔒 Dedicated Server
 
 abuse-dedicated-server =
   🚀 Select a service
 
-  🖥 Dedicated Server
+  🔒 Dedicated Server
