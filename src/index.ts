@@ -647,6 +647,10 @@ async function index() {
     return next();
   });
 
+  // Must run right after session: otherwise long middleware chains can reach Menu handlers
+  // without ConversationFlavor and ctx.conversation.enter() throws (reading 'enter').
+  bot.use(conversations());
+
   const vmmanager = createVmProvider();
   startResellerApiServer({ dataSource: appDataSource, vmProvider: vmmanager, botApi: bot.api });
 
@@ -978,8 +982,7 @@ async function index() {
     }
   });
 
-  // Conversations must be registered before menus that call ctx.conversation.enter(...)
-  bot.use(conversations());
+  // conversations() is registered immediately after session (see above).
   registerPromoConversations(bot);
   bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
   bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
