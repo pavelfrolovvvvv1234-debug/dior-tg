@@ -7,6 +7,7 @@ import { QueryFailedError, type DataSource, type Repository } from "typeorm";
 import { z } from "zod";
 import User, { Role, UserStatus } from "../entities/User.js";
 import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../entities/VirtualDedicatedServer.js";
+import type { ListItem } from "./vmmanager.js";
 import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { getAdminTelegramIds } from "../app/config.js";
 import { retry } from "../shared/utils/retry.js";
@@ -45,6 +46,23 @@ type ResellerApiOptions = {
   vmProvider: VmProvider;
   botApi: Api<RawApi>;
 };
+
+async function getInfoVmResilient(
+  vmProvider: VmProvider,
+  vmid: number,
+  attempts = 4,
+  pauseMs = 400
+): Promise<ListItem | undefined> {
+  let last: ListItem | undefined;
+  for (let i = 0; i < attempts; i++) {
+    last = await vmProvider.getInfoVM(vmid).catch(() => undefined);
+    if (last) return last;
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, pauseMs));
+    }
+  }
+  return last;
+}
 
 type WebhookEventType =
   | "service_created"
@@ -1011,7 +1029,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         res.status(404).json({ ok: false, error: "service_not_found" });
         return;
       }
-      const info = await options.vmProvider.getInfoVM(vds.vdsId).catch(() => undefined);
+      const info = await getInfoVmResilient(options.vmProvider, vds.vdsId);
       res.json({
         ok: true,
         item: {

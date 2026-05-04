@@ -62,6 +62,8 @@ export class ProxmoxProvider implements VmProvider {
   private readonly bridge: string;
   private readonly templateMap: Record<string, number>;
   private readonly reverseTemplateMap: Record<number, string>;
+  private clusterNodeNamesCache: { names: string[]; at: number } | null = null;
+  private readonly clusterNodeNamesTtlMs = 60_000;
 
   constructor() {
     this.baseUrl = (config.PROXMOX_BASE_URL ?? process.env.PROXMOX_BASE_URL ?? "").trim().replace(/\/+$/, "");
@@ -360,6 +362,32 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
+  /** All joined cluster nodes (cached) — VMs may live on a node different from PROXMOX_NODE. */
+  private async listClusterNodeNames(): Promise<string[]> {
+    const now = Date.now();
+    if (
+      this.clusterNodeNamesCache &&
+      now - this.clusterNodeNamesCache.at < this.clusterNodeNamesTtlMs
+    ) {
+      return this.clusterNodeNamesCache.names;
+    }
+    try {
+      const list = await this.apiGet<Array<{ node?: string }>>("/nodes");
+      const raw =
+        Array.isArray(list)
+          ? list.map((n) => String(n.node ?? "").trim()).filter(Boolean)
+          : [];
+      const names = [...new Set(raw)];
+      const resolved =
+        names.length > 0 ? names : [this.node].filter((n): n is string => Boolean(n?.trim()));
+      this.clusterNodeNamesCache = { names: resolved, at: now };
+      return resolved;
+    } catch {
+      const fallback = [this.node].filter((n): n is string => Boolean(n?.trim()));
+      return fallback;
+    }
+  }
+
   /**
    * When `/status/current` returns 5xx, match vmid in node-local guest list.
    */
@@ -458,7 +486,12 @@ export class ProxmoxProvider implements VmProvider {
   async getInfoVM(id: number): Promise<ListItem | undefined> {
     try {
       const clusterVm = await this.getClusterVmResource(id);
-      const nodeCandidates = [...new Set([this.node, clusterVm?.node].filter((n): n is string => Boolean(n?.trim())))];
+      let nodeCandidates = [
+        ...new Set([this.node, clusterVm?.node].filter((n): n is string => Boolean(n?.trim()))),
+      ];
+      if (nodeCandidates.length === 0) {
+        nodeCandidates = await this.listClusterNodeNames();
+      }
       if (nodeCandidates.length === 0) {
         return undefined;
       }
@@ -470,11 +503,26 @@ export class ProxmoxProvider implements VmProvider {
             ? ["qemu"]
             : ["qemu", "lxc"];
 
-      for (const kind of kindsOrder) {
-        const part = await this.fetchGuestInfoFromNodes(id, nodeCandidates, kind);
-        if (part.statusPayload?.status || part.configData) {
-          return this.buildListItemFromGuestParts(id, part, clusterVm);
+      const tryKindsOnNodes = async (nodes: string[]): Promise<ListItem | undefined> => {
+        const uniq = [...new Set(nodes.filter((n): n is string => Boolean(n?.trim())))];
+        if (uniq.length === 0) return undefined;
+        for (const kind of kindsOrder) {
+          const part = await this.fetchGuestInfoFromNodes(id, uniq, kind);
+          if (part.statusPayload?.status || part.configData) {
+            return this.buildListItemFromGuestParts(id, part, clusterVm);
+          }
         }
+        return undefined;
+      };
+
+      let item = await tryKindsOnNodes(nodeCandidates);
+      if (item) return item;
+
+      const allNodes = await this.listClusterNodeNames();
+      const merged = [...new Set([...nodeCandidates, ...allNodes])];
+      if (merged.length > nodeCandidates.length) {
+        item = await tryKindsOnNodes(merged);
+        if (item) return item;
       }
 
       if (clusterVm && (clusterVm.status || clusterVm.name || clusterVm.maxcpu != null)) {
