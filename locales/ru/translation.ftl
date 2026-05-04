@@ -76,9 +76,9 @@ button-service-buy-domains = 🌐 Домены
 button-service-buy-cdn = 🛡 CDN
 button-service-buy-dedicated = 🔒 Дедики
 
-button-dev-po = ⚙️ Разработка ПО
+button-dev-po = ⚡ Продукт под ключ
 button-dev-po-discuss = 💬 Обсудить проект
-button-crypto-exchange = 🔁 Обменник
+button-crypto-exchange = 💱 Crypto Exchange
 button-crypto-exchange-go = 💱 Перейти к обменнику
 service-crypto-exchange = <b>💱 Криптообменник</b><br><br>Быстрый обмен криптовалюты в нашем боте DiorChange — без лишних регистраций и задержек. Выберите пару, укажите сумму (от 2$) и получите обмен по выгодному курсу.<br><br>Нажмите кнопку ниже, чтобы открыть бот-обменник DiorChange.
 service-dev-po = <b>💻 Development &amp; Infrastructure</b><br><br>Проектирование и масштабирование цифровых продуктов: код, трафик, инфраструктура.<br><br>🌐 Web — быстрые, SEO-ready сайты с фокусом на конверсию<br>⚙️ Backend — API, auth, billing, масштабируемые системы<br>🤖 Automation — Telegram/Discord боты, панели, workflow<br>🧱 DevOps — VPS/Dedicated, Docker, secure deploy<br>📊 SEO — техничка, аналитика, архитектура под рост<br>🚀 Launch — от MVP до стабильного продакшена<br><br>💰 Цены от $10 (в зависимости от задачи и масштаба)<br><br>Для заказа — свяжитесь с поддержкой по кнопке ниже
