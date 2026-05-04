@@ -726,7 +726,7 @@ bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
 vds-created = Server created successfully. Status is available in: Main menu → Manage services
 
 vds-manage-title = Manage VDS
-vds-manage-list-item = «{$rateName}» - {$ip} 🖥
+vds-manage-list-item = {$label} - {$ip}
 button-my-vds = 🖥 VPS/VDS
 
 vds-autorenew-line = <strong>Auto-renew:</strong> {$state}
@@ -1236,7 +1236,6 @@ Bulletproof: {$abuse}
 Rate: {$rateName}
 Renewal Price: {$price} $
 Expires: {$expireAt}
-vds-manage-list-item = {$displayName} ({$rateName}) - {$ip}
 
 # Amper Domains
 button-register-domain = 🌐 Register Domain

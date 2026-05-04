@@ -58,6 +58,17 @@ const isVdsManagementBlocked = (vds: VirtualDedicatedServer): boolean =>
 const isPlaceholderIpv4 = (ip?: string | null): boolean =>
   !ip || ip === "0.0.0.0" || ip === "127.0.0.1";
 
+/** Grammy Menu may pass payload as string or number depending on plugin/version. */
+const parseMenuNumericPayload = (match: unknown): number => {
+  if (typeof match === "string" && /^\d+$/.test(match)) {
+    return Number.parseInt(match, 10);
+  }
+  if (typeof match === "number" && Number.isFinite(match)) {
+    return match;
+  }
+  return NaN;
+};
+
 const buildVdsManageText = (
   ctx: AppContext,
   vds: VirtualDedicatedServer | null,
@@ -118,6 +129,17 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const vds = await vdsRepo.findOneBy({ id: expandedId });
   if (!vds) {
     session.other.manageVds.expandedId = null;
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+      parse_mode: "HTML",
+      reply_markup: vdsManageServiceMenu,
+    });
+    return;
+  }
+
+  if (Number(vds.targetUserId) !== Number(session.main.user.id)) {
+    session.other.manageVds.expandedId = null;
+    (session.other.manageVds as any).panelMode = "main";
+    session.other.manageVds.showPassword = false;
     await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
@@ -308,7 +330,7 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
           });
 
           if (vds) {
-            if (vds.targetUserId != session.main.user.id) {
+            if (Number(vds.targetUserId) !== Number(session.main.user.id)) {
               await ctx.reply(ctx.t("bad-error"));
               return;
             }
@@ -388,18 +410,20 @@ export const vdsManageSpecific = new Menu<AppContext>(
 ).dynamic(async (ctx, range) => {
   const session = await ctx.session;
 
-  let vdsId: number;
-
-  if (ctx.match) {
-    vdsId = Number(ctx.match);
-  } else {
-    vdsId = session.other.manageVds.lastPickedId;
+  const matchRaw = ctx.match as unknown;
+  let vdsId = session.other.manageVds.lastPickedId;
+  if (matchRaw != null && matchRaw !== "") {
+    if (typeof matchRaw === "string" && /^\d+$/.test(matchRaw)) {
+      vdsId = Number.parseInt(matchRaw, 10);
+    } else if (typeof matchRaw === "number" && Number.isFinite(matchRaw)) {
+      vdsId = matchRaw;
+    }
   }
 
   const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
 
   const vds = await vdsRepo.findOneBy({
-    id: Number(vdsId),
+    id: vdsId,
   });
 
   if (!vds) {
@@ -410,6 +434,9 @@ export const vdsManageSpecific = new Menu<AppContext>(
   if (session.main.user.id != vds.targetUserId) {
     return;
   }
+
+  const serviceId = vds.id;
+  session.other.manageVds.lastPickedId = serviceId;
 
   let info;
   const demoMode = isDemoVds(vds);
@@ -465,7 +492,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
     range.text(
       {
         text: ctx.t("vds-button-start-machine"),
-        payload: vdsId.toString(),
+        payload: serviceId.toString(),
       },
       async (ctx) => {
         if (demoMode) {
@@ -474,12 +501,12 @@ export const vdsManageSpecific = new Menu<AppContext>(
         }
         const session = await ctx.session;
 
-        session.other.manageVds.lastPickedId = Number(ctx.match);
+        session.other.manageVds.lastPickedId = serviceId;
 
         const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
 
         const vds = await vdsRepo.findOneBy({
-          id: Number(ctx.match),
+          id: serviceId,
         });
 
         if (vds) {
@@ -516,7 +543,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
     range.text(
       {
         text: ctx.t("vds-button-stop-machine"),
-        payload: vdsId.toString(),
+        payload: serviceId.toString(),
       },
       async (ctx) => {
         if (demoMode) {
@@ -525,12 +552,12 @@ export const vdsManageSpecific = new Menu<AppContext>(
         }
         const session = await ctx.session;
 
-        session.other.manageVds.lastPickedId = Number(ctx.match);
+        session.other.manageVds.lastPickedId = serviceId;
 
         const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
 
         const vds = await vdsRepo.findOneBy({
-          id: Number(ctx.match),
+          id: serviceId,
         });
 
         if (vds) {
@@ -562,7 +589,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
     range.text(
       {
         text: ctx.t("vds-button-regenerate-password"),
-        payload: vdsId.toString(),
+        payload: serviceId.toString(),
       },
       async (ctx) => {
         if (demoMode) {
@@ -571,12 +598,12 @@ export const vdsManageSpecific = new Menu<AppContext>(
         }
         const session = await ctx.session;
 
-        session.other.manageVds.lastPickedId = Number(ctx.match);
+        session.other.manageVds.lastPickedId = serviceId;
 
         const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
 
         const vds = await vdsRepo.findOneBy({
-          id: Number(ctx.match),
+          id: serviceId,
         });
 
         if (vds) {
@@ -614,7 +641,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
     range.text(
       {
         text: ctx.t("vds-button-reinstall-os"),
-        payload: vdsId.toString(),
+        payload: serviceId.toString(),
       },
       async (ctx) => {
         if (demoMode) {
@@ -623,12 +650,12 @@ export const vdsManageSpecific = new Menu<AppContext>(
         }
         const session = await ctx.session;
 
-        session.other.manageVds.lastPickedId = Number(ctx.match);
+        session.other.manageVds.lastPickedId = serviceId;
 
         const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
 
         const vds = await vdsRepo.findOneBy({
-          id: Number(ctx.match),
+          id: serviceId,
         });
 
         if (vds) {
@@ -640,12 +667,12 @@ export const vdsManageSpecific = new Menu<AppContext>(
     range.text(
       {
         text: ctx.t("vds-button-rename"),
-        payload: vdsId.toString(),
+        payload: serviceId.toString(),
       },
       async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
         const session = await ctx.session;
-        session.other.manageVds.lastPickedId = vdsId;
+        session.other.manageVds.lastPickedId = serviceId;
         try {
           await ctx.conversation.enter("renameVdsConversation");
         } catch (error: any) {
@@ -687,7 +714,7 @@ export async function renameVdsConversation(
   const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
   const vds = await vdsRepo.findOneBy({ id: vdsId });
 
-  if (!vds || vds.targetUserId !== session.main.user.id) {
+  if (!vds || Number(vds.targetUserId) !== Number(session.main.user.id)) {
     await ctx.reply(ctx.t("error-access-denied"));
     return;
   }
@@ -782,7 +809,7 @@ export async function vdsPasswordManualConversation(
   }
   const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
   const vds = await vdsRepo.findOneBy({ id: vdsId });
-  if (!vds || vds.targetUserId !== session.main.user.id) {
+  if (!vds || Number(vds.targetUserId) !== Number(session.main.user.id)) {
     await ctx.reply(ctx.t("error-access-denied"));
     return;
   }
@@ -859,7 +886,15 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
 
     if (expandedId) {
       const expanded = await vdsRepo.findOneBy({ id: expandedId });
-      if (expanded && expanded.targetUserId === session.main.user.id) {
+      const ownerOk =
+        expanded != null &&
+        Number(expanded.targetUserId) === Number(session.main.user.id);
+
+      if (!ownerOk) {
+        session.other.manageVds.expandedId = null;
+        (session.other.manageVds as any).panelMode = "main";
+        session.other.manageVds.showPassword = false;
+      } else {
         const showPassword = session.other.manageVds.showPassword;
         const blocked = isVdsManagementBlocked(expanded);
         const panelMode = (session.other.manageVds as any).panelMode || "main";
@@ -877,6 +912,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
         range.text(
           showPassword ? ctx.t("button-hide-password") : ctx.t("button-show-password"),
           async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             const session = await ctx.session;
             session.other.manageVds.showPassword = !session.other.manageVds.showPassword;
             await updateVdsManageView(ctx);
@@ -891,7 +927,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
               await ctx.answerCallbackQuery().catch(() => {});
               const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
               const vds = await vdsRepo.findOneBy({ id: expandedId });
-              if (!vds || vds.targetUserId !== session.main.user.id) {
+              if (!vds || Number(vds.targetUserId) !== Number(session.main.user.id)) {
                 await ctx.reply(ctx.t("bad-error"));
                 return;
               }
@@ -908,11 +944,6 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             if (m === 3) range.row();
           }
           range.row();
-          range.text("⬅️ Назад к услуге", async (ctx) => {
-            const session = await ctx.session;
-            (session.other.manageVds as any).panelMode = "main";
-            await ctx.menu.update();
-          });
           return;
         }
 
@@ -957,6 +988,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           range.row();
 
           range.text("💿 Переустановить OS", async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             const session = await ctx.session;
             session.other.manageVds.lastPickedId = expandedId;
             const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
@@ -974,6 +1006,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           range.row();
 
           range.text("🔁 Новый пароль", async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
             const vds = await vdsRepo.findOneBy({ id: expandedId });
             if (!vds) {
@@ -1043,23 +1076,20 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           range.row();
 
           range.text("🛠 Запрос в поддержку", async (ctx) => {
-          await ctx.reply(ctx.t("support"), {
-            parse_mode: "HTML",
-            link_preview_options: { is_disabled: true },
+            await ctx.answerCallbackQuery().catch(() => {});
+            await ctx.reply(ctx.t("support"), {
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: true },
+            });
           });
-        });
           range.row();
-          range.text("⬅️ Назад к услуге", async (ctx) => {
-            const session = await ctx.session;
-            (session.other.manageVds as any).panelMode = "main";
-            await ctx.menu.update();
-          });
           return;
         }
 
         if (!blocked) {
           if (powerState === "active") {
             range.text("🔄 Перезагрузить", async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
               const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
               const vds = await vdsRepo.findOneBy({ id: expandedId });
               if (!vds) {
@@ -1075,6 +1105,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
               await updateVdsManageView(ctx);
             });
             range.text("🔴 Выключить", async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
               const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
               const vds = await vdsRepo.findOneBy({ id: expandedId });
               if (!vds) {
@@ -1091,6 +1122,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
             range.row();
           } else {
             range.text("🟢 Включить", async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
               const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
               const vds = await vdsRepo.findOneBy({ id: expandedId });
               if (!vds) {
@@ -1109,19 +1141,21 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
         }
 
         range.text("📅 Продлить", async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
           const session = await ctx.session;
           (session.other.manageVds as any).panelMode = "renew";
           await ctx.menu.update();
         });
         if (!blocked) {
           range.text("⚙️ Еще", async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
             const session = await ctx.session;
             (session.other.manageVds as any).panelMode = "more";
             await ctx.menu.update();
           });
         }
+        return;
       }
-      return;
     }
 
     const [vdsList, total] = await vdsRepo.findAndCount({
@@ -1144,11 +1178,12 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
     const maxPages = Math.ceil(total / LIMIT_ON_PAGE) - 1;
 
     for (const vds of vdsList) {
-      if (!isDemoVds(vds) && isPlaceholderIpv4(vds.ipv4Addr)) {
+      // Same as updateVdsManageView: keep DB IP in sync when VM migrates / provider reassigns IPv4.
+      if (!isDemoVds(vds)) {
         try {
           const freshIpv4 = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId);
           const freshIp = freshIpv4?.list?.[0]?.ip_addr;
-          if (freshIp && !isPlaceholderIpv4(freshIp)) {
+          if (freshIp && !isPlaceholderIpv4(freshIp) && vds.ipv4Addr !== freshIp) {
             vds.ipv4Addr = freshIp;
             await vdsRepo.save(vds);
           }
@@ -1156,13 +1191,17 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           // Ignore transient Proxmox/network errors on list rendering.
         }
       }
-      const displayName = vds.displayName || vds.rateName || `VDS #${vds.id}`;
+      const rateName = (vds.rateName || "").trim() || `VDS #${vds.id}`;
+      const customName = (vds.displayName || "").trim();
+      const listLabel =
+        customName.length > 0 && customName !== rateName
+          ? `${customName} (${rateName})`
+          : rateName;
       range
         .text(
           {
             text: ctx.t("vds-manage-list-item", {
-              displayName: displayName,
-              rateName: vds.rateName,
+              label: listLabel,
               ip: vds.ipv4Addr,
             }),
             payload: vds.id.toString(),
@@ -1176,11 +1215,12 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
 
             await ctx.answerCallbackQuery().catch(() => {});
 
-            const vds = await vdsRepo.findOneBy({
-              id: Number(ctx.match),
-            });
+            const pickedId = parseMenuNumericPayload(ctx.match);
+            const vds = Number.isFinite(pickedId)
+              ? await vdsRepo.findOneBy({ id: pickedId })
+              : null;
 
-            if (!vds) {
+            if (!vds || Number(vds.targetUserId) !== Number(session.main.user.id)) {
               await ctx.reply(ctx.t("bad-error"));
               return;
             }
@@ -1239,9 +1279,18 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
+      const ex = session.other.manageVds.expandedId;
+      const panelMode = (session.other.manageVds as any).panelMode || "main";
 
-      if (session.other.manageVds.expandedId) {
+      if (ex && (panelMode === "more" || panelMode === "renew")) {
+        (session.other.manageVds as any).panelMode = "main";
+        await updateVdsManageView(ctx);
+        return;
+      }
+
+      if (ex) {
         session.other.manageVds.expandedId = null;
         session.other.manageVds.showPassword = false;
         (session.other.manageVds as any).panelMode = "main";
@@ -1249,12 +1298,10 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
         return;
       }
 
-      await ctx.editMessageText(
-        ctx.t("manage-services-header"),
-        {
-          parse_mode: "HTML",
-        }
-      );
+      await ctx.editMessageText(ctx.t("manage-services-header"), {
+        parse_mode: "HTML",
+        reply_markup: manageSerivcesMenu,
+      });
     }
   );
 
