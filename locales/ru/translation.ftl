@@ -236,7 +236,7 @@ moderator-menu-header = <strong>Панель модератора</strong>
 # Referrals
 button-referrals = 👥 Рефералы
 button-share-link = 🔗 Поделиться
-referrals-screen = 🚀 Партнёрская программа\n\nМонетизируйте трафик на инфраструктуре DiorHost.\n\n💸 До 30% с пополнений\n♾ Lifetime — доход со всех будущих оплат\n⚡ Выплаты от $10\n📊 Автоматическая статистика\n\n🔗 Ваша ссылка:\n{$link}\n\n👥 Рефералы: {$count}\n💰 Доход: $ { $profit }
+referrals-screen = 💼 Партнёрская программа DiorHost\n\nМонетизируйте трафик на инфраструктуре DiorHost.\n\n💸 До 30% с каждого пополнения\n♾ Доход со всех следующих платежей\n⚡ Выплаты от $10\n📊 Прозрачная статистика в реальном времени\n\n━━━━━━━━━━━━━━\n\n🔗 Ваша ссылка:\n{$link}\n\n━━━━━━━━━━━━━━\n\n👥 Рефералов: {$count}\n💰 Доход: ${ $profit }
 referrals-share-text = Присоединяйся ко мне на Dior Host! Используй мою реферальную ссылку, чтобы начать.
 referral-new-joined = 👋 У вас появился новый реферал.
     Количество ваших рефералов: <b>{$count}</b>
@@ -1168,12 +1168,12 @@ ticket-credentials-invalid = Неверные данные. Пожалуйста
 # Withdraw Request
 button-withdraw = 💰 Вывод
 button-referral-stats = 📊 Статистика
-referral-statistics-header = 📊 Статистика по рефералам
-referral-stat-count = Количество рефералов: { $count }
-referral-stat-reg2dep = Конверсия рефералов (REG2DEP): { $percent }%
-referral-stat-avg-deposit = Средний депозит реферала: { $amount } $
-referral-stat-percent = Реферальный процент: { $percent }%
-referral-stat-active-30d = Активных рефералов за 30 дней: { $count }
+referral-statistics-header = 📊 Статистика
+referral-stat-count = 👥 Всего рефералов: { $count }
+referral-stat-reg2dep = 📈 Конверсия (регистрация → депозит): { $percent }%
+referral-stat-avg-deposit = 💳 Средний депозит: ${ $amount }
+referral-stat-percent = 💸 Реферальная ставка: { $percent }%
+referral-stat-active-30d = ⚡ Активных за 30 дней: { $count }
 referral-stat-new-clients = Новых рефералов
 referral-stat-earned = Заработано
 withdraw-enter-amount = <strong>Вывод баланса</strong>
