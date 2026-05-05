@@ -70,7 +70,11 @@ import {
   handleDedicatedOsSelect,
   openCdnPurchaseFromServicesMenu,
 } from "./helpers/services-menu";
-import { renameVdsConversation, vdsPasswordManualConversation } from "./helpers/manage-services";
+import {
+  handlePendingVdsManageInput,
+  renameVdsConversation,
+  vdsPasswordManualConversation,
+} from "./helpers/manage-services";
 import {
   depositMenu,
   depositMoneyConversation,
@@ -2301,6 +2305,13 @@ async function index() {
 
     session.other.promocode.awaitingInput = false;
     await handlePromocodeInput(ctx, input);
+  });
+
+  // VDS manage inline prompts (rename / manual password) without conversations.
+  bot.on("message:text", async (ctx, next) => {
+    const handled = await handlePendingVdsManageInput(ctx as AppContext);
+    if (handled) return;
+    return next();
   });
 
   // Withdraw: user tapped "Вывод средств", we asked for amount; this message is the amount → enter conversation

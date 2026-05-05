@@ -63,6 +63,8 @@ export interface OtherSessionData {
     lastPickedId: number;
     expandedId: number | null;
     showPassword: boolean;
+    pendingRenameVdsId?: number | null;
+    pendingManualPasswordVdsId?: number | null;
     /** Pending renewal period until user confirms (callback). */
     pendingRenewMonths?: 1 | 3 | 6 | 12 | null;
   };

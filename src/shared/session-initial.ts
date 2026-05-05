@@ -46,6 +46,8 @@ export function createInitialOtherSession(): SessionData["other"] {
       page: 0,
       expandedId: null,
       showPassword: false,
+      pendingRenameVdsId: null,
+      pendingManualPasswordVdsId: null,
       pendingRenewMonths: null,
     },
     adminVds: {
