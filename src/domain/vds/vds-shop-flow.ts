@@ -26,6 +26,15 @@ import ms from "../../lib/multims.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
+const isUniqueVdsIdConflictError = (error: unknown): boolean => {
+  const message = String((error as { message?: string })?.message ?? error ?? "");
+  return (
+    message.includes("UNIQUE constraint failed: vdslist.vdsId") ||
+    message.includes("duplicate key value violates unique constraint") ||
+    message.includes("vdslist_vdsid_key")
+  );
+};
+
 function appendVpsShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
   kb.text(ctx.t("prime-discount-vds"), "vsh:prime").row();
   kb.text(ctx.t("button-back"), backData).row();
@@ -260,70 +269,95 @@ async function createVpsOrderDirect(
     deducted = true;
     session.main.user.balance = user.balance;
 
-    const generatedPassword = generatePassword(12);
-    const vmName = generateRandomName(13);
-    const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey}`;
-    const vmResult = await Promise.race([
-      ctx.vmmanager.createVM(
-        vmName,
-        generatedPassword,
-        rate.cpu,
-        rate.ram,
-        osId,
-        comment,
-        rate.ssd,
-        1,
-        rate.network,
-        rate.network
-      ),
-      new Promise<false>((resolve) => setTimeout(() => resolve(false), 30000)),
-    ]);
-    if (!vmResult) {
-      throw new Error("createVM returned false");
+    const maxProvisionAttempts = 3;
+    let savedVds: VirtualDedicatedServer | null = null;
+    let savedIp = "0.0.0.0";
+    let lastProvisionError: unknown;
+
+    for (let attempt = 1; attempt <= maxProvisionAttempts; attempt++) {
+      const generatedPassword = generatePassword(12);
+      const vmName = generateRandomName(13);
+      const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey},try:${attempt}`;
+      const vmResult = await Promise.race([
+        ctx.vmmanager.createVM(
+          vmName,
+          generatedPassword,
+          rate.cpu,
+          rate.ram,
+          osId,
+          comment,
+          rate.ssd,
+          1,
+          rate.network,
+          rate.network
+        ),
+        new Promise<false>((resolve) => setTimeout(() => resolve(false), 30000)),
+      ]);
+      if (!vmResult) {
+        lastProvisionError = new Error("createVM returned false");
+        continue;
+      }
+
+      let vmInfo: any | undefined;
+      for (let i = 0; i < 6; i++) {
+        vmInfo = await ctx.vmmanager.getInfoVM(vmResult.id);
+        if (vmInfo) break;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      let ipv4Addrs: { list: Array<{ ip_addr: string }> } | undefined;
+      for (let i = 0; i < 20; i++) {
+        ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(vmResult.id);
+        const ipCandidate = ipv4Addrs?.list?.[0]?.ip_addr;
+        if (ipCandidate && ipCandidate !== "0.0.0.0" && ipCandidate !== "127.0.0.1") break;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      const ip = ipv4Addrs?.list?.[0]?.ip_addr ?? "0.0.0.0";
+
+      const vds = new VirtualDedicatedServer();
+      vds.vdsId = vmResult.id;
+      vds.login = "root";
+      vds.password = generatedPassword;
+      vds.ipv4Addr = ip;
+      vds.cpuCount = rate.cpu;
+      vds.networkSpeed = rate.network;
+      vds.isBulletproof = session.other.vdsRate.bulletproof;
+      vds.payDayAt = null;
+      vds.ramSize = rate.ram;
+      vds.diskSize = rate.ssd;
+      vds.lastOsId = osId;
+      vds.rateName = rate.name;
+      vds.expireAt = new Date(Date.now() + ms("30d"));
+      vds.targetUserId = user.id;
+      vds.renewalPrice = price;
+      vds.autoRenewEnabled = true;
+      vds.adminBlocked = false;
+      vds.managementLocked = false;
+      vds.extraIpv4Count = 0;
+      try {
+        savedVds = await vdsRepo.save(vds);
+        savedIp = ip;
+        break;
+      } catch (error) {
+        if (isUniqueVdsIdConflictError(error) && attempt < maxProvisionAttempts) {
+          lastProvisionError = error;
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          continue;
+        }
+        throw error;
+      }
     }
 
-    let vmInfo: any | undefined;
-    for (let i = 0; i < 6; i++) {
-      vmInfo = await ctx.vmmanager.getInfoVM(vmResult.id);
-      if (vmInfo) break;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!savedVds) {
+      const baseMessage = "Failed to save VPS after retrying VMID conflicts";
+      const reason = String((lastProvisionError as { message?: string })?.message ?? "").trim();
+      throw new Error(reason ? `${baseMessage}: ${reason}` : baseMessage);
     }
-
-    let ipv4Addrs: { list: Array<{ ip_addr: string }> } | undefined;
-    for (let i = 0; i < 20; i++) {
-      ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(vmResult.id);
-      const ipCandidate = ipv4Addrs?.list?.[0]?.ip_addr;
-      if (ipCandidate && ipCandidate !== "0.0.0.0" && ipCandidate !== "127.0.0.1") break;
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-    const ip = ipv4Addrs?.list?.[0]?.ip_addr ?? "0.0.0.0";
-
-    const vds = new VirtualDedicatedServer();
-    vds.vdsId = vmResult.id;
-    vds.login = "root";
-    vds.password = generatedPassword;
-    vds.ipv4Addr = ip;
-    vds.cpuCount = rate.cpu;
-    vds.networkSpeed = rate.network;
-    vds.isBulletproof = session.other.vdsRate.bulletproof;
-    vds.payDayAt = null;
-    vds.ramSize = rate.ram;
-    vds.diskSize = rate.ssd;
-    vds.lastOsId = osId;
-    vds.rateName = rate.name;
-    vds.expireAt = new Date(Date.now() + ms("30d"));
-    vds.targetUserId = user.id;
-    vds.renewalPrice = price;
-    vds.autoRenewEnabled = true;
-    vds.adminBlocked = false;
-    vds.managementLocked = false;
-    vds.extraIpv4Count = 0;
-    await vdsRepo.save(vds);
 
     await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
       parse_mode: "HTML",
     });
-    if (ip === "0.0.0.0") {
+    if (savedIp === "0.0.0.0") {
       await ctx.reply(
         `${ctx.t("vds-created")}\n\nIP может подтянуться с небольшой задержкой. Проверьте раздел «Управление VDS» через 30-90 секунд.`,
         { parse_mode: "HTML" }
