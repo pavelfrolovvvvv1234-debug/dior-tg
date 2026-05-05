@@ -25,6 +25,8 @@ import { humanizeVmmOsName } from "../shared/vmm-os-display.js";
 import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
 import { buildVdsProxmoxDescriptionLine } from "@/shared/vds-proxmox-label.js";
 import { Logger } from "../app/logger.js";
+import prices from "./prices.js";
+import User from "@/entities/User.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -1208,14 +1210,108 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
                 await ctx.reply(ctx.t("bad-error"));
                 return;
               }
-              await ctx.reply(
-                ctx.t("vds-plan-change-support-body", {
-                  vmHostId: cur.vdsId,
-                  serviceId: cur.id,
-                  rateName: escapeUserInput(cur.rateName || ""),
-                }),
-                { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+              if (Number(cur.targetUserId) !== Number(session.main.user.id)) {
+                await ctx.reply(ctx.t("error-access-denied"));
+                return;
+              }
+              if (isVdsManagementBlocked(cur)) {
+                await ctx.reply(ctx.t("vds-management-locked-notice"));
+                return;
+              }
+              if (isDemoVds(cur)) {
+                await replyDemoOperation(ctx);
+                return;
+              }
+
+              const vmProvider = ctx.vmmanager as any;
+              if (typeof vmProvider.reconfigureVmResources !== "function") {
+                await ctx.reply(
+                  ctx.t("vds-plan-change-support-body", {
+                    vmHostId: cur.vdsId,
+                    serviceId: cur.id,
+                    rateName: escapeUserInput(cur.rateName || ""),
+                  }),
+                  { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+                );
+                return;
+              }
+
+              const catalog = (await prices()).virtual_vds ?? [];
+              const normalize = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, " ");
+              const currentIdx = catalog.findIndex((r) => normalize(r.name) === normalize(cur.rateName || ""));
+              const byShapeIdx = catalog.findIndex(
+                (r) =>
+                  Number(r.cpu) === Number(cur.cpuCount) &&
+                  Number(r.ram) === Number(cur.ramSize) &&
+                  Number(r.ssd) === Number(cur.diskSize)
               );
+              const idx = currentIdx >= 0 ? currentIdx : byShapeIdx;
+              if (idx < 0 || idx >= catalog.length - 1) {
+                await ctx.reply("Для этой услуги авто-апгрейд сейчас недоступен. Обратитесь в поддержку.");
+                return;
+              }
+
+              const next = catalog[idx + 1]!;
+              const nextPrice = cur.isBulletproof ? Number(next.price.bulletproof) : Number(next.price.default);
+              if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
+
+              const upgradeCharge = Math.max(0, Math.round((nextPrice - Number(cur.renewalPrice || 0)) * 100) / 100);
+              if (upgradeCharge > 0) {
+                const userRepo = ctx.appDataSource.getRepository(User);
+                const owner = await userRepo.findOneBy({ id: session.main.user.id });
+                if (!owner || Number(owner.balance) < upgradeCharge) {
+                  await ctx.reply(
+                    `Недостаточно средств для апгрейда. Нужно: ${upgradeCharge}$, на балансе: ${owner?.balance ?? 0}$.`
+                  );
+                  return;
+                }
+              }
+
+              await ctx.reply(
+                `⏳ Запускаю авто-апгрейд: ${escapeUserInput(cur.rateName)} -> ${escapeUserInput(next.name)}...`,
+                { parse_mode: "HTML" }
+              );
+
+              const reconfigured = await vmProvider.reconfigureVmResources(cur.vdsId, {
+                cpu: Number(next.cpu),
+                ramGb: Number(next.ram),
+                diskGb: Number(next.ssd),
+                networkMbit: Number(next.network),
+              });
+              if (!reconfigured) {
+                await ctx.reply("❌ Не удалось применить конфигурацию в Proxmox. Попробуйте позже.");
+                return;
+              }
+
+              await ctx.appDataSource.transaction(async (manager) => {
+                if (upgradeCharge > 0) {
+                  const userRepo = manager.getRepository(User);
+                  const owner = await userRepo.findOneBy({ id: session.main.user.id });
+                  if (!owner || Number(owner.balance) < upgradeCharge) {
+                    throw new Error("Insufficient balance after reconfigure");
+                  }
+                  owner.balance -= upgradeCharge;
+                  await userRepo.save(owner);
+                  session.main.user.balance = owner.balance;
+                }
+                const vdsTxRepo = manager.getRepository(VirtualDedicatedServer);
+                cur.rateName = next.name;
+                cur.cpuCount = Number(next.cpu);
+                cur.ramSize = Number(next.ram);
+                cur.diskSize = Number(next.ssd);
+                cur.networkSpeed = Number(next.network);
+                cur.renewalPrice = nextPrice;
+                await vdsTxRepo.save(cur);
+              });
+
+              await ctx.reply(
+                `✅ Конфигурация обновлена автоматически до ${escapeUserInput(next.name)}.${upgradeCharge > 0 ? ` Списано: ${upgradeCharge}$.` : ""}`,
+                { parse_mode: "HTML" }
+              );
+              await updateVdsManageView(ctx);
             } catch (error: any) {
               await ctx.reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }));
             }
