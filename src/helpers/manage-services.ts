@@ -279,12 +279,22 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const session = await ctx.session;
   ensureManageVdsSession(session);
   const expandedId = session.other.manageVds.expandedId;
+  const safeRender = async (text: string): Promise<void> => {
+    try {
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: vdsManageServiceMenu,
+      });
+    } catch {
+      await ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: vdsManageServiceMenu,
+      });
+    }
+  };
 
   if (!expandedId) {
-    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
-      parse_mode: "HTML",
-      reply_markup: vdsManageServiceMenu,
-    });
+    await safeRender(buildVdsManageText(ctx, null, null, false));
     return;
   }
 
@@ -292,10 +302,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const vds = await vdsRepo.findOneBy({ id: expandedId });
   if (!vds) {
     session.other.manageVds.expandedId = null;
-    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
-      parse_mode: "HTML",
-      reply_markup: vdsManageServiceMenu,
-    });
+    await safeRender(buildVdsManageText(ctx, null, null, false));
     return;
   }
 
@@ -303,10 +310,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     session.other.manageVds.expandedId = null;
     (session.other.manageVds as any).panelMode = "main";
     session.other.manageVds.showPassword = false;
-    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
-      parse_mode: "HTML",
-      reply_markup: vdsManageServiceMenu,
-    });
+    await safeRender(buildVdsManageText(ctx, null, null, false));
     return;
   }
 
@@ -335,18 +339,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   }
 
   const text = buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword);
-  try {
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: vdsManageServiceMenu,
-    });
-  } catch {
-    // Fallback for text-input flows: there is no editable callback message context.
-    await ctx.reply(text, {
-      parse_mode: "HTML",
-      reply_markup: vdsManageServiceMenu,
-    });
-  }
+  await safeRender(text);
 };
 
 const createVdsServiceInvoice = async (
@@ -575,7 +568,17 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
       range.row();
     }
   })
-  .back((ctx) => ctx.t("button-back"));
+  .back(
+    (ctx) => ctx.t("button-back"),
+    async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      ensureManageVdsSession(session);
+      // Returning from OS list should land in "more" panel where reinstall is opened.
+      (session.other.manageVds as any).panelMode = "more";
+      await updateVdsManageView(ctx);
+    }
+  );
 
 export const vdsManageSpecific = new Menu<AppContext>(
   "vds-manage-specific"
@@ -1281,12 +1284,28 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
                 { parse_mode: "HTML" }
               );
 
-              const reconfigured = await vmProvider.reconfigureVmResources(cur.vdsId, {
-                cpu: Number(next.cpu),
-                ramGb: Number(next.ram),
-                diskGb: Number(next.ssd),
-                networkMbit: Number(next.network),
-              });
+              let reconfigured = false;
+              try {
+                reconfigured = await vmProvider.reconfigureVmResources(cur.vdsId, {
+                  cpu: Number(next.cpu),
+                  ramGb: Number(next.ram),
+                  diskGb: Number(next.ssd),
+                  networkMbit: Number(next.network),
+                });
+              } catch (reconfigError: any) {
+                const m = String(reconfigError?.message || "");
+                if (m.includes("501")) {
+                  await ctx.reply(
+                    "Авто-смена конфигурации временно недоступна на этой ноде (501). Отправьте запрос в поддержку — выполним апгрейд вручную."
+                  );
+                  await ctx.reply(ctx.t("support"), {
+                    parse_mode: "HTML",
+                    link_preview_options: { is_disabled: true },
+                  });
+                  return;
+                }
+                throw reconfigError;
+              }
               if (!reconfigured) {
                 await ctx.reply("❌ Не удалось применить конфигурацию в Proxmox. Попробуйте позже.");
                 return;
@@ -1333,9 +1352,13 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
           range.text("🛠 Запрос в поддержку", async (ctx) => {
             await ctx.answerCallbackQuery().catch(() => {});
             try {
+              const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(
+                ctx.t("support-message-template")
+              )}`;
               await ctx.reply(ctx.t("support"), {
                 parse_mode: "HTML",
                 link_preview_options: { is_disabled: true },
+                reply_markup: new InlineKeyboard().url(ctx.t("button-ask-question"), supportUrl),
               });
             } catch (error: any) {
               await ctx.reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }));
