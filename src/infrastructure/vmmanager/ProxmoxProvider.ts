@@ -637,7 +637,30 @@ export class ProxmoxProvider implements VmProvider {
       await this.stopVM(id);
       await this.waitForVmStopped(id, 60000).catch(() => {});
 
-      await this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`);
+      let deleted = false;
+      const deletePaths = [
+        `/nodes/${this.node}/qemu/${id}?purge=1&destroy-unreferenced-disks=1&skiplock=1`,
+        `/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`,
+        `/nodes/${this.node}/qemu/${id}?purge=1`,
+        `/nodes/${this.node}/qemu/${id}`,
+      ];
+      for (const path of deletePaths) {
+        try {
+          await this.apiDelete(path);
+          deleted = true;
+          break;
+        } catch (error: any) {
+          const msg = String(error?.response?.data?.errors ?? error?.response?.data?.message ?? error?.message ?? "");
+          // If VM already vanished between checks, treat as deleted.
+          if (msg.toLowerCase().includes("does not exist") || msg.toLowerCase().includes("not found")) {
+            deleted = true;
+            break;
+          }
+        }
+      }
+      if (!deleted) {
+        throw new Error(`Proxmox reinstall: failed to delete VM ${id} before clone`);
+      }
 
       const removed = await this.waitUntilQemuGuestAbsent(id, 90000);
       if (!removed) {

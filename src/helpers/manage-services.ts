@@ -334,13 +334,19 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     return;
   }
 
-  await ctx.editMessageText(
-    buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword),
-    {
+  const text = buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword);
+  try {
+    await ctx.editMessageText(text, {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
-    }
-  );
+    });
+  } catch {
+    // Fallback for text-input flows: there is no editable callback message context.
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: vdsManageServiceMenu,
+    });
+  }
 };
 
 const createVdsServiceInvoice = async (
