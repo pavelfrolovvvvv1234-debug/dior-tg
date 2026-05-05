@@ -157,6 +157,44 @@ const startManualPasswordPrompt = async (ctx: AppContext, vdsId: number): Promis
   await ctx.reply(ctx.t("vds-password-manual-prompt"), { parse_mode: "HTML" });
 };
 
+const replaceVdsWithUpgradedVm = async (
+  ctx: AppContext,
+  currentVds: VirtualDedicatedServer,
+  nextRate: { name: string; cpu: number; ram: number; ssd: number; network: number }
+): Promise<{ newVmId: number; newIp: string; newPassword: string }> => {
+  const newPassword = generatePassword(12);
+  const newName = `vds-${currentVds.id}-${Date.now().toString().slice(-6)}`;
+  const comment = `UpgradeReplace service:${currentVds.id} oldVmid:${currentVds.vdsId} rate:${nextRate.name}`;
+  const vmResult = await Promise.race([
+    ctx.vmmanager.createVM(
+      newName,
+      newPassword,
+      nextRate.cpu,
+      nextRate.ram,
+      currentVds.lastOsId,
+      comment,
+      nextRate.ssd,
+      1,
+      nextRate.network,
+      nextRate.network
+    ),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), 45000)),
+  ]);
+  if (!vmResult) {
+    throw new Error("Replacement createVM returned false");
+  }
+
+  let ipv4Addrs: { list: Array<{ ip_addr: string }> } | undefined;
+  for (let i = 0; i < 25; i++) {
+    ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(vmResult.id).catch(() => undefined);
+    const ipCandidate = ipv4Addrs?.list?.[0]?.ip_addr;
+    if (ipCandidate && ipCandidate !== "0.0.0.0" && ipCandidate !== "127.0.0.1") break;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  const newIp = ipv4Addrs?.list?.[0]?.ip_addr ?? "0.0.0.0";
+  return { newVmId: vmResult.id, newIp, newPassword };
+};
+
 export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<boolean> => {
   if (!ctx.message?.text || !ctx.hasChatType("private")) return false;
   const session = await ctx.session;
@@ -1295,13 +1333,49 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
               } catch (reconfigError: any) {
                 const m = String(reconfigError?.message || "");
                 if (m.includes("501")) {
-                  await ctx.reply(
-                    "Авто-смена конфигурации временно недоступна на этой ноде (501). Отправьте запрос в поддержку — выполним апгрейд вручную."
-                  );
-                  await ctx.reply(ctx.t("support"), {
-                    parse_mode: "HTML",
-                    link_preview_options: { is_disabled: true },
+                  await ctx.reply("⚙️ Нода не поддерживает live reconfigure (501). Запускаю авто-замену VM...");
+                  const oldVmId = cur.vdsId;
+                  const replacement = await replaceVdsWithUpgradedVm(ctx, cur, {
+                    name: String(next.name),
+                    cpu: Number(next.cpu),
+                    ram: Number(next.ram),
+                    ssd: Number(next.ssd),
+                    network: Number(next.network),
                   });
+
+                  await ctx.appDataSource.transaction(async (manager) => {
+                    if (upgradeCharge > 0) {
+                      const userRepo = manager.getRepository(User);
+                      const owner = await userRepo.findOneBy({ id: session.main.user.id });
+                      if (!owner || Number(owner.balance) < upgradeCharge) {
+                        throw new Error("Insufficient balance for replacement upgrade");
+                      }
+                      owner.balance -= upgradeCharge;
+                      await userRepo.save(owner);
+                      session.main.user.balance = owner.balance;
+                    }
+                    const vdsTxRepo = manager.getRepository(VirtualDedicatedServer);
+                    cur.vdsId = replacement.newVmId;
+                    cur.ipv4Addr = replacement.newIp;
+                    cur.password = replacement.newPassword;
+                    cur.rateName = next.name;
+                    cur.cpuCount = Number(next.cpu);
+                    cur.ramSize = Number(next.ram);
+                    cur.diskSize = Number(next.ssd);
+                    cur.networkSpeed = Number(next.network);
+                    cur.renewalPrice = nextPrice;
+                    await vdsTxRepo.save(cur);
+                  });
+
+                  // Best effort cleanup of old VM; even if it fails, service already switched to new VM.
+                  await ctx.vmmanager.stopVM(oldVmId).catch(() => undefined);
+                  await ctx.vmmanager.deleteVM(oldVmId).catch(() => undefined);
+
+                  await ctx.reply(
+                    `✅ Апгрейд выполнен через авто-замену VM. Новый VMID: ${replacement.newVmId}.${upgradeCharge > 0 ? ` Списано: ${upgradeCharge}$.` : ""}`,
+                    { parse_mode: "HTML" }
+                  );
+                  await updateVdsManageView(ctx);
                   return;
                 }
                 throw reconfigError;
