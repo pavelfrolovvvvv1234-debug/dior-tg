@@ -316,6 +316,15 @@ const buildVdsManageText = (
 const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const session = await ctx.session;
   ensureManageVdsSession(session);
+  const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+  const recoverExpandedFromLastPicked = async (): Promise<boolean> => {
+    const candidateId = session.other.manageVds.lastPickedId;
+    if (!candidateId || candidateId < 1) return false;
+    const candidate = await vdsRepo.findOneBy({ id: candidateId });
+    if (!candidate || Number(candidate.targetUserId) !== Number(session.main.user.id)) return false;
+    session.other.manageVds.expandedId = candidate.id;
+    return true;
+  };
   const expandedId = session.other.manageVds.expandedId;
   const safeRender = async (text: string): Promise<void> => {
     try {
@@ -332,11 +341,18 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   };
 
   if (!expandedId) {
+    const panelMode = (session.other.manageVds as any).panelMode || "main";
+    if (panelMode !== "main") {
+      const restored = await recoverExpandedFromLastPicked();
+      if (restored) {
+        await updateVdsManageView(ctx);
+        return;
+      }
+      (session.other.manageVds as any).panelMode = "main";
+    }
     await safeRender(buildVdsManageText(ctx, null, null, false));
     return;
   }
-
-  const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
   const vds = await vdsRepo.findOneBy({ id: expandedId });
   if (!vds) {
     session.other.manageVds.expandedId = null;
@@ -1637,6 +1653,16 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
       const session = await ctx.session;
+      ensureManageVdsSession(session);
+      const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+      const recoverExpandedFromLastPicked = async (): Promise<boolean> => {
+        const candidateId = session.other.manageVds.lastPickedId;
+        if (!candidateId || candidateId < 1) return false;
+        const candidate = await vdsRepo.findOneBy({ id: candidateId });
+        if (!candidate || Number(candidate.targetUserId) !== Number(session.main.user.id)) return false;
+        session.other.manageVds.expandedId = candidate.id;
+        return true;
+      };
       const ex = session.other.manageVds.expandedId;
       const panelMode = (session.other.manageVds as any).panelMode || "main";
 
@@ -1649,6 +1675,14 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
       if (ex) {
         session.other.manageVds.expandedId = null;
         session.other.manageVds.showPassword = false;
+        (session.other.manageVds as any).panelMode = "main";
+        await updateVdsManageView(ctx);
+        return;
+      }
+
+      // Recover stale state when user presses Back on an older VDS message.
+      const recovered = await recoverExpandedFromLastPicked();
+      if (recovered) {
         (session.other.manageVds as any).panelMode = "main";
         await updateVdsManageView(ctx);
         return;
