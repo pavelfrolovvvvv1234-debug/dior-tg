@@ -1459,7 +1459,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
     }
   })
   .row()
-  .back(
+  .text(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
