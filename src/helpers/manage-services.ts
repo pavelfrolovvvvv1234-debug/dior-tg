@@ -69,6 +69,25 @@ const parseMenuNumericPayload = (match: unknown): number => {
   return NaN;
 };
 
+const ensureManageVdsSession = (session: any): void => {
+  if (!session.other) {
+    session.other = createInitialOtherSession();
+    return;
+  }
+  if (!session.other.manageVds) {
+    session.other.manageVds = createInitialOtherSession().manageVds;
+    return;
+  }
+  const state = session.other.manageVds;
+  if (typeof state.page !== "number") state.page = 0;
+  if (typeof state.lastPickedId !== "number") state.lastPickedId = -1;
+  if (state.expandedId !== null && typeof state.expandedId !== "number") state.expandedId = null;
+  if (typeof state.showPassword !== "boolean") state.showPassword = false;
+  if (!Object.prototype.hasOwnProperty.call(state, "pendingRenewMonths")) {
+    state.pendingRenewMonths = null;
+  }
+};
+
 const buildVdsManageText = (
   ctx: AppContext,
   vds: VirtualDedicatedServer | null,
@@ -115,6 +134,7 @@ const buildVdsManageText = (
 
 const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const session = await ctx.session;
+  ensureManageVdsSession(session);
   const expandedId = session.other.manageVds.expandedId;
 
   if (!expandedId) {
@@ -258,6 +278,8 @@ function buildManageServicesMenu(): Menu<AppContext> {
         (ctx) => ctx.t("button-my-vds"),
         "vds-manage-services-list",
         async (ctx) => {
+          const session = await ctx.session;
+          ensureManageVdsSession(session);
           await ctx.editMessageText(ctx.t("vds-manage-title"), {
             parse_mode: "HTML",
           });
@@ -317,6 +339,7 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
         range.text({ text: label, payload: `ros-${os.id}` }, async (ctx) => {
           await ctx.answerCallbackQuery().catch(() => {});
           const session = await ctx.session;
+          ensureManageVdsSession(session);
 
           // Run function for create VM and buy it
           const id = session.other.manageVds.lastPickedId;
@@ -409,6 +432,7 @@ export const vdsManageSpecific = new Menu<AppContext>(
   "vds-manage-specific"
 ).dynamic(async (ctx, range) => {
   const session = await ctx.session;
+  ensureManageVdsSession(session);
 
   const matchRaw = ctx.match as unknown;
   let vdsId = session.other.manageVds.lastPickedId;
@@ -704,6 +728,7 @@ export async function renameVdsConversation(
 ) {
   let replyCtx: AppContext = ctx;
   const session = await ctx.session;
+  ensureManageVdsSession(session);
   const vdsId = session.other.manageVds.lastPickedId;
 
   if (!vdsId || vdsId === -1) {
@@ -802,6 +827,7 @@ export async function vdsPasswordManualConversation(
   ctx: AppContext
 ) {
   const session = await ctx.session;
+  ensureManageVdsSession(session);
   const vdsId = session.other.manageVds.lastPickedId;
   if (!vdsId || vdsId === -1) {
     await ctx.reply(ctx.t("error-invalid-context"));
@@ -881,6 +907,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
 )
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
+    ensureManageVdsSession(session);
     const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
     const expandedId = session.other.manageVds.expandedId;
 
