@@ -193,7 +193,18 @@ export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<bool
       const vdsService = new VdsService(ctx.appDataSource, vdsRepository, billingService, ctx.vmmanager);
       await vdsService.renameVds(renameId, session.main.user.id, newName);
       await ctx.reply(ctx.t("vds-rename-success", { newName }), { parse_mode: "HTML" });
-      await updateVdsManageView(ctx);
+      const fresh = await vdsRepo.findOneBy({ id: renameId });
+      if (fresh) {
+        let info: ListItem | undefined;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          info = await ctx.vmmanager.getInfoVM(fresh.vdsId);
+          if (info) break;
+        }
+        await ctx.reply(
+          buildVdsManageText(ctx, fresh, info ?? ({ state: "active" } as ListItem), session.other.manageVds.showPassword),
+          { parse_mode: "HTML", reply_markup: vdsManageServiceMenu }
+        );
+      }
     } catch (error: any) {
       await ctx.reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }));
     }
@@ -220,7 +231,15 @@ export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<bool
       vds.password = text;
       await vdsRepo.save(vds);
       await ctx.reply(ctx.t("vds-password-manual-success"), { parse_mode: "HTML" });
-      await updateVdsManageView(ctx);
+      let info: ListItem | undefined;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        info = await ctx.vmmanager.getInfoVM(vds.vdsId);
+        if (info) break;
+      }
+      await ctx.reply(
+        buildVdsManageText(ctx, vds, info ?? ({ state: "active" } as ListItem), session.other.manageVds.showPassword),
+        { parse_mode: "HTML", reply_markup: vdsManageServiceMenu }
+      );
     } catch (error: any) {
       await ctx.reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }));
     }
@@ -287,20 +306,6 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     return true;
   };
   const expandedId = session.other.manageVds.expandedId;
-  const safeRender = async (text: string): Promise<void> => {
-    try {
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: vdsManageServiceMenu,
-      });
-    } catch {
-      await ctx.reply(text, {
-        parse_mode: "HTML",
-        reply_markup: vdsManageServiceMenu,
-      });
-    }
-  };
-
   if (!expandedId) {
     const panelMode = (session.other.manageVds as any).panelMode || "main";
     if (panelMode !== "main") {
@@ -311,13 +316,19 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
       }
       (session.other.manageVds as any).panelMode = "main";
     }
-    await safeRender(buildVdsManageText(ctx, null, null, false));
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+      parse_mode: "HTML",
+      reply_markup: vdsManageServiceMenu,
+    });
     return;
   }
   const vds = await vdsRepo.findOneBy({ id: expandedId });
   if (!vds) {
     session.other.manageVds.expandedId = null;
-    await safeRender(buildVdsManageText(ctx, null, null, false));
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+      parse_mode: "HTML",
+      reply_markup: vdsManageServiceMenu,
+    });
     return;
   }
 
@@ -325,7 +336,10 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     session.other.manageVds.expandedId = null;
     (session.other.manageVds as any).panelMode = "main";
     session.other.manageVds.showPassword = false;
-    await safeRender(buildVdsManageText(ctx, null, null, false));
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+      parse_mode: "HTML",
+      reply_markup: vdsManageServiceMenu,
+    });
     return;
   }
 
@@ -353,8 +367,13 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     return;
   }
 
-  const text = buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword);
-  await safeRender(text);
+  await ctx.editMessageText(
+    buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword),
+    {
+      parse_mode: "HTML",
+      reply_markup: vdsManageServiceMenu,
+    }
+  );
 };
 
 const createVdsServiceInvoice = async (
