@@ -379,7 +379,9 @@ async function createVpsOrderDirect(
     await ctx
       .reply(ctx.t("error-unknown", { error: error?.message || "Unknown error" }), { parse_mode: "HTML" })
       .catch(() => {});
-    return false;
+    // Do not fall back to ticket flow after a failed auto-provision:
+    // it can double-charge users and creates the illusion of "manual provisioning" for VPS.
+    return true;
   }
 }
 
@@ -690,8 +692,8 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       return;
     }
     if (isProxmoxEnabled()) {
-      const directOk = await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
-      if (directOk) return;
+      await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
+      return;
     }
     await createVpsOrderTicket(ctx, rateId, locationKey, osKey);
   });
