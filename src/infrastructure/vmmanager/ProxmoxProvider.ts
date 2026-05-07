@@ -7,6 +7,7 @@ import {
 } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
 import { generatePassword } from "../../entities/VirtualDedicatedServer.js";
+import { retry } from "../../shared/utils/retry.js";
 import type {
   CreateVMSuccesffulyResponse,
   GetOsListResponse,
@@ -62,6 +63,7 @@ export class ProxmoxProvider implements VmProvider {
   private readonly bridge: string;
   private readonly templateMap: Record<string, number>;
   private readonly reverseTemplateMap: Record<number, string>;
+  private readonly httpTimeoutMs: number;
   private clusterNodeNamesCache: { names: string[]; at: number } | null = null;
   private readonly clusterNodeNamesTtlMs = 60_000;
 
@@ -78,10 +80,13 @@ export class ProxmoxProvider implements VmProvider {
     const tokenId = (config.PROXMOX_TOKEN_ID ?? process.env.PROXMOX_TOKEN_ID ?? "").trim();
     const tokenSecret = (config.PROXMOX_TOKEN_SECRET ?? process.env.PROXMOX_TOKEN_SECRET ?? "").trim();
     const insecureTls = isProxmoxInsecureTls();
+    const timeoutRaw = (process.env.PROXMOX_HTTP_TIMEOUT_MS ?? "").trim();
+    const timeoutParsed = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : NaN;
+    this.httpTimeoutMs = Number.isFinite(timeoutParsed) && timeoutParsed >= 10_000 ? timeoutParsed : 120_000;
 
     this.client = axios.create({
       baseURL: `${this.baseUrl}/api2/json`,
-      timeout: 30000,
+      timeout: this.httpTimeoutMs,
       headers: {
         Authorization: `PVEAPIToken=${tokenId}=${tokenSecret}`,
       },
@@ -91,19 +96,62 @@ export class ProxmoxProvider implements VmProvider {
     Logger.info("Proxmox provider initialized");
   }
 
+  private isRetryableTransportError(error: unknown): boolean {
+    const e = error as any;
+    const code = String(e?.code ?? "");
+    const message = String(e?.message ?? "");
+    // Axios timeout: code ECONNABORTED or message "timeout of Xms exceeded"
+    if (code === "ECONNABORTED" || message.includes("timeout of")) return true;
+    if (code === "ETIMEDOUT" || code === "ECONNRESET") return true;
+    const status = Number(e?.response?.status ?? 0);
+    // Retry 502/503/504 from proxy / pveproxy under load
+    if ([502, 503, 504].includes(status)) return true;
+    return false;
+  }
+
   private async apiGet<T>(url: string): Promise<T> {
-    const { data } = await this.client.get<{ data: T }>(url);
-    return data.data;
+    const run = async (): Promise<T> => {
+      const { data } = await this.client.get<{ data: T }>(url);
+      return data.data;
+    };
+    return retry(run, {
+      maxAttempts: 3,
+      delayMs: 800,
+      exponentialBackoff: true,
+      onRetry: (_attempt, err) => {
+        if (!this.isRetryableTransportError(err)) throw err;
+      },
+    });
   }
 
   private async apiPost<T>(url: string, body?: Record<string, unknown>): Promise<T> {
-    const { data } = await this.client.post<{ data: T }>(url, body ?? {});
-    return data.data;
+    const run = async (): Promise<T> => {
+      const { data } = await this.client.post<{ data: T }>(url, body ?? {});
+      return data.data;
+    };
+    return retry(run, {
+      maxAttempts: 3,
+      delayMs: 800,
+      exponentialBackoff: true,
+      onRetry: (_attempt, err) => {
+        if (!this.isRetryableTransportError(err)) throw err;
+      },
+    });
   }
 
   private async apiDelete<T>(url: string): Promise<T> {
-    const { data } = await this.client.delete<{ data: T }>(url);
-    return data.data;
+    const run = async (): Promise<T> => {
+      const { data } = await this.client.delete<{ data: T }>(url);
+      return data.data;
+    };
+    return retry(run, {
+      maxAttempts: 3,
+      delayMs: 800,
+      exponentialBackoff: true,
+      onRetry: (_attempt, err) => {
+        if (!this.isRetryableTransportError(err)) throw err;
+      },
+    });
   }
 
   private async waitForVmStopped(id: number, timeoutMs = 20000): Promise<void> {
