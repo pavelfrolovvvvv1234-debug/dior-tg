@@ -650,11 +650,20 @@ export const controlUser = new Menu<AppContext>("control-user", {})
         await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
         return;
       }
-      const text = await buildManagedServicesSummaryText(ctx, picked);
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: controlUserServices,
-      });
+      try {
+        const text = await buildManagedServicesSummaryText(ctx, picked);
+        await ctx.editMessageText(text, {
+          parse_mode: "HTML",
+          reply_markup: controlUserServices,
+        });
+      } catch {
+        // Fallback for stale/non-editable messages: still open services panel.
+        const text = await buildManagedServicesSummaryText(ctx, picked);
+        await ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup: controlUserServices,
+        });
+      }
     });
     range.row();
 

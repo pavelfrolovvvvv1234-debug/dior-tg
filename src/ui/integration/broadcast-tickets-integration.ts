@@ -548,6 +548,7 @@ export function registerPrimeBackHandler(bot: Bot<AppContext>): void {
  * Register all broadcast and tickets functionality.
  */
 export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
+  const broadcastConfirmNonceByAdminId = new Map<number, string>();
   try {
     bot.use(adminPromosMenu);
   } catch (error: any) {
@@ -1006,6 +1007,23 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         return next();
       }
 
+      // Do not steal text from other admin input flows (search, transfer, user lookup, etc.)
+      const hasOtherPendingAdminInput =
+        !!session.other.controlUsersPage?.awaitingUserLookup ||
+        !!session.other.adminVds?.awaitingSearch ||
+        !!session.other.adminVds?.awaitingTransferUserId ||
+        !!session.other.adminCdn?.awaitingSearch ||
+        !!session.other.balanceEdit ||
+        !!session.other.messageToUser ||
+        !!session.other.subscriptionEdit ||
+        !!session.other.referralPercentEdit ||
+        !!session.other.adminDomainNs ||
+        !!session.other.adminDomainSetAmperId ||
+        !!session.other.adminRegisterDomain;
+      if (hasOtherPendingAdminInput) {
+        return next();
+      }
+
       const text = ctx.message.text.trim();
       if (text.startsWith("/")) {
         return next();
@@ -1019,11 +1037,13 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         step: "awaiting_confirm",
         text,
       };
+      const nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+      broadcastConfirmNonceByAdminId.set(session.main.user.id, nonce);
 
       const previewText = escapeUserInput(text);
       const keyboard = new InlineKeyboard()
-        .text(ctx.t("button-send"), "broadcast_confirm")
-        .text(ctx.t("button-cancel"), "broadcast_cancel");
+        .text(ctx.t("button-send"), `broadcast_confirm:${nonce}`)
+        .text(ctx.t("button-cancel"), `broadcast_cancel:${nonce}`);
 
       await safeReplyHtml(ctx, ctx.t("broadcast-preview", { text: previewText }), {
         reply_markup: keyboard,
@@ -1040,7 +1060,7 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
     }
   });
 
-  bot.callbackQuery(/^broadcast_(confirm|cancel)$/, async (ctx) => {
+  bot.callbackQuery(/^broadcast_(confirm|cancel)(?::([a-z0-9]+))?$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     const hasSessionUser = await ensureSessionUser(ctx);
@@ -1055,37 +1075,35 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
     }
 
     const action = ctx.match[1];
+    const nonce = ctx.match[2];
+    const expectedNonce = broadcastConfirmNonceByAdminId.get(session.main.user.id);
     if (action === "cancel") {
       session.other.broadcast = { step: "idle" };
+      broadcastConfirmNonceByAdminId.delete(session.main.user.id);
       await safeEditMessageText(ctx, ctx.t("broadcast-cancelled"));
       return;
     }
 
-    let text = session.other.broadcast?.text;
-    if (!text) {
-      const marker = "__BROADCAST_TEXT__";
-      const template = ctx.t("broadcast-preview", { text: marker });
-      const templatePlain = template.replace(/<[^>]+>/g, "");
-      const actualPlain = (ctx.callbackQuery.message?.text || "").trim();
-      const parts = templatePlain.split(marker);
-      if (parts.length === 2) {
-        const [prefix, suffix] = parts;
-        if (actualPlain.startsWith(prefix) && actualPlain.endsWith(suffix)) {
-          text = actualPlain.slice(prefix.length, actualPlain.length - suffix.length).trim();
-        }
-      }
-    }
-
-    if (!text) {
-      Logger.warn("Broadcast confirm without stored text");
+    if (
+      session.other.broadcast?.step !== "awaiting_confirm" ||
+      !session.other.broadcast?.text ||
+      !nonce ||
+      !expectedNonce ||
+      nonce !== expectedNonce
+    ) {
+      session.other.broadcast = { step: "idle" };
+      broadcastConfirmNonceByAdminId.delete(session.main.user.id);
       await safeEditMessageText(
         ctx,
-        ctx.t("error-unknown", { error: "Broadcast expired. Please try again." }).substring(0, 200)
+        ctx.t("error-unknown", { error: "Broadcast confirmation expired. Please start again." }).substring(0, 200)
       );
       return;
     }
 
+    const text = session.other.broadcast.text;
+
     session.other.broadcast = { step: "idle" };
+    broadcastConfirmNonceByAdminId.delete(session.main.user.id);
 
     try {
       const broadcastService = new BroadcastService(ctx.appDataSource, bot as any);

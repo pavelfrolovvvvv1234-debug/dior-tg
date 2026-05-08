@@ -22,6 +22,7 @@ const GEOIP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const geoIpCache = new Map<string, { value: string; expiresAt: number }>();
 const geoIpInFlight = new Map<string, Promise<string>>();
 const userDisplayCache = new Map<number, string>();
+const userShortCache = new Map<number, string>();
 
 function escapeHtml(text: string): string {
   return text
@@ -104,6 +105,26 @@ async function resolveBuyerDisplay(ctx: AppContext, telegramId?: number): Promis
   return display;
 }
 
+async function resolveBuyerShort(ctx: AppContext, telegramId?: number): Promise<string> {
+  if (!telegramId) return "ID:-";
+  const cached = userShortCache.get(telegramId);
+  if (cached) return cached;
+
+  let short = `ID:${telegramId}`;
+  try {
+    const chat = await ctx.api.getChat(telegramId);
+    const username = "username" in chat ? String(chat.username || "").trim() : "";
+    if (username) {
+      short = `@${escapeHtml(username)}`;
+    }
+  } catch {
+    // fallback already set
+  }
+
+  userShortCache.set(telegramId, short);
+  return short;
+}
+
 function vdsService(ctx: AppContext): VdsService {
   const vdsRepo = new VdsRepository(ctx.appDataSource);
   const userRepo = new UserRepository(ctx.appDataSource);
@@ -161,7 +182,12 @@ export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
   clearAdminVdsPanelState(session.other);
   const text = await buildListText(ctx);
   const kb = await buildListKeyboard(ctx);
-  await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+  try {
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: kb });
+  } catch {
+    // When admin presses the button from a non-editable/old message, still open panel via new message.
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
+  }
 }
 
 async function buildListText(ctx: AppContext): Promise<string> {
@@ -181,26 +207,14 @@ async function buildListText(ctx: AppContext): Promise<string> {
   if (list.length === 0) {
     return `${header}\n\n${ctx.t("admin-vds-empty")}`;
   }
+  const userRepo = new UserRepository(ctx.appDataSource);
   const lines = await Promise.all(
     list.map(async (v, idx) => {
-      const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
-      const vmState = String(vmInfo?.state ?? "").toLowerCase();
-      const status =
-        v.managementLocked || v.adminBlocked
-          ? "expired"
-          : vmState === "active"
-            ? "running"
-            : vmState === "stopped"
-              ? "stopped"
-              : "unknown";
+      const owner = await userRepo.findById(v.targetUserId);
+      const buyer = await resolveBuyerShort(ctx, owner?.telegramId ?? undefined);
 
       const n = ad.page * PAGE_SIZE + idx + 1;
-      return ctx.t("admin-vds-row", {
-        n,
-        ip: v.ipv4Addr || "—",
-        rate: v.rateName,
-        status,
-      });
+      return `${n}. ${escapeHtml(v.ipv4Addr || "—")} - ${buyer}`;
     })
   );
   return `${header}\n\n${lines.join("\n")}`;

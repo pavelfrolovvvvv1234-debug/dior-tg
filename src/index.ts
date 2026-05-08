@@ -2618,20 +2618,6 @@ async function index() {
       return;
     }
 
-    const text = ctx.message?.text?.split(" ").slice(1).join(" ").trim() || "";
-    if (text.length > 0) {
-      session.other.broadcast = { step: "awaiting_confirm", text };
-      const keyboard = new InlineKeyboard()
-        .text(ctx.t("button-send"), "broadcast_confirm")
-        .text(ctx.t("button-cancel"), "broadcast_cancel");
-      const previewText = escapeUserInput(text);
-      await ctx.reply(ctx.t("broadcast-preview", { text: previewText }), {
-        reply_markup: keyboard,
-        parse_mode: "HTML",
-      });
-      return;
-    }
-
     session.other.broadcast = { step: "awaiting_text" };
     await ctx.reply(ctx.t("broadcast-enter-text"), { parse_mode: "HTML" });
   });
