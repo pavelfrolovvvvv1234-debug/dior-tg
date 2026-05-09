@@ -63,7 +63,7 @@ export function buildPremiumVpsReadyHtml(ctx: AppContext, p: PremiumVpsReadyPayl
 
   const blockInstance = [
     `<b>${ctx.t("vps-premium-sec-instance")}</b>`,
-    `<code>${e(p.vmName)}</code> · VMID <code>${e(String(p.vdsId))}</code>`,
+    ctx.t("vps-premium-host-and-id", { host: e(p.vmName), id: e(String(p.vdsId)) }),
     `${ctx.t("vps-premium-k-region")} <code>${e(p.regionLabel)}</code>`,
     `${ctx.t("vps-premium-k-plan")} <code>${e(p.planName)}</code>`,
     `${ctx.t("vps-premium-k-specs")} ${specLine}`,

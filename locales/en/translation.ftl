@@ -720,42 +720,44 @@ vds-shop-details = 📋 Details
 
 vds-os-select = <strong>Select the OS to be installed</strong>
 vds-provisioning-wait =
-    ⚡ <b>Provisioning your instance</b>
-    Typically under 60 seconds: networking and storage are being attached.
+    ⚡ <b>Spinning up your VPS</b>
+    We're connecting networking, storage, and access. Most setups finish within a minute.
 
 vps-provisioning-failed =
-    Provisioning could not finish. Your balance has been restored.
-    If this happens again, contact support.
+    We couldn't finish configuring your server. The charge was reversed and your balance was restored.
+    If this keeps happening, contact support.
 
-vps-premium-region-auto = Auto · platform
+vps-premium-region-auto = Region: automatic
 
-vps-premium-headline = 🔹 <b>Instance is online</b>
+vps-premium-headline = ✓ <b>Your VPS is ready</b>
 
-vps-premium-sec-instance = Profile
-vps-premium-sec-access = Access
+vps-premium-sec-instance = Overview
+vps-premium-sec-access = Connect
 
-vps-premium-k-region = Region
+vps-premium-host-and-id = <code>{$host}</code> · ID: <code>{$id}</code>
+
+vps-premium-k-region = Location
 vps-premium-k-plan = Plan
-vps-premium-k-specs = Resources
-vps-premium-k-os = OS image
-vps-premium-k-ipv4 = Public IPv4
-vps-premium-k-user = User
+vps-premium-k-specs = Hardware
+vps-premium-k-os = Operating system
+vps-premium-k-ipv4 = IPv4 address
+vps-premium-k-user = Username
 vps-premium-k-password = Password
-vps-premium-k-ssh = Quick connect (SSH)
-vps-premium-k-remote = Remote desktop
+vps-premium-k-ssh = SSH command
+vps-premium-k-remote = Remote Desktop
 
 vps-premium-specs-line = {$cpu} vCPU · {$ram} GB RAM · {$disk} GB SSD · {$net} Mbps — {$cpuModel}
 
 vps-premium-ipv4-pending =
-    Public IPv4 is still being assigned (often 30–90s). Open My services and refresh — the address will appear automatically.
+    Your public IPv4 is still being assigned — often 30–90 seconds. Open My services and pull to refresh; the address will show up automatically.
 
-vps-premium-rdp-body = Connect with <b>RDP</b> to <code>{$ip}</code> · sign in as <code>{$login}</code>
+vps-premium-rdp-body = Use <b>Remote Desktop</b> to connect to <code>{$ip}</code> with user <code>{$login}</code>
 
-vps-premium-console-hint = Power, snapshots, networking, billing, and password rotation live under Main menu → My services.
+vps-premium-console-hint = Power controls, reinstall, billing, and password changes are under Main menu → My services.
 
 bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
 
-vds-created = Server created successfully. Status is available in: Main menu → Manage services
+vds-created = Your server is ready. Manage it under Main menu → My services.
 
 vds-manage-title = Manage VDS
 vds-manage-list-item = {$label} - {$ip}
@@ -1141,19 +1143,19 @@ provisioning-complete-enter-message = Send final message for customer (credentia
 provisioning-completed = Ticket marked as completed.
 provisioning-user-ready-message = <strong>✅ Your dedicated server is ready</strong>\n\n<strong>Access details:</strong>\n{$message}\n\nIf you need help with setup, please contact our support @diorhost.
 dedicated-provisioning-ticket-created =
-    🔹 <b>Request queued with NOC</b>
+    ✓ <b>Order received</b>
 
-    Engineers will prepare the node and send credentials here when it is ready.
+    Your server is being prepared manually. When it's ready, we'll send the access details here in Telegram.
 
-    <b>Configuration</b>
+    <b>What you ordered</b>
     Plan: <code>{$serviceName}</code>
     Location: <code>{$location}</code>
-    Image: <code>{$os}</code>
+    Operating system: <code>{$os}</code>
 
     <b>Reference</b>
-    Ticket <code>#{$ticketId}</code> · Order <code>#{$orderId}</code>
+    Request <code>#{$ticketId}</code> · Order <code>#{$orderId}</code>
 
-    <i>Order management and notifications: Main menu → My services.</i>
+    <i>Manage your service under Main menu → My services.</i>
 dedicated-provisioning-staff-notification = <strong>🛠 New dedicated setup ticket</strong>\nTicket: <code>#{$ticketId}</code>\nOrder: <code>#{$orderId}</code>\nUser: {$userId}\nAmount: {$amount} $\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}
 
 ticket-status-pending_review = 🟡 Pending review

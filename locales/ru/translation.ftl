@@ -735,43 +735,45 @@ vds-shop-details = 📋 Подробнее
 
 vds-os-select = <strong>Выберете ОС которая будет установлена</strong>
 vds-provisioning-wait =
-    ⚡ <b>Развёртывание инстанса</b>
-    Обычно до 60 секунд: сеть и хранилище провижинятся на платформе.
+    ⚡ <b>Подготавливаем VPS</b>
+    Подключаем сеть, диск и доступ. Обычно всё готово в течение минуты.
 
 vps-provisioning-failed =
-    Не удалось завершить развёртывание. Средства возвращены на баланс.
-    Если сбой повторится — напишите в поддержку.
+    Не удалось завершить настройку сервера. Оплата отменена, средства вернулись на баланс.
+    Если ситуация повторится — напишите в поддержку.
 
-vps-premium-region-auto = Auto · платформа
+vps-premium-region-auto = Регион: авто
 
-vps-premium-headline = 🔹 <b>Инстанс в сети</b>
+vps-premium-headline = ✓ <b>Ваш VPS готов</b>
 
-vps-premium-sec-instance = Профиль
-vps-premium-sec-access = Доступ
+vps-premium-sec-instance = Сводка
+vps-premium-sec-access = Подключение
+
+vps-premium-host-and-id = <code>{$host}</code> · ID: <code>{$id}</code>
 
 vps-premium-k-region = Локация
-vps-premium-k-plan = Тариф
-vps-premium-k-specs = Ресурсы
-vps-premium-k-os = Образ ОС
-vps-premium-k-ipv4 = Публичный IPv4
-vps-premium-k-user = Пользователь
+vps-premium-k-plan = План
+vps-premium-k-specs = Конфигурация
+vps-premium-k-os = Система
+vps-premium-k-ipv4 = IPv4-адрес
+vps-premium-k-user = Логин
 vps-premium-k-password = Пароль
-vps-premium-k-ssh = Быстрый вход (SSH)
-vps-premium-k-remote = Удалённый стол
+vps-premium-k-ssh = SSH-команда
+vps-premium-k-remote = Удалённый рабочий стол
 
-vps-premium-specs-line = {$cpu} vCPU · {$ram} GB RAM · {$disk} GB SSD · {$net} Mbps — {$cpuModel}
+vps-premium-specs-line = {$cpu} vCPU · {$ram} GB RAM · {$disk} GB SSD · {$net} Мбит/с — {$cpuModel}
 
 vps-premium-ipv4-pending =
-    Публичный IPv4 ещё назначается (обычно 30–90 с). Обновите карточку в «Мои услуги» — адрес появится автоматически.
+    Публичный IPv4 ещё выдаётся — обычно 30–90 секунд. Откройте «Мои услуги» и обновите экран: адрес появится сам.
 
-vps-premium-rdp-body = Подключение по <b>RDP</b> к <code>{$ip}</code> · вход <code>{$login}</code>
+vps-premium-rdp-body = Подключитесь по <b>RDP</b> к <code>{$ip}</code>, пользователь <code>{$login}</code>
 
-vps-premium-console-hint = Питание, снимки, сеть, биллинг и смена пароля — «Главное меню → Мои услуги».
+vps-premium-console-hint = Питание, переустановка, оплата и смена пароля — в «Главное меню → Мои услуги».
 
 
 bad-error = Извините, это была ошибка с нашей стороны, сейчас мы ее исправляем.
 
-vds-created = Сервер успешно создан. Статус доступен в разделе: Главное меню → Управление услугами
+vds-created = Сервер создан. Управление — в «Главное меню → Мои услуги».
 
 vds-manage-title = Управление VDS
 vds-manage-list-item = {$label} - {$ip}
@@ -1155,19 +1157,19 @@ provisioning-complete-enter-message = Отправьте финальное со
 provisioning-completed = Тикет помечен как завершенный.
 provisioning-user-ready-message = <strong>✅ Ваш выделенный сервер готов</strong>\n\n<strong>Данные для доступа:</strong>\n{$message}\n\nЕсли потребуется помощь с настройкой — пожалуйста, сообщите нашему саппорту @diorhost.
 dedicated-provisioning-ticket-created =
-    🔹 <b>Заявка в очереди NOC</b>
+    ✓ <b>Заказ принят</b>
 
-    Инженеры подготовят узел и пришлют доступы в этот чат после выдачи.
+    Сервер настраивается вручную: как только он будет готов, мы пришлём доступы сюда, в Telegram.
 
-    <b>Конфигурация</b>
-    Тариф: <code>{$serviceName}</code>
+    <b>Что заказано</b>
+    План: <code>{$serviceName}</code>
     Локация: <code>{$location}</code>
-    Образ: <code>{$os}</code>
+    Система: <code>{$os}</code>
 
-    <b>Учёт</b>
-    Тикет <code>#{$ticketId}</code> · Заказ <code>#{$orderId}</code>
+    <b>Номера заказа</b>
+    Заявка <code>#{$ticketId}</code> · Заказ <code>#{$orderId}</code>
 
-    <i>Управление заказом и уведомления — «Главное меню → Мои услуги».</i>
+    <i>Управление сервером — в «Главное меню → Мои услуги».</i>
 dedicated-provisioning-staff-notification = <strong>🛠 Новый тикет настройки dedicated</strong>\nТикет: <code>#{$ticketId}</code>\nЗаказ: <code>#{$orderId}</code>\nКлиент: {$userId}\nСумма: {$amount} $\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}
 
 ticket-status-pending_review = 🟡 На проверке
