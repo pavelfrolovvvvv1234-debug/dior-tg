@@ -31,6 +31,11 @@ import {
 } from "../domain/dedicated/dedicated-shop-config.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
+import {
+  buildPremiumVpsReadyHtml,
+  escapeHtml,
+  getVpsCpuModelForRate,
+} from "../domain/vds/vps-onboarding-messages.js";
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
@@ -296,13 +301,23 @@ async function createAndBuyVDS(
     return "money-not-enough" as const;
   }
 
+  const chatId = ctx.chat?.id;
+  const waitMessage = chatId
+    ? await ctx.reply(ctx.t("vds-provisioning-wait"), {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      }).catch(() => undefined)
+    : undefined;
+
   const newVds = new VirtualDedicatedServer();
 
-  let result;
+  let result: Awaited<ReturnType<typeof ctx.vmmanager.createVM>> | undefined;
+  let vmHostLabel = "";
 
-  while (result == undefined) {
+  while (result === undefined) {
+    vmHostLabel = generateRandomName(13);
     result = await ctx.vmmanager.createVM(
-      generateRandomName(13),
+      vmHostLabel,
       generatedPassword,
       rate.cpu,
       rate.ram,
@@ -315,13 +330,16 @@ async function createAndBuyVDS(
     );
   }
 
-  if (result == false) {
+  if (result === false) {
+    if (waitMessage && chatId) {
+      await ctx.api.deleteMessage(chatId, waitMessage.message_id).catch(() => {});
+    }
     await ctx.reply(ctx.t("bad-error"));
     return "error-when-creating" as const;
   }
 
   let info;
-  while (info == undefined) {
+  while (info === undefined) {
     info = await ctx.vmmanager.getInfoVM(result.id);
   }
 
@@ -333,13 +351,14 @@ async function createAndBuyVDS(
   newVds.ramSize = rate.ram;
   newVds.lastOsId = osId;
   newVds.password = generatedPassword;
+  newVds.login = "root";
   newVds.networkSpeed = rate.network;
   newVds.targetUserId = userId;
   newVds.isBulletproof = bulletproof;
 
   let ipv4Addrs;
 
-  while (ipv4Addrs == undefined) {
+  while (ipv4Addrs === undefined) {
     ipv4Addrs = await ctx.vmmanager.getIpv4AddrVM(result.id);
   }
 
@@ -356,7 +375,33 @@ async function createAndBuyVDS(
 
   await usersRepo.save(user);
 
-  await ctx.reply(ctx.t("vds-created"), {
+  const displayHost = (info?.name && String(info.name).trim()) || vmHostLabel;
+  const osEntry = ctx.osList?.list.find((o) => o.id === osId);
+  const osLabel = osEntry ? humanizeVmmOsName(osEntry.name) : `OS #${osId}`;
+
+  const readyHtml = buildPremiumVpsReadyHtml(ctx, {
+    vmName: displayHost,
+    vdsId: newVds.vdsId,
+    regionLabel: ctx.t("vps-premium-region-auto"),
+    planName: rate.name,
+    cpu: rate.cpu,
+    ramGb: rate.ram,
+    diskGb: rate.ssd,
+    networkMbps: rate.network,
+    cpuModel: getVpsCpuModelForRate(rate as { cpuModel?: string }),
+    osLabel,
+    osKey: "",
+    ipv4: newVds.ipv4Addr,
+    login: newVds.login,
+    password: newVds.password,
+  });
+
+  if (waitMessage && chatId) {
+    await ctx.api.deleteMessage(chatId, waitMessage.message_id).catch(() => {});
+  }
+  await ctx.reply(readyHtml, {
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
     reply_markup: mainMenu,
   });
 }
@@ -770,19 +815,18 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     const order = created.order;
     const ticket = created.ticket;
     await ctx.deleteMessage().catch(() => {});
-    await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
-      parse_mode: "HTML",
-    });
-
-    const buyerText = renderMultiline(ctx.t("dedicated-provisioning-ticket-created", {
-      ticketId: ticket.id,
-      orderId: order.id,
-      serviceName: server.name ?? `#${selectedId}`,
-      location,
-      os,
-    }));
+    const buyerText = renderMultiline(
+      ctx.t("dedicated-provisioning-ticket-created", {
+        ticketId: ticket.id,
+        orderId: order.id,
+        serviceName: escapeHtml(server.name ?? `#${selectedId}`),
+        location: escapeHtml(location),
+        os: escapeHtml(os),
+      })
+    );
     await ctx.reply(buyerText, {
       parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
     });
 
     if (!buyerIsStaff) {

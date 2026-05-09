@@ -734,7 +734,39 @@ vds-shop-order = 🛒 Купить
 vds-shop-details = 📋 Подробнее
 
 vds-os-select = <strong>Выберете ОС которая будет установлена</strong>
-vds-provisioning-wait = ⏳ Подготовка VPS, время ожидания — до 60 секунд
+vds-provisioning-wait =
+    ⚡ <b>Развёртывание инстанса</b>
+    Обычно до 60 секунд: сеть и хранилище провижинятся на платформе.
+
+vps-provisioning-failed =
+    Не удалось завершить развёртывание. Средства возвращены на баланс.
+    Если сбой повторится — напишите в поддержку.
+
+vps-premium-region-auto = Auto · платформа
+
+vps-premium-headline = 🔹 <b>Инстанс в сети</b>
+
+vps-premium-sec-instance = Профиль
+vps-premium-sec-access = Доступ
+
+vps-premium-k-region = Локация
+vps-premium-k-plan = Тариф
+vps-premium-k-specs = Ресурсы
+vps-premium-k-os = Образ ОС
+vps-premium-k-ipv4 = Публичный IPv4
+vps-premium-k-user = Пользователь
+vps-premium-k-password = Пароль
+vps-premium-k-ssh = Быстрый вход (SSH)
+vps-premium-k-remote = Удалённый стол
+
+vps-premium-specs-line = {$cpu} vCPU · {$ram} GB RAM · {$disk} GB SSD · {$net} Mbps — {$cpuModel}
+
+vps-premium-ipv4-pending =
+    Публичный IPv4 ещё назначается (обычно 30–90 с). Обновите карточку в «Мои услуги» — адрес появится автоматически.
+
+vps-premium-rdp-body = Подключение по <b>RDP</b> к <code>{$ip}</code> · вход <code>{$login}</code>
+
+vps-premium-console-hint = Питание, снимки, сеть, биллинг и смена пароля — «Главное меню → Мои услуги».
 
 
 bad-error = Извините, это была ошибка с нашей стороны, сейчас мы ее исправляем.
@@ -1122,7 +1154,20 @@ provisioning-note-saved = Внутренняя заметка сохранена
 provisioning-complete-enter-message = Отправьте финальное сообщение для клиента (доступы/детали). Оно будет доставлено, а тикет завершен.
 provisioning-completed = Тикет помечен как завершенный.
 provisioning-user-ready-message = <strong>✅ Ваш выделенный сервер готов</strong>\n\n<strong>Данные для доступа:</strong>\n{$message}\n\nЕсли потребуется помощь с настройкой — пожалуйста, сообщите нашему саппорту @diorhost.
-dedicated-provisioning-ticket-created = <strong>Заказ принят.</strong>\nЗаявка на выделенный сервер передана в ручную настройку.\n\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}\n\nНаша команда подготовит сервер вручную и отправит доступы после завершения.
+dedicated-provisioning-ticket-created =
+    🔹 <b>Заявка в очереди NOC</b>
+
+    Инженеры подготовят узел и пришлют доступы в этот чат после выдачи.
+
+    <b>Конфигурация</b>
+    Тариф: <code>{$serviceName}</code>
+    Локация: <code>{$location}</code>
+    Образ: <code>{$os}</code>
+
+    <b>Учёт</b>
+    Тикет <code>#{$ticketId}</code> · Заказ <code>#{$orderId}</code>
+
+    <i>Управление заказом и уведомления — «Главное меню → Мои услуги».</i>
 dedicated-provisioning-staff-notification = <strong>🛠 Новый тикет настройки dedicated</strong>\nТикет: <code>#{$ticketId}</code>\nЗаказ: <code>#{$orderId}</code>\nКлиент: {$userId}\nСумма: {$amount} $\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}
 
 ticket-status-pending_review = 🟡 На проверке

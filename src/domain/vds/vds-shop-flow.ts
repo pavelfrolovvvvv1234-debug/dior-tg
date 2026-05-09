@@ -23,8 +23,19 @@ import { getModeratorChatId } from "../../shared/moderator-chat.js";
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
 import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
 import ms from "../../lib/multims.js";
+import {
+  buildPremiumVpsReadyHtml,
+  escapeHtml,
+  getVpsCpuModelForRate as getVpsCpuModel,
+  type PremiumVpsReadyPayload,
+} from "./vps-onboarding-messages.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
+
+/** Remove inline keyboard from the message that triggered the callback (e.g. OS picker). */
+async function stripCallbackMessageKeyboard(ctx: AppContext): Promise<void> {
+  await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() }).catch(() => {});
+}
 
 const isUniqueVdsIdConflictError = (error: unknown): boolean => {
   const message = String((error as { message?: string })?.message ?? error ?? "");
@@ -56,13 +67,7 @@ async function getPriceWithPrimeDiscount(
 }
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
-const DEFAULT_VPS_CPU_MODEL = "Xeon E5-2699v4";
 const VPS_LOCATION_AUTO_ONLY_KEY = "nl-amsterdam";
-
-function getVpsCpuModel(rate: { cpuModel?: string }): string {
-  const model = rate.cpuModel?.trim();
-  return model && model.length > 0 ? model : DEFAULT_VPS_CPU_MODEL;
-}
 
 function getAllowedVpsLocationKeys(rate: { cpu?: number; ram?: number; ssd?: number }): string[] {
   const cpu = Number(rate.cpu ?? 0);
@@ -152,20 +157,16 @@ async function createVpsOrderTicket(
     const order = created.order;
     const ticket = created.ticket;
 
-    await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
-      parse_mode: "HTML",
-    });
-
     const buyerText = renderMultiline(
       ctx.t("dedicated-provisioning-ticket-created", {
         ticketId: ticket.id,
         orderId: order.id,
-        serviceName: rate.name ?? `VPS #${rateId}`,
-        location: locationLabel,
-        os: osLabel,
+        serviceName: escapeHtml(rate.name ?? `VPS #${rateId}`),
+        location: escapeHtml(locationLabel),
+        os: escapeHtml(osLabel),
       })
     );
-    await ctx.reply(buyerText, { parse_mode: "HTML" });
+    await ctx.reply(buyerText, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
 
     if (!buyerIsStaff) {
       const moderators = await usersRepo.find({
@@ -259,11 +260,15 @@ async function createVpsOrderDirect(
   }
 
   let deducted = false;
-  try {
-    await ctx.reply(ctx.t("vds-provisioning-wait"), {
-      parse_mode: "HTML",
-    }).catch(() => {});
+  const chatId = ctx.chat?.id;
+  const waitMessage = chatId
+    ? await ctx.reply(ctx.t("vds-provisioning-wait"), {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      }).catch(() => undefined)
+    : undefined;
 
+  try {
     user.balance -= price;
     await usersRepo.save(user);
     deducted = true;
@@ -273,6 +278,8 @@ async function createVpsOrderDirect(
     let savedVds: VirtualDedicatedServer | null = null;
     let savedIp = "0.0.0.0";
     let lastProvisionError: unknown;
+    let lastVmName = "";
+    let lastVmDisplayName = "";
 
     for (let attempt = 1; attempt <= maxProvisionAttempts; attempt++) {
       const generatedPassword = generatePassword(12);
@@ -337,6 +344,8 @@ async function createVpsOrderDirect(
       try {
         savedVds = await vdsRepo.save(vds);
         savedIp = ip;
+        lastVmName = vmName;
+        lastVmDisplayName = (vmInfo?.name && String(vmInfo.name).trim()) || vmName;
         break;
       } catch (error) {
         if (isUniqueVdsIdConflictError(error) && attempt < maxProvisionAttempts) {
@@ -354,19 +363,44 @@ async function createVpsOrderDirect(
       throw new Error(reason ? `${baseMessage}: ${reason}` : baseMessage);
     }
 
-    await ctx.reply(ctx.t("dedicated-purchase-success-deducted", { amount: price }), {
-      parse_mode: "HTML",
-    });
-    if (savedIp === "0.0.0.0") {
-      await ctx.reply(
-        `${ctx.t("vds-created")}\n\nIP может подтянуться с небольшой задержкой. Проверьте раздел «Управление VDS» через 30-90 секунд.`,
-        { parse_mode: "HTML" }
-      );
-    } else {
-      await ctx.reply(ctx.t("vds-created"), { parse_mode: "HTML" });
+    const regionLabel = locationKey
+      ? ctx.t(`dedicated-location-${locationKey}` as any)
+      : ctx.t("vps-premium-region-auto");
+    const osLabel = ctx.t(`dedicated-os-${osKey}` as any);
+    const payload: PremiumVpsReadyPayload = {
+      vmName: lastVmDisplayName || lastVmName || `vm-${savedVds.vdsId}`,
+      vdsId: savedVds.vdsId,
+      regionLabel,
+      planName: rate.name ?? `VPS #${rateId}`,
+      cpu: rate.cpu,
+      ramGb: rate.ram,
+      diskGb: rate.ssd,
+      networkMbps: rate.network,
+      cpuModel: getVpsCpuModel(rate as { cpuModel?: string }),
+      osLabel,
+      osKey,
+      ipv4: savedIp,
+      login: savedVds.login,
+      password: savedVds.password,
+    };
+    const readyHtml = buildPremiumVpsReadyHtml(ctx, payload);
+    if (waitMessage && chatId) {
+      await ctx.api.deleteMessage(chatId, waitMessage.message_id).catch(() => {});
     }
+    await ctx.reply(readyHtml, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    }).catch(() => {});
     return true;
   } catch (error: any) {
+    if (waitMessage && chatId) {
+      await ctx.api
+        .editMessageText(chatId, waitMessage.message_id, ctx.t("vps-provisioning-failed"), {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(() => {});
+    }
     if (deducted) {
       try {
         user.balance += price;
@@ -691,6 +725,7 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
+    await stripCallbackMessageKeyboard(ctx as AppContext);
     if (isProxmoxEnabled()) {
       await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
       return;
