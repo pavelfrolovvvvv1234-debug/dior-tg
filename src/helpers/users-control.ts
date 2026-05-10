@@ -499,6 +499,12 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
       if (session.main.user.role === Role.Admin) {
         range.text(ctx.t("admin-lookup-vds-button"), async (ctx) => {
           await ctx.answerCallbackQuery().catch(() => {});
+          if (session.other.promoAdmin) {
+            session.other.promoAdmin.createStep = null;
+            session.other.promoAdmin.editStep = null;
+            session.other.promoAdmin.createDraft = {};
+            session.other.promoAdmin.editingPromoId = null;
+          }
           if (!session.other.adminVds) {
             session.other.adminVds = {
               page: 0,

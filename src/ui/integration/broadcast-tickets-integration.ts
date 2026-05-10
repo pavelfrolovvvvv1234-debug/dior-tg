@@ -592,7 +592,24 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
 
     const promoStep = session.other.promoAdmin?.createStep;
     const promoEditStep = session.other.promoAdmin?.editStep;
+    const hasOtherPendingAdminInput =
+      !!session.other.controlUsersPage?.awaitingUserLookup ||
+      !!session.other.adminVds?.awaitingSearch ||
+      !!session.other.adminVds?.awaitingTransferUserId ||
+      !!session.other.adminCdn?.awaitingSearch ||
+      !!session.other.balanceEdit ||
+      !!session.other.messageToUser ||
+      !!session.other.subscriptionEdit ||
+      !!session.other.referralPercentEdit ||
+      !!session.other.adminDomainNs ||
+      !!session.other.adminDomainSetAmperId ||
+      !!session.other.adminRegisterDomain ||
+      !!session.other.ticketsView?.pendingAction;
     if ((promoStep || promoEditStep) && session.main.user.role === Role.Admin) {
+      // Never let stale promo edit/create state steal text from other admin flows.
+      if (hasOtherPendingAdminInput) {
+        return next();
+      }
       const input = ctx.message.text.trim();
       if (input.startsWith("/")) {
         return next();

@@ -37,6 +37,11 @@ async function stripCallbackMessageKeyboard(ctx: AppContext): Promise<void> {
   await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() }).catch(() => {});
 }
 
+/** Proxmox clone + wait + resize routinely exceeds 30s; ISP VMManager is usually faster. */
+function vpsCreateVmRaceTimeoutMs(): number {
+  return isProxmoxEnabled() ? 240_000 : 30_000;
+}
+
 const isUniqueVdsIdConflictError = (error: unknown): boolean => {
   const message = String((error as { message?: string })?.message ?? error ?? "");
   return (
@@ -298,7 +303,7 @@ async function createVpsOrderDirect(
           rate.network,
           rate.network
         ),
-        new Promise<false>((resolve) => setTimeout(() => resolve(false), 30000)),
+        new Promise<false>((resolve) => setTimeout(() => resolve(false), vpsCreateVmRaceTimeoutMs())),
       ]);
       if (!vmResult) {
         lastProvisionError = new Error("createVM returned false");

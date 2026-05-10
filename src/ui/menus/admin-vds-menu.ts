@@ -400,6 +400,12 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
   }
 
   if (rest === "search") {
+    if (session.other.promoAdmin) {
+      session.other.promoAdmin.createStep = null;
+      session.other.promoAdmin.editStep = null;
+      session.other.promoAdmin.createDraft = {};
+      session.other.promoAdmin.editingPromoId = null;
+    }
     ad.awaitingSearch = true;
     await ctx.reply(ctx.t("admin-vds-search-prompt"), { parse_mode: "HTML" });
     return;

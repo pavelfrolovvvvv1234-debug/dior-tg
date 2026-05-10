@@ -201,6 +201,76 @@ export class ProxmoxProvider implements VmProvider {
     return false;
   }
 
+  /** Qemu disk config keys vary by template (virtio0 vs scsi0). Prefer common boot-slot names first. */
+  private findPrimaryQemuDiskKey(cfg: Record<string, unknown>): string | undefined {
+    const re = /^(?:scsi|virtio|sata|ide)\d+$/;
+    const candidates = Object.keys(cfg).filter((k) => {
+      if (!re.test(k)) return false;
+      const raw = cfg[k];
+      const v = typeof raw === "string" ? raw : "";
+      if (!v.includes(":") || v.trim().startsWith("none")) return false;
+      const lower = v.toLowerCase();
+      // Skip non-root disks: cloud-init drive and virtual cdrom.
+      if (lower.includes("cloudinit") || lower.includes("media=cdrom")) return false;
+      return true;
+    });
+    if (candidates.length === 0) return undefined;
+    const bySizeDesc = [...candidates].sort((a, b) => {
+      const aRaw = typeof cfg[a] === "string" ? (cfg[a] as string) : undefined;
+      const bRaw = typeof cfg[b] === "string" ? (cfg[b] as string) : undefined;
+      const aSize = this.sizeLiteralToBytes(this.parseDiskSizeFromVolume(aRaw)) ?? 0;
+      const bSize = this.sizeLiteralToBytes(this.parseDiskSizeFromVolume(bRaw)) ?? 0;
+      return bSize - aSize;
+    });
+    if (bySizeDesc.length > 0) {
+      const top = bySizeDesc[0];
+      if (top) return top;
+    }
+    const rank = (k: string): number => {
+      if (k === "virtio0") return 0;
+      if (k === "scsi0") return 1;
+      if (k === "sata0") return 2;
+      if (k === "ide0") return 3;
+      return 10;
+    };
+    candidates.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    return candidates[0];
+  }
+
+  /** Parse `size=32G` from a Proxmox volume line (absolute size for qm resize). */
+  private parseDiskSizeFromVolume(volLine?: string): string | undefined {
+    if (!volLine) return undefined;
+    const m = volLine.match(/size=([0-9.]+[KMGTP])/i);
+    return m?.[1];
+  }
+
+  /** Convert Proxmox size literal (e.g. 32G) to bytes for safe comparisons. */
+  private sizeLiteralToBytes(size?: string): number | undefined {
+    if (!size) return undefined;
+    const m = size.trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*([KMGTP])$/i);
+    if (!m) return undefined;
+    const value = Number(m[1]);
+    const unit = String(m[2] ?? "").toUpperCase();
+    if (!Number.isFinite(value) || value <= 0) return undefined;
+    const unitPow: Record<string, number> = { K: 1, M: 2, G: 3, T: 4, P: 5 };
+    const pow = unitPow[unit];
+    if (!pow) return undefined;
+    return Math.trunc(value * 1024 ** pow);
+  }
+
+  /**
+   * Virtio NIC bandwidth cap (mbps = megabit/s). Mirrors ISP VMManager net_in/out intent for egress-heavy defaults.
+   * Proxmox applies `rate` to virtio egress per upstream docs.
+   */
+  private buildVirtioNet0(networkIn: number, networkOut: number): string {
+    const base = `virtio,bridge=${this.bridge}`;
+    const mbps = Math.max(
+      Number.isFinite(networkIn) ? Math.trunc(networkIn) : 0,
+      Number.isFinite(networkOut) ? Math.trunc(networkOut) : 0
+    );
+    return mbps > 0 ? `${base},rate=${mbps}` : base;
+  }
+
   private ipToInt(ip: string): number {
     const parts = ip.split(".").map((p) => Number(p));
     if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return 0;
@@ -326,6 +396,16 @@ export class ProxmoxProvider implements VmProvider {
     networkIn: number,
     networkOut: number
   ): Promise<CreateVMSuccesffulyResponse | false> {
+    let newId: number | undefined;
+    const rollbackGuest = async (reason: string): Promise<void> => {
+      if (newId == null) return;
+      try {
+        await this.deleteVM(newId);
+      } catch (cleanupErr) {
+        Logger.warn(`Proxmox createVM: rollback delete failed vmid=${newId} (${reason})`, cleanupErr);
+      }
+    };
+
     try {
       const templateId = this.resolveTemplateSourceVmid(osId);
       if (!templateId) {
@@ -333,8 +413,9 @@ export class ProxmoxProvider implements VmProvider {
         return false;
       }
       const nextIdRaw = await this.apiGet<string>(`/cluster/nextid`);
-      const newId = Number(nextIdRaw);
-      if (Number.isNaN(newId)) return false;
+      const parsedVmId = Number(nextIdRaw);
+      if (Number.isNaN(parsedVmId)) return false;
+      newId = parsedVmId;
       const autoIpConfig = await this.pickFreeIpv4FromBridge();
 
       await this.apiPost(`/nodes/${this.node}/qemu/${templateId}/clone`, {
@@ -345,21 +426,67 @@ export class ProxmoxProvider implements VmProvider {
         storage: this.storage || undefined,
       });
 
+      const clonedReady = await this.waitUntilGuestConfigReadable(newId, 180000);
+      if (!clonedReady) {
+        Logger.error(`Proxmox createVM: clone did not produce config within timeout vmid=${newId}`);
+        await rollbackGuest("clone timeout");
+        return false;
+      }
+
+      const baselineCfg =
+        (await this.apiGet<Record<string, unknown>>(`/nodes/${this.node}/qemu/${newId}/config`).catch(() => undefined)) ??
+        {};
+      const diskKey = this.findPrimaryQemuDiskKey(baselineCfg);
+      if (!diskKey) {
+        Logger.error(
+          `Proxmox createVM: could not detect disk slot (expected virtio0/scsi0/...) vmid=${newId} keys=${Object.keys(baselineCfg).join(",")}`
+        );
+        await rollbackGuest("no disk slot");
+        return false;
+      }
+      if (!Number.isFinite(diskSize) || diskSize < 1) {
+        Logger.error(`Proxmox createVM: invalid diskSizeGb=${diskSize} vmid=${newId}`);
+        await rollbackGuest("invalid disk size");
+        return false;
+      }
+
       await this.apiPost(`/nodes/${this.node}/qemu/${newId}/config`, {
         cores: cpuNumber,
         memory: ramSize * 1024,
         ciuser: "root",
         cipassword: password,
         description: comment,
-        net0: `virtio,bridge=${this.bridge}`,
+        net0: this.buildVirtioNet0(networkIn, networkOut),
         ipconfig0: autoIpConfig?.ipconfig0,
         nameserver: autoIpConfig?.nameserver,
       });
 
-      await this.apiPost(`/nodes/${this.node}/qemu/${newId}/resize`, {
-        disk: "scsi0",
-        size: `${diskSize}G`,
-      }).catch(() => {});
+      const currentDiskSize = this.parseDiskSizeFromVolume(
+        typeof baselineCfg[diskKey] === "string" ? (baselineCfg[diskKey] as string) : undefined
+      );
+      const currentDiskBytes = this.sizeLiteralToBytes(currentDiskSize);
+      const targetDiskBytes = this.sizeLiteralToBytes(`${diskSize}G`);
+      const shouldResize =
+        targetDiskBytes != null && currentDiskBytes != null
+          ? targetDiskBytes > currentDiskBytes
+          : true;
+
+      if (shouldResize) {
+        try {
+          await this.apiPost(`/nodes/${this.node}/qemu/${newId}/resize`, {
+            disk: diskKey,
+            size: `${diskSize}G`,
+          });
+        } catch (resizeErr) {
+          Logger.error(`Proxmox createVM: disk resize failed vmid=${newId} disk=${diskKey} targetGb=${diskSize}`, resizeErr);
+          await rollbackGuest("resize failed");
+          return false;
+        }
+      } else {
+        Logger.warn(
+          `Proxmox createVM: skip resize shrink vmid=${newId} disk=${diskKey} current=${currentDiskSize ?? "unknown"} target=${diskSize}G`
+        );
+      }
 
       await this.apiPost(`/nodes/${this.node}/qemu/${newId}/status/start`);
 
@@ -372,6 +499,7 @@ export class ProxmoxProvider implements VmProvider {
       };
     } catch (error) {
       Logger.error("Proxmox createVM failed", error);
+      await rollbackGuest("exception");
       return false;
     }
   }
@@ -655,27 +783,21 @@ export class ProxmoxProvider implements VmProvider {
       return false;
     }
 
-    const existingConfig = await this.apiGet<{
-      name?: string;
-      cores?: number;
-      memory?: number;
-      net0?: string;
-      description?: string;
-      ipconfig0?: string;
-      nameserver?: string;
-      scsi0?: string;
-    }>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined);
+    const existingConfig =
+      (await this.apiGet<Record<string, unknown>>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined)) ??
+      undefined;
     if (!existingConfig) return false;
 
-    const parseDiskSize = (scsi0?: string): string | undefined => {
-      const m = scsi0?.match(/size=([0-9.]+[KMGTP])/i);
-      return m?.[1];
-    };
+    const diskKeyBefore = this.findPrimaryQemuDiskKey(existingConfig);
+    const preservedDiskSize =
+      diskKeyBefore && typeof existingConfig[diskKeyBefore] === "string"
+        ? this.parseDiskSizeFromVolume(existingConfig[diskKeyBefore] as string)
+        : undefined;
 
     const rootPassword = password?.trim() ? password : generatePassword(12);
     const descriptionMerged = [
       managementDescription?.trim(),
-      existingConfig.description?.trim(),
+      typeof existingConfig.description === "string" ? existingConfig.description.trim() : "",
     ]
       .filter(Boolean)
       .join(" | ")
@@ -717,7 +839,7 @@ export class ProxmoxProvider implements VmProvider {
 
       await this.apiPost(`/nodes/${this.node}/qemu/${templateId}/clone`, {
         newid: id,
-        name: existingConfig.name || `vm-${id}`,
+        name: (typeof existingConfig.name === "string" && existingConfig.name.trim()) || `vm-${id}`,
         target: this.node,
         full: 1,
         storage: this.storage || undefined,
@@ -728,23 +850,44 @@ export class ProxmoxProvider implements VmProvider {
         throw new Error(`Proxmox reinstall: clone to vmid ${id} never became readable (timeout)`);
       }
 
+      const postCloneCfg =
+        (await this.apiGet<Record<string, unknown>>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined)) ??
+        {};
+      const diskKeyAfter = this.findPrimaryQemuDiskKey(postCloneCfg);
+
+      const net0Restored =
+        typeof existingConfig.net0 === "string" && existingConfig.net0.trim()
+          ? existingConfig.net0
+          : `virtio,bridge=${this.bridge}`;
+
       await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
         cores: Number(existingConfig.cores ?? 1),
         memory: Number(existingConfig.memory ?? 1024),
         ciuser: "root",
         cipassword: rootPassword,
         description: descriptionMerged || "DiorHost reinstall",
-        net0: existingConfig.net0 ?? `virtio,bridge=${this.bridge}`,
-        ipconfig0: existingConfig.ipconfig0,
-        nameserver: existingConfig.nameserver,
+        net0: net0Restored,
+        ipconfig0: typeof existingConfig.ipconfig0 === "string" ? existingConfig.ipconfig0 : undefined,
+        nameserver: typeof existingConfig.nameserver === "string" ? existingConfig.nameserver : undefined,
       });
 
-      const diskSize = parseDiskSize(existingConfig.scsi0);
-      if (diskSize) {
-        await this.apiPost(`/nodes/${this.node}/qemu/${id}/resize`, {
-          disk: "scsi0",
-          size: diskSize,
-        }).catch(() => {});
+      if (preservedDiskSize && diskKeyAfter) {
+        try {
+          await this.apiPost(`/nodes/${this.node}/qemu/${id}/resize`, {
+            disk: diskKeyAfter,
+            size: preservedDiskSize,
+          });
+        } catch (resizeErr) {
+          Logger.error(
+            `Proxmox reinstall: disk resize failed guest=${id} disk=${diskKeyAfter} size=${preservedDiskSize}`,
+            resizeErr
+          );
+          throw resizeErr;
+        }
+      } else if (preservedDiskSize && !diskKeyAfter) {
+        Logger.warn(
+          `Proxmox reinstall: preserved disk size ${preservedDiskSize} but could not detect new disk key for guest=${id}`
+        );
       }
 
       await this.apiPost(`/nodes/${this.node}/qemu/${id}/status/start`);
