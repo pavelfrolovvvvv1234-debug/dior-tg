@@ -40,9 +40,9 @@ async function deleteVpsOsPickerMessage(ctx: AppContext): Promise<void> {
   await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => {});
 }
 
-/** Proxmox clone + wait + resize routinely exceeds 30s; ISP VMManager is usually faster. */
+/** Proxmox createVM waits on clone/resize tasks (minutes); ISP VMManager is fast — keep a short safety cap there only. */
 function vpsCreateVmRaceTimeoutMs(): number {
-  return isProxmoxEnabled() ? 240_000 : 30_000;
+  return isProxmoxEnabled() ? 0 : 30_000;
 }
 
 const isUniqueVdsIdConflictError = (error: unknown): boolean => {
@@ -293,21 +293,26 @@ async function createVpsOrderDirect(
       const generatedPassword = generatePassword(12);
       const vmName = generateRandomName(13);
       const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey},try:${attempt}`;
-      const vmResult = await Promise.race([
-        ctx.vmmanager.createVM(
-          vmName,
-          generatedPassword,
-          rate.cpu,
-          rate.ram,
-          osId,
-          comment,
-          rate.ssd,
-          1,
-          rate.network,
-          rate.network
-        ),
-        new Promise<false>((resolve) => setTimeout(() => resolve(false), vpsCreateVmRaceTimeoutMs())),
-      ]);
+      const createPromise = ctx.vmmanager.createVM(
+        vmName,
+        generatedPassword,
+        rate.cpu,
+        rate.ram,
+        osId,
+        comment,
+        rate.ssd,
+        1,
+        rate.network,
+        rate.network
+      );
+      const raceMs = vpsCreateVmRaceTimeoutMs();
+      const vmResult =
+        raceMs > 0
+          ? await Promise.race([
+              createPromise,
+              new Promise<false>((resolve) => setTimeout(() => resolve(false), raceMs)),
+            ])
+          : await createPromise;
       if (!vmResult) {
         lastProvisionError = new Error("createVM returned false");
         continue;

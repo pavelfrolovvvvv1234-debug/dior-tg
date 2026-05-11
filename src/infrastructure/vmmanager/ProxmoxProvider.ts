@@ -321,7 +321,8 @@ export class ProxmoxProvider implements VmProvider {
         if (!st) continue;
         const status = String(st.status ?? "").toLowerCase();
         if (status === "stopped") {
-          const ok = String(st.exitstatus ?? "").toUpperCase() === "OK";
+          const ex = String(st.exitstatus ?? "").toUpperCase();
+          const ok = ex === "OK" || ex === "WARNINGS" || ex === "WARNING";
           if (!ok) {
             Logger.error(`Proxmox task failed upid=${upid} node=${node} exit=${String(st.exitstatus ?? "?")}`);
             await this.logProxmoxTaskTail(upid, nodes);
