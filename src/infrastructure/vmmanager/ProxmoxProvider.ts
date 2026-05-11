@@ -353,10 +353,21 @@ export class ProxmoxProvider implements VmProvider {
         if (!st) continue;
         const status = String(st.status ?? "").toLowerCase();
         if (status === "stopped") {
-          const ex = String(st.exitstatus ?? "").toUpperCase();
+          let ex = String(st.exitstatus ?? "").trim().toUpperCase();
+          // Some PVE builds briefly report status=stopped before exitstatus is filled.
+          for (let p = 0; p < 24 && !ex; p++) {
+            await this.sleep(500);
+            const st2 = await this.apiGet<{ status?: string; exitstatus?: string }>(
+              `/nodes/${node}/tasks/${enc}/status`
+            ).catch(() => undefined);
+            if (String(st2?.status ?? "").toLowerCase() !== "stopped") break;
+            ex = String(st2?.exitstatus ?? "").trim().toUpperCase();
+          }
           const ok = ex === "OK" || ex === "WARNINGS" || ex === "WARNING";
           if (!ok) {
-            Logger.error(`Proxmox task failed upid=${upid} node=${node} exit=${String(st.exitstatus ?? "?")}`);
+            Logger.error(
+              `Proxmox task failed upid=${upid} node=${node} exit=${ex || String(st.exitstatus ?? "?")}`
+            );
             await this.logProxmoxTaskTail(upid, nodes);
           }
           return ok;
@@ -593,34 +604,81 @@ export class ProxmoxProvider implements VmProvider {
         `Proxmox createVM: clone template vmid=${templateId} from node=${templateHostNode} -> new vmid=${newId} target=${destNode}`
       );
 
-      const cloneUpid = await this.apiPost<string | number | null>(
-        `/nodes/${templateHostNode}/qemu/${templateId}/clone`,
-        {
+      type CloneStrat = { full: 0 | 1; useStorage: boolean };
+      const storageTrim = this.storage.trim();
+      const cloneStrategies: CloneStrat[] = [];
+      if (storageTrim) {
+        cloneStrategies.push({ full: 1, useStorage: true });
+      }
+      cloneStrategies.push({ full: 1, useStorage: false });
+      if (storageTrim) {
+        cloneStrategies.push({ full: 0, useStorage: true });
+      }
+      cloneStrategies.push({ full: 0, useStorage: false });
+      const stratKey = (s: CloneStrat) => `${s.full}:${s.useStorage ? 1 : 0}`;
+      const uniqStrats: CloneStrat[] = [];
+      const seenStrat = new Set<string>();
+      for (const s of cloneStrategies) {
+        const k = stratKey(s);
+        if (seenStrat.has(k)) continue;
+        seenStrat.add(k);
+        uniqStrats.push(s);
+      }
+
+      let guest: { node: string; cfg: Record<string, unknown> } | null = null;
+      for (let si = 0; si < uniqStrats.length; si++) {
+        const strat = uniqStrats[si]!;
+        if (si > 0) {
+          await rollbackGuest(`clone retry strategy ${si}`);
+          const nextAgain = await this.apiGet<string>(`/cluster/nextid`);
+          const parsedAgain = Number(nextAgain);
+          if (Number.isNaN(parsedAgain)) return false;
+          newId = parsedAgain;
+        }
+        const cloneBody: Record<string, unknown> = {
           newid: newId,
           name,
           target: destNode,
-          full: 1,
-          storage: this.storage || undefined,
+          full: strat.full,
+        };
+        if (strat.useStorage && storageTrim) {
+          cloneBody.storage = storageTrim;
         }
-      );
-      const cloneUpidStr = typeof cloneUpid === "string" ? cloneUpid : null;
-      if (cloneUpidStr?.startsWith("UPID:")) {
-        const cloneOk = await this.waitForNodeTask(cloneUpidStr, 600_000);
-        if (!cloneOk) {
-          Logger.error(`Proxmox createVM: clone task failed vmid=${newId}`);
-          await rollbackGuest("clone task failed");
-          return false;
+        try {
+          Logger.info(
+            `Proxmox createVM: clone attempt ${si + 1}/${uniqStrats.length} vmid=${newId} full=${strat.full} storage=${strat.useStorage ? storageTrim : "(default)"}`
+          );
+          const cloneUpid = await this.apiPost<string | number | null>(
+            `/nodes/${templateHostNode}/qemu/${templateId}/clone`,
+            cloneBody
+          );
+          const cloneUpidStr = typeof cloneUpid === "string" ? cloneUpid : null;
+          if (cloneUpidStr?.startsWith("UPID:")) {
+            const cloneOk = await this.waitForNodeTask(cloneUpidStr, 600_000);
+            if (!cloneOk) {
+              Logger.error(
+                `Proxmox createVM: clone task failed vmid=${newId} strategy=${si} full=${strat.full} storage=${strat.useStorage}`
+              );
+              continue;
+            }
+          } else {
+            Logger.warn(
+              `Proxmox createVM: clone response has no UPID (got ${JSON.stringify(cloneUpid)}); vmid=${newId} strategy=${si} — relying on config wait only`
+            );
+          }
+          guest = await this.waitUntilGuestConfigOnAnyNode(newId, 300_000);
+          if (guest) {
+            break;
+          }
+          Logger.error(`Proxmox createVM: no guest config after clone vmid=${newId} strategy=${si}`);
+        } catch (cloneErr) {
+          Logger.warn(`Proxmox createVM: clone POST failed vmid=${newId} strategy=${si}`, cloneErr);
         }
-      } else {
-        Logger.warn(
-          `Proxmox createVM: clone response has no UPID (got ${JSON.stringify(cloneUpid)}); vmid=${newId} — relying on config wait only`
-        );
       }
 
-      const guest = await this.waitUntilGuestConfigOnAnyNode(newId, 300_000);
       if (!guest) {
-        Logger.error(`Proxmox createVM: no guest config on any cluster node within timeout vmid=${newId}`);
-        await rollbackGuest("clone timeout");
+        Logger.error(`Proxmox createVM: all clone strategies failed template=${templateId}`);
+        await rollbackGuest("clone failed all strategies");
         return false;
       }
       guestNode = guest.node;
@@ -663,6 +721,9 @@ export class ProxmoxProvider implements VmProvider {
         });
       }
 
+      // PVE often holds a short config lock after POST /config; immediate resize fails with "locked".
+      await this.sleep(3500);
+
       const currentDiskSize = this.parseDiskSizeFromVolume(
         typeof baselineCfg[diskKey] === "string" ? (baselineCfg[diskKey] as string) : undefined
       );
@@ -699,6 +760,12 @@ export class ProxmoxProvider implements VmProvider {
             }
           } catch (resizeErr) {
             Logger.warn(`Proxmox createVM: resize attempt ${attempt}/12 vmid=${newId}`, resizeErr);
+            const ax = resizeErr as { response?: { data?: unknown }; message?: string };
+            const raw = JSON.stringify(ax?.response?.data ?? "").toLowerCase();
+            const msg = `${String(ax?.message ?? "")} ${raw}`.toLowerCase();
+            if (msg.includes("lock") || msg.includes("busy") || msg.includes("vm is quiescing")) {
+              await this.sleep(5000);
+            }
           }
           await this.sleep(2000);
         }
@@ -713,7 +780,18 @@ export class ProxmoxProvider implements VmProvider {
         );
       }
 
-      await this.apiPost(`/nodes/${runNode}/qemu/${newId}/status/start`);
+      const startUpid = await this.apiPost<string | number | null>(
+        `/nodes/${runNode}/qemu/${newId}/status/start`
+      );
+      const startUpidStr = typeof startUpid === "string" ? startUpid : null;
+      if (startUpidStr?.startsWith("UPID:")) {
+        const startOk = await this.waitForNodeTask(startUpidStr, 180_000);
+        if (!startOk) {
+          Logger.error(`Proxmox createVM: start task failed vmid=${newId}`);
+          await rollbackGuest("start task failed");
+          return false;
+        }
+      }
 
       Logger.info(`Proxmox createVM: success vmid=${newId} runNode=${runNode}`);
 
