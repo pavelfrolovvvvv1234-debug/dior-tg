@@ -201,6 +201,71 @@ export class ProxmoxProvider implements VmProvider {
     return false;
   }
 
+  /** Clone may land the guest on another cluster member — scan nodes until `qm config` works. */
+  private async waitUntilGuestConfigOnAnyNode(
+    vmid: number,
+    timeoutMs = 180000
+  ): Promise<{ node: string; cfg: Record<string, unknown> } | null> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const nodes = [...new Set([this.node, ...(await this.listClusterNodeNames())])].filter((n): n is string =>
+        Boolean(n?.trim())
+      );
+      for (const n of nodes) {
+        const cfg = await this.apiGet<Record<string, unknown>>(`/nodes/${n}/qemu/${vmid}/config`).catch(() => undefined);
+        if (cfg && typeof cfg === "object" && Object.keys(cfg).length > 0) {
+          return { node: n, cfg };
+        }
+      }
+      await this.sleep(1200);
+    }
+    return null;
+  }
+
+  private async collectTaskPollNodes(upid: string): Promise<string[]> {
+    const out: string[] = [];
+    const a = this.taskNodeFromUpid(upid).trim();
+    const b = this.node.trim();
+    if (a) out.push(a);
+    if (b && b !== a) out.push(b);
+    try {
+      for (const n of await this.listClusterNodeNames()) {
+        const t = n.trim();
+        if (t && !out.includes(t)) out.push(t);
+      }
+    } catch {
+      /* ignore */
+    }
+    return out.length > 0 ? out : [this.node].filter((n) => n.trim());
+  }
+
+  private async purgeQemuGuest(vmid: number, hintNode?: string): Promise<void> {
+    const nodes = [...new Set([hintNode?.trim(), this.node.trim(), ...(await this.listClusterNodeNames())])].filter(
+      (n): n is string => Boolean(n?.trim())
+    );
+    for (const n of nodes) {
+      try {
+        await this.apiPost(`/nodes/${n}/qemu/${vmid}/status/stop`).catch(() => {});
+        await this.sleep(1200);
+        await this.apiDelete(`/nodes/${n}/qemu/${vmid}?purge=1&skiplock=1`);
+        Logger.info(`Proxmox purgeQemuGuest: removed vmid=${vmid} on node=${n}`);
+        return;
+      } catch {
+        /* try next node */
+      }
+    }
+    Logger.warn(`Proxmox purgeQemuGuest: could not remove vmid=${vmid} on any known node`);
+  }
+
+  private async resolveQemuNodeForGuest(vmid: number): Promise<string> {
+    for (let i = 0; i < 20; i++) {
+      const row = await this.getClusterVmResource(vmid);
+      if (row?.node?.trim()) return row.node.trim();
+      await this.sleep(600);
+    }
+    return this.node;
+  }
+
   private async sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -215,59 +280,59 @@ export class ProxmoxProvider implements VmProvider {
     return this.node;
   }
 
-  private async logProxmoxTaskTail(upid: string, limit = 50): Promise<void> {
-    const node = this.taskNodeFromUpid(upid);
+  private async logProxmoxTaskTail(upid: string, nodes?: string[]): Promise<void> {
+    const tryNodes = nodes?.length ? nodes : await this.collectTaskPollNodes(upid);
     const enc = encodeURIComponent(upid);
-    try {
-      const raw = await this.apiGet<unknown>(`/nodes/${node}/tasks/${enc}/log?start=0&limit=${limit}`).catch(() => undefined);
-      const lines = Array.isArray(raw)
-        ? raw
-        : raw && typeof raw === "object" && Array.isArray((raw as { data?: unknown }).data)
-          ? ((raw as { data: Array<{ t?: string }> }).data as Array<{ t?: string }>)
-          : [];
-      if (!Array.isArray(lines) || lines.length === 0) {
-        Logger.error(`Proxmox task log empty upid=${upid} node=${node}`);
+    for (const node of tryNodes) {
+      try {
+        const raw = await this.apiGet<unknown>(`/nodes/${node}/tasks/${enc}/log?start=0&limit=50`).catch(() => undefined);
+        const lines = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === "object" && Array.isArray((raw as { data?: unknown }).data)
+            ? ((raw as { data: Array<{ t?: string }> }).data as Array<{ t?: string }>)
+            : [];
+        if (!Array.isArray(lines) || lines.length === 0) continue;
+        const tail = lines
+          .map((l) => String((l as { t?: string }).t ?? "").trim())
+          .filter(Boolean)
+          .slice(-25)
+          .join(" | ");
+        Logger.error(`Proxmox task log tail upid=${upid} node=${node}: ${tail}`);
         return;
+      } catch {
+        /* next node */
       }
-      const tail = lines
-        .map((l) => String((l as { t?: string }).t ?? "").trim())
-        .filter(Boolean)
-        .slice(-25)
-        .join(" | ");
-      Logger.error(`Proxmox task log tail upid=${upid} node=${node}: ${tail}`);
-    } catch (e) {
-      Logger.warn(`Proxmox task log fetch failed upid=${upid}`, e);
     }
+    Logger.error(`Proxmox task log empty upid=${upid} tried=${tryNodes.join(",")}`);
   }
 
   /**
    * Proxmox clone/resize/delete return an UPID; the guest may still be locked until the task stops with OK.
    */
   private async waitForNodeTask(upid: string, timeoutMs = 600_000): Promise<boolean> {
-    const node = this.taskNodeFromUpid(upid);
+    const nodes = await this.collectTaskPollNodes(upid);
     const enc = encodeURIComponent(upid);
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
-      const st = await this.apiGet<{ status?: string; exitstatus?: string }>(
-        `/nodes/${node}/tasks/${enc}/status`
-      ).catch(() => undefined);
-      if (!st) {
-        await this.sleep(900);
-        continue;
-      }
-      const status = String(st.status ?? "").toLowerCase();
-      if (status === "stopped") {
-        const ok = String(st.exitstatus ?? "").toUpperCase() === "OK";
-        if (!ok) {
-          Logger.error(`Proxmox task failed upid=${upid} exit=${String(st.exitstatus ?? "?")}`);
-          await this.logProxmoxTaskTail(upid);
+      for (const node of nodes) {
+        const st = await this.apiGet<{ status?: string; exitstatus?: string }>(
+          `/nodes/${node}/tasks/${enc}/status`
+        ).catch(() => undefined);
+        if (!st) continue;
+        const status = String(st.status ?? "").toLowerCase();
+        if (status === "stopped") {
+          const ok = String(st.exitstatus ?? "").toUpperCase() === "OK";
+          if (!ok) {
+            Logger.error(`Proxmox task failed upid=${upid} node=${node} exit=${String(st.exitstatus ?? "?")}`);
+            await this.logProxmoxTaskTail(upid, nodes);
+          }
+          return ok;
         }
-        return ok;
       }
       await this.sleep(900);
     }
-    Logger.error(`Proxmox task wait timeout upid=${upid} node=${node}`);
-    await this.logProxmoxTaskTail(upid);
+    Logger.error(`Proxmox task wait timeout upid=${upid} nodes=${nodes.join(",")}`);
+    await this.logProxmoxTaskTail(upid, nodes);
     return false;
   }
 
@@ -467,12 +532,13 @@ export class ProxmoxProvider implements VmProvider {
     networkOut: number
   ): Promise<CreateVMSuccesffulyResponse | false> {
     let newId: number | undefined;
+    let guestNode: string | undefined;
     const rollbackGuest = async (reason: string): Promise<void> => {
       if (newId == null) return;
       try {
-        await this.deleteVM(newId);
+        await this.purgeQemuGuest(newId, guestNode);
       } catch (cleanupErr) {
-        Logger.warn(`Proxmox createVM: rollback delete failed vmid=${newId} (${reason})`, cleanupErr);
+        Logger.warn(`Proxmox createVM: rollback failed vmid=${newId} (${reason})`, cleanupErr);
       }
     };
 
@@ -512,16 +578,16 @@ export class ProxmoxProvider implements VmProvider {
         );
       }
 
-      const clonedReady = await this.waitUntilGuestConfigReadable(newId, 180000);
-      if (!clonedReady) {
-        Logger.error(`Proxmox createVM: clone did not produce config within timeout vmid=${newId}`);
+      const guest = await this.waitUntilGuestConfigOnAnyNode(newId, 180000);
+      if (!guest) {
+        Logger.error(`Proxmox createVM: no guest config on any cluster node within timeout vmid=${newId}`);
         await rollbackGuest("clone timeout");
         return false;
       }
+      guestNode = guest.node;
+      const runNode = guest.node;
+      const baselineCfg = guest.cfg;
 
-      const baselineCfg =
-        (await this.apiGet<Record<string, unknown>>(`/nodes/${this.node}/qemu/${newId}/config`).catch(() => undefined)) ??
-        {};
       const diskKey = this.findPrimaryQemuDiskKey(baselineCfg);
       if (!diskKey) {
         Logger.error(
@@ -536,7 +602,7 @@ export class ProxmoxProvider implements VmProvider {
         return false;
       }
 
-      await this.apiPost(`/nodes/${this.node}/qemu/${newId}/config`, {
+      await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
         cores: cpuNumber,
         memory: ramSize * 1024,
         ciuser: "root",
@@ -562,7 +628,7 @@ export class ProxmoxProvider implements VmProvider {
         for (let attempt = 1; attempt <= 12; attempt++) {
           try {
             const resizeUpid = await this.apiPost<string | number | null>(
-              `/nodes/${this.node}/qemu/${newId}/resize`,
+              `/nodes/${runNode}/qemu/${newId}/resize`,
               {
                 disk: diskKey,
                 size: `${diskSize}G`,
@@ -597,7 +663,9 @@ export class ProxmoxProvider implements VmProvider {
         );
       }
 
-      await this.apiPost(`/nodes/${this.node}/qemu/${newId}/status/start`);
+      await this.apiPost(`/nodes/${runNode}/qemu/${newId}/status/start`);
+
+      Logger.info(`Proxmox createVM: success vmid=${newId} runNode=${runNode}`);
 
       return {
         id: newId,
@@ -607,6 +675,10 @@ export class ProxmoxProvider implements VmProvider {
         spice_task: 0,
       };
     } catch (error) {
+      const ax = error as { response?: { status?: number; data?: unknown } };
+      if (ax?.response?.data) {
+        Logger.error("Proxmox createVM PVE response", JSON.stringify(ax.response.data).slice(0, 2000));
+      }
       Logger.error("Proxmox createVM failed", error);
       await rollbackGuest("exception");
       return false;
@@ -832,9 +904,10 @@ export class ProxmoxProvider implements VmProvider {
 
   async getIpv4AddrVM(id: number): Promise<{ list: Array<{ ip_addr: string }> } | undefined> {
     try {
-      const configData = await this.apiGet<{ ipconfig0?: string }>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined);
+      const node = await this.resolveQemuNodeForGuest(id);
+      const configData = await this.apiGet<{ ipconfig0?: string }>(`/nodes/${node}/qemu/${id}/config`).catch(() => undefined);
       const agent = await this.apiGet<{ result?: Array<{ "ip-addresses"?: Array<{ "ip-address"?: string }> }> }>(
-        `/nodes/${this.node}/qemu/${id}/agent/network-get-interfaces`
+        `/nodes/${node}/qemu/${id}/agent/network-get-interfaces`
       ).catch(() => null);
       const ips =
         agent?.result
