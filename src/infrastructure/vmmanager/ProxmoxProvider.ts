@@ -190,7 +190,7 @@ export class ProxmoxProvider implements VmProvider {
     const n = node.trim() || this.node.trim();
     try {
       const r = await this.apiPost<string | number | null>(`/nodes/${n}/qemu/${id}/status/stop`);
-      const up = typeof r === "string" && r.startsWith("UPID:") ? r : null;
+      const up = this.normalizeTaskUpid(r);
       if (up) {
         await this.waitForNodeTask(up, 180_000);
       }
@@ -381,7 +381,13 @@ export class ProxmoxProvider implements VmProvider {
             if (String(st2?.status ?? "").toLowerCase() !== "stopped") break;
             ex = String(st2?.exitstatus ?? "").trim().toUpperCase();
           }
-          const ok = ex === "OK" || ex === "WARNINGS" || ex === "WARNING";
+          const ok =
+            ex === "OK" ||
+            ex === "WARNINGS" ||
+            ex === "WARNING" ||
+            ex === "WARN" ||
+            ex === "OK." ||
+            ex.endsWith("OK");
           if (!ok) {
             Logger.error(
               `Proxmox task failed upid=${upid} node=${node} exit=${ex || String(st.exitstatus ?? "?")}`
@@ -434,11 +440,27 @@ export class ProxmoxProvider implements VmProvider {
     return candidates[0];
   }
 
-  /** Parse `size=32G` from a Proxmox volume line (absolute size for qm resize). */
+  /** Parse `size=32G` / `size=20480M` from a Proxmox volume line. */
   private parseDiskSizeFromVolume(volLine?: string): string | undefined {
     if (!volLine) return undefined;
-    const m = volLine.match(/size=([0-9.]+[KMGTP])/i);
-    return m?.[1];
+    let m = volLine.match(/size=([0-9.]+[KMGTP])/i);
+    if (m?.[1]) return m[1];
+    m = volLine.match(/size=([0-9]+)\s*M\b/i);
+    if (m?.[1]) return `${m[1]}M`;
+    return undefined;
+  }
+
+  /** PVE returns UPID string; some proxies wrap differently. */
+  private normalizeTaskUpid(data: unknown): string | null {
+    if (typeof data === "string" && data.startsWith("UPID:")) return data;
+    if (data && typeof data === "object") {
+      const o = data as Record<string, unknown>;
+      for (const k of ["upid", "UPID", "data", "task_id"]) {
+        const v = o[k];
+        if (typeof v === "string" && v.startsWith("UPID:")) return v;
+      }
+    }
+    return null;
   }
 
   /** Convert Proxmox size literal (e.g. 32G) to bytes for safe comparisons. */
@@ -610,9 +632,9 @@ export class ProxmoxProvider implements VmProvider {
         Logger.warn(`Proxmox template not found for osId=${osId}`);
         return false;
       }
-      const nextIdRaw = await this.apiGet<string>(`/cluster/nextid`);
-      const parsedVmId = Number(nextIdRaw);
-      if (Number.isNaN(parsedVmId)) return false;
+      const nextIdRaw = await this.apiGet<string | number>(`/cluster/nextid`);
+      const parsedVmId = Number(typeof nextIdRaw === "number" ? nextIdRaw : String(nextIdRaw).trim());
+      if (!Number.isFinite(parsedVmId)) return false;
       newId = parsedVmId;
       const autoIpConfig = await this.pickFreeIpv4FromBridge();
 
@@ -648,17 +670,19 @@ export class ProxmoxProvider implements VmProvider {
         const strat = uniqStrats[si]!;
         if (si > 0) {
           await rollbackGuest(`clone retry strategy ${si}`);
-          const nextAgain = await this.apiGet<string>(`/cluster/nextid`);
-          const parsedAgain = Number(nextAgain);
-          if (Number.isNaN(parsedAgain)) return false;
+          const nextAgain = await this.apiGet<string | number>(`/cluster/nextid`);
+          const parsedAgain = Number(typeof nextAgain === "number" ? nextAgain : String(nextAgain).trim());
+          if (!Number.isFinite(parsedAgain)) return false;
           newId = parsedAgain;
         }
         const cloneBody: Record<string, unknown> = {
           newid: newId,
           name,
-          target: destNode,
           full: strat.full,
         };
+        if (destNode.trim() !== templateHostNode.trim()) {
+          cloneBody.target = destNode;
+        }
         if (strat.useStorage && storageTrim) {
           cloneBody.storage = storageTrim;
         }
@@ -670,8 +694,8 @@ export class ProxmoxProvider implements VmProvider {
             `/nodes/${templateHostNode}/qemu/${templateId}/clone`,
             cloneBody
           );
-          const cloneUpidStr = typeof cloneUpid === "string" ? cloneUpid : null;
-          if (cloneUpidStr?.startsWith("UPID:")) {
+          const cloneUpidStr = this.normalizeTaskUpid(cloneUpid);
+          if (cloneUpidStr) {
             const cloneOk = await this.waitForNodeTask(cloneUpidStr, 600_000);
             if (!cloneOk) {
               Logger.error(
@@ -747,12 +771,13 @@ export class ProxmoxProvider implements VmProvider {
       );
       const currentDiskBytes = this.sizeLiteralToBytes(currentDiskSize);
       const targetDiskBytes = this.sizeLiteralToBytes(`${diskSize}G`);
-      const shouldResize =
-        targetDiskBytes != null && currentDiskBytes != null
-          ? targetDiskBytes > currentDiskBytes
-          : true;
-
-      if (shouldResize) {
+      if (
+        targetDiskBytes != null &&
+        currentDiskBytes != null &&
+        targetDiskBytes > currentDiskBytes
+      ) {
+        const deltaBytes = targetDiskBytes - currentDiskBytes;
+        const resizeSizeArg = `+${Math.max(1, Math.ceil(deltaBytes / 1024 ** 3))}G`;
         let resizeOk = false;
         for (let attempt = 1; attempt <= 12; attempt++) {
           try {
@@ -760,11 +785,11 @@ export class ProxmoxProvider implements VmProvider {
               `/nodes/${runNode}/qemu/${newId}/resize`,
               {
                 disk: diskKey,
-                size: `${diskSize}G`,
+                size: resizeSizeArg,
               }
             );
-            const resizeUpidStr = typeof resizeUpid === "string" ? resizeUpid : null;
-            if (resizeUpidStr?.startsWith("UPID:")) {
+            const resizeUpidStr = this.normalizeTaskUpid(resizeUpid);
+            if (resizeUpidStr) {
               const taskOk = await this.waitForNodeTask(resizeUpidStr, 300_000);
               if (!taskOk) {
                 Logger.warn(`Proxmox createVM: resize task failed attempt=${attempt} vmid=${newId}`);
@@ -794,15 +819,15 @@ export class ProxmoxProvider implements VmProvider {
         }
       } else {
         Logger.warn(
-          `Proxmox createVM: skip resize shrink vmid=${newId} disk=${diskKey} current=${currentDiskSize ?? "unknown"} target=${diskSize}G`
+          `Proxmox createVM: skip resize vmid=${newId} disk=${diskKey} current=${currentDiskSize ?? "unknown"} target=${diskSize}G (shrink or unknown baseline)`
         );
       }
 
       const startUpid = await this.apiPost<string | number | null>(
         `/nodes/${runNode}/qemu/${newId}/status/start`
       );
-      const startUpidStr = typeof startUpid === "string" ? startUpid : null;
-      if (startUpidStr?.startsWith("UPID:")) {
+      const startUpidStr = this.normalizeTaskUpid(startUpid);
+      if (startUpidStr) {
         const startOk = await this.waitForNodeTask(startUpidStr, 180_000);
         if (!startOk) {
           Logger.error(`Proxmox createVM: start task failed vmid=${newId}`);
@@ -1084,7 +1109,7 @@ export class ProxmoxProvider implements VmProvider {
   async startVM(id: number): Promise<unknown> {
     const node = await this.resolveQemuNodeForGuest(id);
     const r = await this.apiPost<string | number | null>(`/nodes/${node}/qemu/${id}/status/start`);
-    const up = typeof r === "string" && r.startsWith("UPID:") ? r : null;
+    const up = this.normalizeTaskUpid(r);
     if (up) {
       await this.waitForNodeTask(up, 180_000);
     }
@@ -1172,18 +1197,22 @@ export class ProxmoxProvider implements VmProvider {
       }
 
       const reinstallTemplateHost = await this.findNodeHostingQemuGuest(templateId);
+      const reinstallDest = this.node.trim();
+      const reinstallCloneBody: Record<string, unknown> = {
+        newid: id,
+        name: (typeof existingConfig.name === "string" && existingConfig.name.trim()) || `vm-${id}`,
+        full: 1,
+        storage: this.storage || undefined,
+      };
+      if (reinstallDest && reinstallDest !== reinstallTemplateHost.trim()) {
+        reinstallCloneBody.target = reinstallDest;
+      }
       const reinstallCloneUpid = await this.apiPost<string | number | null>(
         `/nodes/${reinstallTemplateHost}/qemu/${templateId}/clone`,
-        {
-          newid: id,
-          name: (typeof existingConfig.name === "string" && existingConfig.name.trim()) || `vm-${id}`,
-          target: this.node,
-          full: 1,
-          storage: this.storage || undefined,
-        }
+        reinstallCloneBody
       );
-      const reinstallCloneStr = typeof reinstallCloneUpid === "string" ? reinstallCloneUpid : null;
-      if (reinstallCloneStr?.startsWith("UPID:")) {
+      const reinstallCloneStr = this.normalizeTaskUpid(reinstallCloneUpid);
+      if (reinstallCloneStr) {
         const reinstallCloneOk = await this.waitForNodeTask(reinstallCloneStr, 600_000);
         if (!reinstallCloneOk) {
           throw new Error(`Proxmox reinstall: clone task failed for vmid ${id}`);
