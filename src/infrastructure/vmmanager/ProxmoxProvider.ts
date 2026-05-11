@@ -109,6 +109,24 @@ export class ProxmoxProvider implements VmProvider {
     return false;
   }
 
+  /**
+   * Some panels / pveproxy builds expose clone/config but return 501 for `…/qemu/…/resize`
+   * ("Method POST …/resize not implemented"). Disk stays at template size; provisioning can continue.
+   */
+  private isProxmoxResizeUnsupportedError(error: unknown): boolean {
+    const ax = error as { response?: { status?: number; statusText?: string; data?: unknown } };
+    const status = Number(ax?.response?.status ?? 0);
+    if (status === 501 || status === 405) return true;
+    const st = String(ax?.response?.statusText ?? "").toLowerCase();
+    if (st.includes("not implemented")) return true;
+    const d = ax?.response?.data;
+    if (d != null) {
+      const s = JSON.stringify(d).toLowerCase();
+      if (s.includes("not implemented") && s.includes("resize")) return true;
+    }
+    return false;
+  }
+
   private async apiGet<T>(url: string): Promise<T> {
     const run = async (): Promise<T> => {
       const { data } = await this.client.get<{ data: T }>(url);
@@ -802,6 +820,13 @@ export class ProxmoxProvider implements VmProvider {
               break;
             }
           } catch (resizeErr) {
+            if (this.isProxmoxResizeUnsupportedError(resizeErr)) {
+              Logger.warn(
+                `Proxmox createVM: resize API not available (HTTP 501/405) vmid=${newId} — continuing with clone disk (ordered ${diskSize}G). Fix PVE/proxy or enlarge template.`
+              );
+              resizeOk = true;
+              break;
+            }
             Logger.warn(`Proxmox createVM: resize attempt ${attempt}/12 vmid=${newId}`, resizeErr);
             const ax = resizeErr as { response?: { data?: unknown }; message?: string };
             const raw = JSON.stringify(ax?.response?.data ?? "").toLowerCase();
@@ -1250,11 +1275,17 @@ export class ProxmoxProvider implements VmProvider {
             size: preservedDiskSize,
           });
         } catch (resizeErr) {
-          Logger.error(
-            `Proxmox reinstall: disk resize failed guest=${id} disk=${diskKeyAfter} size=${preservedDiskSize}`,
-            resizeErr
-          );
-          throw resizeErr;
+          if (this.isProxmoxResizeUnsupportedError(resizeErr)) {
+            Logger.warn(
+              `Proxmox reinstall: resize API not available guest=${id} — disk stays clone size (wanted ${preservedDiskSize})`
+            );
+          } else {
+            Logger.error(
+              `Proxmox reinstall: disk resize failed guest=${id} disk=${diskKeyAfter} size=${preservedDiskSize}`,
+              resizeErr
+            );
+            throw resizeErr;
+          }
         }
       } else if (preservedDiskSize && !diskKeyAfter) {
         Logger.warn(
