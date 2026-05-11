@@ -124,9 +124,23 @@ export class ProxmoxProvider implements VmProvider {
     });
   }
 
+  /**
+   * PVE POST/PUT expect `application/x-www-form-urlencoded`. Axios defaults to JSON,
+   * which on many Proxmox builds yields 501/506 or silently ignores clone/resize params.
+   */
+  private encodeProxmoxFormBody(body: Record<string, unknown>): URLSearchParams {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(body)) {
+      if (value === undefined || value === null) continue;
+      params.append(key, String(value));
+    }
+    return params;
+  }
+
   private async apiPost<T>(url: string, body?: Record<string, unknown>): Promise<T> {
     const run = async (): Promise<T> => {
-      const { data } = await this.client.post<{ data: T }>(url, body ?? {});
+      const form = this.encodeProxmoxFormBody(body ?? {});
+      const { data } = await this.client.post<{ data: T }>(url, form);
       return data.data;
     };
     return retry(run, {
@@ -263,6 +277,24 @@ export class ProxmoxProvider implements VmProvider {
       if (row?.node?.trim()) return row.node.trim();
       await this.sleep(600);
     }
+    return this.node;
+  }
+
+  /** Which cluster member actually hosts this qemu vmid (templates included). */
+  private async findNodeHostingQemuGuest(vmid: number): Promise<string> {
+    const row = await this.getClusterVmResource(vmid);
+    if (row?.node?.trim()) return row.node.trim();
+
+    const nodes = [...new Set([this.node, ...(await this.listClusterNodeNames())])].filter((n): n is string =>
+      Boolean(n?.trim())
+    );
+    for (const n of nodes) {
+      const list = await this.apiGet<Array<{ vmid?: number }>>(`/nodes/${n}/qemu`).catch(() => undefined);
+      if (Array.isArray(list) && list.some((v) => Number(v.vmid) === vmid)) {
+        return n.trim();
+      }
+    }
+    Logger.warn(`Proxmox findNodeHostingQemuGuest: vmid ${vmid} not found on any node list, using PROXMOX_NODE`);
     return this.node;
   }
 
@@ -555,12 +587,18 @@ export class ProxmoxProvider implements VmProvider {
       newId = parsedVmId;
       const autoIpConfig = await this.pickFreeIpv4FromBridge();
 
+      const templateHostNode = await this.findNodeHostingQemuGuest(templateId);
+      const destNode = this.node.trim() || templateHostNode;
+      Logger.info(
+        `Proxmox createVM: clone template vmid=${templateId} from node=${templateHostNode} -> new vmid=${newId} target=${destNode}`
+      );
+
       const cloneUpid = await this.apiPost<string | number | null>(
-        `/nodes/${this.node}/qemu/${templateId}/clone`,
+        `/nodes/${templateHostNode}/qemu/${templateId}/clone`,
         {
           newid: newId,
           name,
-          target: this.node,
+          target: destNode,
           full: 1,
           storage: this.storage || undefined,
         }
@@ -579,7 +617,7 @@ export class ProxmoxProvider implements VmProvider {
         );
       }
 
-      const guest = await this.waitUntilGuestConfigOnAnyNode(newId, 180000);
+      const guest = await this.waitUntilGuestConfigOnAnyNode(newId, 300_000);
       if (!guest) {
         Logger.error(`Proxmox createVM: no guest config on any cluster node within timeout vmid=${newId}`);
         await rollbackGuest("clone timeout");
@@ -603,16 +641,27 @@ export class ProxmoxProvider implements VmProvider {
         return false;
       }
 
-      await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
+      const baseConfig: Record<string, unknown> = {
         cores: cpuNumber,
         memory: ramSize * 1024,
         ciuser: "root",
         cipassword: password,
         description: comment,
-        net0: this.buildVirtioNet0(networkIn, networkOut),
         ipconfig0: autoIpConfig?.ipconfig0,
         nameserver: autoIpConfig?.nameserver,
-      });
+      };
+      try {
+        await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
+          ...baseConfig,
+          net0: this.buildVirtioNet0(networkIn, networkOut),
+        });
+      } catch (netErr) {
+        Logger.warn(`Proxmox createVM: config with net rate failed vmid=${newId}, retry plain virtio`, netErr);
+        await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
+          ...baseConfig,
+          net0: `virtio,bridge=${this.bridge}`,
+        });
+      }
 
       const currentDiskSize = this.parseDiskSizeFromVolume(
         typeof baselineCfg[diskKey] === "string" ? (baselineCfg[diskKey] as string) : undefined
@@ -1020,8 +1069,9 @@ export class ProxmoxProvider implements VmProvider {
         throw new Error(`Proxmox reinstall: VM ${id} still exists after purge`);
       }
 
+      const reinstallTemplateHost = await this.findNodeHostingQemuGuest(templateId);
       const reinstallCloneUpid = await this.apiPost<string | number | null>(
-        `/nodes/${this.node}/qemu/${templateId}/clone`,
+        `/nodes/${reinstallTemplateHost}/qemu/${templateId}/clone`,
         {
           newid: id,
           name: (typeof existingConfig.name === "string" && existingConfig.name.trim()) || `vm-${id}`,
@@ -1038,14 +1088,12 @@ export class ProxmoxProvider implements VmProvider {
         }
       }
 
-      const cloned = await this.waitUntilGuestConfigReadable(id, 180000);
-      if (!cloned) {
+      const guestAfter = await this.waitUntilGuestConfigOnAnyNode(id, 300_000);
+      if (!guestAfter) {
         throw new Error(`Proxmox reinstall: clone to vmid ${id} never became readable (timeout)`);
       }
-
-      const postCloneCfg =
-        (await this.apiGet<Record<string, unknown>>(`/nodes/${this.node}/qemu/${id}/config`).catch(() => undefined)) ??
-        {};
+      const runNode = guestAfter.node;
+      const postCloneCfg = guestAfter.cfg;
       const diskKeyAfter = this.findPrimaryQemuDiskKey(postCloneCfg);
 
       const net0Restored =
@@ -1053,7 +1101,7 @@ export class ProxmoxProvider implements VmProvider {
           ? existingConfig.net0
           : `virtio,bridge=${this.bridge}`;
 
-      await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+      await this.apiPost(`/nodes/${runNode}/qemu/${id}/config`, {
         cores: Number(existingConfig.cores ?? 1),
         memory: Number(existingConfig.memory ?? 1024),
         ciuser: "root",
@@ -1066,7 +1114,7 @@ export class ProxmoxProvider implements VmProvider {
 
       if (preservedDiskSize && diskKeyAfter) {
         try {
-          await this.apiPost(`/nodes/${this.node}/qemu/${id}/resize`, {
+          await this.apiPost(`/nodes/${runNode}/qemu/${id}/resize`, {
             disk: diskKeyAfter,
             size: preservedDiskSize,
           });
@@ -1083,7 +1131,7 @@ export class ProxmoxProvider implements VmProvider {
         );
       }
 
-      await this.apiPost(`/nodes/${this.node}/qemu/${id}/status/start`);
+      await this.apiPost(`/nodes/${runNode}/qemu/${id}/status/start`);
 
       return {
         id,
