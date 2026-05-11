@@ -205,15 +205,51 @@ export class ProxmoxProvider implements VmProvider {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /** UPID format: `UPID:<nodename>:...` — task status must use that node, not always PROXMOX_NODE. */
+  private taskNodeFromUpid(upid: string): string {
+    const parts = upid.split(":");
+    if (parts.length >= 2) {
+      const n = parts[1]?.trim();
+      if (n) return n;
+    }
+    return this.node;
+  }
+
+  private async logProxmoxTaskTail(upid: string, limit = 50): Promise<void> {
+    const node = this.taskNodeFromUpid(upid);
+    const enc = encodeURIComponent(upid);
+    try {
+      const raw = await this.apiGet<unknown>(`/nodes/${node}/tasks/${enc}/log?start=0&limit=${limit}`).catch(() => undefined);
+      const lines = Array.isArray(raw)
+        ? raw
+        : raw && typeof raw === "object" && Array.isArray((raw as { data?: unknown }).data)
+          ? ((raw as { data: Array<{ t?: string }> }).data as Array<{ t?: string }>)
+          : [];
+      if (!Array.isArray(lines) || lines.length === 0) {
+        Logger.error(`Proxmox task log empty upid=${upid} node=${node}`);
+        return;
+      }
+      const tail = lines
+        .map((l) => String((l as { t?: string }).t ?? "").trim())
+        .filter(Boolean)
+        .slice(-25)
+        .join(" | ");
+      Logger.error(`Proxmox task log tail upid=${upid} node=${node}: ${tail}`);
+    } catch (e) {
+      Logger.warn(`Proxmox task log fetch failed upid=${upid}`, e);
+    }
+  }
+
   /**
    * Proxmox clone/resize/delete return an UPID; the guest may still be locked until the task stops with OK.
    */
   private async waitForNodeTask(upid: string, timeoutMs = 600_000): Promise<boolean> {
+    const node = this.taskNodeFromUpid(upid);
     const enc = encodeURIComponent(upid);
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
       const st = await this.apiGet<{ status?: string; exitstatus?: string }>(
-        `/nodes/${this.node}/tasks/${enc}/status`
+        `/nodes/${node}/tasks/${enc}/status`
       ).catch(() => undefined);
       if (!st) {
         await this.sleep(900);
@@ -224,12 +260,14 @@ export class ProxmoxProvider implements VmProvider {
         const ok = String(st.exitstatus ?? "").toUpperCase() === "OK";
         if (!ok) {
           Logger.error(`Proxmox task failed upid=${upid} exit=${String(st.exitstatus ?? "?")}`);
+          await this.logProxmoxTaskTail(upid);
         }
         return ok;
       }
       await this.sleep(900);
     }
-    Logger.error(`Proxmox task wait timeout upid=${upid}`);
+    Logger.error(`Proxmox task wait timeout upid=${upid} node=${node}`);
+    await this.logProxmoxTaskTail(upid);
     return false;
   }
 
@@ -468,6 +506,10 @@ export class ProxmoxProvider implements VmProvider {
           await rollbackGuest("clone task failed");
           return false;
         }
+      } else {
+        Logger.warn(
+          `Proxmox createVM: clone response has no UPID (got ${JSON.stringify(cloneUpid)}); vmid=${newId} — relying on config wait only`
+        );
       }
 
       const clonedReady = await this.waitUntilGuestConfigReadable(newId, 180000);
