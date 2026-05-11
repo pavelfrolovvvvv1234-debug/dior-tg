@@ -32,9 +32,12 @@ import {
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
-/** Remove inline keyboard from the message that triggered the callback (e.g. OS picker). */
-async function stripCallbackMessageKeyboard(ctx: AppContext): Promise<void> {
-  await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() }).catch(() => {});
+/** Remove the OS-picker message so the hint text does not stay above provisioning / ready. */
+async function deleteVpsOsPickerMessage(ctx: AppContext): Promise<void> {
+  const chatId = ctx.chat?.id;
+  const msg = ctx.callbackQuery?.message;
+  if (!chatId || !msg || !("message_id" in msg)) return;
+  await ctx.api.deleteMessage(chatId, msg.message_id).catch(() => {});
 }
 
 /** Proxmox clone + wait + resize routinely exceeds 30s; ISP VMManager is usually faster. */
@@ -363,8 +366,13 @@ async function createVpsOrderDirect(
     }
 
     if (!savedVds) {
-      const baseMessage = "Failed to save VPS after retrying VMID conflicts";
       const reason = String((lastProvisionError as { message?: string })?.message ?? "").trim();
+      if (reason.includes("createVM returned false")) {
+        throw new Error(
+          "Не удалось создать VPS на стороне Proxmox (clone/resize/задача). Проверь логи бота и задачи в Proxmox."
+        );
+      }
+      const baseMessage = "Failed to save VPS after retrying VMID conflicts";
       throw new Error(reason ? `${baseMessage}: ${reason}` : baseMessage);
     }
 
@@ -730,7 +738,7 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
-    await stripCallbackMessageKeyboard(ctx as AppContext);
+    await deleteVpsOsPickerMessage(ctx as AppContext);
     if (isProxmoxEnabled()) {
       await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
       return;
