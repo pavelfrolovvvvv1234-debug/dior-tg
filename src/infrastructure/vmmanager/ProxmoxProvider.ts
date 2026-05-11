@@ -140,7 +140,9 @@ export class ProxmoxProvider implements VmProvider {
   private async apiPost<T>(url: string, body?: Record<string, unknown>): Promise<T> {
     const run = async (): Promise<T> => {
       const form = this.encodeProxmoxFormBody(body ?? {});
-      const { data } = await this.client.post<{ data: T }>(url, form);
+      const { data } = await this.client.post<{ data: T }>(url, form, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
       return data.data;
     };
     return retry(run, {
@@ -168,10 +170,12 @@ export class ProxmoxProvider implements VmProvider {
     });
   }
 
-  private async waitForVmStopped(id: number, timeoutMs = 20000): Promise<void> {
+  private async waitForVmStopped(id: number, opts?: { node?: string; timeoutMs?: number }): Promise<void> {
+    const node = (opts?.node && String(opts.node).trim()) || this.node.trim();
+    const timeoutMs = opts?.timeoutMs ?? 90_000;
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
-      const status = await this.apiGet<{ status?: string }>(`/nodes/${this.node}/qemu/${id}/status/current`).catch(
+      const status = await this.apiGet<{ status?: string }>(`/nodes/${node}/qemu/${id}/status/current`).catch(
         () => undefined
       );
       if (!status || status.status === "stopped") {
@@ -179,6 +183,21 @@ export class ProxmoxProvider implements VmProvider {
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+  }
+
+  /** Stop returns UPID; must wait before delete or PVE returns «VM is running - destroy failed». */
+  private async qemuStopAndWaitOnNode(id: number, node: string): Promise<void> {
+    const n = node.trim() || this.node.trim();
+    try {
+      const r = await this.apiPost<string | number | null>(`/nodes/${n}/qemu/${id}/status/stop`);
+      const up = typeof r === "string" && r.startsWith("UPID:") ? r : null;
+      if (up) {
+        await this.waitForNodeTask(up, 180_000);
+      }
+    } catch {
+      /* already stopped / missing */
+    }
+    await this.waitForVmStopped(id, { node: n, timeoutMs: 120_000 }).catch(() => {});
   }
 
   /** Map OS list id / template key to source template vmid for clone. */
@@ -259,8 +278,7 @@ export class ProxmoxProvider implements VmProvider {
     );
     for (const n of nodes) {
       try {
-        await this.apiPost(`/nodes/${n}/qemu/${vmid}/status/stop`).catch(() => {});
-        await this.sleep(1200);
+        await this.qemuStopAndWaitOnNode(vmid, n);
         await this.apiDelete(`/nodes/${n}/qemu/${vmid}?purge=1&skiplock=1`);
         Logger.info(`Proxmox purgeQemuGuest: removed vmid=${vmid} on node=${n}`);
         return;
@@ -1064,26 +1082,32 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   async startVM(id: number): Promise<unknown> {
-    return this.apiPost(`/nodes/${this.node}/qemu/${id}/status/start`);
+    const node = await this.resolveQemuNodeForGuest(id);
+    const r = await this.apiPost<string | number | null>(`/nodes/${node}/qemu/${id}/status/start`);
+    const up = typeof r === "string" && r.startsWith("UPID:") ? r : null;
+    if (up) {
+      await this.waitForNodeTask(up, 180_000);
+    }
+    return r;
   }
 
   async stopVM(id: number): Promise<unknown> {
-    return this.apiPost(`/nodes/${this.node}/qemu/${id}/status/stop`);
+    const node = await this.resolveQemuNodeForGuest(id);
+    await this.qemuStopAndWaitOnNode(id, node);
+    return true;
   }
 
   async deleteVM(id: number): Promise<unknown> {
+    const node = await this.resolveQemuNodeForGuest(id);
     try {
-      return await this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1`);
-    } catch (firstError) {
-      Logger.warn(`Proxmox direct delete failed for VM ${id}, trying stop+delete`, firstError);
+      return await this.apiDelete(`/nodes/${node}/qemu/${id}?purge=1`);
+    } catch (firstError: unknown) {
+      const short = String((firstError as { message?: string })?.message ?? firstError).slice(0, 240);
+      Logger.warn(`Proxmox deleteVM: first purge failed vmid=${id} node=${node}: ${short}`);
     }
 
-    await this.stopVM(id).catch((stopError) => {
-      Logger.warn(`Proxmox stop before delete failed for VM ${id}`, stopError);
-    });
-    await this.waitForVmStopped(id).catch(() => {});
-
-    return this.apiDelete(`/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`);
+    await this.qemuStopAndWaitOnNode(id, node);
+    return this.apiDelete(`/nodes/${node}/qemu/${id}?purge=1&skiplock=1`);
   }
 
   async reinstallOS(id: number, osId: number, password?: string, managementDescription?: string): Promise<unknown> {
@@ -1115,14 +1139,14 @@ export class ProxmoxProvider implements VmProvider {
 
     try {
       await this.stopVM(id);
-      await this.waitForVmStopped(id, 60000).catch(() => {});
 
+      const guestNode = await this.resolveQemuNodeForGuest(id);
       let deleted = false;
       const deletePaths = [
-        `/nodes/${this.node}/qemu/${id}?purge=1&destroy-unreferenced-disks=1&skiplock=1`,
-        `/nodes/${this.node}/qemu/${id}?purge=1&skiplock=1`,
-        `/nodes/${this.node}/qemu/${id}?purge=1`,
-        `/nodes/${this.node}/qemu/${id}`,
+        `/nodes/${guestNode}/qemu/${id}?purge=1&destroy-unreferenced-disks=1&skiplock=1`,
+        `/nodes/${guestNode}/qemu/${id}?purge=1&skiplock=1`,
+        `/nodes/${guestNode}/qemu/${id}?purge=1`,
+        `/nodes/${guestNode}/qemu/${id}`,
       ];
       for (const path of deletePaths) {
         try {
