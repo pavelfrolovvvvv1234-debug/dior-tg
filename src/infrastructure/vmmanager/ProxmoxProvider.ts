@@ -97,7 +97,7 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   private isRetryableTransportError(error: unknown): boolean {
-    const e = error as any;
+    const e = error as { code?: string; message?: string; response?: { status?: number } };
     const code = String(e?.code ?? "");
     const message = String(e?.message ?? "");
     // Axios timeout: code ECONNABORTED or message "timeout of Xms exceeded"
@@ -110,8 +110,8 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   /**
-   * Some panels / pveproxy builds expose clone/config but return 501 for `…/qemu/…/resize`
-   * ("Method POST …/resize not implemented"). Disk stays at template size; provisioning can continue.
+   * After POST+PUT resize attempts, still 501/405: API route missing on this endpoint (proxy/panel).
+   * `qemuResizeDiskApi` tries POST then PUT before surfacing this.
    */
   private isProxmoxResizeUnsupportedError(error: unknown): boolean {
     const ax = error as { response?: { status?: number; statusText?: string; data?: unknown } };
@@ -171,6 +171,52 @@ export class ProxmoxProvider implements VmProvider {
         if (!this.isRetryableTransportError(err)) throw err;
       },
     });
+  }
+
+  private async apiPut<T>(url: string, body?: Record<string, unknown>): Promise<T> {
+    const run = async (): Promise<T> => {
+      const form = this.encodeProxmoxFormBody(body ?? {});
+      const { data } = await this.client.put<{ data: T }>(url, form, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      return data.data;
+    };
+    return retry(run, {
+      maxAttempts: 3,
+      delayMs: 800,
+      exponentialBackoff: true,
+      onRetry: (_attempt, err) => {
+        if (!this.isRetryableTransportError(err)) throw err;
+      },
+    });
+  }
+
+  /**
+   * Stock Proxmox VE uses POST for `qemu/…/resize`; some proxies return 501 on POST but accept PUT.
+   */
+  private async qemuResizeDiskApi(
+    node: string,
+    vmid: number,
+    disk: string,
+    size: string
+  ): Promise<string | number | null> {
+    const path = `/nodes/${node}/qemu/${vmid}/resize`;
+    try {
+      return await this.apiPost<string | number | null>(path, { disk, size });
+    } catch (postErr: unknown) {
+      if (!this.isProxmoxResizeUnsupportedError(postErr)) {
+        throw postErr;
+      }
+      Logger.warn(`Proxmox resize: POST returned 501/405 vmid=${vmid}, retrying with PUT`);
+      try {
+        return await this.apiPut<string | number | null>(path, { disk, size });
+      } catch (putErr: unknown) {
+        if (this.isProxmoxResizeUnsupportedError(putErr)) {
+          throw postErr;
+        }
+        throw putErr;
+      }
+    }
   }
 
   private async apiDelete<T>(url: string): Promise<T> {
@@ -799,13 +845,7 @@ export class ProxmoxProvider implements VmProvider {
         let resizeOk = false;
         for (let attempt = 1; attempt <= 12; attempt++) {
           try {
-            const resizeUpid = await this.apiPost<string | number | null>(
-              `/nodes/${runNode}/qemu/${newId}/resize`,
-              {
-                disk: diskKey,
-                size: resizeSizeArg,
-              }
-            );
+            const resizeUpid = await this.qemuResizeDiskApi(runNode, newId, diskKey, resizeSizeArg);
             const resizeUpidStr = this.normalizeTaskUpid(resizeUpid);
             if (resizeUpidStr) {
               const taskOk = await this.waitForNodeTask(resizeUpidStr, 300_000);
@@ -822,7 +862,7 @@ export class ProxmoxProvider implements VmProvider {
           } catch (resizeErr) {
             if (this.isProxmoxResizeUnsupportedError(resizeErr)) {
               Logger.warn(
-                `Proxmox createVM: resize API not available (HTTP 501/405) vmid=${newId} — continuing with clone disk (ordered ${diskSize}G). Fix PVE/proxy or enlarge template.`
+                `Proxmox createVM: resize POST+PUT both unavailable (501/405) vmid=${newId} — continuing with clone disk (ordered ${diskSize}G). Fix PVE/proxy or enlarge template.`
               );
               resizeOk = true;
               break;
@@ -1270,14 +1310,11 @@ export class ProxmoxProvider implements VmProvider {
 
       if (preservedDiskSize && diskKeyAfter) {
         try {
-          await this.apiPost(`/nodes/${runNode}/qemu/${id}/resize`, {
-            disk: diskKeyAfter,
-            size: preservedDiskSize,
-          });
+          await this.qemuResizeDiskApi(runNode, id, diskKeyAfter, preservedDiskSize);
         } catch (resizeErr) {
           if (this.isProxmoxResizeUnsupportedError(resizeErr)) {
             Logger.warn(
-              `Proxmox reinstall: resize API not available guest=${id} — disk stays clone size (wanted ${preservedDiskSize})`
+              `Proxmox reinstall: resize POST+PUT both rejected (501/405) guest=${id} — disk stays clone size (wanted ${preservedDiskSize})`
             );
           } else {
             Logger.error(
