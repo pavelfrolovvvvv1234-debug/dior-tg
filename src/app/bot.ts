@@ -193,6 +193,7 @@ export async function createBot(): Promise<{
             selectedProxyId: null,
             awaitingSearch: false,
           },
+          adminCreateService: null,
         }),
       },
       main: {
@@ -261,6 +262,10 @@ export async function createBot(): Promise<{
     "../ui/conversations/admin-promocodes-conversations.js"
   );
   registerPromoConversations(bot);
+  const { registerAdminCreateServiceConversation } = await import(
+    "../ui/conversations/admin-create-service-conversation.js"
+  );
+  registerAdminCreateServiceConversation(bot);
   const { domainRegisterConversation } = await import(
     "../ui/conversations/domain-register-conversation.js"
   );
@@ -825,6 +830,14 @@ export async function createBot(): Promise<{
     Logger.info("Growth campaigns cron started (24h)");
   } catch (e) {
     Logger.warn("Growth reactivation/campaigns not started", e);
+  }
+
+  try {
+    const { startNotificationEngine } = await import("../modules/notifications/index.js");
+    startNotificationEngine(dataSource, bot as never);
+    Logger.info("Notification engine started");
+  } catch (e) {
+    Logger.warn("Notification engine not started", e);
   }
 
   // Cleanup function

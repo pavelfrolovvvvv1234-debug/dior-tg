@@ -409,6 +409,17 @@ async function createVpsOrderDirect(
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
     }).catch(() => {});
+
+    void import("../../modules/automations/engine/event-bus.js").then(({ emit }) => {
+      emit({
+        event: "service.created",
+        userId: user.id,
+        serviceType: "vds",
+        serviceId: savedVds.id,
+        timestamp: new Date(),
+      });
+    });
+
     return true;
   } catch (error: any) {
     if (waitMessage && chatId) {
@@ -468,6 +479,16 @@ async function showVpsOsPicker(ctx: AppContext, rateId: number, locationKey: str
   }
   session.other.dedicatedOrder.selectedLocationKey = locationKey;
   session.other.vdsRate.selectedRateId = rateId;
+
+  if (session.main.user.id > 0) {
+    const pricesList = await prices();
+    const rate = pricesList.virtual_vds?.[rateId];
+    if (rate) {
+      void import("../../modules/notifications/index.js").then(({ trackVpsCheckoutFunnel }) =>
+        trackVpsCheckoutFunnel(ctx.appDataSource, session.main.user.id, rate.name)
+      );
+    }
+  }
 
   const kb = new InlineKeyboard();
   for (const key of DEDICATED_OS_KEYS) {

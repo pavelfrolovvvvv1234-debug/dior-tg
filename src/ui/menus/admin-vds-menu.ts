@@ -167,6 +167,40 @@ export async function replyAdminVdsList(ctx: AppContext): Promise<void> {
   await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb });
 }
 
+/** Open VDS detail card (admin). Used by list and post-wizard quick actions. */
+export async function openAdminVdsDetailById(ctx: AppContext, serviceId: number): Promise<void> {
+  if (!(await requireAdmin(ctx))) return;
+  const session = await ctx.session;
+  if (!session.other.adminVds) {
+    session.other.adminVds = {
+      page: 0,
+      searchQuery: "",
+      selectedVdsId: null,
+      awaitingSearch: false,
+      awaitingTransferUserId: false,
+    };
+  }
+  const ad = session.other.adminVds;
+  const vdsRepo = new VdsRepository(ctx.appDataSource);
+  const v = await vdsRepo.findById(serviceId);
+  if (!v) {
+    await ctx.reply(ctx.t("bad-error"));
+    return;
+  }
+  ad.selectedVdsId = serviceId;
+  const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
+  const vmStateRaw = String(vmInfo?.state ?? "").toLowerCase();
+  const vmState: "active" | "stopped" | "unknown" =
+    vmStateRaw === "active" ? "active" : vmStateRaw === "stopped" ? "stopped" : "unknown";
+  const text = await buildDetailText(ctx, v);
+  const markup = detailKeyboard(v, false, vmState);
+  try {
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: markup });
+  } catch {
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: markup });
+  }
+}
+
 export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
   const session = await ctx.session;
@@ -243,7 +277,10 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
       .text("▶", `adv:pg:${Math.min(totalPages - 1, ad.page + 1)}`)
       .row();
   }
-  kb.text(ctx.t("admin-vds-search-button"), "adv:search").row();
+  kb
+    .text(ctx.t("admin-cs-add-button"), "advcs:start")
+    .text(ctx.t("admin-vds-search-button"), "adv:search")
+    .row();
   kb.text(ctx.t("button-back"), "admin-menu-back");
   return kb;
 }
@@ -413,21 +450,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
 
   if (rest.startsWith("sel:")) {
     const id = parseInt(rest.slice(4), 10);
-    const vdsRepo = new VdsRepository(ctx.appDataSource);
-    const v = await vdsRepo.findById(id);
-    if (!v) {
-      await ctx.reply(ctx.t("bad-error"));
-      return;
-    }
-    ad.selectedVdsId = id;
-    const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
-    const vmStateRaw = String(vmInfo?.state ?? "").toLowerCase();
-    const vmState: "active" | "stopped" | "unknown" =
-      vmStateRaw === "active" ? "active" : vmStateRaw === "stopped" ? "stopped" : "unknown";
-    await ctx.editMessageText(await buildDetailText(ctx, v), {
-      parse_mode: "HTML",
-      reply_markup: detailKeyboard(v, false, vmState),
-    });
+    await openAdminVdsDetailById(ctx, id);
     return;
   }
 

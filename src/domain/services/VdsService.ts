@@ -228,6 +228,16 @@ export class VdsService {
         `Created VDS ${savedVds.id} (VM ID: ${vds.vdsId}) for user ${userId}`
       );
 
+      void import("../../modules/automations/engine/event-bus.js").then(({ emit }) => {
+        emit({
+          event: "service.created",
+          userId,
+          serviceType: "vds",
+          serviceId: savedVds.id,
+          timestamp: new Date(),
+        });
+      });
+
       return {
         vds: savedVds,
         price,

@@ -20,8 +20,17 @@ import { ReferralService } from "../domain/referral/ReferralService";
 import { ensureSessionUser } from "../shared/utils/session-user.js";
 import { canChangeRoles, canEditBalance, canManageServices } from "../shared/auth/permissions.js";
 import { writeAdminAuditLog } from "../shared/audit/admin-audit.js";
+import {
+  ADMIN_USER_LIST_PAGE_SIZE,
+  findUsersForAdminList,
+  nextRoleFilter,
+  roleBadgeFtlSuffix,
+  roleFilterFtlSuffix,
+  statusForRole,
+  truncateTelegramMenuLabel,
+} from "../shared/users/user-display.js";
 
-const LIMIT_ON_PAGE = 7;
+const LIMIT_ON_PAGE = ADMIN_USER_LIST_PAGE_SIZE;
 
 async function getQuickUserStats(
   dataSource: AppContext["appDataSource"],
@@ -169,11 +178,19 @@ export async function buildControlPanelUserReply(
     : ctx.t("control-panel-user-status-active");
   const hasPrime = user.primeActiveUntil != null && new Date(user.primeActiveUntil) > new Date();
   const primeStatusLabel = hasPrime ? ctx.t("control-panel-prime-yes") : ctx.t("control-panel-prime-no");
-  const statusForLevel =
-    user.status && ["user", "moderator", "admin"].includes(String(user.status))
-      ? (user.status as UserStatus)
-      : UserStatus.User;
-  const userLevelLabel = ctx.t(`admin-user-level-${statusForLevel}` as "admin-user-level-user");
+  const roleSuffix = roleBadgeFtlSuffix(user.role);
+  const roleBadge = ctx.t(`role-badge-${roleSuffix}` as "role-badge-user");
+  const userLevelLabel = ctx.t(`admin-user-level-${roleSuffix === "mod" ? "moderator" : roleSuffix}` as "admin-user-level-user");
+  const referralService = new ReferralService(ctx.appDataSource, new UserRepository(ctx.appDataSource));
+  const referralCount = await referralService.countReferrals(user.id);
+  const referralPercent =
+    user.referralPercent != null ? Math.round(user.referralPercent * 100) / 100 : 5;
+  const referralBalance = Math.round((user.referralBalance ?? 0) * 100) / 100;
+  const referralLine = ctx.t("control-panel-referral-line", {
+    referralPercent,
+    referralBalance,
+    referralCount,
+  });
   const money = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -202,10 +219,13 @@ export async function buildControlPanelUserReply(
   return {
     text: ctx.t("control-panel-about-user", {
       id: user.id,
+      telegramId: user.telegramId,
       usernameDisplay,
+      roleBadge,
       statusLine,
       primeStatusLabel,
       userLevelLabel,
+      referralLine,
       balanceFormatted,
       depositFormatted,
       topupsCount: stats.topupsCount,
@@ -520,19 +540,31 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
       }
       range.row();
 
-      const [users, total] = await ctx.appDataSource.manager.findAndCount(
-        User,
-        {
-          where: { role: Role.User },
-          order: sorting(
-            session.other.controlUsersPage.orderBy,
-            session.other.controlUsersPage.sortBy
-          ),
-          select: ["id", "balance", "createdAt", "telegramId"],
-          skip: session.other.controlUsersPage.page * LIMIT_ON_PAGE,
-          take: LIMIT_ON_PAGE,
+      range.text(
+        (ctx) =>
+          ctx.t("admin-users-role-filter", {
+            label: ctx.t(`admin-users-filter-${roleFilterFtlSuffix(session.other.controlUsersPage.roleFilter)}`),
+          }),
+        async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
+          session.other.controlUsersPage.roleFilter = nextRoleFilter(
+            session.other.controlUsersPage.roleFilter
+          );
+          session.other.controlUsersPage.page = 0;
+          await ctx.menu.update({ immediate: true });
         }
       );
+      range.row();
+
+      const [users, total] = await findUsersForAdminList(ctx.appDataSource.manager, {
+        page: session.other.controlUsersPage.page,
+        limit: LIMIT_ON_PAGE,
+        sort: {
+          orderBy: session.other.controlUsersPage.orderBy,
+          sortBy: session.other.controlUsersPage.sortBy,
+        },
+        roleFilter: session.other.controlUsersPage.roleFilter,
+      });
 
       if (total === 0) {
         range.text(ctx.t("list-empty"), async () => {});
@@ -552,9 +584,14 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
           username = "Unknown";
         }
 
+        const roleBadge = ctx.t(`role-badge-${roleBadgeFtlSuffix(user.role)}` as "role-badge-user");
+        const banMark = user.isBanned ? " ⛔" : "";
+        const listLabel = truncateTelegramMenuLabel(
+          `${roleBadge} ${username} · #${user.id} · ${user.balance} $${banMark}`
+        );
         range
           .text(
-            `ID: ${username} (${user.id}) - ${user.balance} $`,
+            listLabel,
             async (ctx) => {
               try {
                 await ctx.answerCallbackQuery().catch(() => {});
@@ -739,7 +776,10 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 
 _controlUserMenu = controlUser;
 
-async function resolveUserFromAdminLookup(ctx: AppContext, raw: string): Promise<User | null> {
+export async function resolveUserFromAdminLookup(
+  ctx: AppContext,
+  raw: string
+): Promise<User | null> {
   const input = raw.trim();
   if (!input) return null;
   const repo = ctx.appDataSource.getRepository(User);
@@ -764,6 +804,30 @@ async function resolveUserFromAdminLookup(ctx: AppContext, raw: string): Promise
   } catch {
     return null;
   }
+}
+
+/** Open control-panel card for a user (admin wizard quick action). */
+export async function openAdminUserControlPanel(
+  ctx: AppContext,
+  userId: number
+): Promise<void> {
+  const session = await ctx.session;
+  const user = await ctx.appDataSource.manager.findOne(User, { where: { id: userId } });
+  if (!user) {
+    await ctx.reply(ctx.t("admin-lookup-user-not-found"), { parse_mode: "HTML" });
+    return;
+  }
+  if (!session.other.controlUsersPage) {
+    session.other.controlUsersPage = {
+      orderBy: "id",
+      sortBy: "DESC",
+      page: 0,
+    };
+  }
+  session.other.controlUsersPage.pickedUserData = { id: user.id };
+  const menu = getControlUserMenu();
+  const { text, reply_markup } = await buildControlPanelUserReply(ctx, user, undefined, menu);
+  await ctx.reply(text, { parse_mode: "HTML", reply_markup });
 }
 
 /** Staff text handler: lookup user by DB id, Telegram id, or @username. Returns true if the message was consumed. */
@@ -875,17 +939,17 @@ export const controlUserStatus = new Menu<AppContext>("control-user-status", {})
 
     if (!user) return;
 
-    // Show current status
+    const effectiveStatus = statusForRole(user.role);
+
     range.text(
-      (ctx) => ctx.t("user-status-current", { status: ctx.t(`user-status-${user.status}`) }),
+      (ctx) => ctx.t("user-status-current", { status: ctx.t(`user-status-${effectiveStatus}`) }),
       async () => {}
     );
     range.row();
 
-    // Status selection buttons
     const statuses = [UserStatus.User, UserStatus.Moderator, UserStatus.Admin];
     for (const status of statuses) {
-      if (user.status !== status) {
+      if (effectiveStatus !== status) {
         range.text(
           (ctx) => ctx.t(`user-status-${status}`),
           async (ctx) => {
@@ -908,11 +972,6 @@ export const controlUserStatus = new Menu<AppContext>("control-user-status", {})
               user.role
             );
             if (status === UserStatus.Admin) {
-              const { adminMenu } = await import("../ui/menus/admin-menu.js");
-              await ctx.editMessageText(ctx.t("admin-panel-header"), {
-                parse_mode: "HTML",
-                reply_markup: adminMenu,
-              });
               try {
                 const { InlineKeyboard } = await import("grammy");
                 await ctx.api.sendMessage(user.telegramId, ctx.t("admin-promoted-notification"), {
@@ -922,8 +981,30 @@ export const controlUserStatus = new Menu<AppContext>("control-user-status", {})
               } catch (_) {
                 // User may have blocked the bot or disabled messages
               }
+              const promotedSelf = user.id === session.main.user.id;
+              if (promotedSelf) {
+                const { adminMenu } = await import("../ui/menus/admin-menu.js");
+                await ctx.editMessageText(ctx.t("admin-panel-header"), {
+                  parse_mode: "HTML",
+                  reply_markup: adminMenu,
+                });
+              } else {
+                const { text, reply_markup } = await buildControlPanelUserReply(
+                  ctx,
+                  user,
+                  undefined,
+                  controlUser
+                );
+                await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
+              }
             } else {
-              ctx.menu.back();
+              const { text, reply_markup } = await buildControlPanelUserReply(
+                ctx,
+                user,
+                undefined,
+                controlUser
+              );
+              await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup }).catch(() => {});
             }
           }
         );

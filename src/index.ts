@@ -24,6 +24,7 @@ import {
   PREFIX_PROMOTE,
   promotePermissions,
 } from "./helpers/promote-permissions";
+import { writeAdminAuditLog } from "./shared/audit/admin-audit.js";
 import {
   buildControlPanelUserReply,
   buildReferralSummaryReply,
@@ -491,6 +492,7 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
     if (!isAdmin) return;
     if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
       dbUser.role = Role.Admin;
+      dbUser.status = UserStatus.Admin;
       await dataSource.manager.save(dbUser);
     }
     const session = (await ctx.session) as SessionData;
@@ -691,6 +693,17 @@ async function index() {
     );
     expirationService.start();
   }
+
+  let stopNotificationEngine: (() => void) | undefined;
+  try {
+    const { startNotificationEngine } = await import("./modules/notifications/index.js");
+    const notificationHandle = startNotificationEngine(appDataSource, bot as never);
+    stopNotificationEngine = notificationHandle.stop;
+    Logger.info("Notification engine started");
+  } catch (notificationErr) {
+    Logger.warn("Notification engine not started", notificationErr);
+  }
+
   startOsListBackgroundRefresh(vmmanager);
 
   bot.use((ctx, next) => {
@@ -746,6 +759,14 @@ async function index() {
             newUser.status = UserStatus.User;
             newUser.referrerId = null;
             user = await appDataSource.manager.save(newUser);
+            void import("./modules/automations/engine/event-bus.js").then(({ emit }) => {
+              emit({
+                event: "user.login",
+                userId: user!.id,
+                telegramId: tid,
+                timestamp: new Date(),
+              });
+            });
           }
           setCachedUser(tid, user);
           ctx.loadedUser = user;
@@ -760,6 +781,7 @@ async function index() {
             session.main.user.role = Role.Admin;
             if (user.role !== Role.Admin) {
               user.role = Role.Admin;
+              user.status = UserStatus.Admin;
               void appDataSource.manager.save(user).then(() => setCachedUser(tid, user!));
             }
           }
@@ -778,6 +800,7 @@ async function index() {
           session.main.user.role = Role.Admin;
           if (user.role !== Role.Admin) {
             user.role = Role.Admin;
+            user.status = UserStatus.Admin;
             void appDataSource.manager.save(user).then(() => setCachedUser(tid, user!));
           }
         }
@@ -988,6 +1011,10 @@ async function index() {
 
   // conversations() is registered immediately after session (see above).
   registerPromoConversations(bot);
+  const { registerAdminCreateServiceConversation } = await import(
+    "./ui/conversations/admin-create-service-conversation.js"
+  );
+  registerAdminCreateServiceConversation(bot);
   bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
   bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
   bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
@@ -1281,6 +1308,13 @@ async function index() {
     await ctx.deleteMessage().catch(() => {});
   });
 
+  bot.callbackQuery(/^advcs:start$/, async (ctx) => {
+    const { startAdminCreateServiceWizard } = await import(
+      "./ui/conversations/admin-create-service-conversation.js"
+    );
+    await startAdminCreateServiceWizard(ctx as AppContext);
+  });
+
   bot.callbackQuery(/^adv:/, async (ctx) => {
     const { handleAdminVdsCallback } = await import("./ui/menus/admin-vds-menu.js");
     await handleAdminVdsCallback(ctx as AppContext);
@@ -1502,6 +1536,7 @@ async function index() {
     }
     if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
       dbUser.role = Role.Admin;
+      dbUser.status = UserStatus.Admin;
       await dataSource.manager.save(dbUser);
     }
     const session = (await ctx.session) as SessionData;
@@ -2038,13 +2073,6 @@ async function index() {
       }
       const rounded = Math.round(value * 100) / 100;
       const key = referralPercentEdit.key;
-      if (key === "default" || !key) {
-        targetUser.referralPercent = rounded;
-        delete session.other.referralPercentEdit;
-        await ctx.reply(ctx.t("admin-referral-percent-success", { percent: rounded }), { parse_mode: "HTML" });
-        await ctx.appDataSource.manager.save(targetUser);
-        return;
-      }
       const columnMap: Record<string, keyof User> = {
         domains: "referralPercentDomains",
         dedicated_standard: "referralPercentDedicatedStandard",
@@ -2053,11 +2081,43 @@ async function index() {
         vds_bulletproof: "referralPercentVdsBulletproof",
         cdn: "referralPercentCdn",
       };
-      const col = columnMap[key];
-      if (col) {
-        (targetUser as any)[col] = rounded;
+      let auditField = "referralPercent";
+      let oldValue: string | null =
+        targetUser.referralPercent != null ? String(targetUser.referralPercent) : null;
+      if (key === "default" || !key) {
+        targetUser.referralPercent = rounded;
+        delete session.other.referralPercentEdit;
         await ctx.appDataSource.manager.save(targetUser);
+        await writeAdminAuditLog(
+          ctx.appDataSource,
+          session.main.user.id,
+          targetUser.id,
+          "referral_percent_changed",
+          oldValue,
+          String(rounded)
+        );
+        await ctx.reply(ctx.t("admin-referral-percent-success", { percent: rounded }), { parse_mode: "HTML" });
+        return;
       }
+      const col = columnMap[key];
+      if (!col) {
+        delete session.other.referralPercentEdit;
+        await ctx.reply(ctx.t("admin-referral-percent-invalid"), { parse_mode: "HTML" });
+        return;
+      }
+      auditField = col;
+      const prev = targetUser[col];
+      oldValue = prev != null ? String(prev) : null;
+      Object.assign(targetUser, { [col]: rounded });
+      await ctx.appDataSource.manager.save(targetUser);
+      await writeAdminAuditLog(
+        ctx.appDataSource,
+        session.main.user.id,
+        targetUser.id,
+        "referral_percent_changed",
+        oldValue ? `${auditField}=${oldValue}` : null,
+        `${auditField}=${rounded}`
+      );
       const name =
         key.startsWith("dedicated_")
           ? `${ctx.t("ref-percent-label-dedicated")} — ${ctx.t(key === "dedicated_standard" ? "button-standard" : "button-bulletproof")}`
@@ -2585,6 +2645,7 @@ async function index() {
       }
       if (dbUser && adminIds.includes(Number(telegramId)) && dbUser.role !== Role.Admin) {
         dbUser.role = Role.Admin;
+        dbUser.status = UserStatus.Admin;
         await dataSource.manager.save(dbUser);
       }
       const session = (await ctx.session) as SessionData;

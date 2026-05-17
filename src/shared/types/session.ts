@@ -5,6 +5,7 @@
  */
 
 import { Role, UserStatus } from "../../entities/User.js";
+import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-services/types.js";
 
 /**
  * Main session data (persisted).
@@ -35,6 +36,8 @@ export interface OtherSessionData {
     orderBy: "balance" | "id";
     sortBy: "ASC" | "DESC";
     page: number;
+    /** When set, list only users with this RBAC role; unset = all roles. */
+    roleFilter?: Role;
     pickedUserData?: {
       id: number;
     };
@@ -214,6 +217,8 @@ export interface OtherSessionData {
     selectedProxyId: string | null;
     awaitingSearch: boolean;
   };
+  /** Admin «Add service» wizard (null when idle). */
+  adminCreateService?: AdminCreateServiceSessionState | null;
 }
 
 /**

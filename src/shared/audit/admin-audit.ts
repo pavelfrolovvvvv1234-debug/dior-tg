@@ -5,6 +5,7 @@ export type AdminAuditAction =
   | "role_changed"
   | "role_auto_fixed"
   | "balance_changed"
+  | "referral_percent_changed"
   | "service_extended"
   | "service_blocked"
   | "service_unblocked"

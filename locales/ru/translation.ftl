@@ -154,9 +154,12 @@ admin-lookup-vds-button = 🔍 Найти VDS
 
 control-panel-about-user =
     <b>👤 Пользователь</b>{$gap}
-    ID: {$id} • {$usernameDisplay}
-    Статус: {$statusLine}
-    Уровень: {$userLevelLabel} • Подписка: {$primeStatusLabel}{$gap}
+    ID: {$id} • TG: <code>{$telegramId}</code>
+    {$usernameDisplay}
+    Роль: {$roleBadge} • {$userLevelLabel}
+    Статус: {$statusLine} • Подписка: {$primeStatusLabel}{$gap}
+    <b>👥 Реферал</b>
+    {$referralLine}{$gap}
     <b>💳 Финансы</b>
     Баланс: {$balanceFormatted}
     Депозит: {$depositFormatted}
@@ -182,6 +185,18 @@ admin-prime-status-no = Нет
 admin-user-level-user = Пользователь
 admin-user-level-moderator = Модератор
 admin-user-level-admin = Админ
+
+role-badge-user = 👤 USER
+role-badge-mod = 🛡 MOD
+role-badge-admin = ⚡ ADMIN
+
+admin-users-role-filter = 🔽 Роль: {$label}
+admin-users-filter-all = Все
+admin-users-filter-user = USER
+admin-users-filter-mod = MOD
+admin-users-filter-admin = ADMIN
+
+control-panel-referral-line = {$referralPercent}% · баланс {NUMBER($referralBalance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $ · приглашено {$referralCount}
 admin-date-format = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 
 sorting-by-balance = Сортировать по: {-balance}
@@ -852,6 +867,77 @@ admin-vds-vm-stopped = ✅ VM остановлена.
 admin-vds-vm-rebooted = ✅ VM перезагружена.
 admin-vds-proxmox-search-hint = <b>Proxmox:</b> ищите ВМ по <b>VMID</b> <code>{$vmid}</code> в списке гостей / журнале задач; в «Описании» гостя может быть метка <code>DiorHost</code>.
 admin-vds-bot-ids-line = <b>Бот:</b> id услуги (БД) <code>{$serviceId}</code> · id клиента <code>{$userId}</code>
+
+# Admin — добавление услуги (wizard)
+admin-cs-restart-hint = Запускаем мастер заново…
+admin-cs-add-button = ➕ Добавить услугу
+admin-cs-wizard-title = Добавление услуги
+admin-cs-step = Шаг {$current} / {$total} · {$title}
+admin-cs-step-type = Тип услуги
+admin-cs-step-form = Данные услуги
+admin-cs-step-user = Назначение
+admin-cs-step-review = Подтверждение
+admin-cs-step-creating = Создание
+admin-cs-type-prompt = Выберите тип услуги:
+admin-cs-type-domain = 🌐 Домены
+admin-cs-type-vds = ☁ VPS / VDS
+admin-cs-type-dedicated = 🖥 Dedicated
+admin-cs-cancel = Отмена
+admin-cs-back = ◀ Назад
+admin-cs-skip-field = Пропустить
+admin-cs-field-required = Поле обязательно.
+admin-cs-user-prompt = Найдите клиента: отправьте <b>user id</b>, <b>Telegram id</b> или <b>@username</b>.
+admin-cs-user-not-found = Пользователь не найден. Проверьте id или @username.
+admin-cs-user-missing = Пользователь не найден.
+admin-cs-user-card-title = Назначен клиент
+admin-cs-user-id-line = DB id: {$id}
+admin-cs-user-active = Активен
+admin-cs-user-banned = Заблокирован
+admin-cs-confirm-checkbox = Подтверждаю корректность данных
+admin-cs-confirm-required = Отметьте подтверждение перед созданием.
+admin-cs-edit-type = Изменить тип
+admin-cs-edit-form = Изменить данные
+admin-cs-edit-user = Изменить клиента
+admin-cs-submit = Создать услугу
+admin-cs-review-type = Тип
+admin-cs-review-data = Данные
+admin-cs-review-user = Клиент
+admin-cs-review-meta = Мета
+admin-cs-review-warning = Проверьте данные. После создания услуга будет привязана к клиенту.
+admin-cs-created-by = Создал (admin user id)
+admin-cs-created-at = Время (UTC)
+admin-cs-creating = Создаём услугу…
+admin-cs-success-title = Услуга успешно добавлена
+admin-cs-success-hint = Быстрые действия ниже.
+admin-cs-open-service = Открыть услугу
+admin-cs-add-another = Добавить ещё
+admin-cs-go-user = К клиенту
+admin-cs-done = К списку услуг
+admin-cs-error = Ошибка: {$error}
+admin-cs-hint-date = Формат: YYYY-MM-DD или DD.MM.YY
+admin-cs-hint-vmid = Пусто — VMID назначится автоматически
+admin-cs-field-domain = Домен (example.com)
+admin-cs-field-registrar = Регистратор / провайдер
+admin-cs-field-expires = Дата окончания
+admin-cs-field-ns1 = NS1 (необязательно)
+admin-cs-field-ns2 = NS2 (необязательно)
+admin-cs-field-notes = Заметки (необязательно)
+admin-cs-field-ipv4 = IPv4
+admin-cs-field-login = Логин
+admin-cs-field-password = Пароль
+admin-cs-field-provider = Провайдер
+admin-cs-field-os = ОС (метка)
+admin-cs-field-ssh-port = SSH порт (необязательно)
+admin-cs-field-vmid = VMID (необязательно)
+admin-cs-field-rate = Имя тарифа
+admin-cs-field-cpu = CPU (число)
+admin-cs-field-ram = RAM, GB
+admin-cs-field-disk = Диск, GB
+admin-cs-field-price = Цена продления, USD
+admin-cs-field-rack = Стойка / локация
+admin-cs-field-hardware = Железо / конфигурация
+admin-cs-field-monthly = Цена в месяц, USD (необязательно)
+admin-cs-field-paid-until = Оплачено до (необязательно)
 
 admin-cdn-title = <strong>CDN — админ</strong>
 Поиск: proxyId, домен, origin. Страница {$page} / {$totalPages}

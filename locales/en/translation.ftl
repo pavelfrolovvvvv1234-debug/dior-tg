@@ -152,9 +152,12 @@ admin-lookup-vds-button = 🔍 Find VDS
 
 control-panel-about-user =
     <b>👤 User</b>{$gap}
-    ID: {$id} • {$usernameDisplay}
-    Status: {$statusLine}
-    Level: {$userLevelLabel} • Subscription: {$primeStatusLabel}{$gap}
+    ID: {$id} • TG: <code>{$telegramId}</code>
+    {$usernameDisplay}
+    Role: {$roleBadge} • {$userLevelLabel}
+    Status: {$statusLine} • Subscription: {$primeStatusLabel}{$gap}
+    <b>👥 Referral</b>
+    {$referralLine}{$gap}
     <b>💳 Finance</b>
     Balance: {$balanceFormatted}
     Deposits: {$depositFormatted}
@@ -180,6 +183,19 @@ admin-prime-status-no = No
 admin-user-level-user = User
 admin-user-level-moderator = Moderator
 admin-user-level-admin = Admin
+
+role-badge-user = 👤 USER
+role-badge-mod = 🛡 MOD
+role-badge-admin = ⚡ ADMIN
+
+admin-users-role-filter = 🔽 Role: {$label}
+admin-users-filter-all = All
+admin-users-filter-user = USER
+admin-users-filter-mod = MOD
+admin-users-filter-admin = ADMIN
+
+control-panel-referral-line = {$referralPercent}% · balance {NUMBER($referralBalance, minimumFractionDigits: 0, maximumFractionDigits: 2)} $ · invites {$referralCount}
+
 admin-date-format = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 
 sorting-by-balance = Sorting by: {-balance}
@@ -836,6 +852,77 @@ admin-vds-vm-stopped = ✅ VM stopped.
 admin-vds-vm-rebooted = ✅ VM rebooted.
 admin-vds-proxmox-search-hint = <b>Proxmox:</b> find the guest by <b>VMID</b> <code>{$vmid}</code> in the VM list / task log; guest <b>Notes/Description</b> may contain <code>DiorHost</code>.
 admin-vds-bot-ids-line = <b>Bot:</b> service id <code>{$serviceId}</code> · customer user id <code>{$userId}</code>
+
+# Admin — add service wizard
+admin-cs-restart-hint = Restarting the wizard…
+admin-cs-add-button = ➕ Add service
+admin-cs-wizard-title = Add service
+admin-cs-step = Step {$current} / {$total} · {$title}
+admin-cs-step-type = Service type
+admin-cs-step-form = Service details
+admin-cs-step-user = Assignment
+admin-cs-step-review = Review
+admin-cs-step-creating = Creating
+admin-cs-type-prompt = Choose a service type:
+admin-cs-type-domain = 🌐 Domains
+admin-cs-type-vds = ☁ VPS / VDS
+admin-cs-type-dedicated = 🖥 Dedicated
+admin-cs-cancel = Cancel
+admin-cs-back = ◀ Back
+admin-cs-skip-field = Skip
+admin-cs-field-required = This field is required.
+admin-cs-user-prompt = Find a customer: send <b>user id</b>, <b>Telegram id</b>, or <b>@username</b>.
+admin-cs-user-not-found = User not found. Check id or @username.
+admin-cs-user-missing = User not found.
+admin-cs-user-card-title = Assigned customer
+admin-cs-user-id-line = DB id: {$id}
+admin-cs-user-active = Active
+admin-cs-user-banned = Banned
+admin-cs-confirm-checkbox = I confirm the data is correct
+admin-cs-confirm-required = Check the confirmation box before creating.
+admin-cs-edit-type = Edit type
+admin-cs-edit-form = Edit details
+admin-cs-edit-user = Edit customer
+admin-cs-submit = Create service
+admin-cs-review-type = Type
+admin-cs-review-data = Details
+admin-cs-review-user = Customer
+admin-cs-review-meta = Meta
+admin-cs-review-warning = Review carefully. The service will be linked to the customer.
+admin-cs-created-by = Created by (admin user id)
+admin-cs-created-at = Time (UTC)
+admin-cs-creating = Creating service…
+admin-cs-success-title = Service created successfully
+admin-cs-success-hint = Quick actions below.
+admin-cs-open-service = Open service
+admin-cs-add-another = Add another
+admin-cs-go-user = Go to customer
+admin-cs-done = Back to list
+admin-cs-error = Error: {$error}
+admin-cs-hint-date = Format: YYYY-MM-DD or DD.MM.YY
+admin-cs-hint-vmid = Leave empty for auto VMID
+admin-cs-field-domain = Domain (example.com)
+admin-cs-field-registrar = Registrar / provider
+admin-cs-field-expires = Expiry date
+admin-cs-field-ns1 = NS1 (optional)
+admin-cs-field-ns2 = NS2 (optional)
+admin-cs-field-notes = Notes (optional)
+admin-cs-field-ipv4 = IPv4
+admin-cs-field-login = Login
+admin-cs-field-password = Password
+admin-cs-field-provider = Provider
+admin-cs-field-os = OS label
+admin-cs-field-ssh-port = SSH port (optional)
+admin-cs-field-vmid = VMID (optional)
+admin-cs-field-rate = Plan name
+admin-cs-field-cpu = CPU (count)
+admin-cs-field-ram = RAM, GB
+admin-cs-field-disk = Disk, GB
+admin-cs-field-price = Renewal price, USD
+admin-cs-field-rack = Rack / location
+admin-cs-field-hardware = Hardware / specs
+admin-cs-field-monthly = Monthly price, USD (optional)
+admin-cs-field-paid-until = Paid until (optional)
 
 admin-cdn-title = <strong>CDN — admin</strong>
 Search: proxyId, domain, origin. Page {$page} / {$totalPages}

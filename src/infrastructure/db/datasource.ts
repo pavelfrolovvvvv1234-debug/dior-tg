@@ -41,6 +41,12 @@ import {
 } from "../../entities/automations/index.js";
 import { Logger } from "../../app/logger.js";
 import AdminAuditLog from "../../entities/AdminAuditLog.js";
+import {
+  NotificationJob,
+  NotificationDelivery,
+  UserEngagementProfile,
+  UserFunnelState,
+} from "../../entities/notifications/index.js";
 import { runRoleModelMigration } from "./role-migration.js";
 import { runProvisioningStatusMigration } from "./provisioning-status-migration.js";
 import { dedupeVdslistDuplicateVdsIds } from "./vdslist-dedupe.js";
@@ -86,6 +92,10 @@ const AppDataSource = new DataSource({
     AutomationEventLog,
     ScenarioMetric,
     AdminAuditLog,
+    NotificationJob,
+    NotificationDelivery,
+    UserEngagementProfile,
+    UserFunnelState,
   ],
   enableWAL: true,
   logging: false,

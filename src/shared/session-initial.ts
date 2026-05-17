@@ -69,6 +69,7 @@ export function createInitialOtherSession(): SessionData["other"] {
     dedicatedOrder: { step: "idle", requirements: undefined },
     cdn: { step: "idle" },
     adminCdn: { page: 0, searchQuery: "", selectedProxyId: null, awaitingSearch: false },
+    adminCreateService: null,
     ticketsView: { list: null, currentTicketId: null, pendingAction: null, pendingTicketId: null, pendingData: {} },
     deposit: { awaitingAmount: false, prefilledAmount: false, selectedAmount: 50 },
     promocode: { awaitingInput: false },

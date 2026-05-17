@@ -137,4 +137,22 @@ export class UserRepository extends BaseRepository<User> {
     user.status = status;
     return this.save(user);
   }
+
+  /**
+   * Admin wizard: resolve user by internal id or Telegram id.
+   */
+  async findForAdminAssignment(query: string): Promise<User | null> {
+    const trimmed = query.trim();
+    if (!trimmed) return null;
+
+    const idNum = Number.parseInt(trimmed, 10);
+    if (Number.isFinite(idNum) && String(idNum) === trimmed.replace(/^\+/, "")) {
+      const byInternal = await this.findById(idNum);
+      if (byInternal) return byInternal;
+      const byTelegram = await this.findByTelegramId(idNum);
+      if (byTelegram) return byTelegram;
+    }
+
+    return null;
+  }
 }
