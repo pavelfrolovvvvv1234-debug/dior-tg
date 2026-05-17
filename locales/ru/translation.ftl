@@ -252,6 +252,111 @@ moderator-menu-header = <strong>Панель модератора</strong>
 button-referrals = 👥 Рефералы
 button-share-link = 🔗 Поделиться
 referrals-screen = 💼 Партнёрская программа DiorHost\n\nМонетизируйте трафик на инфраструктуре DiorHost.\n\n💸 До 30% с каждого пополнения\n♾ Доход со всех следующих платежей\n⚡ Выплаты от $10\n📊 Прозрачная статистика в реальном времени\n\n━━━━━━━━━━━━━━\n\n🔗 Ваша ссылка:\n{$link}\n\n━━━━━━━━━━━━━━\n\n👥 Рефералов: {$count}\n💰 Доход: ${ $profit }
+
+referrals-screen-premium =
+    <b>💼 Affiliate Center · DiorHost</b>
+    
+    <i>Enterprise hosting partner program</i>
+    
+    {$tierEmoji} <b>Tier {$tier}</b> · {$referralPercent}% commission
+    
+    ━━━━━━━━━━━━━━
+    <b>📊 Performance</b>
+    👥 Рефералов: <b>{$totalReferees}</b> · активных: <b>{$activeReferees}</b>
+    💰 Заработано: <b>${$totalEarned}</b> · 7д: <b>${$earned7d}</b> · 30д: <b>${$earned30d}</b>
+    💳 К выводу: <b>${$pendingPayout}</b> · конверсия: <b>{$conversionRate}%</b>
+    🕒 Последний реферал: {$lastJoin}
+    
+    ━━━━━━━━━━━━━━
+    🔗 <b>Ваша ссылка</b>
+    <code>{$link}</code>
+    
+    ━━━━━━━━━━━━━━
+    💼 Баланс партнёрки: <b>${$profit}</b>
+
+button-my-referrals = 👥 Мои рефералы
+ref-loading = ⏳ Загрузка affiliate center…
+
+ref-list-header-title = <b>👥 Мои рефералы</b>
+ref-list-summary-card =
+    {$tierEmoji} <b>{$tier}</b> · рефералов <b>{$total}</b> (активных {$active})
+    💰 Lifetime <b>${$earned}</b> · к выводу <b>${$pending}</b>
+    📈 Конверсия <b>{$conversion}%</b> · последний: {$lastJoin}
+ref-list-empty = Пока нет приглашённых пользователей. Поделитесь ссылкой из overview.
+ref-list-tap-hint = Выберите реферала ниже для детальной карточки ↓
+ref-list-page = Стр. {$current} / {$total}
+
+ref-sort-label-earnings = Сортировка: по доходу
+ref-sort-label-join = Сортировка: по дате
+ref-sort-label-activity = Сортировка: по активности
+ref-sort-label-spent = Сортировка: по тратам
+ref-filter-label-all = Фильтр: все
+ref-filter-label-active = Фильтр: активные
+ref-filter-label-inactive = Фильтр: неактивные
+ref-filter-label-deposited = Фильтр: с депозитом
+
+ref-status-active = 🟢 активен
+ref-status-inactive = ⚪ неактивен
+ref-row-joined = Регистрация:
+ref-row-last = Активность:
+ref-row-services = Услуги:
+ref-row-earned = Доход с реферала:
+ref-row-spent = Траты:
+
+ref-btn-sort = ⇅ Сортировка
+ref-btn-filter = ⊙ Фильтр
+ref-btn-search = 🔍 Поиск
+ref-btn-activity = ⚡ Лента
+ref-btn-analytics = 📈 Аналитика
+ref-btn-back-hub = ⬅️ Overview
+ref-btn-back-list = ⬅️ К списку
+
+ref-sort-menu-title = <b>⇅ Сортировка рефералов</b>
+ref-filter-menu-title = <b>⊙ Фильтр рефералов</b>
+ref-sort-earnings = По доходу
+ref-sort-join = По дате
+ref-sort-activity = По активности
+ref-sort-spent = По тратам
+ref-filter-all = Все
+ref-filter-active = Активные
+ref-filter-inactive = Неактивные
+ref-filter-deposited = С депозитом
+ref-search-prompt = Введите <b>@username</b>, Telegram ID или внутренний ID для поиска реферала.
+
+ref-activity-title = <b>⚡ Live Activity</b>
+ref-activity-empty = Событий пока нет.
+ref-activity-join-line = {$when} · 👋 <b>{$name}</b> присоединился
+ref-activity-reward-line = {$when} · 💰 <b>{$name}</b> +${$reward} (депозит ${$amount})
+ref-activity-topup-line = {$when} · 💳 <b>{$name}</b> пополнил ${$amount}
+
+ref-analytics-title = <b>📈 Partner Analytics</b>
+ref-analytics-earnings =
+    7 дней: <b>${$w7}</b>
+    30 дней: <b>${$m30}</b>
+    Всего: <b>${$all}</b>
+    Прогноз / мес: <b>${$projected}</b>
+ref-analytics-chart = Недельная динамика
+ref-analytics-top = 🏆 Top referrals
+ref-analytics-no-top = —
+
+ref-detail-title = <b>👤 {$name}</b>
+ref-detail-joined = 📅 Регистрация:
+ref-detail-last = 🕒 Последняя активность:
+ref-detail-metrics =
+    💰 Заработано с реферала: <b>${$earned}</b>
+    💳 Депозиты реферала: <b>${$spent}</b> ({$deposits} шт.)
+    📦 Услуги: {$services}
+ref-detail-recent-topups = Последние пополнения
+ref-detail-timeline = Таймлайн
+ref-detail-no-topups = нет
+ref-detail-no-events = нет
+
+ref-admin-top-title = <b>🏆 Top Affiliates</b>
+ref-admin-top-empty = Нет данных по партнёрам.
+ref-admin-top-row = {$rank}. {$tierEmoji} {$name} · 👥 {$refs} · 💰 ${$earned} · вывод ${$balance} · {$percent}%
+ref-admin-view-referees = 👥 Рефералы юзера
+ref-admin-top-affiliates = 🏆 Top affiliates
+
 referrals-share-text = Присоединяйся ко мне на Dior Host! Используй мою реферальную ссылку, чтобы начать.
 referral-new-joined = 👋 У вас появился новый реферал.
     Количество ваших рефералов: <b>{$count}</b>

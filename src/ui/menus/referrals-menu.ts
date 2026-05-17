@@ -175,6 +175,21 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
   )
   .row()
   .text(
+    (ctx) => ctx.t("button-my-referrals"),
+    async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const { ensureReferralCenter } = await import("../referrals/referral-center-ui.js");
+      const { renderRefereesList } = await import("../referrals/referral-center-handlers.js");
+      const session = (await ctx.session) as import("../../shared/types/session.js").SessionData;
+      const st = ensureReferralCenter(session);
+      st.page = 0;
+      st.searchQuery = undefined;
+      const { renderRefereesList } = await import("../referrals/referral-center-handlers.js");
+      await renderRefereesList(ctx);
+    }
+  )
+  .row()
+  .text(
     (ctx) => ctx.t("button-referral-stats"),
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});

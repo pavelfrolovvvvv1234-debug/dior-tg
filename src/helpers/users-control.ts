@@ -298,6 +298,9 @@ export async function buildReferralSummaryReply(
     .text(ctx.t("button-ref-topup-percent"), "admin-referrals-change-percent")
     .text(ctx.t("button-referral-percent-by-service"), "admin-referrals-percent-by-service")
     .row()
+    .text(ctx.t("ref-admin-view-referees"), `refadm:referees:${user.id}`)
+    .text(ctx.t("ref-admin-top-affiliates"), "refadm:top")
+    .row()
     .text(ctx.t("button-back"), "admin-referrals-back");
   const referralPercent = user.referralPercent != null ? user.referralPercent : 5;
   const referralBalance = Math.round((user.referralBalance ?? 0) * 100) / 100;

@@ -369,44 +369,8 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
       try {
         const session = (await ctx.session) as SessionData;
         (session as any).other.profileNavSource = "profile";
-        const { ReferralService } = await import(
-          "./domain/referral/ReferralService"
-        );
-        const { UserRepository } = await import(
-          "./infrastructure/db/repositories/UserRepository"
-        );
-        const { referralsMenu } = await import("./ui/menus/referrals-menu");
-        const referralService = new ReferralService(
-          ctx.appDataSource,
-          new UserRepository(ctx.appDataSource)
-        );
-
-        const referralLink = await referralService.getReferralLink(
-          session.main.user.id
-        );
-        const referralsCount = await referralService.countReferrals(
-          session.main.user.id
-        );
-        const userForRef = await ctx.appDataSource.manager.findOne(User, {
-          where: { id: session.main.user.id },
-          select: ["referralBalance"],
-        });
-        const refBalance = userForRef?.referralBalance ?? session.main.user.referralBalance ?? 0;
-        const profitFormatted = refBalance.toFixed(2);
-
-        const text = ctx
-          .t("referrals-screen", {
-            link: referralLink,
-            count: referralsCount,
-            profit: profitFormatted,
-          })
-          .replace(/\\n/g, "\n");
-
-        await ctx.editMessageText(text, {
-          parse_mode: "HTML",
-          reply_markup: referralsMenu,
-          link_preview_options: { is_disabled: true },
-        });
+        const { openReferralsOverview } = await import("./ui/referrals/referrals-hub.js");
+        await openReferralsOverview(ctx as AppContext);
       } catch (error: any) {
         console.error("[Referrals] Failed to open referrals from profile:", error);
         await ctx.answerCallbackQuery(
@@ -1087,6 +1051,10 @@ async function index() {
   try {
     const { referralsMenu } = await import("./ui/menus/referrals-menu");
     bot.use(referralsMenu);
+    const { registerReferralCenterHandlers } = await import(
+      "./ui/referrals/referral-center-handlers.js"
+    );
+    registerReferralCenterHandlers(bot);
     console.log("[Bot] Referrals menu registered via bot.use()");
   } catch (error: any) {
     console.error("[Bot] Failed to register referrals menu:", error);
@@ -1094,34 +1062,8 @@ async function index() {
 
   bot.callbackQuery("referral-stats-back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = (await ctx.session) as SessionData;
-    const { ReferralService } = await import("./domain/referral/ReferralService.js");
-    const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
-    const { referralsMenu } = await import("./ui/menus/referrals-menu.js");
-    const referralService = new ReferralService(
-      ctx.appDataSource,
-      new UserRepository(ctx.appDataSource)
-    );
-    const referralLink = await referralService.getReferralLink(session.main.user.id);
-    const referralsCount = await referralService.countReferrals(session.main.user.id);
-    const userForRef = await ctx.appDataSource.manager.findOne(User, {
-      where: { id: session.main.user.id },
-      select: ["referralBalance"],
-    });
-    const refBalance = userForRef?.referralBalance ?? session.main.user.referralBalance ?? 0;
-    const profitFormatted = refBalance.toFixed(2);
-    const text = ctx
-      .t("referrals-screen", {
-        link: referralLink,
-        count: referralsCount,
-        profit: profitFormatted,
-      })
-      .replace(/\\n/g, "\n");
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: referralsMenu,
-      link_preview_options: { is_disabled: true },
-    });
+    const { openReferralsOverview } = await import("./ui/referrals/referrals-hub.js");
+    await openReferralsOverview(ctx as AppContext);
   });
 
   bot.callbackQuery("back:profile", async (ctx) => {
@@ -1865,6 +1807,20 @@ async function index() {
       }
       const { handleAdminUserLookupText } = await import("./helpers/users-control.js");
       if (await handleAdminUserLookupText(ctx as AppContext, lookupInput)) return;
+    }
+
+    if (session.other.referralCenter?.awaitingSearch) {
+      if (!ctx.hasChatType("private")) {
+        return next();
+      }
+      const searchInput = ctx.message.text.trim();
+      if (searchInput.startsWith("/")) {
+        return next();
+      }
+      const { handleReferralSearchText } = await import(
+        "./ui/referrals/referral-center-handlers.js"
+      );
+      if (await handleReferralSearchText(ctx as AppContext, searchInput)) return;
     }
 
     const adminVds = session.other.adminVds;

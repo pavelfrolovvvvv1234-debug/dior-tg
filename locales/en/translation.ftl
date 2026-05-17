@@ -250,6 +250,111 @@ moderator-menu-header = <strong>Moderator Panel</strong>
 button-referrals = 👥 Referrals
 button-share-link = 🔗 Share
 referrals-screen = 🚀 Affiliate Program\n\nMonetize your traffic with DiorHost infrastructure.\n\n💸 Up to 30% commission\n♾ Lifetime earnings\n⚡ Withdrawals from $10\n📊 Built-in analytics\n\n🔗 Your link:\n{$link}\n\n👥 Referrals: {$count}\n💰 Earnings: $ { $profit }
+
+referrals-screen-premium =
+    <b>💼 Affiliate Center · DiorHost</b>
+    
+    <i>Enterprise hosting partner program</i>
+    
+    {$tierEmoji} <b>Tier {$tier}</b> · {$referralPercent}% commission
+    
+    ━━━━━━━━━━━━━━
+    <b>📊 Performance</b>
+    👥 Referrals: <b>{$totalReferees}</b> · active: <b>{$activeReferees}</b>
+    💰 Earned: <b>${$totalEarned}</b> · 7d: <b>${$earned7d}</b> · 30d: <b>${$earned30d}</b>
+    💳 Pending: <b>${$pendingPayout}</b> · conversion: <b>{$conversionRate}%</b>
+    🕒 Last referral: {$lastJoin}
+    
+    ━━━━━━━━━━━━━━
+    🔗 <b>Your link</b>
+    <code>{$link}</code>
+    
+    ━━━━━━━━━━━━━━
+    💼 Partner balance: <b>${$profit}</b>
+
+button-my-referrals = 👥 My Referrals
+ref-loading = ⏳ Loading affiliate center…
+
+ref-list-header-title = <b>👥 My Referrals</b>
+ref-list-summary-card =
+    {$tierEmoji} <b>{$tier}</b> · referrals <b>{$total}</b> (active {$active})
+    💰 Lifetime <b>${$earned}</b> · pending <b>${$pending}</b>
+    📈 Conversion <b>{$conversion}%</b> · last: {$lastJoin}
+ref-list-empty = No referrals yet. Share your link from overview.
+ref-list-tap-hint = Tap a referral below for details ↓
+ref-list-page = Page {$current} / {$total}
+
+ref-sort-label-earnings = Sort: earnings
+ref-sort-label-join = Sort: join date
+ref-sort-label-activity = Sort: activity
+ref-sort-label-spent = Sort: spending
+ref-filter-label-all = Filter: all
+ref-filter-label-active = Filter: active
+ref-filter-label-inactive = Filter: inactive
+ref-filter-label-deposited = Filter: deposited
+
+ref-status-active = 🟢 active
+ref-status-inactive = ⚪ inactive
+ref-row-joined = Joined:
+ref-row-last = Last seen:
+ref-row-services = Services:
+ref-row-earned = Referral revenue:
+ref-row-spent = Spent:
+
+ref-btn-sort = ⇅ Sort
+ref-btn-filter = ⊙ Filter
+ref-btn-search = 🔍 Search
+ref-btn-activity = ⚡ Feed
+ref-btn-analytics = 📈 Analytics
+ref-btn-back-hub = ⬅️ Overview
+ref-btn-back-list = ⬅️ Back to list
+
+ref-sort-menu-title = <b>⇅ Sort referrals</b>
+ref-filter-menu-title = <b>⊙ Filter referrals</b>
+ref-sort-earnings = By earnings
+ref-sort-join = By join date
+ref-sort-activity = By activity
+ref-sort-spent = By spending
+ref-filter-all = All
+ref-filter-active = Active
+ref-filter-inactive = Inactive
+ref-filter-deposited = Deposited
+ref-search-prompt = Enter <b>@username</b>, Telegram ID or internal ID to search.
+
+ref-activity-title = <b>⚡ Live Activity</b>
+ref-activity-empty = No events yet.
+ref-activity-join-line = {$when} · 👋 <b>{$name}</b> joined
+ref-activity-reward-line = {$when} · 💰 <b>{$name}</b> +${$reward} (deposit ${$amount})
+ref-activity-topup-line = {$when} · 💳 <b>{$name}</b> topped up ${$amount}
+
+ref-analytics-title = <b>📈 Partner Analytics</b>
+ref-analytics-earnings =
+    7 days: <b>${$w7}</b>
+    30 days: <b>${$m30}</b>
+    All time: <b>${$all}</b>
+    Projected / mo: <b>${$projected}</b>
+ref-analytics-chart = Weekly trend
+ref-analytics-top = 🏆 Top referrals
+ref-analytics-no-top = —
+
+ref-detail-title = <b>👤 {$name}</b>
+ref-detail-joined = 📅 Joined:
+ref-detail-last = 🕒 Last activity:
+ref-detail-metrics =
+    💰 Earned from referral: <b>${$earned}</b>
+    💳 Referee deposits: <b>${$spent}</b> ({$deposits} tx)
+    📦 Services: {$services}
+ref-detail-recent-topups = Recent top-ups
+ref-detail-timeline = Timeline
+ref-detail-no-topups = none
+ref-detail-no-events = none
+
+ref-admin-top-title = <b>🏆 Top Affiliates</b>
+ref-admin-top-empty = No affiliate data yet.
+ref-admin-top-row = {$rank}. {$tierEmoji} {$name} · 👥 {$refs} · 💰 ${$earned} · bal ${$balance} · {$percent}%
+ref-admin-view-referees = 👥 User referrals
+ref-admin-top-affiliates = 🏆 Top affiliates
+
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
 referral-new-joined = 👋 You have a new referral.
     Your total referrals: <b>{$count}</b>

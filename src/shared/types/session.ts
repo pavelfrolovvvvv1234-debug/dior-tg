@@ -219,6 +219,8 @@ export interface OtherSessionData {
   };
   /** Admin «Add service» wizard (null when idle). */
   adminCreateService?: AdminCreateServiceSessionState | null;
+  /** Affiliate center: list filters, pagination, search. */
+  referralCenter?: import("../../modules/referrals/types.js").ReferralCenterSession | null;
 }
 
 /**

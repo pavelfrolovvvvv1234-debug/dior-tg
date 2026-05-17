@@ -1,0 +1,264 @@
+import type { Bot } from "grammy";
+import type { AppContext } from "../../shared/types/context.js";
+import type { SessionData } from "../../shared/types/session.js";
+import { Role } from "../../entities/User.js";
+import {
+  ReferralAnalyticsService,
+  ReferralListService,
+  ReferralActivityService,
+} from "../../modules/referrals/index.js";
+import type { ReferralListFilter, ReferralListSort } from "../../modules/referrals/types.js";
+import {
+  ensureReferralCenter,
+  buildRefereesListText,
+  buildRefereesListKeyboard,
+  buildDetailText,
+  buildDetailKeyboard,
+  buildActivityText,
+  buildAnalyticsText,
+  buildAnalyticsKeyboard,
+  buildSortMenuKeyboard,
+  buildFilterMenuKeyboard,
+  buildAdminTopAffiliatesText,
+  buildAdminTopKeyboard,
+} from "./referral-center-ui.js";
+import { openReferralsOverview } from "./referrals-hub.js";
+
+async function resolveTelegramLabel(
+  ctx: AppContext,
+  telegramId: number
+): Promise<string | null> {
+  try {
+    const chat = await ctx.api.getChat(telegramId);
+    if ("username" in chat && chat.username) return `@${chat.username}`;
+    if ("first_name" in chat) {
+      const name = [chat.first_name, "last_name" in chat ? chat.last_name : ""]
+        .filter(Boolean)
+        .join(" ");
+      if (name) return name;
+    }
+  } catch {
+    /* private or blocked */
+  }
+  return null;
+}
+
+export async function renderRefereesList(ctx: AppContext): Promise<void> {
+  const session = (await ctx.session) as SessionData;
+  const st = ensureReferralCenter(session);
+  const locale = session.main.locale === "en" ? "en" : "ru";
+  const referrerId = st.adminReferrerId ?? session.main.user.id;
+  const listSvc = new ReferralListService(ctx.appDataSource);
+
+  const [overview, { items, total }] = await Promise.all([
+    listSvc.getOverview(referrerId),
+    listSvc.listReferees(referrerId, {
+      page: st.page,
+      sort: st.sort,
+      filter: st.filter,
+      searchQuery: st.searchQuery,
+      resolveDisplay: (tid) => resolveTelegramLabel(ctx, tid),
+    }),
+  ]);
+
+  const text = buildRefereesListText(ctx, overview, items, st, total, locale);
+  const keyboard = buildRefereesListKeyboard(ctx, st, total, items);
+
+  await ctx.editMessageText(text, {
+    parse_mode: "HTML",
+    reply_markup: keyboard,
+    link_preview_options: { is_disabled: true },
+  }).catch(async () => {
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+      link_preview_options: { is_disabled: true },
+    });
+  });
+}
+
+export function registerReferralCenterHandlers(bot: Bot<AppContext>): void {
+  bot.callbackQuery("ref:hub", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await openReferralsOverview(ctx);
+  });
+
+  bot.callbackQuery("ref:list", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    st.page = 0;
+    st.detailRefereeId = undefined;
+    await renderRefereesList(ctx);
+  });
+
+  bot.callbackQuery(/^ref:page:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    st.page = Number.parseInt(ctx.match[1], 10) || 0;
+    await renderRefereesList(ctx);
+  });
+
+  bot.callbackQuery(/^ref:sort:(earnings|join|activity|spent)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    st.sort = ctx.match[1] as ReferralListSort;
+    st.page = 0;
+    await renderRefereesList(ctx);
+  });
+
+  bot.callbackQuery(/^ref:filter:(all|active|inactive|deposited)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    st.filter = ctx.match[1] as ReferralListFilter;
+    st.page = 0;
+    await renderRefereesList(ctx);
+  });
+
+  bot.callbackQuery("ref:sort-menu", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    await ctx.editMessageText(ctx.t("ref-sort-menu-title"), {
+      parse_mode: "HTML",
+      reply_markup: buildSortMenuKeyboard(ctx, st.sort),
+    });
+  });
+
+  bot.callbackQuery("ref:filter-menu", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    await ctx.editMessageText(ctx.t("ref-filter-menu-title"), {
+      parse_mode: "HTML",
+      reply_markup: buildFilterMenuKeyboard(ctx, st.filter),
+    });
+  });
+
+  bot.callbackQuery("ref:search", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    st.awaitingSearch = true;
+    await ctx.reply(ctx.t("ref-search-prompt"), { parse_mode: "HTML" });
+  });
+
+  bot.callbackQuery("ref:activity", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const locale = session.main.locale === "en" ? "en" : "ru";
+    const st = ensureReferralCenter(session);
+    const referrerId = st.adminReferrerId ?? session.main.user.id;
+    const feed = await new ReferralActivityService(ctx.appDataSource).getGlobalFeed(
+      referrerId,
+      15
+    );
+    const text = buildActivityText(ctx, feed, locale);
+    const kb = new (await import("grammy")).InlineKeyboard()
+      .text(ctx.t("ref-btn-back-list"), "ref:list")
+      .row()
+      .text(ctx.t("ref-btn-back-hub"), "ref:hub");
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: kb,
+    }).catch(() => ctx.reply(text, { parse_mode: "HTML", reply_markup: kb }));
+  });
+
+  bot.callbackQuery("ref:analytics", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const st = ensureReferralCenter(session);
+    const referrerId = st.adminReferrerId ?? session.main.user.id;
+    const analytics = await new ReferralAnalyticsService(ctx.appDataSource).getAnalytics(
+      referrerId
+    );
+    const text = buildAnalyticsText(ctx, analytics);
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: buildAnalyticsKeyboard(ctx),
+    }).catch(() =>
+      ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: buildAnalyticsKeyboard(ctx),
+      })
+    );
+  });
+
+  bot.callbackQuery(/^ref:detail:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const locale = session.main.locale === "en" ? "en" : "ru";
+    const refereeId = Number.parseInt(ctx.match[1], 10);
+    const st = ensureReferralCenter(session);
+    const referrerId = st.adminReferrerId ?? session.main.user.id;
+    const detail = await new ReferralListService(ctx.appDataSource).getRefereeDetail(
+      referrerId,
+      refereeId,
+      (tid) => resolveTelegramLabel(ctx, tid)
+    );
+    if (!detail) {
+      await ctx.answerCallbackQuery(ctx.t("error-user-not-found").slice(0, 200)).catch(() => {});
+      return;
+    }
+    ensureReferralCenter(session).detailRefereeId = refereeId;
+    const text = buildDetailText(ctx, detail, locale);
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: buildDetailKeyboard(ctx, refereeId),
+    }).catch(() =>
+      ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: buildDetailKeyboard(ctx, refereeId),
+      })
+    );
+  });
+
+  bot.callbackQuery("ref:noop", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+  });
+
+  bot.callbackQuery(/^refadm:referees:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+      return;
+    }
+    const referrerId = Number.parseInt(ctx.match[1], 10);
+    const st = ensureReferralCenter(session);
+    st.adminReferrerId = referrerId;
+    st.page = 0;
+    st.searchQuery = undefined;
+    await renderRefereesList(ctx);
+  });
+
+  bot.callbackQuery("refadm:top", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+      return;
+    }
+    const rows = await new ReferralAnalyticsService(ctx.appDataSource).getTopAffiliates(12);
+    const text = buildAdminTopAffiliatesText(ctx, rows);
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: buildAdminTopKeyboard(ctx),
+    }).catch(() =>
+      ctx.reply(text, { parse_mode: "HTML", reply_markup: buildAdminTopKeyboard(ctx) })
+    );
+  });
+}
+
+/** Consume private text when user is searching referrals. */
+export async function handleReferralSearchText(ctx: AppContext, raw: string): Promise<boolean> {
+  const session = (await ctx.session) as SessionData;
+  const st = session.other.referralCenter;
+  if (!st?.awaitingSearch) return false;
+  st.awaitingSearch = false;
+  st.searchQuery = raw.trim() || undefined;
+  st.page = 0;
+  await renderRefereesList(ctx);
+  return true;
+}
