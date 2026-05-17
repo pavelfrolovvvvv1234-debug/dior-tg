@@ -9,7 +9,7 @@ import User, { Role, UserStatus } from "../entities/User.js";
 import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../entities/VirtualDedicatedServer.js";
 import type { ListItem } from "./vmmanager.js";
 import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
-import { getAdminTelegramIds } from "../app/config.js";
+import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
 import { retry } from "../shared/utils/retry.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
 import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
@@ -503,20 +503,6 @@ async function getOrCreateClientUser(
   return await userRepo.save(user);
 }
 
-/** Env allowlist + admins/moderators from DB (same staff who see admin menus). */
-async function getResellerAlertRecipientTelegramIds(dataSource: DataSource): Promise<number[]> {
-  const fromEnv = getAdminTelegramIds();
-  const repo = dataSource.getRepository(User);
-  const staff = await repo.find({
-    where: [{ role: Role.Admin }, { role: Role.Moderator }],
-    select: ["telegramId"],
-  });
-  const fromDb = staff
-    .map((u) => Number(u.telegramId))
-    .filter((id) => Number.isFinite(id) && id > 0);
-  return [...new Set([...fromEnv, ...fromDb])];
-}
-
 function mapService(vds: VirtualDedicatedServer) {
   return {
     serviceId: vds.id,
@@ -599,7 +585,7 @@ async function notifyAdminsAboutResellerVps(
     password: string;
   }
 ): Promise<void> {
-  const adminIds = await getResellerAlertRecipientTelegramIds(options.dataSource);
+  const adminIds = await resolveStaffNotifyTelegramIds(options.dataSource);
   if (adminIds.length === 0) return;
 
   const price = Number(payload.vds.renewalPrice || 0);

@@ -20,6 +20,7 @@ import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
 import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
+import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-recipients.js";
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
 import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
 import ms from "../../lib/multims.js";
@@ -177,9 +178,6 @@ async function createVpsOrderTicket(
     await ctx.reply(buyerText, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
 
     if (!buyerIsStaff) {
-      const moderators = await usersRepo.find({
-        where: [{ role: Role.Admin }, { role: Role.Moderator }],
-      });
       const staffText = renderMultiline(
         ctx.t("dedicated-provisioning-staff-notification", {
           ticketId: ticket.id,
@@ -194,8 +192,7 @@ async function createVpsOrderTicket(
       const staffKeyboard = new InlineKeyboard()
         .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
         .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-      const recipientChatIds = new Set<number>();
-      for (const mod of moderators) recipientChatIds.add(mod.telegramId);
+      const recipientChatIds = new Set(await resolveStaffNotifyTelegramIds(ctx.appDataSource));
       const moderatorChatId = getModeratorChatId();
       if (moderatorChatId) recipientChatIds.add(moderatorChatId);
       for (const chatId of recipientChatIds) {

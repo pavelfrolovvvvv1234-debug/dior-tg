@@ -3,6 +3,9 @@ import type { AppContext } from "../types/context.js";
 import User, { Role, UserStatus } from "../../entities/User.js";
 import { getAdminTelegramIds } from "../../app/config.js";
 import { ensureSessionUser } from "../utils/session-user.js";
+import { resolveActorTelegramId } from "../utils/telegram-id.js";
+
+export { resolveActorTelegramId } from "../utils/telegram-id.js";
 
 export const ROLE_LABELS_RU: Record<Role, string> = {
   [Role.User]: "Пользователь",
@@ -29,18 +32,25 @@ export async function getActorRole(ctx: AppContext): Promise<Role | null> {
  * Sync admin role from ADMIN_TELEGRAM_IDS allowlist and DB (fixes stale session on callback fast-path).
  */
 export async function ensureAdminAccess(ctx: AppContext): Promise<boolean> {
-  const ok = await ensureSessionUser(ctx);
   const session = await ctx.session;
-  if (!ok || !session?.main?.user) {
+  if (!session?.main?.user) {
     return false;
   }
 
-  const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+  const telegramId = resolveActorTelegramId(ctx);
   const adminIds = getAdminTelegramIds();
-  if (telegramId && adminIds.includes(telegramId)) {
+
+  // Env allowlist first — works even when session is not hydrated (e.g. conversation.external).
+  if (telegramId > 0 && adminIds.includes(telegramId)) {
+    await ensureSessionUser(ctx);
     session.main.user.role = Role.Admin;
     session.main.user.status = UserStatus.Admin;
     return true;
+  }
+
+  const ok = await ensureSessionUser(ctx);
+  if (!ok) {
+    return false;
   }
 
   if (session.main.user.role === Role.Admin) {

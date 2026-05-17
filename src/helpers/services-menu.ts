@@ -31,6 +31,7 @@ import {
 } from "../domain/dedicated/dedicated-shop-config.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../shared/moderator-chat.js";
+import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
 import {
   buildPremiumVpsReadyHtml,
   escapeHtml,
@@ -830,9 +831,6 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     });
 
     if (!buyerIsStaff) {
-      const moderators = await usersRepo.find({
-        where: [{ role: Role.Admin }, { role: Role.Moderator }],
-      });
       const staffText = renderMultiline(ctx.t("dedicated-provisioning-staff-notification", {
         ticketId: ticket.id,
         orderId: order.id,
@@ -845,10 +843,7 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       const staffKeyboard = new InlineKeyboard()
         .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
         .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-      const recipientChatIds = new Set<number>();
-      for (const mod of moderators) {
-        recipientChatIds.add(mod.telegramId);
-      }
+      const recipientChatIds = new Set(await resolveStaffNotifyTelegramIds(ctx.appDataSource));
       const moderatorChatId = getModeratorChatId();
       if (moderatorChatId) {
         recipientChatIds.add(moderatorChatId);

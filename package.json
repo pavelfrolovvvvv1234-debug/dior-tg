@@ -17,7 +17,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/modules/automations/__tests__/evaluator.test.ts src/modules/automations/__tests__/nps-callback.test.ts src/modules/automations/__tests__/role-migration-safety.test.ts",
+    "test": "node --import tsx --test src/modules/automations/__tests__/evaluator.test.ts src/modules/automations/__tests__/nps-callback.test.ts src/modules/automations/__tests__/role-migration-safety.test.ts src/shared/auth/__tests__/admin-notify-recipients.test.ts",
     "check-payments": "ts-node scripts/check-payments.ts",
     "test-amper-api": "tsx scripts/test-amper-api.ts",
     "test-amper-register": "tsx scripts/test-amper-register.ts",

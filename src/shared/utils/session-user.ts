@@ -7,6 +7,7 @@
 import type { AppContext } from "../types/context.js";
 import type { MainSessionData } from "../types/session.js";
 import User, { Role, UserStatus } from "../../entities/User.js";
+import { resolveActorTelegramId } from "./telegram-id.js";
 
 const emptyUser: MainSessionData["user"] = {
   id: 0,
@@ -33,7 +34,7 @@ export const ensureSessionUser = async (ctx: AppContext): Promise<boolean> => {
     return true;
   }
 
-  const telegramId = ctx.from?.id ?? ctx.chatId;
+  const telegramId = resolveActorTelegramId(ctx);
   if (!telegramId || !ctx.appDataSource) {
     return false;
   }

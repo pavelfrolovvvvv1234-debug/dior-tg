@@ -1,5 +1,6 @@
 import DomainRequest, { DomainRequestStatus } from "../entities/DomainRequest.js";
 import User, { Role } from "../entities/User.js";
+import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
 import { Bot, Api, RawApi } from "grammy";
 import type { AppContext } from "../shared/types/context";
 import prices from "./prices";
@@ -81,31 +82,19 @@ export function registerDomainRegistrationMiddleware(
       }
     );
 
-    const mods = usersRepo.find({
-      where: [
-        {
-          role: Role.Admin,
-        },
-        {
-          role: Role.Moderator,
-        },
-      ],
-    });
-
     const countRequests = await domainRequestRepo.count({
       where: {
         status: DomainRequestStatus.InProgress,
       },
     });
 
-    (await mods).forEach((user) => {
-      ctx.api.sendMessage(
-        user.telegramId,
-        ctx.t("domain-request-notification", {
-          count: countRequests,
-        })
-      );
+    const staffIds = await resolveStaffNotifyTelegramIds(ctx.appDataSource);
+    const notifyText = ctx.t("domain-request-notification", {
+      count: countRequests,
     });
+    for (const chatId of staffIds) {
+      await ctx.api.sendMessage(chatId, notifyText).catch(() => {});
+    }
   };
 
   const additionalInformationQuestion = new StatelessQuestion<AppContext>(

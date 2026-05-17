@@ -13,6 +13,7 @@ import { DedicatedServerStatus } from "../../entities/DedicatedServer.js";
 import User, { Role } from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
+import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-recipients.js";
 
 /**
  * Order dedicated server conversation.
@@ -76,68 +77,42 @@ export async function createDedicatedOperationTicket(
       { dedicatedId }
     );
 
-    // Notify moderators
-    const userRepo = ctx.appDataSource.getRepository(User);
-    const moderators = await userRepo.find({
-      where: [{ role: Role.Moderator }, { role: Role.Admin }],
+    const { InlineKeyboard } = await import("grammy");
+    const staffKeyboard = new InlineKeyboard()
+      .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
+      .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+    const staffNotifyText = ctx.t("ticket-moderator-notification", {
+      ticketId: ticket.id,
+      userId: session.main.user.id,
+      username: ctx.from?.username || ctx.from?.first_name || "Unknown",
+      type: ctx.t(`ticket-type-${ticket.type}`),
+      amountLine: "",
+      detailsLine: "",
     });
-
-    for (const mod of moderators) {
+    const staffIds = await resolveStaffNotifyTelegramIds(ctx.appDataSource);
+    for (const chatId of staffIds) {
       try {
-        const { InlineKeyboard } = await import("grammy");
-        const keyboard = new InlineKeyboard()
-          .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-          .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-
-        await ctx.api.sendMessage(
-          mod.telegramId,
-          ctx.t("ticket-moderator-notification", {
-            ticketId: ticket.id,
-            userId: session.main.user.id,
-            username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-            type: ctx.t(`ticket-type-${ticket.type}`),
-            amountLine: "",
-            detailsLine: "",
-          }),
-          {
-            reply_markup: keyboard,
-            parse_mode: "HTML",
-          }
-        );
+        await ctx.api.sendMessage(chatId, staffNotifyText, {
+          reply_markup: staffKeyboard,
+          parse_mode: "HTML",
+        });
       } catch (error) {
-        // Moderator might have blocked bot
-        Logger.warn(`Failed to notify moderator ${mod.telegramId} about ticket ${ticket.id}:`, error);
+        Logger.warn(`Failed to notify staff ${chatId} about ticket ${ticket.id}:`, error);
       }
     }
 
     const moderatorChatId = getModeratorChatId();
     if (moderatorChatId) {
       try {
-        const { InlineKeyboard } = await import("grammy");
-        const keyboard = new InlineKeyboard()
-          .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-          .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-        await ctx.api.sendMessage(
-          moderatorChatId,
-          ctx.t("ticket-moderator-notification", {
-            ticketId: ticket.id,
-            userId: session.main.user.id,
-            username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-            type: ctx.t(`ticket-type-${ticket.type}`),
-            amountLine: "",
-            detailsLine: "",
-          }),
-          {
-            reply_markup: keyboard,
-            parse_mode: "HTML",
-          }
-        );
+        await ctx.api.sendMessage(moderatorChatId, staffNotifyText, {
+          reply_markup: staffKeyboard,
+          parse_mode: "HTML",
+        });
       } catch (error) {
         Logger.warn(`Failed to notify moderator chat about ticket ${ticket.id}:`, error);
       }
     }
 
-    const { InlineKeyboard } = await import("grammy");
     const keyboard = new InlineKeyboard()
       .text(ctx.t("button-view-ticket"), `ticket_user_view_${ticket.id}`)
       .text(ctx.t("button-back"), "dedicated-menu-back");
@@ -208,60 +183,37 @@ export async function createDedicatedOrderTicket(
     const userRepo = ctx.appDataSource.getRepository(User);
 
     if (!buyerIsStaff) {
-      const moderators = await userRepo.find({
-        where: [{ role: Role.Moderator }, { role: Role.Admin }],
+      const { InlineKeyboard } = await import("grammy");
+      const staffKeyboard = new InlineKeyboard()
+        .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
+        .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+      const staffNotifyText = ctx.t("ticket-moderator-notification", {
+        ticketId: ticket.id,
+        userId: session.main.user.id,
+        username: ctx.from?.username || ctx.from?.first_name || "Unknown",
+        type: ctx.t(`ticket-type-${ticket.type}`),
+        amountLine: "",
+        detailsLine: "",
       });
-
-      for (const mod of moderators) {
+      const staffIds = await resolveStaffNotifyTelegramIds(ctx.appDataSource);
+      for (const chatId of staffIds) {
         try {
-          const { InlineKeyboard } = await import("grammy");
-          const keyboard = new InlineKeyboard()
-            .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-            .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-
-          await ctx.api.sendMessage(
-            mod.telegramId,
-            ctx.t("ticket-moderator-notification", {
-              ticketId: ticket.id,
-              userId: session.main.user.id,
-              username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-              type: ctx.t(`ticket-type-${ticket.type}`),
-              amountLine: "",
-              detailsLine: "",
-            }),
-            {
-              reply_markup: keyboard,
-              parse_mode: "HTML",
-            }
-          );
+          await ctx.api.sendMessage(chatId, staffNotifyText, {
+            reply_markup: staffKeyboard,
+            parse_mode: "HTML",
+          });
         } catch (error) {
-          // Moderator might have blocked bot
-          Logger.warn(`Failed to notify moderator ${mod.telegramId} about ticket ${ticket.id}:`, error);
+          Logger.warn(`Failed to notify staff ${chatId} about ticket ${ticket.id}:`, error);
         }
       }
 
       const moderatorChatId = getModeratorChatId();
       if (moderatorChatId) {
         try {
-          const { InlineKeyboard } = await import("grammy");
-          const keyboard = new InlineKeyboard()
-            .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-            .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-          await ctx.api.sendMessage(
-            moderatorChatId,
-            ctx.t("ticket-moderator-notification", {
-              ticketId: ticket.id,
-              userId: session.main.user.id,
-              username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-              type: ctx.t(`ticket-type-${ticket.type}`),
-              amountLine: "",
-              detailsLine: "",
-            }),
-            {
-              reply_markup: keyboard,
-              parse_mode: "HTML",
-            }
-          );
+          await ctx.api.sendMessage(moderatorChatId, staffNotifyText, {
+            reply_markup: staffKeyboard,
+            parse_mode: "HTML",
+          });
         } catch (error) {
           Logger.warn(`Failed to notify moderator chat about ticket ${ticket.id}:`, error);
         }

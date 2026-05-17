@@ -11,6 +11,7 @@ import { TicketType } from "../../entities/Ticket.js";
 import User, { Role } from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
+import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-recipients.js";
 
 /** Minimum balance (USD) required to request a withdrawal. */
 export const MIN_WITHDRAW_AMOUNT = 15;
@@ -137,34 +138,26 @@ export async function withdrawRequestConversation(
       payload
     );
 
-    // Notify moderators
-    const moderators = await userRepo.find({
-      where: [{ role: Role.Moderator }, { role: Role.Admin }],
+    const modKeyboard = new InlineKeyboard()
+      .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
+      .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
+    const staffNotifyText = ctx.t("ticket-moderator-notification", {
+      ticketId: ticket.id,
+      userId: session.main.user.id,
+      username: ctx.from?.username || ctx.from?.first_name || "Unknown",
+      type: ctx.t(`ticket-type-${ticket.type}`),
+      amountLine: ctx.t("withdraw-notification-amount", { amount }),
+      detailsLine: ctx.t("withdraw-notification-details", { details }),
     });
-
-    for (const mod of moderators) {
+    const staffIds = await resolveStaffNotifyTelegramIds(ctx.appDataSource);
+    for (const chatId of staffIds) {
       try {
-        const modKeyboard = new InlineKeyboard()
-          .text(ctx.t("button-open"), `ticket_view_${ticket.id}`)
-          .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-
-        await ctx.api.sendMessage(
-          mod.telegramId,
-          ctx.t("ticket-moderator-notification", {
-            ticketId: ticket.id,
-            userId: session.main.user.id,
-            username: ctx.from?.username || ctx.from?.first_name || "Unknown",
-            type: ctx.t(`ticket-type-${ticket.type}`),
-            amountLine: ctx.t("withdraw-notification-amount", { amount }),
-            detailsLine: ctx.t("withdraw-notification-details", { details }),
-          }),
-          {
-            reply_markup: modKeyboard,
-            parse_mode: "HTML",
-          }
-        );
+        await ctx.api.sendMessage(chatId, staffNotifyText, {
+          reply_markup: modKeyboard,
+          parse_mode: "HTML",
+        });
       } catch (error) {
-        Logger.warn(`Failed to notify moderator ${mod.telegramId} about withdraw ${ticket.id}:`, error);
+        Logger.warn(`Failed to notify staff ${chatId} about withdraw ${ticket.id}:`, error);
       }
     }
 

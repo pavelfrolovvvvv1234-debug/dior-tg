@@ -588,6 +588,7 @@ export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<vo
     return;
   }
   const session = await ctx.session;
+  session.main.user.role = Role.Admin;
   clearAdminVdsPanelState(session.other);
   if (session.other.promoAdmin) {
     session.other.promoAdmin.createStep = null;

@@ -1,9 +1,10 @@
 import type { AppContext } from "../shared/types/context";
 import User, { Role } from "../entities/User.js";
 import type { Api, Bot, RawApi } from "grammy";
-import { getAdminTelegramIds } from "../app/config.js";
 import type { ReferralRewardApplied } from "../domain/referral/ReferralService.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
+import { resolveAdminNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
+import { Logger } from "../app/logger.js";
 
 let fluentCache: { translate: (locale: string, key: string, vars?: Record<string, string | number>) => string } | null = null;
 
@@ -38,7 +39,7 @@ async function formatUserLabelForAdminNotify(
 }
 
 /**
- * Notify admins (by ADMIN_TELEGRAM_IDS) about a balance top-up.
+ * Notify all admins (ADMIN_TELEGRAM_IDS + role Admin in DB) about a balance top-up.
  * Used from both api/payment.ts (finalizePaidTopUp side effects) and PaymentStatusChecker.
  */
 export async function notifyAdminsAboutTopUp(
@@ -48,8 +49,14 @@ export async function notifyAdminsAboutTopUp(
   paymentMethod?: string | null
 ): Promise<void> {
   try {
-    const adminIds = getAdminTelegramIds();
-    if (adminIds.length === 0) return;
+    const ds = await getAppDataSource();
+    const adminIds = await resolveAdminNotifyTelegramIds(ds);
+    if (adminIds.length === 0) {
+      Logger.warn(
+        "[Notify] Top-up alert skipped: no admin recipients (ADMIN_TELEGRAM_IDS or DB role Admin)"
+      );
+      return;
+    }
 
     const buyerLabel = await formatUserLabelForAdminNotify(bot, user.id, user.telegramId);
 
@@ -157,27 +164,14 @@ export async function notifyAllAdminsAboutPromotedUser(
   }
 ) {
   const { id, name, role, telegramId } = promotedUser;
-
-  ctx.appDataSource.manager
-    .find(User, {
-      where: {
-        role: Role.Admin,
-      },
-    })
-    .then((admins) => {
-      admins.forEach((admin) => {
-        ctx.api.sendMessage(
-          admin.telegramId,
-          ctx.t("admin-notification-about-promotion", {
-            telegramId,
-            name,
-            id,
-            role,
-          }),
-          {
-            parse_mode: "HTML",
-          }
-        );
-      });
-    });
+  const adminIds = await resolveAdminNotifyTelegramIds(ctx.appDataSource);
+  const text = ctx.t("admin-notification-about-promotion", {
+    telegramId,
+    name,
+    id,
+    role,
+  });
+  for (const chatId of adminIds) {
+    await ctx.api.sendMessage(chatId, text, { parse_mode: "HTML" }).catch(() => {});
+  }
 }
