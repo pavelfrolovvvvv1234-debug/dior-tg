@@ -26,6 +26,7 @@ import {
   openAdminVdsDetailById,
   openAdminVdsPanel,
 } from "../menus/admin-vds-menu.js";
+import { ensureConversationTranslator } from "../../shared/i18n/conversation-translate.js";
 
 const CB = "advcs";
 
@@ -294,6 +295,7 @@ export async function adminCreateServiceConversation(
   conversation: AppConversation,
   ctx: AppContext
 ): Promise<void> {
+  await ensureConversationTranslator(conversation, ctx);
   const session = await conversation.external(async () => await ctx.session);
   const hasUser = await conversation.external(async () => ensureSessionUser(ctx));
   if (!session || !hasUser || session.main.user.role !== Role.Admin) {
