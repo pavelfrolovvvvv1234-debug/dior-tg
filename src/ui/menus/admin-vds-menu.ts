@@ -16,6 +16,7 @@ import { UserRepository } from "../../infrastructure/db/repositories/UserReposit
 import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import { ensureAdminAccess } from "../../shared/auth/permissions.js";
+import { ensureFullSession } from "../../shared/session-initial.js";
 
 const PAGE_SIZE = 10;
 const GEOIP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -168,7 +169,7 @@ export async function replyAdminVdsList(ctx: AppContext): Promise<void> {
 /** Open VDS detail card (admin). Used by list and post-wizard quick actions. */
 export async function openAdminVdsDetailById(ctx: AppContext, serviceId: number): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
-  const session = await ctx.session;
+  const session = ensureFullSession(await ctx.session);
   if (!session.other.adminVds) {
     session.other.adminVds = {
       page: 0,
@@ -201,7 +202,7 @@ export async function openAdminVdsDetailById(ctx: AppContext, serviceId: number)
 
 export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
-  const session = await ctx.session;
+  const session = ensureFullSession(await ctx.session);
   if (!session.other.adminVds) {
     session.other.adminVds = {
       page: 0,
@@ -223,7 +224,7 @@ export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
 }
 
 async function buildListText(ctx: AppContext): Promise<string> {
-  const session = await ctx.session;
+  const session = ensureFullSession(await ctx.session);
   const ad = session.other.adminVds;
   const vdsRepo = new VdsRepository(ctx.appDataSource);
   const [list, total] = await vdsRepo.findPaginatedForAdmin(
@@ -253,7 +254,7 @@ async function buildListText(ctx: AppContext): Promise<string> {
 }
 
 async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
-  const session = await ctx.session;
+  const session = ensureFullSession(await ctx.session);
   const ad = session.other.adminVds;
   const vdsRepo = new VdsRepository(ctx.appDataSource);
   const [list, total] = await vdsRepo.findPaginatedForAdmin(
@@ -402,7 +403,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
   if (!data || !data.startsWith("adv:")) return;
   await ctx.answerCallbackQuery().catch(() => {});
 
-  const session = await ctx.session;
+  const session = ensureFullSession(await ctx.session);
   if (!session.other.adminVds) {
     session.other.adminVds = {
       page: 0,
