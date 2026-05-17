@@ -76,3 +76,15 @@ export function createInitialOtherSession(): SessionData["other"] {
     promoAdmin: { page: 0, editingPromoId: null, createStep: null, createDraft: {}, editStep: null },
   };
 }
+
+/** Grammy multi-session: `other` may be missing until first write — hydrate before use. */
+export function ensureFullSession(session: SessionData | undefined): SessionData {
+  const s = session ?? ({ main: createInitialMainSession() } as SessionData);
+  if (!s.main) {
+    s.main = createInitialMainSession();
+  }
+  if (!s.other) {
+    s.other = createInitialOtherSession();
+  }
+  return s;
+}

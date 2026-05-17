@@ -33,6 +33,10 @@ import {
   openAdminVdsPanel,
 } from "../menus/admin-vds-menu.js";
 import { ensureConversationTranslator } from "../../shared/i18n/conversation-translate.js";
+import {
+  createInitialMainSession,
+  ensureFullSession,
+} from "../../shared/session-initial.js";
 
 const CB = "advcs";
 
@@ -66,10 +70,11 @@ function defaultCreateServiceState(): AdminCreateServiceSessionState {
 }
 
 function getState(session: SessionData): AdminCreateServiceSessionState {
-  if (!session.other.adminCreateService) {
-    session.other.adminCreateService = defaultCreateServiceState();
+  const full = ensureFullSession(session);
+  if (!full.other.adminCreateService) {
+    full.other.adminCreateService = defaultCreateServiceState();
   }
-  return session.other.adminCreateService;
+  return full.other.adminCreateService;
 }
 
 /** Persist wizard state across conversation checkpoints (Grammy replay-safe). */
@@ -79,7 +84,7 @@ async function commitWizardState(
   st: AdminCreateServiceSessionState
 ): Promise<void> {
   await conversation.external(async () => {
-    const session = await ctx.session;
+    const session = ensureFullSession(await ctx.session);
     session.other.adminCreateService = st;
   });
 }
@@ -89,7 +94,7 @@ async function clearWizardAndOpenList(
   ctx: AppContext
 ): Promise<void> {
   await conversation.external(async () => {
-    const session = await ctx.session;
+    const session = ensureFullSession(await ctx.session);
     session.other.adminCreateService = null;
   });
   await openAdminVdsPanel(ctx);
@@ -310,7 +315,7 @@ export async function adminCreateServiceConversation(
   await ensureConversationTranslator(conversation, ctx);
 
   const session = await conversation.external(async () => {
-    const s = await ctx.session;
+    const s = ensureFullSession(await ctx.session);
     if (!s.other.adminCreateService) {
       s.other.adminCreateService = defaultCreateServiceState();
     }
@@ -489,7 +494,7 @@ export async function adminCreateServiceConversation(
       reviewCb === `${CB}:goto:user`
     ) {
       await conversation.external(async () => {
-        const session = await ctx.session;
+        const session = ensureFullSession(await ctx.session);
         session.other.adminCreateService = null;
       });
       await ctx.conversation.exitAll().catch(() => {});
@@ -563,7 +568,7 @@ export async function adminCreateServiceConversation(
             d.startsWith(`${CB}:user:`)
         );
         await conversation.external(async () => {
-          const session = await ctx.session;
+          const session = ensureFullSession(await ctx.session);
           session.other.adminCreateService = null;
         });
         if (doneCb === `${CB}:restart`) {
@@ -608,7 +613,10 @@ export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<vo
     return;
   }
 
-  const session = await ctx.session;
+  const session = ensureFullSession(await ctx.session);
+  if (!session.main.user) {
+    session.main = createInitialMainSession();
+  }
   if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
     session.main.user.role = Role.Admin;
   }

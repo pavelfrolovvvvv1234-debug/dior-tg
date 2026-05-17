@@ -137,8 +137,8 @@ function vdsService(ctx: AppContext): VdsService {
  * Clears VDS admin list filters when leaving the section (back to admin root).
  * Prevents an old search from hiding all rows on the next visit.
  */
-export function clearAdminVdsPanelState(other: SessionData["other"]): void {
-  if (!other.adminVds) return;
+export function clearAdminVdsPanelState(other: SessionData["other"] | undefined): void {
+  if (!other?.adminVds) return;
   other.adminVds.searchQuery = "";
   other.adminVds.page = 0;
   other.adminVds.selectedVdsId = null;
