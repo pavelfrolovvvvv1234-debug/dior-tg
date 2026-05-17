@@ -11,6 +11,7 @@ import type { AppConversation, AppContext } from "../../shared/types/context.js"
 import type { SessionData } from "../../shared/types/session.js";
 import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-services/types.js";
 import { Role } from "../../entities/User.js";
+import { ensureAdminAccess } from "../../shared/auth/permissions.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { AdminManualServiceService } from "../../modules/admin/manual-services/admin-manual-service.service.js";
@@ -296,9 +297,13 @@ export async function adminCreateServiceConversation(
   ctx: AppContext
 ): Promise<void> {
   await ensureConversationTranslator(conversation, ctx);
+  const allowed = await conversation.external(async () => ensureAdminAccess(ctx));
+  if (!allowed) {
+    await ctx.reply(ctx.t("error-access-denied"));
+    return;
+  }
   const session = await conversation.external(async () => await ctx.session);
-  const hasUser = await conversation.external(async () => ensureSessionUser(ctx));
-  if (!session || !hasUser || session.main.user.role !== Role.Admin) {
+  if (!session) {
     await ctx.reply(ctx.t("error-access-denied"));
     return;
   }
@@ -578,6 +583,10 @@ export async function adminCreateServiceConversation(
 
 export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<void> {
   await ctx.answerCallbackQuery().catch(() => {});
+  if (!(await ensureAdminAccess(ctx))) {
+    await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
+    return;
+  }
   const session = await ctx.session;
   clearAdminVdsPanelState(session.other);
   if (session.other.promoAdmin) {

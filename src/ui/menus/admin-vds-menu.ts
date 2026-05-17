@@ -15,7 +15,7 @@ import { BillingService } from "../../domain/billing/BillingService.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepository.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
-import { ensureSessionUser } from "../../shared/utils/session-user.js";
+import { ensureAdminAccess } from "../../shared/auth/permissions.js";
 
 const PAGE_SIZE = 10;
 const GEOIP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -147,17 +147,15 @@ export function clearAdminVdsPanelState(other: SessionData["other"]): void {
 }
 
 async function requireAdmin(ctx: AppContext): Promise<boolean> {
-  const ok = await ensureSessionUser(ctx);
-  const session = await ctx.session;
-  if (!ok || !session || session.main.user.role !== Role.Admin) {
-    if (ctx.callbackQuery) {
-      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
-    } else {
-      await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
-    }
-    return false;
+  if (await ensureAdminAccess(ctx)) {
+    return true;
   }
-  return true;
+  if (ctx.callbackQuery) {
+    await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  } else {
+    await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
+  }
+  return false;
 }
 
 export async function replyAdminVdsList(ctx: AppContext): Promise<void> {

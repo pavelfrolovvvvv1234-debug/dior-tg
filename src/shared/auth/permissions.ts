@@ -1,6 +1,8 @@
 import type { DataSource } from "typeorm";
 import type { AppContext } from "../types/context.js";
-import User, { Role } from "../../entities/User.js";
+import User, { Role, UserStatus } from "../../entities/User.js";
+import { getAdminTelegramIds } from "../../app/config.js";
+import { ensureSessionUser } from "../utils/session-user.js";
 
 export const ROLE_LABELS_RU: Record<Role, string> = {
   [Role.User]: "Пользователь",
@@ -23,9 +25,45 @@ export async function getActorRole(ctx: AppContext): Promise<Role | null> {
   return session?.main?.user?.role ?? null;
 }
 
+/**
+ * Sync admin role from ADMIN_TELEGRAM_IDS allowlist and DB (fixes stale session on callback fast-path).
+ */
+export async function ensureAdminAccess(ctx: AppContext): Promise<boolean> {
+  const ok = await ensureSessionUser(ctx);
+  const session = await ctx.session;
+  if (!ok || !session?.main?.user) {
+    return false;
+  }
+
+  const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+  const adminIds = getAdminTelegramIds();
+  if (telegramId && adminIds.includes(telegramId)) {
+    session.main.user.role = Role.Admin;
+    session.main.user.status = UserStatus.Admin;
+    return true;
+  }
+
+  if (session.main.user.role === Role.Admin) {
+    return true;
+  }
+
+  if (session.main.user.id > 0 && ctx.appDataSource) {
+    const dbUser = await ctx.appDataSource.getRepository(User).findOne({
+      where: { id: session.main.user.id },
+      select: ["role", "status"],
+    });
+    if (dbUser?.role === Role.Admin) {
+      session.main.user.role = dbUser.role;
+      session.main.user.status = dbUser.status;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function isAdmin(ctx: AppContext): Promise<boolean> {
-  const role = await getActorRole(ctx);
-  return role === Role.Admin;
+  return ensureAdminAccess(ctx);
 }
 
 export async function isModerator(ctx: AppContext): Promise<boolean> {
@@ -34,8 +72,10 @@ export async function isModerator(ctx: AppContext): Promise<boolean> {
 }
 
 export async function requireAdmin(ctx: AppContext): Promise<boolean> {
-  if (await isAdmin(ctx)) return true;
-  await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  if (await ensureAdminAccess(ctx)) return true;
+  if (ctx.callbackQuery) {
+    await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  }
   return false;
 }
 

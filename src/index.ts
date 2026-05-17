@@ -697,6 +697,11 @@ async function index() {
         const isCallback = !!ctx.callbackQuery;
         const hasSessionUser = session.main.user.id > 0;
         if (isCallback && hasSessionUser) {
+          const adminIds = getAdminTelegramIds();
+          if (adminIds.length > 0 && adminIds.includes(tid)) {
+            session.main.user.role = Role.Admin;
+            session.main.user.status = UserStatus.Admin;
+          }
           // Быстрый путь: не ждём БД, используем данные из сессии, подгрузку делаем в фоне.
           ctx.loadedUser = Object.assign(new User(), {
             id: session.main.user.id,
@@ -710,7 +715,19 @@ async function index() {
           }) as User;
           void appDataSource.manager.findOneBy(User, { telegramId: ctx.chatId }).then((fresh) => {
             if (fresh) {
-              setCachedUser(tid, fresh);
+              if (adminIds.length > 0 && adminIds.includes(tid)) {
+                fresh.role = Role.Admin;
+                fresh.status = UserStatus.Admin;
+                session.main.user.role = Role.Admin;
+                session.main.user.status = UserStatus.Admin;
+                void appDataSource.manager.save(fresh).then(() => setCachedUser(tid, fresh));
+              } else {
+                setCachedUser(tid, fresh);
+                if (fresh.role !== session.main.user.role) {
+                  session.main.user.role = fresh.role;
+                  session.main.user.status = fresh.status;
+                }
+              }
             }
           });
         } else {
