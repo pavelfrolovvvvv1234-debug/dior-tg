@@ -4,11 +4,7 @@ import type { SessionData } from "../../shared/types/session.js";
 import { Role } from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
-import {
-  ReferralAnalyticsService,
-  ReferralListService,
-  ReferralActivityService,
-} from "../../modules/referrals/index.js";
+import { ReferralAnalyticsService, ReferralListService } from "../../modules/referrals/index.js";
 import type { ReferralListFilter, ReferralListSort } from "../../modules/referrals/types.js";
 import {
   ensureReferralCenter,
@@ -16,9 +12,6 @@ import {
   buildRefereesListKeyboard,
   buildDetailText,
   buildDetailKeyboard,
-  buildActivityText,
-  buildAnalyticsText,
-  buildAnalyticsKeyboard,
   buildSortMenuKeyboard,
   buildFilterMenuKeyboard,
   buildAdminTopAffiliatesText,
@@ -192,55 +185,6 @@ export function registerReferralCenterHandlers(bot: Bot<AppContext>): void {
     const st = ensureReferralCenter(session);
     st.awaitingSearch = true;
     await ctx.reply(ctx.t("ref-search-prompt"), { parse_mode: "HTML" });
-  });
-
-  bot.callbackQuery("ref:activity", async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    try {
-      const session = (await ctx.session) as SessionData;
-      const locale = session.main.locale === "en" ? "en" : "ru";
-      const st = ensureReferralCenter(session);
-      const referrerId = st.adminReferrerId ?? session.main.user.id;
-      const feed = await new ReferralActivityService(ctx.appDataSource).getGlobalFeed(
-        referrerId,
-        15
-      );
-      const text = buildActivityText(ctx, feed, locale);
-      const kb = new (await import("grammy")).InlineKeyboard()
-        .text(ctx.t("ref-btn-back-list"), "ref:list")
-        .row()
-        .text(ctx.t("ref-btn-back-hub"), "ref:hub");
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: kb,
-      }).catch(() => ctx.reply(text, { parse_mode: "HTML", reply_markup: kb }));
-    } catch (error) {
-      Logger.error("[Referrals] ref:activity failed:", error);
-    }
-  });
-
-  bot.callbackQuery("ref:analytics", async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    try {
-      const session = (await ctx.session) as SessionData;
-      const st = ensureReferralCenter(session);
-      const referrerId = st.adminReferrerId ?? session.main.user.id;
-      const analytics = await new ReferralAnalyticsService(ctx.appDataSource).getAnalytics(
-        referrerId
-      );
-      const text = buildAnalyticsText(ctx, analytics);
-      await ctx.editMessageText(text, {
-        parse_mode: "HTML",
-        reply_markup: buildAnalyticsKeyboard(ctx),
-      }).catch(() =>
-        ctx.reply(text, {
-          parse_mode: "HTML",
-          reply_markup: buildAnalyticsKeyboard(ctx),
-        })
-      );
-    } catch (error) {
-      Logger.error("[Referrals] ref:analytics failed:", error);
-    }
   });
 
   bot.callbackQuery(/^ref:detail:(\d+)$/, async (ctx) => {

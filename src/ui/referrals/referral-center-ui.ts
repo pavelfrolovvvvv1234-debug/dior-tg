@@ -3,7 +3,6 @@ import type { AppContext } from "../../shared/types/context.js";
 import type { SessionData } from "../../shared/types/session.js";
 import type {
   ReferralActivityItem,
-  ReferralAnalytics,
   ReferralCenterSession,
   ReferralListFilter,
   ReferralListSort,
@@ -15,7 +14,7 @@ import type {
 import { REFERRAL_LIST_PAGE_SIZE } from "../../modules/referrals/referral-list.service.js";
 import { tierBadgeEmoji } from "../../modules/referrals/referral-tier.js";
 import { truncateTelegramMenuLabel } from "../../shared/users/user-display.js";
-import { formatRelativeTime, formatShortDate, miniBar } from "./referral-time.js";
+import { formatRelativeTime, formatShortDate } from "./referral-time.js";
 
 export function ensureReferralCenter(session: SessionData): ReferralCenterSession {
   if (!session.other.referralCenter) {
@@ -135,9 +134,7 @@ export function buildRefereesListKeyboard(
 
   kb.text(ctx.t("ref-btn-sort"), "ref:sort-menu").text(ctx.t("ref-btn-filter"), "ref:filter-menu");
   kb.row();
-  kb.text(ctx.t("ref-btn-search"), "ref:search").text(ctx.t("ref-btn-activity"), "ref:activity");
-  kb.row();
-  kb.text(ctx.t("ref-btn-analytics"), "ref:analytics");
+  kb.text(ctx.t("ref-btn-search"), "ref:search");
   kb.row();
   kb.text(ctx.t("ref-btn-back-hub"), "ref:hub");
   return kb;
@@ -191,23 +188,8 @@ export function buildDetailText(ctx: AppContext, detail: RefereeDetail, locale: 
   ].join("\n");
 }
 
-export function buildDetailKeyboard(ctx: AppContext, refereeId: number): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(ctx.t("ref-btn-back-list"), "ref:list")
-    .row()
-    .text(ctx.t("ref-btn-back-hub"), "ref:hub");
-}
-
-export function buildActivityText(
-  ctx: AppContext,
-  events: ReferralActivityItem[],
-  locale: string
-): string {
-  const lines =
-    events.length > 0
-      ? events.map((e) => formatActivityLine(ctx, e, locale)).join("\n")
-      : ctx.t("ref-activity-empty");
-  return [ctx.t("ref-activity-title"), "", "━━━━━━━━━━━━━━", "", lines].join("\n");
+export function buildDetailKeyboard(ctx: AppContext, _refereeId: number): InlineKeyboard {
+  return new InlineKeyboard().text(ctx.t("button-back"), "ref:list");
 }
 
 function formatActivityLine(
@@ -232,47 +214,6 @@ function formatActivityLine(
     name: esc(e.refereeLabel),
     amount: (e.amount ?? 0).toFixed(2),
   });
-}
-
-export function buildAnalyticsText(ctx: AppContext, a: ReferralAnalytics): string {
-  const maxW = Math.max(...a.weeklyBuckets.map((b) => b.amount), 0.01);
-  const chart = a.weeklyBuckets
-    .map((b) => `${b.label} ${miniBar(b.amount, maxW)} $${b.amount.toFixed(0)}`)
-    .join("\n");
-
-  const top =
-    a.topReferrals.length > 0
-      ? a.topReferrals
-          .map(
-            (r, i) =>
-              `${i + 1}. ${esc(r.displayLabel)} — <b>$${r.totalEarned.toFixed(2)}</b>`
-          )
-          .join("\n")
-      : ctx.t("ref-analytics-no-top");
-
-  return [
-    ctx.t("ref-analytics-title"),
-    "",
-    ctx.t("ref-analytics-earnings", {
-      w7: a.earned7d.toFixed(2),
-      m30: a.earned30d.toFixed(2),
-      all: a.earnedAll.toFixed(2),
-      projected: a.projectedMonthly.toFixed(2),
-    }),
-    "",
-    `<b>${ctx.t("ref-analytics-chart")}</b>`,
-    `<pre>${chart}</pre>`,
-    "",
-    `<b>${ctx.t("ref-analytics-top")}</b>`,
-    top,
-  ].join("\n");
-}
-
-export function buildAnalyticsKeyboard(ctx: AppContext): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(ctx.t("ref-btn-back-list"), "ref:list")
-    .row()
-    .text(ctx.t("ref-btn-back-hub"), "ref:hub");
 }
 
 export function buildSortMenuKeyboard(ctx: AppContext, current: ReferralListSort): InlineKeyboard {

@@ -12,6 +12,7 @@ import type { SessionData } from "../../shared/types/session.js";
 import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-services/types.js";
 import { Role } from "../../entities/User.js";
 import { ensureAdminAccess } from "../../shared/auth/permissions.js";
+import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { AdminManualServiceService } from "../../modules/admin/manual-services/admin-manual-service.service.js";
@@ -30,6 +31,34 @@ import {
 import { ensureConversationTranslator } from "../../shared/i18n/conversation-translate.js";
 
 const CB = "advcs";
+
+function grantCreateServiceEntry(session: SessionData): void {
+  if (!session.other.adminVds) {
+    session.other.adminVds = {
+      page: 0,
+      searchQuery: "",
+      selectedVdsId: null,
+      awaitingSearch: false,
+      awaitingTransferUserId: false,
+    };
+  }
+  session.other.adminVds.createServiceEntryAllowed = true;
+}
+
+async function consumeCreateServiceEntry(
+  conversation: AppConversation,
+  ctx: AppContext
+): Promise<boolean> {
+  return conversation.external(async () => {
+    const session = await ctx.session;
+    const ad = session?.other?.adminVds;
+    if (!ad?.createServiceEntryAllowed) {
+      return false;
+    }
+    ad.createServiceEntryAllowed = false;
+    return true;
+  });
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -297,14 +326,22 @@ export async function adminCreateServiceConversation(
   ctx: AppContext
 ): Promise<void> {
   await ensureConversationTranslator(conversation, ctx);
-  const allowed = await conversation.external(async () => ensureAdminAccess(ctx));
-  if (!allowed) {
-    await ctx.reply(ctx.t("error-access-denied"));
+
+  const entryOk = await consumeCreateServiceEntry(conversation, ctx);
+  if (!entryOk) {
+    await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
-  const session = await conversation.external(async () => await ctx.session);
-  if (!session) {
-    await ctx.reply(ctx.t("error-access-denied"));
+
+  const session = await conversation.external(async () => {
+    const s = await ctx.session;
+    if (!s.other.adminCreateService) {
+      s.other.adminCreateService = defaultCreateServiceState();
+    }
+    return s;
+  });
+  if (!session?.main?.user) {
+    await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
 
@@ -478,6 +515,7 @@ export async function adminCreateServiceConversation(
       await conversation.external(async () => {
         const session = await ctx.session;
         session.other.adminCreateService = null;
+        grantCreateServiceEntry(session);
       });
       await ctx.conversation.enter("adminCreateServiceConversation");
       return;
@@ -553,6 +591,9 @@ export async function adminCreateServiceConversation(
           session.other.adminCreateService = null;
         });
         if (doneCb === `${CB}:restart`) {
+          await conversation.external(async () => {
+            grantCreateServiceEntry(await ctx.session);
+          });
           await ctx.conversation.enter("adminCreateServiceConversation");
           return;
         }
@@ -584,12 +625,16 @@ export async function adminCreateServiceConversation(
 export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<void> {
   await ctx.answerCallbackQuery().catch(() => {});
   if (!(await ensureAdminAccess(ctx))) {
+    Logger.warn("[AdminCS] start denied", {
+      telegramId: ctx.callbackQuery?.from?.id ?? ctx.from?.id ?? ctx.chatId,
+    });
     await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
   const session = await ctx.session;
   session.main.user.role = Role.Admin;
   clearAdminVdsPanelState(session.other);
+  grantCreateServiceEntry(session);
   if (session.other.promoAdmin) {
     session.other.promoAdmin.createStep = null;
     session.other.promoAdmin.editStep = null;

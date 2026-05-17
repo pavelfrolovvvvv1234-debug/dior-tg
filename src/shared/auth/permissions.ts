@@ -57,15 +57,30 @@ export async function ensureAdminAccess(ctx: AppContext): Promise<boolean> {
     return true;
   }
 
-  if (session.main.user.id > 0 && ctx.appDataSource) {
-    const dbUser = await ctx.appDataSource.getRepository(User).findOne({
-      where: { id: session.main.user.id },
-      select: ["role", "status"],
-    });
-    if (dbUser?.role === Role.Admin) {
-      session.main.user.role = dbUser.role;
-      session.main.user.status = dbUser.status;
-      return true;
+  if (ctx.appDataSource) {
+    if (session.main.user.id > 0) {
+      const dbUser = await ctx.appDataSource.getRepository(User).findOne({
+        where: { id: session.main.user.id },
+        select: ["role", "status"],
+      });
+      if (dbUser?.role === Role.Admin) {
+        session.main.user.role = dbUser.role;
+        session.main.user.status = dbUser.status;
+        return true;
+      }
+    }
+
+    if (telegramId > 0) {
+      const dbUser = await ctx.appDataSource.getRepository(User).findOne({
+        where: { telegramId },
+        select: ["id", "role", "status"],
+      });
+      if (dbUser?.role === Role.Admin) {
+        session.main.user.id = dbUser.id;
+        session.main.user.role = dbUser.role;
+        session.main.user.status = dbUser.status;
+        return true;
+      }
     }
   }
 
