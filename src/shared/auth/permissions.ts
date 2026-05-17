@@ -130,3 +130,50 @@ export async function resolveRoleByUserId(dataSource: DataSource, userId: number
   const user = await dataSource.getRepository(User).findOne({ where: { id: userId }, select: ["role"] });
   return user?.role ?? null;
 }
+
+/** Entry token for adminCreateServiceConversation (passed via conversation.enter). */
+export const ADMIN_CREATE_SERVICE_ENTRY_TOKEN = "admin-cs-v1";
+
+/**
+ * Admin or moderator may run the manual «Add service» wizard (env allowlist, session, or DB by telegram id).
+ */
+export async function canAccessManualServiceWizard(ctx: AppContext): Promise<boolean> {
+  const session = await ctx.session;
+  if (!session?.main?.user) {
+    return false;
+  }
+
+  const telegramId = resolveActorTelegramId(ctx);
+  const adminIds = getAdminTelegramIds();
+
+  if (telegramId > 0 && adminIds.includes(telegramId)) {
+    await ensureSessionUser(ctx);
+    session.main.user.role = Role.Admin;
+    session.main.user.status = UserStatus.Admin;
+    return true;
+  }
+
+  if (await ensureAdminAccess(ctx)) {
+    return true;
+  }
+
+  await ensureSessionUser(ctx);
+  if (canManageServices(session.main.user.role)) {
+    return true;
+  }
+
+  if (telegramId > 0 && ctx.appDataSource) {
+    const dbUser = await ctx.appDataSource.getRepository(User).findOne({
+      where: { telegramId },
+      select: ["id", "role", "status"],
+    });
+    if (dbUser && canManageServices(dbUser.role)) {
+      session.main.user.id = dbUser.id;
+      session.main.user.role = dbUser.role;
+      session.main.user.status = dbUser.status;
+      return true;
+    }
+  }
+
+  return false;
+}

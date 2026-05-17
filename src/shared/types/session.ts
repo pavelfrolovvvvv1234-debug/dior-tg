@@ -78,8 +78,6 @@ export interface OtherSessionData {
     selectedVdsId: number | null;
     awaitingSearch: boolean;
     awaitingTransferUserId: boolean;
-    /** Set right before conversation.enter(adminCreateServiceConversation). */
-    createServiceEntryAllowed?: boolean;
   };
   manageDedicated: {
     expandedId: number | null;

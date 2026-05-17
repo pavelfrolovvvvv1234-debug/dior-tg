@@ -11,7 +11,11 @@ import type { AppConversation, AppContext } from "../../shared/types/context.js"
 import type { SessionData } from "../../shared/types/session.js";
 import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-services/types.js";
 import { Role } from "../../entities/User.js";
-import { ensureAdminAccess } from "../../shared/auth/permissions.js";
+import {
+  ADMIN_CREATE_SERVICE_ENTRY_TOKEN,
+  canAccessManualServiceWizard,
+} from "../../shared/auth/permissions.js";
+import { getAdminTelegramIds } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
@@ -31,34 +35,6 @@ import {
 import { ensureConversationTranslator } from "../../shared/i18n/conversation-translate.js";
 
 const CB = "advcs";
-
-function grantCreateServiceEntry(session: SessionData): void {
-  if (!session.other.adminVds) {
-    session.other.adminVds = {
-      page: 0,
-      searchQuery: "",
-      selectedVdsId: null,
-      awaitingSearch: false,
-      awaitingTransferUserId: false,
-    };
-  }
-  session.other.adminVds.createServiceEntryAllowed = true;
-}
-
-async function consumeCreateServiceEntry(
-  conversation: AppConversation,
-  ctx: AppContext
-): Promise<boolean> {
-  return conversation.external(async () => {
-    const session = await ctx.session;
-    const ad = session?.other?.adminVds;
-    if (!ad?.createServiceEntryAllowed) {
-      return false;
-    }
-    ad.createServiceEntryAllowed = false;
-    return true;
-  });
-}
 
 function escapeHtml(text: string): string {
   return text
@@ -323,15 +299,15 @@ export function registerAdminCreateServiceConversation(bot: Bot<AppContext>): vo
 
 export async function adminCreateServiceConversation(
   conversation: AppConversation,
-  ctx: AppContext
+  ctx: AppContext,
+  entryToken?: string
 ): Promise<void> {
-  await ensureConversationTranslator(conversation, ctx);
-
-  const entryOk = await consumeCreateServiceEntry(conversation, ctx);
-  if (!entryOk) {
+  if (entryToken !== ADMIN_CREATE_SERVICE_ENTRY_TOKEN) {
     await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
+
+  await ensureConversationTranslator(conversation, ctx);
 
   const session = await conversation.external(async () => {
     const s = await ctx.session;
@@ -515,9 +491,9 @@ export async function adminCreateServiceConversation(
       await conversation.external(async () => {
         const session = await ctx.session;
         session.other.adminCreateService = null;
-        grantCreateServiceEntry(session);
       });
-      await ctx.conversation.enter("adminCreateServiceConversation");
+      await ctx.conversation.exitAll().catch(() => {});
+      await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
       return;
     }
 
@@ -591,10 +567,8 @@ export async function adminCreateServiceConversation(
           session.other.adminCreateService = null;
         });
         if (doneCb === `${CB}:restart`) {
-          await conversation.external(async () => {
-            grantCreateServiceEntry(await ctx.session);
-          });
-          await ctx.conversation.enter("adminCreateServiceConversation");
+          await ctx.conversation.exitAll().catch(() => {});
+          await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
           return;
         }
         if (doneCb.startsWith(`${CB}:user:`)) {
@@ -624,17 +598,21 @@ export async function adminCreateServiceConversation(
 
 export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<void> {
   await ctx.answerCallbackQuery().catch(() => {});
-  if (!(await ensureAdminAccess(ctx))) {
+
+  if (!(await canAccessManualServiceWizard(ctx))) {
     Logger.warn("[AdminCS] start denied", {
       telegramId: ctx.callbackQuery?.from?.id ?? ctx.from?.id ?? ctx.chatId,
+      adminIdsConfigured: getAdminTelegramIds().length,
     });
     await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
+
   const session = await ctx.session;
-  session.main.user.role = Role.Admin;
+  if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+    session.main.user.role = Role.Admin;
+  }
   clearAdminVdsPanelState(session.other);
-  grantCreateServiceEntry(session);
   if (session.other.promoAdmin) {
     session.other.promoAdmin.createStep = null;
     session.other.promoAdmin.editStep = null;
@@ -642,5 +620,7 @@ export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<vo
     session.other.promoAdmin.editingPromoId = null;
   }
   session.other.adminCreateService = null;
-  await ctx.conversation.enter("adminCreateServiceConversation");
+
+  await ctx.conversation.exitAll().catch(() => {});
+  await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
 }
