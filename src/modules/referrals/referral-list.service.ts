@@ -1,4 +1,4 @@
-import { DataSource, MoreThan } from "typeorm";
+import { DataSource, MoreThan, type EntityTarget } from "typeorm";
 import User from "../../entities/User.js";
 import ReferralReward from "../../entities/ReferralReward.js";
 import TopUp, { TopUpStatus } from "../../entities/TopUp.js";
@@ -23,6 +23,10 @@ export const REFERRAL_LIST_PAGE_SIZE = 5;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function sqlTable(dataSource: DataSource, entity: EntityTarget<object>): string {
+  return dataSource.getRepository(entity).metadata.tableName;
 }
 
 export class ReferralListService {
@@ -122,9 +126,10 @@ export class ReferralListService {
     } else if (opts.filter === "inactive") {
       qb.andWhere("(u.lastUpdateAt IS NULL OR u.lastUpdateAt < :since)", { since: sinceActive });
     } else if (opts.filter === "deposited") {
+      const topUpTable = sqlTable(this.dataSource, TopUp);
       qb.andWhere(
         `EXISTS (
-          SELECT 1 FROM top_up t
+          SELECT 1 FROM ${topUpTable} t
           WHERE t.target_user_id = u.id AND t.status = :st
         )`,
         { st: TopUpStatus.Completed }
@@ -132,6 +137,9 @@ export class ReferralListService {
     }
 
     const total = await qb.getCount();
+
+    const topUpTable = sqlTable(this.dataSource, TopUp);
+    const rewardTable = sqlTable(this.dataSource, ReferralReward);
 
     switch (opts.sort) {
       case "join":
@@ -142,15 +150,15 @@ export class ReferralListService {
         break;
       case "spent":
         qb.addSelect(
-          `(SELECT COALESCE(SUM(t.amount), 0) FROM top_up t WHERE t.target_user_id = u.id AND t.status = '${TopUpStatus.Completed}')`,
+          `(SELECT COALESCE(SUM(t.amount), 0) FROM ${topUpTable} t WHERE t.target_user_id = u.id AND t.status = :depositSt)`,
           "spent_sort"
-        );
+        ).setParameter("depositSt", TopUpStatus.Completed);
         qb.orderBy("spent_sort", "DESC");
         break;
       case "earnings":
       default:
         qb.addSelect(
-          `(SELECT COALESCE(SUM(r.rewardAmount), 0) FROM referral_reward r WHERE r.refereeId = u.id AND r.referrerId = :rid)`,
+          `(SELECT COALESCE(SUM(r.rewardAmount), 0) FROM ${rewardTable} r WHERE r.refereeId = u.id AND r.referrerId = :rid)`,
           "earned_sort"
         );
         qb.orderBy("earned_sort", "DESC");
@@ -158,7 +166,6 @@ export class ReferralListService {
     }
 
     const rows = await qb
-      .select(["u.id", "u.telegramId", "u.createdAt", "u.lastUpdateAt"])
       .skip(opts.page * REFERRAL_LIST_PAGE_SIZE)
       .take(REFERRAL_LIST_PAGE_SIZE)
       .getMany();
@@ -175,16 +182,25 @@ export class ReferralListService {
       this.hasDepositFlags(ids),
     ]);
 
+    const resolvedLabels = opts.resolveDisplay
+      ? await Promise.all(
+          rows.map(async (u) => {
+            try {
+              return await opts.resolveDisplay!(u.telegramId);
+            } catch {
+              return null;
+            }
+          })
+        )
+      : rows.map(() => null);
+
     const items: RefereeListItem[] = [];
-    for (const u of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const u = rows[i];
       let displayLabel = `TG ${u.telegramId}`;
-      if (opts.resolveDisplay) {
-        try {
-          const resolved = await opts.resolveDisplay(u.telegramId);
-          if (resolved) displayLabel = resolved.startsWith("@") ? resolved : `@${resolved}`;
-        } catch {
-          /* keep fallback */
-        }
+      const resolved = resolvedLabels[i];
+      if (resolved) {
+        displayLabel = resolved.startsWith("@") ? resolved : `@${resolved}`;
       }
       const totalEarned = earnedMap.get(u.id) ?? 0;
       const totalSpent = spentMap.get(u.id) ?? 0;
@@ -292,7 +308,7 @@ export class ReferralListService {
       .createQueryBuilder("u")
       .where("u.referrerId = :rid", { rid: referrerId })
       .andWhere(
-        `EXISTS (SELECT 1 FROM top_up t WHERE t.target_user_id = u.id AND t.status = :st)`,
+        `EXISTS (SELECT 1 FROM ${sqlTable(this.dataSource, TopUp)} t WHERE t.target_user_id = u.id AND t.status = :st)`,
         { st: TopUpStatus.Completed }
       )
       .getCount();

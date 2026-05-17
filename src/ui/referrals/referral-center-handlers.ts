@@ -2,6 +2,8 @@ import type { Bot } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import type { SessionData } from "../../shared/types/session.js";
 import { Role } from "../../entities/User.js";
+import { Logger } from "../../app/logger.js";
+import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import {
   ReferralAnalyticsService,
   ReferralListService,
@@ -44,54 +46,83 @@ async function resolveTelegramLabel(
   return null;
 }
 
-export async function renderRefereesList(ctx: AppContext): Promise<void> {
-  const session = (await ctx.session) as SessionData;
-  const st = ensureReferralCenter(session);
-  const locale = session.main.locale === "en" ? "en" : "ru";
-  const referrerId = st.adminReferrerId ?? session.main.user.id;
-  const listSvc = new ReferralListService(ctx.appDataSource);
+export type RenderRefereesListOptions = {
+  /** Grammy Menu messages cannot switch to plain InlineKeyboard — send a new message. */
+  forceNewMessage?: boolean;
+};
 
-  let [{ items, total }, overview] = await Promise.all([
-    listSvc.listReferees(referrerId, {
-      page: st.page,
-      sort: st.sort,
-      filter: st.filter,
-      searchQuery: st.searchQuery,
-      resolveDisplay: (tid) => resolveTelegramLabel(ctx, tid),
-    }),
-    listSvc.getOverview(referrerId),
-  ]);
+export async function renderRefereesList(
+  ctx: AppContext,
+  opts?: RenderRefereesListOptions
+): Promise<void> {
+  try {
+    const hasUser = await ensureSessionUser(ctx);
+    const session = (await ctx.session) as SessionData;
+    if (!hasUser || !session?.main?.user?.id) {
+      await ctx
+        .reply(ctx.t("error-unknown", { error: "session" }), { parse_mode: "HTML" })
+        .catch(() => {});
+      return;
+    }
 
-  const maxPage = Math.max(0, Math.ceil(total / REFERRAL_LIST_PAGE_SIZE) - 1);
-  if (st.page > maxPage) {
-    st.page = maxPage;
-    if (st.page > 0 || total > 0) {
-      const retry = await listSvc.listReferees(referrerId, {
+    const st = ensureReferralCenter(session);
+    const locale = session.main.locale === "en" ? "en" : "ru";
+    const referrerId = st.adminReferrerId ?? session.main.user.id;
+    const listSvc = new ReferralListService(ctx.appDataSource);
+
+    let [{ items, total }, overview] = await Promise.all([
+      listSvc.listReferees(referrerId, {
         page: st.page,
         sort: st.sort,
         filter: st.filter,
         searchQuery: st.searchQuery,
         resolveDisplay: (tid) => resolveTelegramLabel(ctx, tid),
-      });
-      items = retry.items;
-      total = retry.total;
+      }),
+      listSvc.getOverview(referrerId),
+    ]);
+
+    const maxPage = Math.max(0, Math.ceil(total / REFERRAL_LIST_PAGE_SIZE) - 1);
+    if (st.page > maxPage) {
+      st.page = maxPage;
+      if (st.page > 0 || total > 0) {
+        const retry = await listSvc.listReferees(referrerId, {
+          page: st.page,
+          sort: st.sort,
+          filter: st.filter,
+          searchQuery: st.searchQuery,
+          resolveDisplay: (tid) => resolveTelegramLabel(ctx, tid),
+        });
+        items = retry.items;
+        total = retry.total;
+      }
     }
-  }
 
-  const text = buildRefereesListText(ctx, overview, items, st, total, locale);
-  const keyboard = buildRefereesListKeyboard(ctx, st, total, items);
+    const text = buildRefereesListText(ctx, overview, items, st, total, locale);
+    const keyboard = buildRefereesListKeyboard(ctx, st, total, items);
 
-  await ctx.editMessageText(text, {
-    parse_mode: "HTML",
-    reply_markup: keyboard,
-    link_preview_options: { is_disabled: true },
-  }).catch(async () => {
-    await ctx.reply(text, {
-      parse_mode: "HTML",
+    const messageOpts = {
+      parse_mode: "HTML" as const,
       reply_markup: keyboard,
       link_preview_options: { is_disabled: true },
-    });
-  });
+    };
+
+    if (opts?.forceNewMessage) {
+      await ctx.reply(text, messageOpts);
+      return;
+    }
+
+    try {
+      await ctx.editMessageText(text, messageOpts);
+    } catch {
+      await ctx.reply(text, messageOpts);
+    }
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    Logger.error("[Referrals] renderRefereesList failed:", error);
+    await ctx
+      .reply(ctx.t("error-unknown", { error: msg.slice(0, 180) }), { parse_mode: "HTML" })
+      .catch(() => {});
+  }
 }
 
 export function registerReferralCenterHandlers(bot: Bot<AppContext>): void {
@@ -165,72 +196,84 @@ export function registerReferralCenterHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery("ref:activity", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = (await ctx.session) as SessionData;
-    const locale = session.main.locale === "en" ? "en" : "ru";
-    const st = ensureReferralCenter(session);
-    const referrerId = st.adminReferrerId ?? session.main.user.id;
-    const feed = await new ReferralActivityService(ctx.appDataSource).getGlobalFeed(
-      referrerId,
-      15
-    );
-    const text = buildActivityText(ctx, feed, locale);
-    const kb = new (await import("grammy")).InlineKeyboard()
-      .text(ctx.t("ref-btn-back-list"), "ref:list")
-      .row()
-      .text(ctx.t("ref-btn-back-hub"), "ref:hub");
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: kb,
-    }).catch(() => ctx.reply(text, { parse_mode: "HTML", reply_markup: kb }));
+    try {
+      const session = (await ctx.session) as SessionData;
+      const locale = session.main.locale === "en" ? "en" : "ru";
+      const st = ensureReferralCenter(session);
+      const referrerId = st.adminReferrerId ?? session.main.user.id;
+      const feed = await new ReferralActivityService(ctx.appDataSource).getGlobalFeed(
+        referrerId,
+        15
+      );
+      const text = buildActivityText(ctx, feed, locale);
+      const kb = new (await import("grammy")).InlineKeyboard()
+        .text(ctx.t("ref-btn-back-list"), "ref:list")
+        .row()
+        .text(ctx.t("ref-btn-back-hub"), "ref:hub");
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: kb,
+      }).catch(() => ctx.reply(text, { parse_mode: "HTML", reply_markup: kb }));
+    } catch (error) {
+      Logger.error("[Referrals] ref:activity failed:", error);
+    }
   });
 
   bot.callbackQuery("ref:analytics", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = (await ctx.session) as SessionData;
-    const st = ensureReferralCenter(session);
-    const referrerId = st.adminReferrerId ?? session.main.user.id;
-    const analytics = await new ReferralAnalyticsService(ctx.appDataSource).getAnalytics(
-      referrerId
-    );
-    const text = buildAnalyticsText(ctx, analytics);
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: buildAnalyticsKeyboard(ctx),
-    }).catch(() =>
-      ctx.reply(text, {
+    try {
+      const session = (await ctx.session) as SessionData;
+      const st = ensureReferralCenter(session);
+      const referrerId = st.adminReferrerId ?? session.main.user.id;
+      const analytics = await new ReferralAnalyticsService(ctx.appDataSource).getAnalytics(
+        referrerId
+      );
+      const text = buildAnalyticsText(ctx, analytics);
+      await ctx.editMessageText(text, {
         parse_mode: "HTML",
         reply_markup: buildAnalyticsKeyboard(ctx),
-      })
-    );
+      }).catch(() =>
+        ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup: buildAnalyticsKeyboard(ctx),
+        })
+      );
+    } catch (error) {
+      Logger.error("[Referrals] ref:analytics failed:", error);
+    }
   });
 
   bot.callbackQuery(/^ref:detail:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const session = (await ctx.session) as SessionData;
-    const locale = session.main.locale === "en" ? "en" : "ru";
-    const refereeId = Number.parseInt(ctx.match[1], 10);
-    const st = ensureReferralCenter(session);
-    const referrerId = st.adminReferrerId ?? session.main.user.id;
-    const detail = await new ReferralListService(ctx.appDataSource).getRefereeDetail(
-      referrerId,
-      refereeId,
-      (tid) => resolveTelegramLabel(ctx, tid)
-    );
-    if (!detail) {
-      await ctx.answerCallbackQuery(ctx.t("error-user-not-found").slice(0, 200)).catch(() => {});
-      return;
-    }
-    ensureReferralCenter(session).detailRefereeId = refereeId;
-    const text = buildDetailText(ctx, detail, locale);
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: buildDetailKeyboard(ctx, refereeId),
-    }).catch(() =>
-      ctx.reply(text, {
+    try {
+      const session = (await ctx.session) as SessionData;
+      const locale = session.main.locale === "en" ? "en" : "ru";
+      const refereeId = Number.parseInt(ctx.match[1], 10);
+      const st = ensureReferralCenter(session);
+      const referrerId = st.adminReferrerId ?? session.main.user.id;
+      const detail = await new ReferralListService(ctx.appDataSource).getRefereeDetail(
+        referrerId,
+        refereeId,
+        (tid) => resolveTelegramLabel(ctx, tid)
+      );
+      if (!detail) {
+        await ctx.answerCallbackQuery(ctx.t("error-user-not-found").slice(0, 200)).catch(() => {});
+        return;
+      }
+      ensureReferralCenter(session).detailRefereeId = refereeId;
+      const text = buildDetailText(ctx, detail, locale);
+      await ctx.editMessageText(text, {
         parse_mode: "HTML",
         reply_markup: buildDetailKeyboard(ctx, refereeId),
-      })
-    );
+      }).catch(() =>
+        ctx.reply(text, {
+          parse_mode: "HTML",
+          reply_markup: buildDetailKeyboard(ctx, refereeId),
+        })
+      );
+    } catch (error) {
+      Logger.error("[Referrals] ref:detail failed:", error);
+    }
   });
 
   bot.callbackQuery("ref:noop", async (ctx) => {
@@ -248,7 +291,7 @@ export function registerReferralCenterHandlers(bot: Bot<AppContext>): void {
     st.adminReferrerId = referrerId;
     st.page = 0;
     st.searchQuery = undefined;
-    await renderRefereesList(ctx);
+    await renderRefereesList(ctx, { forceNewMessage: true });
   });
 
   bot.callbackQuery("refadm:top", async (ctx) => {
@@ -276,6 +319,6 @@ export async function handleReferralSearchText(ctx: AppContext, raw: string): Pr
   st.awaitingSearch = false;
   st.searchQuery = raw.trim() || undefined;
   st.page = 0;
-  await renderRefereesList(ctx);
+  await renderRefereesList(ctx, { forceNewMessage: true });
   return true;
 }

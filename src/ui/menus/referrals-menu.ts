@@ -178,14 +178,20 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
     (ctx) => ctx.t("button-my-referrals"),
     async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
-      const { ensureReferralCenter } = await import("../referrals/referral-center-ui.js");
-      const { renderRefereesList } = await import("../referrals/referral-center-handlers.js");
-      const session = (await ctx.session) as import("../../shared/types/session.js").SessionData;
-      const st = ensureReferralCenter(session);
-      st.page = 0;
-      st.searchQuery = undefined;
-      await ctx.editMessageText(ctx.t("ref-loading"), { parse_mode: "HTML" }).catch(() => {});
-      await renderRefereesList(ctx);
+      try {
+        const { ensureReferralCenter } = await import("../referrals/referral-center-ui.js");
+        const { renderRefereesList } = await import("../referrals/referral-center-handlers.js");
+        const session = (await ctx.session) as import("../../shared/types/session.js").SessionData;
+        const st = ensureReferralCenter(session);
+        st.page = 0;
+        st.searchQuery = undefined;
+        await renderRefereesList(ctx, { forceNewMessage: true });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        await ctx
+          .reply(ctx.t("error-unknown", { error: msg.slice(0, 180) }), { parse_mode: "HTML" })
+          .catch(() => {});
+      }
     }
   )
   .row()
