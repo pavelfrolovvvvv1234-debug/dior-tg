@@ -23,6 +23,7 @@ import {
   buildAdminTopKeyboard,
 } from "./referral-center-ui.js";
 import { openReferralsOverview } from "./referrals-hub.js";
+import { REFERRAL_LIST_PAGE_SIZE } from "../../modules/referrals/referral-list.service.js";
 
 async function resolveTelegramLabel(
   ctx: AppContext,
@@ -50,8 +51,7 @@ export async function renderRefereesList(ctx: AppContext): Promise<void> {
   const referrerId = st.adminReferrerId ?? session.main.user.id;
   const listSvc = new ReferralListService(ctx.appDataSource);
 
-  const [overview, { items, total }] = await Promise.all([
-    listSvc.getOverview(referrerId),
+  let [{ items, total }, overview] = await Promise.all([
     listSvc.listReferees(referrerId, {
       page: st.page,
       sort: st.sort,
@@ -59,7 +59,24 @@ export async function renderRefereesList(ctx: AppContext): Promise<void> {
       searchQuery: st.searchQuery,
       resolveDisplay: (tid) => resolveTelegramLabel(ctx, tid),
     }),
+    listSvc.getOverview(referrerId),
   ]);
+
+  const maxPage = Math.max(0, Math.ceil(total / REFERRAL_LIST_PAGE_SIZE) - 1);
+  if (st.page > maxPage) {
+    st.page = maxPage;
+    if (st.page > 0 || total > 0) {
+      const retry = await listSvc.listReferees(referrerId, {
+        page: st.page,
+        sort: st.sort,
+        filter: st.filter,
+        searchQuery: st.searchQuery,
+        resolveDisplay: (tid) => resolveTelegramLabel(ctx, tid),
+      });
+      items = retry.items;
+      total = retry.total;
+    }
+  }
 
   const text = buildRefereesListText(ctx, overview, items, st, total, locale);
   const keyboard = buildRefereesListKeyboard(ctx, st, total, items);

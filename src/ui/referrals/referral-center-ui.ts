@@ -14,6 +14,7 @@ import type {
 } from "../../modules/referrals/types.js";
 import { REFERRAL_LIST_PAGE_SIZE } from "../../modules/referrals/referral-list.service.js";
 import { tierBadgeEmoji } from "../../modules/referrals/referral-tier.js";
+import { truncateTelegramMenuLabel } from "../../shared/users/user-display.js";
 import { formatRelativeTime, formatShortDate, miniBar } from "./referral-time.js";
 
 export function ensureReferralCenter(session: SessionData): ReferralCenterSession {
@@ -113,7 +114,9 @@ export function buildRefereesListKeyboard(
   const kb = new InlineKeyboard();
 
   for (const item of items) {
-    const label = `👤 ${item.displayLabel.replace(/^@/, "").slice(0, 18)} · $${item.totalEarned.toFixed(0)}`;
+    const label = truncateTelegramMenuLabel(
+      `👤 ${item.displayLabel.replace(/^@/, "").slice(0, 18)} · $${item.totalEarned.toFixed(0)}`
+    );
     kb.text(label, `ref:detail:${item.id}`).row();
   }
 

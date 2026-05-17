@@ -184,7 +184,7 @@ export const referralsMenu = new Menu<AppContext>("referrals-menu", {
       const st = ensureReferralCenter(session);
       st.page = 0;
       st.searchQuery = undefined;
-      const { renderRefereesList } = await import("../referrals/referral-center-handlers.js");
+      await ctx.editMessageText(ctx.t("ref-loading"), { parse_mode: "HTML" }).catch(() => {});
       await renderRefereesList(ctx);
     }
   )
