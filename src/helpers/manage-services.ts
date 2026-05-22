@@ -462,6 +462,13 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   );
 };
 
+/** Open «Мои VDS» list (manage services) without Grammy submenu navigation glitches. */
+export async function openVdsManageList(ctx: AppContext): Promise<void> {
+  const session = await ctx.session;
+  resetVdsManageListView(session);
+  await updateVdsManageView(ctx);
+}
+
 const createVdsServiceInvoice = async (
   ctx: AppContext,
   vds: VirtualDedicatedServer
@@ -494,7 +501,10 @@ const createVdsServiceInvoice = async (
 };
 
 function buildManageServicesMenu(): Menu<AppContext> {
-  let m = new Menu<AppContext>("manage-services-menu")
+  let m = new Menu<AppContext>("manage-services-menu", {
+    autoAnswer: false,
+    onMenuOutdated: false,
+  })
     .submenu(
       (ctx) => ctx.t("button-manage-domains"),
       "domain-manage-services-menu",
@@ -536,19 +546,17 @@ function buildManageServicesMenu(): Menu<AppContext> {
 
   if (showVpsVdsInServiceMenus()) {
     m = m
-      .submenu(
-        (ctx) => ctx.t("button-my-vds"),
-        "vds-manage-services-list",
-        async (ctx) => {
-          await ctx.answerCallbackQuery().catch(() => {});
-          const session = await ctx.session;
-          resetVdsManageListView(session);
-          await ctx.editMessageText(ctx.t("vds-manage-title"), {
+      .text((ctx) => ctx.t("button-my-vds"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        try {
+          await openVdsManageList(ctx);
+        } catch (error) {
+          Logger.error("openVdsManageList failed:", error);
+          await ctx.reply(ctx.t("error-unknown", { error: "Failed to open VPS list" }), {
             parse_mode: "HTML",
           });
-          await ctx.menu.update({ immediate: true }).catch(() => {});
         }
-      )
+      })
       .row();
   }
 
@@ -1160,9 +1168,10 @@ const vdsInfoText = (
   });
 };
 
-export const vdsManageServiceMenu = new Menu<AppContext>(
-  "vds-manage-services-list"
-)
+export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-list", {
+  autoAnswer: false,
+  onMenuOutdated: false,
+})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
     ensureManageVdsSession(session);
@@ -1432,19 +1441,6 @@ export const vdsManageServiceMenu = new Menu<AppContext>(
     const maxPages = Math.ceil(total / LIMIT_ON_PAGE) - 1;
 
     for (const vds of vdsList) {
-      // Same as updateVdsManageView: keep DB IP in sync when VM migrates / provider reassigns IPv4.
-      if (!isDemoVds(vds)) {
-        try {
-          const freshIpv4 = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId);
-          const freshIp = freshIpv4?.list?.[0]?.ip_addr;
-          if (freshIp && !isPlaceholderIpv4(freshIp) && vds.ipv4Addr !== freshIp) {
-            vds.ipv4Addr = freshIp;
-            await vdsRepo.save(vds);
-          }
-        } catch {
-          // Ignore transient Proxmox/network errors on list rendering.
-        }
-      }
       const rateName = (vds.rateName || "").trim() || `VDS #${vds.id}`;
       const customName = (vds.displayName || "").trim();
       const listLabel =
