@@ -40,19 +40,35 @@ export function renderTopupAmountsText(ctx: AppContext): string {
 }
 
 async function showTopupMethodMenu(ctx: AppContext): Promise<void> {
-  await ctx.editMessageText(renderTopupMethodText(ctx), {
-    reply_markup: topupMethodMenu,
-    parse_mode: "HTML",
-  });
+  await ctx.editMessageText(renderTopupMethodText(ctx), { parse_mode: "HTML" });
+  try {
+    await ctx.menu.nav("topup-method-menu");
+  } catch {
+    await ctx.editMessageText(renderTopupMethodText(ctx), {
+      reply_markup: topupMethodMenu,
+      parse_mode: "HTML",
+    });
+  }
 }
 
-async function openAmountPicker(ctx: AppContext): Promise<void> {
+export async function openAmountPicker(ctx: AppContext): Promise<void> {
   const session = await ctx.session;
   getSelectedTopupAmount(session);
-  await ctx.editMessageText(renderTopupAmountsText(ctx), {
-    reply_markup: depositMenu,
-    parse_mode: "HTML",
-  });
+  await ctx.editMessageText(renderTopupAmountsText(ctx), { parse_mode: "HTML" });
+  try {
+    await ctx.menu.nav("deposit-menu");
+  } catch {
+    await ctx.editMessageText(renderTopupAmountsText(ctx), {
+      reply_markup: depositMenu,
+      parse_mode: "HTML",
+    });
+  }
+}
+
+function clearBroadcastDraft(session: { other?: { broadcast?: { step?: string } } }): void {
+  if (session.other?.broadcast) {
+    session.other.broadcast = { step: "idle" };
+  }
 }
 
 async function showProfileScreen(ctx: AppContext): Promise<void> {
@@ -80,7 +96,7 @@ async function ensureTopupMethod(
   return session.main.topupMethod as TopupMethod;
 }
 
-async function handleTopupByMethod(
+export async function handleTopupByMethod(
   ctx: AppContext,
   method: TopupMethod,
   amount: number
@@ -126,28 +142,60 @@ async function handleTopupByMethod(
     return;
   }
 
-  await ctx.editMessageText(ctx.t("payment-information"), {
-    reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
-    parse_mode: "HTML",
-  });
+  try {
+    await ctx.editMessageText(ctx.t("payment-information"), {
+      reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
+      parse_mode: "HTML",
+    });
 
-  const builder = new PaymentBuilder(amount, targetUser);
-  const result =
-    method === "crystalpay"
-      ? await builder.createCrystalPayment()
-      : method === "cryptobot"
-        ? await builder.createCryptoBotPayment()
-        : await builder.createHeleketPayment();
+    const builder = new PaymentBuilder(amount, targetUser);
+    const result =
+      method === "crystalpay"
+        ? await builder.createCrystalPayment()
+        : method === "cryptobot"
+          ? await builder.createCryptoBotPayment()
+          : await builder.createHeleketPayment();
 
-  await ctx.editMessageReplyMarkup({
-    reply_markup: new InlineKeyboard()
-      .url(ctx.t("payment-next-url-label"), `${result.url}`)
-      .row()
-      .text(ctx.t("button-back"), "topup_back_to_amount"),
-  });
+    await ctx.editMessageReplyMarkup({
+      reply_markup: new InlineKeyboard()
+        .url(ctx.t("payment-next-url-label"), `${result.url}`)
+        .row()
+        .text(ctx.t("button-back"), "topup_back_to_amount"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await ctx
+      .editMessageText(ctx.t("error-unknown", { error: message }).substring(0, 4000), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_back_to_amount"),
+      })
+      .catch(() => {});
+  }
 }
 
-export const topupMethodMenu = new Menu<AppContext>("topup-method-menu")
+/** After custom amount text — create invoice if payment method already chosen. */
+export async function proceedTopupAfterCustomAmount(
+  ctx: AppContext,
+  amount: number
+): Promise<void> {
+  const session = await ctx.session;
+  session.main.lastSumDepositsEntered = amount;
+  session.other.deposit.selectedAmount = amount;
+  session.other.deposit.awaitingAmount = false;
+  clearBroadcastDraft(session);
+
+  const method = session.main.topupMethod as TopupMethod | undefined;
+  if (!method) {
+    await openAmountPicker(ctx);
+    return;
+  }
+  await handleTopupByMethod(ctx, method, amount);
+}
+
+export const topupMethodMenu = new Menu<AppContext>("topup-method-menu", {
+  autoAnswer: false,
+  onMenuOutdated: false,
+})
   .text((ctx) => ctx.t("topup-method-heleket"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
@@ -224,7 +272,10 @@ export async function showTopupForMissingAmount(ctx: AppContext, missingAmount: 
   });
 }
 
-export const depositMenu = new Menu<AppContext>("deposit-menu")
+export const depositMenu = new Menu<AppContext>("deposit-menu", {
+  autoAnswer: false,
+  onMenuOutdated: false,
+})
   .dynamic((ctx, range) => {
     const session = ctx.session as any;
     const selected = getSelectedTopupAmount(session);
@@ -285,6 +336,7 @@ export const depositMenu = new Menu<AppContext>("deposit-menu")
         const method = await ensureTopupMethod(ctx);
         if (!method) return;
         const session = await ctx.session;
+        clearBroadcastDraft(session);
         session.other.deposit.awaitingAmount = true;
         session.other.deposit.prefilledAmount = false;
         await ctx.reply(ctx.t("topup-enter-custom-prompt"), {

@@ -124,12 +124,24 @@ export const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated
     const session = await ctx.session;
     session.other.deposit.prefilledAmount = false;
     session.other.deposit.selectedAmount = 50;
+    session.other.deposit.awaitingAmount = false;
     session.main.lastSumDepositsEntered = 0;
+    if (session.other.broadcast) {
+      session.other.broadcast = { step: "idle" };
+    }
     await ctx.editMessageText(ctx.t("topup-select-method"), {
-      reply_markup: topupMethodMenu,
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
     });
+    try {
+      await ctx.menu.nav("topup-method-menu");
+    } catch {
+      await ctx.editMessageText(ctx.t("topup-select-method"), {
+        reply_markup: topupMethodMenu,
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      });
+    }
   })
   .text(
     (ctx) => ctx.t("button-subscription"),

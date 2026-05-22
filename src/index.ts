@@ -88,6 +88,8 @@ import {
   depositMenu,
   depositMoneyConversation,
   depositPaymentSystemChoose,
+  openAmountPicker,
+  proceedTopupAfterCustomAmount,
   renderTopupAmountsText,
   topupMethodMenu,
 } from "./helpers/deposit-money";
@@ -342,11 +344,20 @@ const profileMenu = new Menu<AppContext>("profile-menu", { onMenuOutdated: false
     const session = (await ctx.session) as SessionData;
     session.other.deposit.prefilledAmount = false;
     session.other.deposit.selectedAmount = 50;
+    session.other.deposit.awaitingAmount = false;
     session.main.lastSumDepositsEntered = 0;
-    await ctx.editMessageText(ctx.t("topup-select-method"), {
-      reply_markup: topupMethodMenu,
-      parse_mode: "HTML",
-    });
+    if (session.other.broadcast) {
+      session.other.broadcast = { step: "idle" };
+    }
+    await ctx.editMessageText(ctx.t("topup-select-method"), { parse_mode: "HTML" });
+    try {
+      await ctx.menu.nav("topup-method-menu");
+    } catch {
+      await ctx.editMessageText(ctx.t("topup-select-method"), {
+        reply_markup: topupMethodMenu,
+        parse_mode: "HTML",
+      });
+    }
   })
   .text(
     (ctx) => ctx.t("button-subscription"),
@@ -1058,6 +1069,14 @@ async function index() {
   bot.use(adminPromosMenu);
   bot.use(vdsRateChoose);
   bot.use(vdsRateOs);
+  try {
+    profileMenu.register(topupMethodMenu, "profile-menu");
+    topupMethodMenu.register(depositMenu, "topup-method-menu");
+  } catch (error: any) {
+    if (!error.message?.includes("already registered")) {
+      console.error("[Bot] Failed to register topup/deposit menus:", error);
+    }
+  }
   bot.use(depositMenu);
   bot.use(topupMethodMenu);
   bot.use(domainManageServicesMenu);
@@ -1085,10 +1104,7 @@ async function index() {
 
   bot.callbackQuery("topup_back_to_amount", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    await ctx.editMessageText(ctx.t("button-deposit"), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
+    await openAmountPicker(ctx as AppContext);
   });
 
   try {
@@ -1344,6 +1360,9 @@ async function index() {
     const session = (await ctx.session) as SessionData;
     session.main.lastSumDepositsEntered = -1;
     session.other.deposit.awaitingAmount = false;
+    if (session.other.broadcast) {
+      session.other.broadcast = { step: "idle" };
+    }
     if (ctx.callbackQuery.message) {
       await ctx.deleteMessage().catch(() => {});
     }
@@ -2440,23 +2459,17 @@ async function index() {
       return next();
     }
 
-    session.other.deposit.awaitingAmount = false;
-
     const sumToDeposit = Number.parseFloat(
       input.replaceAll("$", "").replaceAll(",", "").replaceAll(" ", "").trim()
     );
 
     if (isNaN(sumToDeposit) || sumToDeposit < 5 || sumToDeposit > 1_500_000) {
+      session.other.deposit.awaitingAmount = false;
       await ctx.reply(ctx.t("deposit-money-incorrect-sum"), { parse_mode: "HTML" });
       return;
     }
 
-    session.main.lastSumDepositsEntered = sumToDeposit;
-    session.other.deposit.selectedAmount = sumToDeposit;
-    await ctx.reply(renderTopupAmountsText(ctx as AppContext), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
+    await proceedTopupAfterCustomAmount(ctx as AppContext, sumToDeposit);
   });
 
   vdsManageSpecific.register(vdsReinstallOs);
@@ -2867,9 +2880,7 @@ async function index() {
       console.error("[Bot] Failed to register vdsRateOs:", error);
     }
   }
-  profileMenu.register(topupMethodMenu, "profile-menu");
   profileMenu.register(changeLocaleMenu, "profile-menu");
-  topupMethodMenu.register(depositMenu, "topup-method-menu");
 
   // Register menu hierarchy (only in index.ts, not in bot.ts)
   // Note: Registration is done conditionally to avoid duplicate registration
