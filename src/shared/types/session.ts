@@ -118,7 +118,7 @@ export interface OtherSessionData {
   };
   /** Admin: fast reseller onboarding wizard */
   resellerOnboard?: {
-    step: "telegram" | "plan" | "confirm";
+    step: "telegram" | "confirm";
     telegramInput?: string;
     resellerId?: string;
     telegramId?: number | null;

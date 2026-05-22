@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type { Api } from "grammy";
 import type { DataSource } from "typeorm";
 import Reseller, { ResellerPlan, ResellerStatus } from "../../../entities/Reseller.js";
@@ -299,6 +300,10 @@ export class ResellerService {
       return false;
     }
   }
+}
+
+export function generateAutoResellerId(): string {
+  return `partner_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 export { slugifyResellerId };
