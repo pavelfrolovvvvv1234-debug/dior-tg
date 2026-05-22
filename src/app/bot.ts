@@ -258,6 +258,12 @@ export async function createBot(): Promise<{
 
   // Setup conversations
   bot.use(conversations());
+  {
+    const { registerAdminCreateServiceWizardEarlyHandlers } = await import(
+      "../shared/admin/admin-create-service-session.js"
+    );
+    registerAdminCreateServiceWizardEarlyHandlers(bot);
+  }
   const { registerPromoConversations } = await import(
     "../ui/conversations/admin-promocodes-conversations.js"
   );
@@ -639,22 +645,16 @@ export async function createBot(): Promise<{
       return;
     }
 
-    const { clearAdminVdsPanelState } = await import("../ui/menus/admin-vds-menu.js");
-    clearAdminVdsPanelState(session.other);
-
-    try {
-      const { adminMenu } = await import("../ui/menus/admin-menu");
-      await ctx.editMessageText(ctx.t("admin-panel-header"), {
-        reply_markup: adminMenu,
-        parse_mode: "HTML",
-      });
-    } catch (error: any) {
-      const description = error?.description || error?.message || "";
-      if (description.includes("message is not modified")) {
-        return;
-      }
-      throw error;
+    const {
+      isAdminCreateServiceWizardActive,
+      resetAdminCreateServiceWizardState,
+      performAdminMenuBack,
+    } = await import("../shared/admin/admin-create-service-session.js");
+    if (isAdminCreateServiceWizardActive(session)) {
+      await ctx.conversation.exitAll().catch(() => {});
+      resetAdminCreateServiceWizardState(session);
     }
+    await performAdminMenuBack(ctx as import("../shared/types/context.js").AppContext);
   });
 
   bot.on("message:text", async (ctx, next) => {

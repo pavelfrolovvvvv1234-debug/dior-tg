@@ -203,6 +203,14 @@ export async function openAdminVdsDetailById(ctx: AppContext, serviceId: number)
 export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
   const session = ensureFullSession(await ctx.session);
+  const {
+    isAdminCreateServiceWizardActive,
+    resetAdminCreateServiceWizardState,
+  } = await import("../../shared/admin/admin-create-service-session.js");
+  if (isAdminCreateServiceWizardActive(session)) {
+    await ctx.conversation.exitAll().catch(() => {});
+    resetAdminCreateServiceWizardState(session);
+  }
   if (!session.other.adminVds) {
     session.other.adminVds = {
       page: 0,

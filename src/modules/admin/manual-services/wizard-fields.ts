@@ -16,8 +16,7 @@ export interface WizardFieldDef {
 }
 
 const domainFields: WizardFieldDef[] = [
-  { key: "domain", promptKey: "admin-cs-field-domain" },
-  { key: "registrar", promptKey: "admin-cs-field-registrar" },
+  { key: "domain", promptKey: "admin-cs-field-domain", hintKey: "admin-cs-hint-domain-idn" },
   { key: "expiresAt", promptKey: "admin-cs-field-expires", hintKey: "admin-cs-hint-date" },
   { key: "ns1", promptKey: "admin-cs-field-ns1", optional: true },
   { key: "ns2", promptKey: "admin-cs-field-ns2", optional: true },

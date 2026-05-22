@@ -147,7 +147,7 @@ control-panel-users = {-users-list}
 
 admin-lookup-user-button = 🔍 Find user
 admin-lookup-user-prompt = Send the user’s <b>internal DB id</b>, numeric <b>Telegram id</b>, or public <b>@username</b> (5–32 chars).
-admin-lookup-user-not-found = User not found. Check the id or username; for @username the account must be visible to the bot via Telegram API.
+admin-lookup-user-not-found = User not found. Use the <b>internal id</b> from the list (#350), <b>Telegram id</b>, or <b>@username</b> (as shown in the list). If @username fails, open the user from the list or ask them to send /start to the bot.
 admin-lookup-vds-button = 🔍 Find VDS
 
 control-panel-about-user =
@@ -887,7 +887,6 @@ button-my-vds = 🖥 VPS/VDS
 vds-autorenew-line = <strong>Auto-renew:</strong> {$state}
 vds-autorenew-on = on
 vds-autorenew-off = off
-vds-ipv4-count-line = <strong>IPv4:</strong> {$count} (max 10)
 vds-admin-blocked-notice = ⚠️ This service is blocked by the administrator. Only renewal and support are available.
 vds-management-locked-notice = ⚠️ Subscription expired: management disabled. Renew or top up for auto-renewal.
 
@@ -897,9 +896,12 @@ vds-renew-success = ✅ Subscription renewed for {$months} mo.
 
 vds-autorenew-enable = 🔄 Enable auto-renewal
 vds-autorenew-disable = ⏸ Disable auto-renewal
-
-vds-buy-extra-ip = ➕ Add IPv4
-vds-extra-ip-buy-success = Charged {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $. Extra IP recorded in billing (panel attach — contact support if needed).
+vds-button-renew = 📅 Renew
+vds-button-more = ⚙️ More
+vds-button-power-off = 🔴 Shut down
+vds-button-power-on = 🟢 Power on
+vds-button-new-password = 🔁 New password
+vds-button-support-request = 🛠 Contact support
 
 vds-password-generate = 🔁 Generate password
 vds-password-manual = ✏️ Set password manually
@@ -972,7 +974,17 @@ admin-cs-type-prompt = Choose a service type:
 admin-cs-type-domain = 🌐 Domains
 admin-cs-type-vds = ☁ VPS / VDS
 admin-cs-type-dedicated = 🖥 Dedicated
+admin-cs-cancelled = Service setup cancelled.
 admin-cs-cancel = Cancel
+admin-cs-form-field-progress = Field {$current} of {$total}
+admin-cs-hint-domain-idn = Latin or IDN (e.g. whəd.net is stored as punycode).
+admin-cs-error-domain = Invalid domain. Use a zone, e.g. example.com
+admin-cs-error-date = Invalid date. Use DD.MM.YY (22.05.26) or YYYY-MM-DD
+admin-cs-error-not-date = That looks like a Telegram ID, not a date. Use DD.MM.YY
+admin-cs-error-ipv4 = Invalid IPv4
+admin-cs-error-integer = Enter an integer ≥ 1
+admin-cs-error-number = Enter a valid number
+admin-cs-error-amount = Enter a valid amount
 admin-cs-back = ◀ Back
 admin-cs-skip-field = Skip
 admin-cs-field-required = This field is required.
@@ -1004,11 +1016,50 @@ admin-cs-add-another = Add another
 admin-cs-go-user = Go to customer
 admin-cs-done = Back to list
 admin-cs-error = Error: {$error}
-admin-cs-hint-date = Format: YYYY-MM-DD or DD.MM.YY
+admin-cs-hint-date = Format: DD.MM.YY (22.05.26) or DD.MM.YYYY
 admin-cs-hint-vmid = Leave empty for auto VMID
 admin-cs-field-domain = Domain (example.com)
-admin-cs-field-registrar = Registrar / provider
+admin-cs-field-registrar = Registrar / provider (optional)
+admin-cs-hint-registrar-optional = Note for your records: Amper, Namecheap, transfer… Skip to use «transfer».
 admin-cs-field-expires = Expiry date
+admin-manual-domain-prompt =
+    <b>Domain (transfer / manual add)</b>
+
+    Send <b>domain</b> and <b>expiry date</b>. Registrar is optional (any label or skip → transfer).
+
+    Examples:
+    <code>example.com 2026-12-31</code>
+    <code>example.com | 31.12.2026</code>
+    <code>example.com | amper | 2026-12-31</code>
+admin-manual-domain-exists = Domain <code>{$domain}</code> already exists for this user.
+admin-manual-vps-prompt =
+    <b>VPS/VDS (transfer)</b>
+
+    One line (spaces): <b>IP</b> · <b>VMID</b> · <b>plan</b> · <b>price $</b> · <b>date</b>
+
+    <b>Plan</b> — as in the shop: <code>Lite 1</code>, <code>Elite 1</code> (<code>Lite1</code> is OK).
+
+    <b>Date</b> — <code>DD.MM.YY</code>, e.g. <code>22.05.26</code>
+
+    Example:
+    <code>45.74.7.154 162 Lite 1 24 22.05.26</code>
+admin-manual-dedicated-prompt =
+    <b>Dedicated (transfer)</b>
+
+    One line: IP · Server ID · plan · price $ · date (<code>22.05.26</code>)
+
+    Example:
+    <code>127.0.0.1 998 Lite 1 24 22.05.26</code>
+admin-manual-cdn-prompt =
+    <b>CDN (manual)</b>
+
+    Domain/project, status/plan (e.g. <code>active</code>), expiry date — spaces or <code>|</code>.
+
+    Example:
+    <code>cdn.example.com active 2026-12-31</code>
+admin-manual-vps-vmid-exists = VMID <code>{$vmid}</code> is already used by another service.
+admin-manual-service-added = ✅ Service added
+admin-manual-service-invalid-format = ❌ Invalid data format
 admin-cs-field-ns1 = NS1 (optional)
 admin-cs-field-ns2 = NS2 (optional)
 admin-cs-field-notes = Notes (optional)

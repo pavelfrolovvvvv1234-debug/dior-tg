@@ -8,7 +8,7 @@ import type { DataSource } from "typeorm";
 import { In, LessThan, LessThanOrEqual, MoreThan } from "typeorm";
 import NotificationJob from "../../../entities/notifications/NotificationJob.js";
 import NotificationDelivery from "../../../entities/notifications/NotificationDelivery.js";
-import type { EnqueueOptions } from "../types.js";
+import { DISABLED_BULK_CAMPAIGN_KEYS, type EnqueueOptions } from "../types.js";
 import { Logger } from "../../../app/logger.js";
 
 const DEFAULT_DEDUPE_SENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -79,6 +79,9 @@ export class NotificationQueueService {
   }
 
   async enqueue(opts: EnqueueOptions): Promise<NotificationJob | null> {
+    if ((DISABLED_BULK_CAMPAIGN_KEYS as readonly string[]).includes(opts.campaignKey)) {
+      return null;
+    }
     if (await this.isDuplicate(opts)) {
       return null;
     }
@@ -120,6 +123,21 @@ export class NotificationQueueService {
     const repo = this.dataSource.getRepository(NotificationJob);
     const pending = await repo.find({
       where: { userId, campaignKey, status: In(["pending", "processing"]) },
+    });
+    for (const j of pending) {
+      j.status = "cancelled";
+      j.cancelledAt = new Date();
+    }
+    if (pending.length) await repo.save(pending);
+    return pending.length;
+  }
+
+  async cancelPendingForCampaignKeys(campaignKeys: readonly string[]): Promise<number> {
+    if (campaignKeys.length === 0) return 0;
+    const repo = this.dataSource.getRepository(NotificationJob);
+    const pending = await repo.find({
+      where: { campaignKey: In([...campaignKeys]), status: In(["pending", "processing"]) },
+      take: 5000,
     });
     for (const j of pending) {
       j.status = "cancelled";

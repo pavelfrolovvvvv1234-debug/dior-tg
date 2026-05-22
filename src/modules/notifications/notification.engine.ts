@@ -10,6 +10,7 @@ import type { DataSource } from "typeorm";
 import { Logger } from "../../app/logger.js";
 import {
   DEFAULT_ENGINE_CONFIG,
+  DISABLED_BULK_CAMPAIGN_KEYS,
   type NotificationEngineConfig,
 } from "./types.js";
 import { NotificationQueueService } from "./queue/notification-queue.service.js";
@@ -52,33 +53,17 @@ export function startNotificationEngine(
   }, config.queuePollMs);
   queue.reclaimStaleProcessing().catch(() => {});
   processor.processBatch(config.queueBatchSize).catch(() => {});
+  queue
+    .cancelPendingForCampaignKeys(DISABLED_BULK_CAMPAIGN_KEYS)
+    .then((n) => {
+      if (n > 0) Logger.info(`[Notifications] Cancelled ${n} pending bulk marketing jobs`);
+    })
+    .catch((e) => Logger.warn("[Notifications] Bulk campaign cancel failed", e));
 
   const engagementInterval = setInterval(() => {
     engagement.refreshAll(300).catch((e) => Logger.warn("[Notifications] Engagement refresh", e));
   }, config.engagementRefreshMs);
   engagement.refreshAll(100).catch(() => {});
-
-  let lastDigestDay = -1;
-  const dailyInterval = setInterval(() => {
-    const now = new Date();
-    const hour = now.getUTCHours();
-    const day = now.getUTCDate();
-    if (hour === config.weeklyDigestCronHourUtc && day !== lastDigestDay) {
-      lastDigestDay = day;
-      const dow = now.getUTCDay();
-      if (dow === 1) {
-        campaigns.runWeeklyDigest().catch((e) => Logger.error("[Notifications] Weekly digest", e));
-      }
-      if (dow === 3) {
-        campaigns.runMarketIntel().catch((e) => Logger.error("[Notifications] Market intel", e));
-      }
-      if (dow === 5) {
-        campaigns.runTechTips().catch((e) => Logger.error("[Notifications] Tech tips", e));
-      }
-      campaigns.runReactivation14d().catch((e) => Logger.error("[Notifications] Reactivation", e));
-      campaigns.runExpansionAndVip().catch((e) => Logger.error("[Notifications] VIP/expansion", e));
-    }
-  }, 60 * 60 * 1000);
 
   bot.callbackQuery(/^ntf:/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
@@ -144,7 +129,6 @@ export function startNotificationEngine(
     stop: () => {
       clearInterval(queueInterval);
       clearInterval(engagementInterval);
-      clearInterval(dailyInterval);
       stopEvents();
       Logger.info("[Notifications] Engine stopped");
     },

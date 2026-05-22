@@ -142,17 +142,14 @@ export class UserRepository extends BaseRepository<User> {
    * Admin wizard: resolve user by internal id or Telegram id.
    */
   async findForAdminAssignment(query: string): Promise<User | null> {
-    const trimmed = query.trim();
-    if (!trimmed) return null;
-
-    const idNum = Number.parseInt(trimmed, 10);
-    if (Number.isFinite(idNum) && String(idNum) === trimmed.replace(/^\+/, "")) {
-      const byInternal = await this.findById(idNum);
-      if (byInternal) return byInternal;
-      const byTelegram = await this.findByTelegramId(idNum);
-      if (byTelegram) return byTelegram;
-    }
-
+    const { findUserByInternalOrTelegramId, findUserByStoredTelegramUsername, normalizeAdminUserLookupQuery, normalizeTelegramUsername } =
+      await import("../../../shared/users/admin-user-lookup.js");
+    const q = normalizeAdminUserLookupQuery(query);
+    if (!q) return null;
+    const byId = await findUserByInternalOrTelegramId(this.dataSource, q);
+    if (byId) return byId;
+    const un = normalizeTelegramUsername(q);
+    if (un) return findUserByStoredTelegramUsername(this.dataSource, un);
     return null;
   }
 }

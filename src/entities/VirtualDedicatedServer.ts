@@ -91,7 +91,7 @@ export default class VirtualDedicatedServer {
   @Column({ default: false, type: "boolean" })
   managementLocked!: boolean;
 
-  /** Extra IPv4 slots purchased (0–9); total IPs = 1 + extraIpv4Count, max 10. */
+  /** Legacy counter (extra IPv4 purchase disabled); not used in billing UI. */
   @Column({ default: 0, type: "integer" })
   extraIpv4Count!: number;
 

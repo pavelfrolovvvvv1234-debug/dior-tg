@@ -25,6 +25,7 @@ import {
   promotePermissions,
 } from "./helpers/promote-permissions";
 import { writeAdminAuditLog } from "./shared/audit/admin-audit.js";
+import { persistTelegramUsernameIfChanged } from "./shared/users/admin-user-lookup.js";
 import {
   buildControlPanelUserReply,
   buildReferralSummaryReply,
@@ -222,6 +223,8 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
     "manage-services-menu",
     async (ctx) => {
       const session = (await ctx.session) as SessionData;
+      const { resetVdsManageListView } = await import("./helpers/manage-services.js");
+      resetVdsManageListView(session);
       await ctx.editMessageText(ctx.t("manage-services-header"), {
         parse_mode: "HTML",
       });
@@ -620,6 +623,12 @@ async function index() {
   // Must run right after session: otherwise long middleware chains can reach Menu handlers
   // without ConversationFlavor and ctx.conversation.enter() throws (reading 'enter').
   bot.use(conversations());
+  {
+    const { registerAdminCreateServiceWizardEarlyHandlers } = await import(
+      "./shared/admin/admin-create-service-session.js"
+    );
+    registerAdminCreateServiceWizardEarlyHandlers(bot);
+  }
 
   const vmmanager = createVmProvider();
   startResellerApiServer({ dataSource: appDataSource, vmProvider: vmmanager, botApi: bot.api });
@@ -785,6 +794,9 @@ async function index() {
             void appDataSource.manager.save(user).then(() => setCachedUser(tid, user!));
           }
         }
+      }
+      if (ctx.from?.username && ctx.loadedUser?.id) {
+        void persistTelegramUsernameIfChanged(appDataSource, ctx.loadedUser.id, ctx.from.username);
       }
     }
     return next();
@@ -1394,21 +1406,16 @@ async function index() {
       return;
     }
 
-    const { clearAdminVdsPanelState } = await import("./ui/menus/admin-vds-menu.js");
-    clearAdminVdsPanelState(session.other);
-
-    try {
-      await ctx.editMessageText(ctx.t("admin-panel-header"), {
-        reply_markup: adminMenu,
-        parse_mode: "HTML",
-      });
-    } catch (error: any) {
-      const description = error?.description || error?.message || "";
-      if (description.includes("message is not modified")) {
-        return;
-      }
-      throw error;
+    const {
+      isAdminCreateServiceWizardActive,
+      resetAdminCreateServiceWizardState,
+      performAdminMenuBack,
+    } = await import("./shared/admin/admin-create-service-session.js");
+    if (isAdminCreateServiceWizardActive(session)) {
+      await ctx.conversation.exitAll().catch(() => {});
+      resetAdminCreateServiceWizardState(session);
     }
+    await performAdminMenuBack(ctx as AppContext);
   });
 
   bot.callbackQuery("admin-resellers-open", async (ctx) => {
@@ -1781,6 +1788,15 @@ async function index() {
   bot.on("message:text", async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
     {
+      const { hasPendingVdsManageText, handlePendingVdsManageInput } = await import(
+        "./helpers/manage-services.js"
+      );
+      if (hasPendingVdsManageText(session)) {
+        const handled = await handlePendingVdsManageInput(ctx as AppContext);
+        if (handled) return;
+      }
+    }
+    {
       const { handleCdnAddProxyTextInput } = await import("./ui/menus/cdn-menu.js");
       const consumed = await handleCdnAddProxyTextInput(ctx as AppContext);
       if (consumed) return;
@@ -1811,6 +1827,15 @@ async function index() {
     }
 
     const controlUsersPage = session.other.controlUsersPage;
+    const { isAdminCreateServiceWizardActive } = await import(
+      "./shared/admin/admin-create-service-session.js"
+    );
+    if (isAdminCreateServiceWizardActive(session)) {
+      if (controlUsersPage?.awaitingUserLookup) {
+        controlUsersPage.awaitingUserLookup = false;
+      }
+      return next();
+    }
     if (
       controlUsersPage?.awaitingUserLookup &&
       (session.main.user.role === Role.Admin || session.main.user.role === Role.Moderator)
@@ -2339,6 +2364,9 @@ async function index() {
     session.other.promocode.awaitingInput = false;
     await handlePromocodeInput(ctx, input);
   });
+
+  // Admin: add VPS / Dedicated / Domain / CDN to user (before VDS rename handler).
+  registerAdminServiceManagementCallbacks(bot);
 
   // VDS manage inline prompts (rename / manual password) without conversations.
   bot.on("message:text", async (ctx, next) => {
@@ -2875,8 +2903,6 @@ async function index() {
       console.error("[Bot] Failed to register controlUser in controlUserStatus:", error);
     }
   }
-
-  registerAdminServiceManagementCallbacks(bot);
 
   registerDomainRegistrationMiddleware(bot);
 

@@ -29,6 +29,18 @@ import {
   statusForRole,
   truncateTelegramMenuLabel,
 } from "../shared/users/user-display.js";
+import {
+  AdminServiceInputError,
+  parseAdminCdnTransferInput,
+  parseAdminDomainTransferInput,
+  parseAdminHostTransferInput,
+} from "../shared/admin/parse-managed-service-input.js";
+import {
+  persistTelegramUsernameIfChanged,
+  resolveUserFromAdminLookup,
+} from "../shared/users/admin-user-lookup.js";
+
+export { resolveUserFromAdminLookup };
 
 const LIMIT_ON_PAGE = ADMIN_USER_LIST_PAGE_SIZE;
 
@@ -162,6 +174,9 @@ export async function buildControlPanelUserReply(
       const chat = await ctx.api.getChat(user.telegramId);
       const c = chat as { username?: string; first_name?: string; last_name?: string };
       un = (c.username ?? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()) || "Unknown";
+      if (c.username) {
+        void persistTelegramUsernameIfChanged(ctx.appDataSource, user.id, c.username);
+      }
     } catch {
       un = "Unknown";
     }
@@ -362,7 +377,7 @@ async function getManagedServiceData(
       type: "domain" as const,
       id: d.id,
       title: `Domain • ${d.domain}`,
-      expiresAt: null,
+      expiresAt: d.lastSyncAt ?? null,
       status: d.status || "draft",
     })),
     ...cdnList.map((c) => ({
@@ -516,6 +531,14 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
     if (session.main.user.role != Role.User) {
       range.text(ctx.t("admin-lookup-user-button"), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
+        const {
+          isAdminCreateServiceWizardActive,
+          resetAdminCreateServiceWizardState,
+        } = await import("../shared/admin/admin-create-service-session.js");
+        if (isAdminCreateServiceWizardActive(session)) {
+          resetAdminCreateServiceWizardState(session);
+          await ctx.conversation.exitAll().catch(() => {});
+        }
         session.other.controlUsersPage.awaitingUserLookup = true;
         await ctx.reply(ctx.t("admin-lookup-user-prompt"), { parse_mode: "HTML" });
       });
@@ -583,6 +606,9 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
         try {
           const chat = await ctx.api.getChat(user.telegramId);
           username = chat.username || `${chat.first_name} ${chat.last_name}`;
+          if (chat.username) {
+            void persistTelegramUsernameIfChanged(ctx.appDataSource, user.id, chat.username);
+          }
         } catch (err) {
           username = "Unknown";
         }
@@ -779,36 +805,6 @@ export const controlUser = new Menu<AppContext>("control-user", {})
 
 _controlUserMenu = controlUser;
 
-export async function resolveUserFromAdminLookup(
-  ctx: AppContext,
-  raw: string
-): Promise<User | null> {
-  const input = raw.trim();
-  if (!input) return null;
-  const repo = ctx.appDataSource.getRepository(User);
-  if (/^\d+$/.test(input)) {
-    const n = parseInt(input, 10);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    let u = await repo.findOne({ where: { id: n } });
-    if (u) return u;
-    u = await repo.findOne({ where: { telegramId: n } });
-    return u;
-  }
-  const username = input.replace(/^@+/, "").trim();
-  if (!username || !/^[a-zA-Z_][a-zA-Z0-9_]{4,31}$/.test(username)) {
-    return null;
-  }
-  try {
-    const chat = await ctx.api.getChat(`@${username}`);
-    if (chat.type !== "private") return null;
-    const tid = "id" in chat ? Number(chat.id) : NaN;
-    if (!Number.isFinite(tid)) return null;
-    return repo.findOne({ where: { telegramId: tid } });
-  } catch {
-    return null;
-  }
-}
-
 /** Open control-panel card for a user (admin wizard quick action). */
 export async function openAdminUserControlPanel(
   ctx: AppContext,
@@ -836,6 +832,10 @@ export async function openAdminUserControlPanel(
 /** Staff text handler: lookup user by DB id, Telegram id, or @username. Returns true if the message was consumed. */
 export async function handleAdminUserLookupText(ctx: AppContext, raw: string): Promise<boolean> {
   const session = await ctx.session;
+  const { isAdminCreateServiceWizardActive } = await import(
+    "../shared/admin/admin-create-service-session.js"
+  );
+  if (isAdminCreateServiceWizardActive(session)) return false;
   if (!session.other.controlUsersPage?.awaitingUserLookup) return false;
   session.other.controlUsersPage.awaitingUserLookup = false;
 
@@ -1070,22 +1070,30 @@ export const controlUserServicesAdd = new Menu<AppContext>("control-user-service
       range.text((ctx) => ctx.t("button-back"), (ctx) => ctx.menu.back());
       return;
     }
+    const clearVdsPendingPrompts = () => {
+      if (session.other.manageVds) {
+        session.other.manageVds.pendingRenameVdsId = null;
+        session.other.manageVds.pendingManualPasswordVdsId = null;
+      }
+    };
     range.text("🖥 VPS/VDS", async (ctx) => {
+      clearVdsPendingPrompts();
       (session.other as any).adminServiceDraft = { type: "vps", userId } as ManagedServiceDraft;
-      await ctx.reply("Введите данные:\nIP | VMID | Plan | Price | Expiration(YYYY-MM-DD)");
+      await ctx.reply(ctx.t("admin-manual-vps-prompt"), { parse_mode: "HTML" });
     });
     range.text("🧱 Dedicated", async (ctx) => {
+      clearVdsPendingPrompts();
       (session.other as any).adminServiceDraft = { type: "dedicated", userId } as ManagedServiceDraft;
-      await ctx.reply("Введите данные:\nIP | ServerID | Plan | Price | Expiration(YYYY-MM-DD)");
+      await ctx.reply(ctx.t("admin-manual-dedicated-prompt"), { parse_mode: "HTML" });
     });
     range.row();
     range.text("🌐 Domain", async (ctx) => {
       (session.other as any).adminServiceDraft = { type: "domain", userId } as ManagedServiceDraft;
-      await ctx.reply("Введите данные:\ndomain | registrar | expiry(YYYY-MM-DD)");
+      await ctx.reply(ctx.t("admin-manual-domain-prompt"), { parse_mode: "HTML" });
     });
     range.text("⚡ CDN", async (ctx) => {
       (session.other as any).adminServiceDraft = { type: "cdn", userId } as ManagedServiceDraft;
-      await ctx.reply("Введите данные:\ndomain/project | plan | expiry(YYYY-MM-DD)");
+      await ctx.reply(ctx.t("admin-manual-cdn-prompt"), { parse_mode: "HTML" });
     });
     range.row();
     range.back((ctx) => ctx.t("button-back"));
@@ -1147,22 +1155,26 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
     }
     const raw = (ctx.message?.text || "").trim();
     if (!raw) return;
-    const parts = raw.split("|").map((p) => p.trim());
     try {
       if (draft.type === "vps" || draft.type === "dedicated") {
-        if (parts.length < 5) throw new Error("invalid");
-        const [ip, vmid, plan, priceRaw, dateRaw] = parts;
-        const price = Number(priceRaw);
-        const exp = new Date(dateRaw);
-        if (!Number.isFinite(price) || Number.isNaN(exp.getTime())) throw new Error("invalid");
+        const parsed = parseAdminHostTransferInput(raw);
         if (draft.type === "vps") {
           const repo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+          const vmid = Number(parsed.hostId);
+          const existing = await repo.findOne({ where: { vdsId: vmid } });
+          if (existing) {
+            await ctx.reply(
+              ctx.t("admin-manual-vps-vmid-exists", { vmid: String(vmid) }),
+              { parse_mode: "HTML" }
+            );
+            return;
+          }
           const row = repo.create({
             targetUserId: draft.userId,
-            vdsId: Number(vmid) || 0,
+            vdsId: vmid,
             login: "root",
             password: "Not set",
-            ipv4Addr: ip || "0.0.0.0",
+            ipv4Addr: parsed.ip,
             cpuCount: 1,
             networkSpeed: 100,
             isBulletproof: false,
@@ -1170,10 +1182,10 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
             ramSize: 1,
             diskSize: 10,
             lastOsId: 0,
-            rateName: plan || "Custom",
-            expireAt: exp,
-            renewalPrice: price,
-            displayName: null,
+            rateName: parsed.plan,
+            expireAt: parsed.expiresAt,
+            renewalPrice: parsed.price,
+            displayName: parsed.plan.slice(0, 32),
             bundleType: null,
             autoRenewEnabled: true,
             adminBlocked: false,
@@ -1185,51 +1197,53 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
           const repo = ctx.appDataSource.getRepository(DedicatedServer);
           const row = repo.create({
             userId: draft.userId,
-            label: `${plan} (${ip})`,
+            label: `${parsed.plan} (${parsed.ip})`,
             status: DedicatedServerStatus.ACTIVE,
             ticketId: null,
-            credentials: JSON.stringify({ ip, serverId: vmid }),
-            paidUntil: exp,
-            monthlyPrice: price,
+            credentials: JSON.stringify({ ip: parsed.ip, serverId: parsed.hostId }),
+            paidUntil: parsed.expiresAt,
+            monthlyPrice: parsed.price,
           });
           await repo.save(row);
         }
       } else if (draft.type === "domain") {
-        if (parts.length < 3) throw new Error("invalid");
-        const [domainName, registrar, dateRaw] = parts;
-        const exp = new Date(dateRaw);
-        if (Number.isNaN(exp.getTime())) throw new Error("invalid");
-        const tld = domainName.includes(".") ? domainName.split(".").pop() || "com" : "com";
+        const parsed = parseAdminDomainTransferInput(raw);
         const repo = ctx.appDataSource.getRepository(Domain);
+        const existing = await repo.findOne({
+          where: { userId: draft.userId, domain: parsed.fqdn },
+        });
+        if (existing) {
+          await ctx.reply(ctx.t("admin-manual-domain-exists", { domain: parsed.fqdn }), {
+            parse_mode: "HTML",
+          });
+          return;
+        }
         const row = repo.create({
           userId: draft.userId,
-          domain: domainName,
-          tld,
+          domain: parsed.fqdn,
+          tld: parsed.tld,
           period: 1,
           price: 0,
           status: DomainStatus.REGISTERED,
           ns1: null,
           ns2: null,
-          provider: registrar || "manual",
+          provider: parsed.registrar,
           providerDomainId: null,
-          lastSyncAt: exp,
+          lastSyncAt: parsed.expiresAt,
           bundleType: null,
         });
         await repo.save(row);
       } else {
-        if (parts.length < 3) throw new Error("invalid");
-        const [domainName, plan, dateRaw] = parts;
-        const exp = new Date(dateRaw);
-        if (Number.isNaN(exp.getTime())) throw new Error("invalid");
+        const parsed = parseAdminCdnTransferInput(raw);
         const repo = ctx.appDataSource.getRepository(CdnProxyService);
         const row = repo.create({
           proxyId: `manual-${Date.now()}`,
-          domainName,
+          domainName: parsed.domainName,
           targetUrl: null,
-          status: plan || "active",
+          status: parsed.plan,
           lifecycleStatus: "active",
           serverIp: null,
-          expiresAt: exp,
+          expiresAt: parsed.expiresAt,
           autoRenew: true,
           targetUserId: draft.userId,
           telegramId: 0,
@@ -1238,9 +1252,13 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
         });
         await repo.save(row);
       }
-      await ctx.reply("✅ Услуга добавлена");
-    } catch {
-      await ctx.reply("❌ Неверный формат данных");
+      await ctx.reply(ctx.t("admin-manual-service-added"));
+    } catch (e) {
+      if (e instanceof AdminServiceInputError) {
+        await ctx.reply(`❌ ${e.message}`);
+      } else {
+        await ctx.reply(ctx.t("admin-manual-service-invalid-format"));
+      }
     } finally {
       delete (session.other as any).adminServiceDraft;
     }

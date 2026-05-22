@@ -5,30 +5,43 @@
  */
 
 import { z } from "zod";
+import { normalizeAdminDomainFqdn } from "../../../shared/admin/normalize-domain-input.js";
 
 const ipv4Re =
   /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
-
-const domainRe = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
 
 const dateFlexible = z
   .string()
   .trim()
   .min(1)
   .refine((s) => {
+    if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(s)) return true;
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return true;
-    if (/^\d{2}\.\d{2}\.\d{2,4}$/.test(s)) return true;
     const d = new Date(s);
     return Number.isFinite(d.getTime());
-  }, "Invalid date (use YYYY-MM-DD or DD.MM.YY)");
+  }, "Invalid date (use DD.MM.YY e.g. 22.05.26)");
 
 export const domainServiceSchema = z.object({
   domain: z
     .string()
     .trim()
-    .toLowerCase()
-    .regex(domainRe, "Invalid domain (e.g. example.com)"),
-  registrar: z.string().trim().min(1).max(120),
+    .transform((raw, ctx) => {
+      const r = normalizeAdminDomainFqdn(raw);
+      if ("error" in r) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid domain (e.g. example.com or IDN)",
+        });
+        return z.NEVER;
+      }
+      return r.fqdn;
+    }),
+  registrar: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : "transfer")),
   expiresAt: dateFlexible,
   ns1: z.string().trim().max(253).optional().or(z.literal("")),
   ns2: z.string().trim().max(253).optional().or(z.literal("")),
@@ -66,7 +79,7 @@ export const dedicatedServiceSchema = z.object({
 
 export function parseFlexibleDate(input: string): Date {
   const s = input.trim();
-  const dot = /^(\d{2})\.(\d{2})\.(\d{2,4})$/.exec(s);
+  const dot = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/.exec(s);
   if (dot) {
     const day = Number(dot[1]);
     const month = Number(dot[2]);

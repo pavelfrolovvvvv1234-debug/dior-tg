@@ -592,7 +592,11 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
 
     const promoStep = session.other.promoAdmin?.createStep;
     const promoEditStep = session.other.promoAdmin?.editStep;
+    const { isAdminCreateServiceWizardActive } = await import(
+      "../../shared/admin/admin-create-service-session.js"
+    );
     const hasOtherPendingAdminInput =
+      isAdminCreateServiceWizardActive(session) ||
       !!session.other.controlUsersPage?.awaitingUserLookup ||
       !!session.other.adminVds?.awaitingSearch ||
       !!session.other.adminVds?.awaitingTransferUserId ||
@@ -1025,7 +1029,11 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
       }
 
       // Do not steal text from other admin input flows (search, transfer, user lookup, etc.)
+      const { isAdminCreateServiceWizardActive } = await import(
+        "../../shared/admin/admin-create-service-session.js"
+      );
       const hasOtherPendingAdminInput =
+        isAdminCreateServiceWizardActive(session) ||
         !!session.other.controlUsersPage?.awaitingUserLookup ||
         !!session.other.adminVds?.awaitingSearch ||
         !!session.other.adminVds?.awaitingTransferUserId ||
@@ -1036,7 +1044,8 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         !!session.other.referralPercentEdit ||
         !!session.other.adminDomainNs ||
         !!session.other.adminDomainSetAmperId ||
-        !!session.other.adminRegisterDomain;
+        !!session.other.adminRegisterDomain ||
+        !!(session.other as { adminServiceDraft?: unknown }).adminServiceDraft;
       if (hasOtherPendingAdminInput) {
         return next();
       }

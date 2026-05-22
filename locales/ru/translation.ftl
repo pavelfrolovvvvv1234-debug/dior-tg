@@ -149,7 +149,7 @@ control-panel-users = {-users-list}
 
 admin-lookup-user-button = 🔍 Найти пользователя
 admin-lookup-user-prompt = Отправьте <b>внутренний ID</b> пользователя из БД, <b>Telegram ID</b> (число) или публичный <b>@username</b> (5–32 символа).
-admin-lookup-user-not-found = Пользователь не найден. Проверьте число или username; для @username аккаунт должен быть доступен боту через Telegram API.
+admin-lookup-user-not-found = Пользователь не найден. Укажите <b>внутренний id</b> из списка (#350), <b>Telegram id</b> или <b>@username</b> (как в списке). Если по @username не находит — откройте карточку из списка или попросите клиента написать боту /start.
 admin-lookup-vds-button = 🔍 Найти VDS
 
 control-panel-about-user =
@@ -902,7 +902,6 @@ button-my-vds = 🖥 VPS/VDS
 vds-autorenew-line = <strong>Автопродление:</strong> {$state}
 vds-autorenew-on = включено
 vds-autorenew-off = выключено
-vds-ipv4-count-line = <strong>IPv4:</strong> {$count} шт. (макс. 10)
 vds-admin-blocked-notice = ⚠️ Услуга заблокирована администратором. Доступны только продление и поддержка.
 vds-management-locked-notice = ⚠️ Срок оплаты истёк: управление отключено. Продлите подписку или пополните баланс для автопродления.
 
@@ -912,9 +911,12 @@ vds-renew-success = ✅ Подписка продлена на {$months} мес.
 
 vds-autorenew-enable = 🔄 Включить автопродление
 vds-autorenew-disable = ⏸ Отключить автопродление
-
-vds-buy-extra-ip = ➕ Докупить IPv4
-vds-extra-ip-buy-success = Списано {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $. Доп. IP учтён в биллинге (привязка в панели — при необходимости обратитесь в поддержку).
+vds-button-renew = 📅 Продлить
+vds-button-more = ⚙️ Еще
+vds-button-power-off = 🔴 Выключить
+vds-button-power-on = 🟢 Включить
+vds-button-new-password = 🔁 Новый пароль
+vds-button-support-request = 🛠 Запрос в поддержку
 
 vds-password-generate = 🔁 Сгенерировать пароль
 vds-password-manual = ✏️ Задать пароль вручную
@@ -987,7 +989,17 @@ admin-cs-type-prompt = Выберите тип услуги:
 admin-cs-type-domain = 🌐 Домены
 admin-cs-type-vds = ☁ VPS / VDS
 admin-cs-type-dedicated = 🖥 Dedicated
+admin-cs-cancelled = Добавление услуги отменено.
 admin-cs-cancel = Отмена
+admin-cs-form-field-progress = Поле {$current} из {$total}
+admin-cs-hint-domain-idn = Латиница или IDN (например whəd.net — сохранится как punycode).
+admin-cs-error-domain = Неверный домен. Укажите зону, например example.com
+admin-cs-error-date = Неверная дата. Формат: DD.MM.YY (22.05.26) или YYYY-MM-DD
+admin-cs-error-not-date = Похоже на Telegram ID, а не на дату. Формат: DD.MM.YY
+admin-cs-error-ipv4 = Неверный IPv4
+admin-cs-error-integer = Укажите целое число ≥ 1
+admin-cs-error-number = Укажите корректное число
+admin-cs-error-amount = Укажите корректную сумму
 admin-cs-back = ◀ Назад
 admin-cs-skip-field = Пропустить
 admin-cs-field-required = Поле обязательно.
@@ -1019,11 +1031,50 @@ admin-cs-add-another = Добавить ещё
 admin-cs-go-user = К клиенту
 admin-cs-done = К списку услуг
 admin-cs-error = Ошибка: {$error}
-admin-cs-hint-date = Формат: YYYY-MM-DD или DD.MM.YY
+admin-cs-hint-date = Формат: DD.MM.YY (22.05.26) или DD.MM.YYYY
 admin-cs-hint-vmid = Пусто — VMID назначится автоматически
 admin-cs-field-domain = Домен (example.com)
-admin-cs-field-registrar = Регистратор / провайдер
+admin-cs-field-registrar = Регистратор / провайдер (необязательно)
+admin-cs-hint-registrar-optional = Пометка для себя: Amper, Namecheap, transfer… Если пропустить — будет «transfer».
 admin-cs-field-expires = Дата окончания
+admin-manual-domain-prompt =
+    <b>Домен (трансфер / ручное добавление)</b>
+
+    Отправьте <b>домен</b> и <b>дату окончания</b>. Регистратор не обязателен (любая подпись или пропуск → transfer).
+
+    Примеры:
+    <code>example.com 2026-12-31</code>
+    <code>example.com | 31.12.2026</code>
+    <code>example.com | amper | 2026-12-31</code>
+admin-manual-domain-exists = Домен <code>{$domain}</code> уже есть у этого пользователя.
+admin-manual-vps-prompt =
+    <b>VPS/VDS (трансфер)</b>
+
+    Одной строкой через пробел: <b>IP</b> · <b>VMID</b> · <b>тариф</b> · <b>цена $</b> · <b>дата</b>
+
+    <b>Тариф</b> — как в боте: <code>Lite 1</code>, <code>Elite 1</code> (можно <code>Lite1</code> — подставим пробел).
+
+    <b>Дата</b> — <code>DD.MM.YY</code>, например <code>22.05.26</code>
+
+    Пример:
+    <code>45.74.7.154 162 Lite 1 24 22.05.26</code>
+admin-manual-dedicated-prompt =
+    <b>Dedicated (трансфер)</b>
+
+    Одной строкой: IP · ServerID · тариф · цена $ · дата (<code>22.05.26</code>)
+
+    Пример:
+    <code>127.0.0.1 998 Lite 1 24 22.05.26</code>
+admin-manual-cdn-prompt =
+    <b>CDN (ручное)</b>
+
+    Домен/проект, статус/тариф (можно <code>active</code>), дата — пробел или <code>|</code>.
+
+    Пример:
+    <code>cdn.example.com active 2026-12-31</code>
+admin-manual-vps-vmid-exists = VMID <code>{$vmid}</code> уже занят другой услугой.
+admin-manual-service-added = ✅ Услуга добавлена
+admin-manual-service-invalid-format = ❌ Неверный формат данных
 admin-cs-field-ns1 = NS1 (необязательно)
 admin-cs-field-ns2 = NS2 (необязательно)
 admin-cs-field-notes = Заметки (необязательно)

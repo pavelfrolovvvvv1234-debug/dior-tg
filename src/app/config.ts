@@ -244,16 +244,15 @@ export const showVpsVdsInServiceMenus = (): boolean => {
 };
 
 /**
- * Allowed VMManager OS template IDs for VPS/VDS flows.
- * If env is not set, includes project defaults provided by ops.
+ * Optional VMManager OS template ID allowlist for VPS/VDS pickers.
+ * When empty, all active catalog templates (see vmm-os-display) are shown.
  */
 export const getVmManagerAllowedOsIds = (): Set<number> => {
-  const defaults = [920, 921, 922, 923, 924];
   const raw = (config.VMM_ALLOWED_OS_IDS ?? process.env.VMM_ALLOWED_OS_IDS ?? "").trim();
   const parsed = raw
     .split(",")
     .map((s) => Number.parseInt(s.trim(), 10))
     .filter((n) => Number.isFinite(n) && n > 0);
-  return new Set(parsed.length > 0 ? parsed : defaults);
+  return new Set(parsed);
 };
 

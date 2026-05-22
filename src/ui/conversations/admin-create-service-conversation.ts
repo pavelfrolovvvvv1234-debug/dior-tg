@@ -37,8 +37,29 @@ import {
   createInitialMainSession,
   ensureFullSession,
 } from "../../shared/session-initial.js";
+import { normalizeAdminDomainFqdn } from "../../shared/admin/normalize-domain-input.js";
+import {
+  ADMIN_CREATE_SERVICE_CANCEL,
+  cancelAdminCreateServiceWizard,
+  dispatchForeignCallbackDuringWizard,
+  isAdminCreateServiceWizardCallback,
+  resetAdminCreateServiceWizardState,
+} from "../../shared/admin/admin-create-service-session.js";
+import { parseFlexibleDate } from "../../modules/admin/manual-services/schemas.js";
 
 const CB = "advcs";
+const WIZARD_CANCELLED = "__advcs_cancelled__";
+const WIZARD_FOREIGN_CALLBACK = "__advcs_foreign__";
+
+async function leaveWizardForForeignCallback(
+  conversation: AppConversation,
+  ctx: AppContext,
+  callbackData: string
+): Promise<void> {
+  await conversation.external(async (outsideCtx) => {
+    await dispatchForeignCallbackDuringWizard(outsideCtx as AppContext, callbackData);
+  });
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -89,15 +110,13 @@ async function commitWizardState(
   });
 }
 
-async function clearWizardAndOpenList(
+async function exitWizardCancelled(
   conversation: AppConversation,
   ctx: AppContext
 ): Promise<void> {
   await conversation.external(async () => {
-    const session = ensureFullSession(await ctx.session);
-    session.other.adminCreateService = null;
+    await cancelAdminCreateServiceWizard(ctx);
   });
-  await openAdminVdsPanel(ctx);
 }
 
 function stepHeader(ctx: AppContext, step: number, total: number, title: string): string {
@@ -116,7 +135,7 @@ function typeStepKeyboard(ctx: AppContext): InlineKeyboard {
     .row()
     .text(ctx.t("admin-cs-type-dedicated"), `${CB}:stype:dedicated`)
     .row()
-    .text(ctx.t("admin-cs-cancel"), `${CB}:cancel`);
+    .text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL);
 }
 
 function formNavKeyboard(ctx: AppContext, canSkip: boolean): InlineKeyboard {
@@ -124,7 +143,7 @@ function formNavKeyboard(ctx: AppContext, canSkip: boolean): InlineKeyboard {
   if (canSkip) {
     kb.text(ctx.t("admin-cs-skip-field"), `${CB}:skip`).row();
   }
-  kb.text(ctx.t("admin-cs-back"), `${CB}:back-form`).text(ctx.t("admin-cs-cancel"), `${CB}:cancel`);
+  kb.text(ctx.t("admin-cs-back"), `${CB}:back-form`).text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL);
   return kb;
 }
 
@@ -139,7 +158,7 @@ function reviewKeyboard(ctx: AppContext, confirmed: boolean): InlineKeyboard {
     .text(ctx.t("admin-cs-edit-user"), `${CB}:goto:user`)
     .row()
     .text(ctx.t("admin-cs-submit"), `${CB}:submit`)
-    .text(ctx.t("admin-cs-cancel"), `${CB}:cancel`);
+    .text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL);
 }
 
 function successKeyboard(
@@ -223,11 +242,21 @@ async function editWizardMessage(
 
 async function waitCallback(
   conversation: AppConversation,
+  ctx: AppContext,
   predicate: (data: string) => boolean
 ): Promise<string> {
   while (true) {
     const update = await conversation.wait();
     const data = update.callbackQuery?.data;
+    if (data === ADMIN_CREATE_SERVICE_CANCEL) {
+      await update.answerCallbackQuery().catch(() => {});
+      return WIZARD_CANCELLED;
+    }
+    if (data && !isAdminCreateServiceWizardCallback(data)) {
+      await update.answerCallbackQuery().catch(() => {});
+      await leaveWizardForForeignCallback(conversation, ctx, data);
+      return WIZARD_FOREIGN_CALLBACK;
+    }
     if (data && data.startsWith(`${CB}:`) && predicate(data)) {
       await update.answerCallbackQuery().catch(() => {});
       return data;
@@ -240,7 +269,8 @@ async function waitCallback(
 
 const IPV4_RE =
   /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
-const DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
+
+const DATE_FIELD_KEYS = new Set(["expiresAt", "expireAt", "paidUntil"]);
 
 function validateField(
   _type: AdminManualServiceType,
@@ -249,32 +279,52 @@ function validateField(
   optional: boolean
 ): string | null {
   const v = value.trim();
-  if (!v) return optional ? null : "Required";
-  if (key === "ipv4" && !IPV4_RE.test(v)) return "Invalid IPv4";
-  if (key === "domain" && !DOMAIN_RE.test(v)) return "Invalid domain";
+  if (!v) return optional ? null : "admin-cs-field-required";
+  if (DATE_FIELD_KEYS.has(key) && /^\d{8,}$/.test(v)) {
+    return "admin-cs-error-not-date";
+  }
+  if (key === "ipv4" && !IPV4_RE.test(v)) return "admin-cs-error-ipv4";
+  if (key === "domain") {
+    const norm = normalizeAdminDomainFqdn(v);
+    if ("error" in norm) return "admin-cs-error-domain";
+  }
   if (["cpuCount", "ramGb", "diskGb"].includes(key)) {
     const n = Number.parseInt(v, 10);
-    if (!Number.isFinite(n) || n < 1) return "Enter an integer ≥ 1";
+    if (!Number.isFinite(n) || n < 1) return "admin-cs-error-integer";
   }
   if (["sshPort", "vmid"].includes(key)) {
     const n = Number.parseInt(v, 10);
-    if (!Number.isFinite(n) || n < 1) return "Enter a valid number";
+    if (!Number.isFinite(n) || n < 1) return "admin-cs-error-number";
   }
   if (["renewalPrice", "monthlyPrice"].includes(key)) {
     const n = Number.parseFloat(v.replace(",", "."));
-    if (!Number.isFinite(n) || n < 0) return "Enter a valid amount";
+    if (!Number.isFinite(n) || n < 0) return "admin-cs-error-amount";
   }
-  if (key === "expiresAt" || key === "paidUntil") {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) && !/^\d{2}\.\d{2}\.\d{2,4}$/.test(v)) {
-      const d = new Date(v);
-      if (!Number.isFinite(d.getTime())) return "Invalid date";
+  if (DATE_FIELD_KEYS.has(key)) {
+    if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      return null;
+    }
+    try {
+      parseFlexibleDate(v);
+      return null;
+    } catch {
+      return "admin-cs-error-date";
     }
   }
   return null;
 }
 
-function assignDraftValue(st: AdminCreateServiceSessionState, key: string, raw: string): void {
+function normalizedFieldText(key: string, raw: string): string {
   const trimmed = raw.trim();
+  if (key === "domain") {
+    const norm = normalizeAdminDomainFqdn(trimmed);
+    if (!("error" in norm)) return norm.fqdn;
+  }
+  return trimmed;
+}
+
+function assignDraftValue(st: AdminCreateServiceSessionState, key: string, raw: string): void {
+  const trimmed = normalizedFieldText(key, raw);
   if (key === "sshPort" || key === "vmid" || key === "cpuCount" || key === "ramGb" || key === "diskGb") {
     const n = Number.parseInt(trimmed, 10);
     if (Number.isFinite(n)) {
@@ -297,6 +347,7 @@ const registered = new WeakSet<Bot<AppContext>>();
 export function registerAdminCreateServiceConversation(bot: Bot<AppContext>): void {
   if (registered.has(bot)) return;
   registered.add(bot);
+
   bot.use(
     createConversation(adminCreateServiceConversation as never, "adminCreateServiceConversation")
   );
@@ -338,18 +389,17 @@ export async function adminCreateServiceConversation(
     typeStepKeyboard(ctx)
   );
 
-  const typeCb = await waitCallback(
-    conversation,
-    (d) => d.startsWith(`${CB}:stype:`) || d === `${CB}:cancel`
-  );
-  if (typeCb === `${CB}:cancel`) {
-    await clearWizardAndOpenList(conversation, ctx);
+  const typeCb = await waitCallback(conversation, ctx, (d) => d.startsWith(`${CB}:stype:`));
+  if (typeCb === WIZARD_CANCELLED) {
+    return;
+  }
+  if (typeCb === WIZARD_FOREIGN_CALLBACK) {
     return;
   }
   const serviceType = typeCb.slice(`${CB}:stype:`.length) as AdminManualServiceType;
   if (!["domain", "vds", "dedicated"].includes(serviceType)) {
     await ctx.reply(ctx.t("bad-error"));
-    await clearWizardAndOpenList(conversation, ctx);
+    await exitWizardCancelled(conversation, ctx);
     return;
   }
   st.serviceType = serviceType;
@@ -362,17 +412,27 @@ export async function adminCreateServiceConversation(
     const field = fields[st.formFieldIndex];
     const canSkip = Boolean(field.optional);
     const hint = field.hintKey ? `\n<i>${escapeHtml(ctx.t(field.hintKey))}</i>` : "";
+    const fieldProgress = ctx.t("admin-cs-form-field-progress", {
+      current: st.formFieldIndex + 1,
+      total: fields.length,
+    });
     await editWizardMessage(
       ctx,
       st,
-      `${stepHeader(ctx, 2, 4, ctx.t("admin-cs-step-form"))}${escapeHtml(ctx.t(field.promptKey))}${hint}`,
+      `${stepHeader(ctx, 2, 4, ctx.t("admin-cs-step-form"))}<i>${escapeHtml(fieldProgress)}</i>\n${escapeHtml(ctx.t(field.promptKey))}${hint}`,
       formNavKeyboard(ctx, canSkip)
     );
 
     const next = await conversation.wait();
-    if (next.callbackQuery?.data === `${CB}:cancel`) {
+    const formCb = next.callbackQuery?.data;
+    if (formCb === ADMIN_CREATE_SERVICE_CANCEL) {
       await next.answerCallbackQuery().catch(() => {});
-      await clearWizardAndOpenList(conversation, ctx);
+      await exitWizardCancelled(conversation, ctx);
+      return;
+    }
+    if (formCb && !isAdminCreateServiceWizardCallback(formCb)) {
+      await next.answerCallbackQuery().catch(() => {});
+      await leaveWizardForForeignCallback(conversation, ctx, formCb);
       return;
     }
     if (next.callbackQuery?.data === `${CB}:back-form`) {
@@ -390,23 +450,43 @@ export async function adminCreateServiceConversation(
 
     const text = next.message?.text?.trim();
     if (!text) {
-      if (next.callbackQuery) await next.answerCallbackQuery().catch(() => {});
       continue;
     }
 
     if (!canSkip && text.length === 0) {
-      await ctx.reply(ctx.t("admin-cs-field-required"));
+      await conversation.external(async () => {
+        await ctx.reply(ctx.t("admin-cs-field-required"));
+      });
       continue;
     }
 
-    const err = validateField(serviceType, field.key, text, Boolean(field.optional));
-    if (err) {
-      await ctx.reply(`⚠️ ${escapeHtml(err)}`, { parse_mode: "HTML" });
+    const applied = await conversation.external(async () => {
+      const session = ensureFullSession(await ctx.session);
+      const state = getState(session);
+      const errKey = validateField(serviceType, field.key, text, Boolean(field.optional));
+      if (errKey) {
+        return { ok: false as const, errKey };
+      }
+      assignDraftValue(state, field.key, text);
+      state.formFieldIndex += 1;
+      session.other.adminCreateService = state;
+      return { ok: true as const };
+    });
+
+    if (!applied.ok) {
+      await conversation.external(async () => {
+        await ctx.reply(`⚠️ ${ctx.t(applied.errKey)}`, { parse_mode: "HTML" });
+      });
+      const session = await conversation.external(async () => ensureFullSession(await ctx.session));
+      if (session?.other.adminCreateService) {
+        Object.assign(st, session.other.adminCreateService);
+      }
       continue;
     }
-    assignDraftValue(st, field.key, text);
-    st.formFieldIndex += 1;
-    await commitWizardState(conversation, ctx, st);
+    const session = await conversation.external(async () => ensureFullSession(await ctx.session));
+    if (session?.other.adminCreateService) {
+      Object.assign(st, session.other.adminCreateService);
+    }
   }
 
   st.step = "user";
@@ -415,35 +495,57 @@ export async function adminCreateServiceConversation(
     ctx,
     st,
     `${stepHeader(ctx, 3, 4, ctx.t("admin-cs-step-user"))}${ctx.t("admin-cs-user-prompt")}`,
-    new InlineKeyboard().text(ctx.t("admin-cs-cancel"), `${CB}:cancel`)
+    new InlineKeyboard().text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL)
   );
 
   let userAssigned = false;
   while (!userAssigned) {
     const userUpdate = await conversation.wait();
-    if (userUpdate.callbackQuery?.data === `${CB}:cancel`) {
+    const userCb = userUpdate.callbackQuery?.data;
+    if (userCb === ADMIN_CREATE_SERVICE_CANCEL) {
       await userUpdate.answerCallbackQuery().catch(() => {});
-      await clearWizardAndOpenList(conversation, ctx);
+      await exitWizardCancelled(conversation, ctx);
+      return;
+    }
+    if (userCb && !isAdminCreateServiceWizardCallback(userCb)) {
+      await userUpdate.answerCallbackQuery().catch(() => {});
+      await leaveWizardForForeignCallback(conversation, ctx, userCb);
       return;
     }
 
     const q = userUpdate.message?.text?.trim();
     if (!q) continue;
 
-    const user = await conversation.external(async () =>
-      resolveUserFromAdminLookup(ctx, q)
-    );
+    const lookup = await conversation.external(async (outsideCtx) => {
+      const octx = outsideCtx as AppContext;
+      const user = await resolveUserFromAdminLookup(octx, q, { maxUsernameScan: 500 });
+      if (!user) return { ok: false as const };
+      return {
+        ok: true as const,
+        id: user.id,
+        telegramId: Number(user.telegramId),
+      };
+    });
 
-    if (!user) {
-      await ctx.reply(ctx.t("admin-cs-user-not-found"));
+    if (!lookup.ok) {
+      await conversation.external(async (outsideCtx) => {
+        const octx = outsideCtx as AppContext;
+        await octx.reply(octx.t("admin-cs-user-not-found"));
+      });
       continue;
     }
 
-    st.assignedUserId = user.id;
-    st.assignedUserTelegramId = user.telegramId;
+    st.assignedUserId = lookup.id;
+    st.assignedUserTelegramId = lookup.telegramId;
     await commitWizardState(conversation, ctx, st);
     userAssigned = true;
-    await ctx.reply(await resolveUserCard(ctx, user.id), { parse_mode: "HTML" });
+
+    const cardText = await conversation.external(async (outsideCtx) =>
+      resolveUserCard(outsideCtx as AppContext, lookup.id)
+    );
+    await conversation.external(async (outsideCtx) => {
+      await (outsideCtx as AppContext).reply(cardText, { parse_mode: "HTML" });
+    });
   }
 
   st.step = "review";
@@ -472,15 +574,14 @@ export async function adminCreateServiceConversation(
 
     const reviewCb = await waitCallback(
       conversation,
+      ctx,
       (d) =>
         d === `${CB}:toggle-confirm` ||
         d === `${CB}:submit` ||
-        d.startsWith(`${CB}:goto:`) ||
-        d === `${CB}:cancel`
+        d.startsWith(`${CB}:goto:`)
     );
 
-    if (reviewCb === `${CB}:cancel`) {
-      await clearWizardAndOpenList(conversation, ctx);
+    if (reviewCb === WIZARD_CANCELLED || reviewCb === WIZARD_FOREIGN_CALLBACK) {
       return;
     }
     if (reviewCb === `${CB}:toggle-confirm`) {
@@ -561,12 +662,16 @@ export async function adminCreateServiceConversation(
 
         const doneCb = await waitCallback(
           conversation,
+          ctx,
           (d) =>
             d === `${CB}:done` ||
             d === `${CB}:restart` ||
             d.startsWith("adv:") ||
             d.startsWith(`${CB}:user:`)
         );
+        if (doneCb === WIZARD_FOREIGN_CALLBACK) {
+          return;
+        }
         await conversation.external(async () => {
           const session = ensureFullSession(await ctx.session);
           session.other.adminCreateService = null;
@@ -621,13 +726,14 @@ export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<vo
     session.main.user.role = Role.Admin;
   }
   clearAdminVdsPanelState(session.other);
+  resetAdminCreateServiceWizardState(session);
   if (session.other.promoAdmin) {
     session.other.promoAdmin.createStep = null;
     session.other.promoAdmin.editStep = null;
     session.other.promoAdmin.createDraft = {};
     session.other.promoAdmin.editingPromoId = null;
   }
-  session.other.adminCreateService = null;
+  session.other.adminCreateService = defaultCreateServiceState();
 
   await ctx.conversation.exitAll().catch(() => {});
   await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);

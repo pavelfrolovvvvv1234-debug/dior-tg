@@ -22,7 +22,10 @@ import {
 } from "../domain/domains/domain-purchase-flow.js";
 import { showVpsVdsInServiceMenus } from "../app/config.js";
 import { getVmManagerAllowedOsIds } from "../app/config.js";
-import { humanizeVmmOsName } from "../shared/vmm-os-display.js";
+import {
+  filterAndSortOsTemplatesForVpsPicker,
+  humanizeVmmOsName,
+} from "../shared/vmm-os-display.js";
 import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
 import {
@@ -457,16 +460,9 @@ export const vdsRateOs = new Menu<AppContext>("vds-select-os").dynamic(
 
     let count = 0;
     const allowedOsIds = getVmManagerAllowedOsIds();
-    osList.list
-      .filter(
-        (os) =>
-          allowedOsIds.has(os.id) ||
-          (!os.adminonly &&
-            os.name != "NoOS" &&
-            os.state == "active" &&
-            os.repository != "ISPsystem LXD")
-      )
-      .forEach((os) => {
+    filterAndSortOsTemplatesForVpsPicker(osList.list, {
+      allowedIds: allowedOsIds,
+    }).forEach((os) => {
         const label = humanizeVmmOsName(os.name);
         range.text({ text: label, payload: `vos-${os.id}` }, async (ctx) => {
           await ctx.answerCallbackQuery().catch(() => {});

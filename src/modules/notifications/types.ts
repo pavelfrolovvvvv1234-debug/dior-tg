@@ -34,6 +34,16 @@ export type CampaignKey =
   | "vip_alert"
   | "reactivation";
 
+/** Generic bulk blasts — disabled (hurt conversion during checkout). */
+export const DISABLED_BULK_CAMPAIGN_KEYS: readonly CampaignKey[] = [
+  "weekly_digest",
+  "market_intel",
+  "tech_tip",
+  "expansion",
+  "vip_alert",
+  "reactivation",
+];
+
 export interface TemplateButton {
   textKey: string;
   callback?: string;

@@ -26,6 +26,10 @@ export default class User {
   @Column({ nullable: false, type: "integer" })
   telegramId!: number;
 
+  /** Last known @username (lowercase), synced from Telegram — used for admin lookup. */
+  @Column({ nullable: true, type: "varchar", length: 32 })
+  telegramUsername!: string | null;
+
   @Column({ default: 0.0, type: "real", nullable: false })
   balance!: number;
 

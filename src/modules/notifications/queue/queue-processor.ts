@@ -17,7 +17,12 @@ import { NotificationAnalyticsService } from "../analytics/notification-analytic
 import { renderTemplateBody } from "../templates/template-renderer.js";
 import { getCatalogEntry } from "../templates/template-catalog.js";
 import { buildTemplateKeyboard } from "../delivery/telegram-delivery.service.js";
-import type { NotificationEngineConfig, RenderContext, TelegramSendFn } from "../types.js";
+import {
+  DISABLED_BULK_CAMPAIGN_KEYS,
+  type NotificationEngineConfig,
+  type RenderContext,
+  type TelegramSendFn,
+} from "../types.js";
 import { Logger } from "../../../app/logger.js";
 
 export class QueueProcessor {
@@ -54,6 +59,21 @@ export class QueueProcessor {
   }
 
   private async processOne(job: Awaited<ReturnType<NotificationQueueService["fetchDue"]>>[0]): Promise<boolean> {
+    if ((DISABLED_BULK_CAMPAIGN_KEYS as readonly string[]).includes(job.campaignKey)) {
+      job.status = "cancelled";
+      job.cancelledAt = new Date();
+      await this.dataSource.getRepository(NotificationJob).save(job);
+      await this.analytics.recordDelivery({
+        jobId: job.id,
+        userId: job.userId,
+        campaignKey: job.campaignKey,
+        templateKey: job.templateKey,
+        status: "skipped",
+        skipReason: "bulk_campaign_disabled",
+      });
+      return false;
+    }
+
     if (this.quietHours.isQuietHourUtc()) {
       job.scheduledAt = this.quietHours.nextAllowedTime();
       await this.dataSource.getRepository(NotificationJob).save(job);
