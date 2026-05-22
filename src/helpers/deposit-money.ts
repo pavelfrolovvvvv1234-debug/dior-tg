@@ -71,6 +71,35 @@ function clearBroadcastDraft(session: { other?: { broadcast?: { step?: string } 
   }
 }
 
+type TopupMsgRef = { chatId: number; messageId: number };
+
+/** Callback on menu message → edit; plain text reply (custom sum) → new bot message. */
+function getTopupEditTarget(ctx: AppContext): TopupMsgRef | null {
+  const msg = ctx.callbackQuery?.message;
+  if (msg && "message_id" in msg) {
+    return { chatId: msg.chat.id, messageId: msg.message_id };
+  }
+  return null;
+}
+
+async function topupSend(
+  ctx: AppContext,
+  text: string,
+  extra?: { reply_markup?: InlineKeyboard; parse_mode?: "HTML" }
+): Promise<TopupMsgRef> {
+  const target = getTopupEditTarget(ctx);
+  if (target) {
+    await ctx.api.editMessageText(target.chatId, target.messageId, text, extra);
+    return target;
+  }
+  const sent = await ctx.reply(text, extra);
+  return { chatId: sent.chat.id, messageId: sent.message_id };
+}
+
+async function topupSetMarkup(ctx: AppContext, ref: TopupMsgRef, keyboard: InlineKeyboard): Promise<void> {
+  await ctx.api.editMessageReplyMarkup(ref.chatId, ref.messageId, { reply_markup: keyboard });
+}
+
 async function showProfileScreen(ctx: AppContext): Promise<void> {
   const session = await ctx.session;
   if (!ctx.chat) return;
@@ -108,16 +137,10 @@ export async function handleTopupByMethod(
     const amountWhole = Math.round(amount);
     const supportMessage = ctx.t("topup-manual-support-message", { amount: amountWhole });
     const supportUrl = `tg://resolve?domain=diorhost&text=${encodeURIComponent(supportMessage)}`;
-    await ctx.editMessageText(
-      ctx.t("topup-manual-created", { amount: amountWhole, ticketId: "-" }),
-      {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().url(
-          ctx.t("button-support"),
-          supportUrl
-        ),
-      }
-    );
+    await topupSend(ctx, ctx.t("topup-manual-created", { amount: amountWhole, ticketId: "-" }), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().url(ctx.t("button-support"), supportUrl),
+    });
     return;
   }
 
@@ -125,7 +148,7 @@ export async function handleTopupByMethod(
     process.env["PAYMENT_CRYPTOBOT_TOKEN"]?.trim() ||
     process.env["PAYMENT_CRYPTO_PAY_TOKEN"]?.trim();
   if (method === "cryptobot" && !cryptopayToken) {
-    await ctx.editMessageText(ctx.t("topup-cryptobot-not-configured"), {
+    await topupSend(ctx, ctx.t("topup-cryptobot-not-configured"), {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_manual_back"),
     });
@@ -135,7 +158,7 @@ export async function handleTopupByMethod(
   const heleketMerchant = process.env["PAYMENT_HELEKET_MERCHANT"]?.trim();
   const heleketKey = process.env["PAYMENT_HELEKET_API_KEY"]?.trim();
   if (method === "heleket" && (!heleketMerchant || !heleketKey)) {
-    await ctx.editMessageText(ctx.t("topup-heleket-not-configured"), {
+    await topupSend(ctx, ctx.t("topup-heleket-not-configured"), {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_manual_back"),
     });
@@ -143,7 +166,7 @@ export async function handleTopupByMethod(
   }
 
   try {
-    await ctx.editMessageText(ctx.t("payment-information"), {
+    const ref = await topupSend(ctx, ctx.t("payment-information"), {
       reply_markup: new InlineKeyboard().text(ctx.t("payment-await")),
       parse_mode: "HTML",
     });
@@ -156,20 +179,20 @@ export async function handleTopupByMethod(
           ? await builder.createCryptoBotPayment()
           : await builder.createHeleketPayment();
 
-    await ctx.editMessageReplyMarkup({
-      reply_markup: new InlineKeyboard()
+    await topupSetMarkup(
+      ctx,
+      ref,
+      new InlineKeyboard()
         .url(ctx.t("payment-next-url-label"), `${result.url}`)
         .row()
-        .text(ctx.t("button-back"), "topup_back_to_amount"),
-    });
+        .text(ctx.t("button-back"), "topup_back_to_amount")
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await ctx
-      .editMessageText(ctx.t("error-unknown", { error: message }).substring(0, 4000), {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_back_to_amount"),
-      })
-      .catch(() => {});
+    await topupSend(ctx, ctx.t("error-unknown", { error: message }).substring(0, 4000), {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_back_to_amount"),
+    }).catch(() => {});
   }
 }
 
@@ -186,7 +209,10 @@ export async function proceedTopupAfterCustomAmount(
 
   const method = session.main.topupMethod as TopupMethod | undefined;
   if (!method) {
-    await openAmountPicker(ctx);
+    await ctx.reply(renderTopupAmountsText(ctx), {
+      reply_markup: depositMenu,
+      parse_mode: "HTML",
+    });
     return;
   }
   await handleTopupByMethod(ctx, method, amount);

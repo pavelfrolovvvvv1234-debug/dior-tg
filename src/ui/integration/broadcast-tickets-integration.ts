@@ -597,6 +597,7 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
     );
     const hasOtherPendingAdminInput =
       isAdminCreateServiceWizardActive(session) ||
+      !!session.other.deposit?.awaitingAmount ||
       !!session.other.controlUsersPage?.awaitingUserLookup ||
       !!session.other.adminVds?.awaitingSearch ||
       !!session.other.adminVds?.awaitingTransferUserId ||

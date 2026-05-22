@@ -690,22 +690,26 @@ export async function createBot(): Promise<{
       return next();
     }
 
-    session.other.deposit.awaitingAmount = false;
-
-    const sumToDeposit = Number.parseInt(
-      input.replaceAll("$", "").replaceAll(",", "").replaceAll(".", "").replaceAll(" ", "").trim()
+    const sumToDeposit = Number.parseFloat(
+      input.replaceAll("$", "").replaceAll(",", "").replaceAll(" ", "").trim()
     );
 
-    if (isNaN(sumToDeposit) || sumToDeposit <= 0 || sumToDeposit > 1_500_000) {
+    if (isNaN(sumToDeposit) || sumToDeposit < 5 || sumToDeposit > 1_500_000) {
+      session.other.deposit.awaitingAmount = false;
       await ctx.reply(ctx.t("deposit-money-incorrect-sum"), { parse_mode: "HTML" });
       return;
     }
 
-    session.main.lastSumDepositsEntered = sumToDeposit;
-    await ctx.reply(ctx.t("deposit-success-sum", { amount: sumToDeposit }), {
-      reply_markup: depositMenu,
-      parse_mode: "HTML",
-    });
+    const { proceedTopupAfterCustomAmount } = await import("../helpers/deposit-money.js");
+    try {
+      await proceedTopupAfterCustomAmount(ctx as import("../shared/types/context.js").AppContext, sumToDeposit);
+    } catch (error) {
+      session.other.deposit.awaitingAmount = false;
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.reply(ctx.t("error-unknown", { error: message }).substring(0, 4000), {
+        parse_mode: "HTML",
+      });
+    }
   });
   
   // Register middleware

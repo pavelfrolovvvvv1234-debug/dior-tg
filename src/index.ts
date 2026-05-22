@@ -1368,6 +1368,41 @@ async function index() {
     }
   });
 
+  // Custom top-up amount — high priority (after cancel; before admin text catch-alls)
+  bot.on("message:text", async (ctx, next) => {
+    const session = (await ctx.session) as SessionData;
+    if (!session.other?.deposit?.awaitingAmount) {
+      return next();
+    }
+    if (!ctx.hasChatType("private") || !ctx.message?.text) {
+      return next();
+    }
+    const input = ctx.message.text.trim();
+    if (input.startsWith("/")) {
+      return next();
+    }
+
+    const sumToDeposit = Number.parseFloat(
+      input.replaceAll("$", "").replaceAll(",", "").replaceAll(" ", "").trim()
+    );
+
+    if (isNaN(sumToDeposit) || sumToDeposit < 5 || sumToDeposit > 1_500_000) {
+      session.other.deposit.awaitingAmount = false;
+      await ctx.reply(ctx.t("deposit-money-incorrect-sum"), { parse_mode: "HTML" });
+      return;
+    }
+
+    try {
+      await proceedTopupAfterCustomAmount(ctx as AppContext, sumToDeposit);
+    } catch (error) {
+      session.other.deposit.awaitingAmount = false;
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.reply(ctx.t("error-unknown", { error: message }).substring(0, 4000), {
+        parse_mode: "HTML",
+      });
+    }
+  });
+
   // Bundle purchase handlers
   bot.callbackQuery(/^bundle-purchase-(.+)-(.+)$/, async (ctx) => {
     const match = ctx.callbackQuery?.data?.match(/^bundle-purchase-(.+)-(.+)$/);
@@ -1820,6 +1855,9 @@ async function index() {
 
   bot.on("message:text", async (ctx, next) => {
     const session = (await ctx.session) as SessionData;
+    if (session.other?.deposit?.awaitingAmount) {
+      return next();
+    }
     {
       const { hasPendingVdsManageText, handlePendingVdsManageInput } = await import(
         "./helpers/manage-services.js"
@@ -2444,32 +2482,6 @@ async function index() {
       delete session.other.withdrawInitialAmount;
       await ctx.reply(ctx.t("error-unknown", { error: "failed to start" })).catch(() => {});
     }
-  });
-
-  bot.on("message:text", async (ctx, next) => {
-    const session = (await ctx.session) as SessionData;
-    if (!session.other.deposit.awaitingAmount) {
-      return next();
-    }
-    if (!ctx.hasChatType("private")) {
-      return next();
-    }
-    const input = ctx.message.text.trim();
-    if (input.startsWith("/")) {
-      return next();
-    }
-
-    const sumToDeposit = Number.parseFloat(
-      input.replaceAll("$", "").replaceAll(",", "").replaceAll(" ", "").trim()
-    );
-
-    if (isNaN(sumToDeposit) || sumToDeposit < 5 || sumToDeposit > 1_500_000) {
-      session.other.deposit.awaitingAmount = false;
-      await ctx.reply(ctx.t("deposit-money-incorrect-sum"), { parse_mode: "HTML" });
-      return;
-    }
-
-    await proceedTopupAfterCustomAmount(ctx as AppContext, sumToDeposit);
   });
 
   vdsManageSpecific.register(vdsReinstallOs);
