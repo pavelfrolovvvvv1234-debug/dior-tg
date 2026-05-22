@@ -59,8 +59,8 @@ async function applyTelegramInput(
 function buildConfirmText(state: OnboardState): string {
   const limits = RESELLER_PLAN_LIMITS[DEFAULT_PLAN];
   const tgLine = state.telegramId
-    ? `Telegram: <code>${state.telegramId}</code>${state.telegramUsername ? ` @${escapeUserInput(state.telegramUsername)}` : ""}`
-    : "Telegram: <i>not linked</i>";
+    ? `Telegram: <code>${state.telegramId}</code>${state.telegramUsername ? ` @${escapeUserInput(state.telegramUsername)}` : ""}\n<i>API billing uses this account — top up in bot before selling.</i>`
+    : "Telegram: <i>not linked — API create will fail until TG is set</i>";
 
   return [
     "<b>Step 2/2</b> — Confirm creation?",

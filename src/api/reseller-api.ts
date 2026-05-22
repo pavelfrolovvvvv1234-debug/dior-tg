@@ -14,6 +14,10 @@ import { retry } from "../shared/utils/retry.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
 import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
 import { getResellerAuthRuntime } from "../modules/reseller/services/reseller-auth-runtime.js";
+import {
+  assertResellerCanAfford,
+  debitResellerBalance,
+} from "../modules/reseller/services/reseller-billing.js";
 
 type ResellerAuthInfo = {
   resellerId: string;
@@ -830,6 +834,24 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         return;
       }
 
+      const price = Number(plan.price.bulletproof || plan.price.default || 0);
+      const afford = await assertResellerCanAfford(options.dataSource, resellerId, price);
+      if (!afford.ok) {
+        const status = afford.error === "insufficient_balance" ? 402 : 403;
+        res.status(status).json({
+          ok: false,
+          error: afford.error,
+          required: afford.required,
+          available: afford.available,
+          hint:
+            afford.error === "reseller_telegram_not_linked"
+              ? "Link reseller Telegram in DIOR CONTROL (Add Reseller with @username), then top up balance in the bot."
+              : "Top up balance in @diorhost_bot (Profile → Deposit) using the reseller Telegram account.",
+          ...requestMeta(req),
+        });
+        return;
+      }
+
       const osId = body.osId ?? 900;
       const password = generatePassword(12);
       const name = String(body.name ?? generateRandomName(13));
@@ -892,7 +914,25 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       });
       let saved: VirtualDedicatedServer;
       try {
-        saved = await vdsRepo.save(entity);
+        const tx = await options.dataSource.transaction(async (em) => {
+          const debit = await debitResellerBalance(em, resellerId, price);
+          if (!debit.ok) {
+            return { kind: "billing_failed" as const, error: debit.error, required: debit.required, available: debit.available };
+          }
+          const row = await em.save(VirtualDedicatedServer, entity);
+          return { kind: "saved" as const, saved: row };
+        });
+        if (tx.kind === "billing_failed") {
+          res.status(402).json({
+            ok: false,
+            error: tx.error,
+            required: tx.required,
+            available: tx.available,
+            ...requestMeta(req),
+          });
+          return;
+        }
+        saved = tx.saved;
       } catch (err) {
         if (isUniqueConstraintError(err)) {
           res.status(409).json({
@@ -1062,14 +1102,45 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
           return;
         }
         const months = bodyParsed.data.months ?? 1;
+        const renewPrice = Number(vds.renewalPrice || 0) * months;
+        const affordRenew = await assertResellerCanAfford(options.dataSource, resellerId, renewPrice);
+        if (!affordRenew.ok) {
+          const status = affordRenew.error === "insufficient_balance" ? 402 : 403;
+          res.status(status).json({
+            ok: false,
+            error: affordRenew.error,
+            required: affordRenew.required,
+            available: affordRenew.available,
+            ...requestMeta(req),
+          });
+          return;
+        }
         const days = parseMonthsToDays(months);
         const base = Math.max(Date.now(), new Date(vds.expireAt).getTime());
-        vds.expireAt = new Date(base + days * 24 * 60 * 60 * 1000);
-        vds.payDayAt = null;
-        vds.managementLocked = false;
-        await vdsRepo.save(vds);
+        const newExpire = new Date(base + days * 24 * 60 * 60 * 1000);
+        const tx = await options.dataSource.transaction(async (em) => {
+          const debit = await debitResellerBalance(em, resellerId, renewPrice);
+          if (!debit.ok) {
+            return { kind: "billing_failed" as const, error: debit.error, required: debit.required, available: debit.available };
+          }
+          vds.expireAt = newExpire;
+          vds.payDayAt = null;
+          vds.managementLocked = false;
+          const row = await em.save(vds);
+          return { kind: "saved" as const, saved: row };
+        });
+        if (tx.kind === "billing_failed") {
+          res.status(402).json({
+            ok: false,
+            error: tx.error,
+            required: tx.required,
+            available: tx.available,
+            ...requestMeta(req),
+          });
+          return;
+        }
         await emit("service_renewed", { months });
-        res.json({ ok: true, item: mapService(vds) });
+        res.json({ ok: true, item: mapService(tx.saved) });
         return;
       }
       if (action === "reinstall") {

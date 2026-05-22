@@ -13,6 +13,7 @@ import Reseller, { ResellerStatus } from "../../../entities/Reseller.js";
 import ResellerApiKey, { ResellerApiKeyStatus } from "../../../entities/ResellerApiKey.js";
 import { escapeUserInput } from "../../../helpers/formatting.js";
 import { ResellerStatsService } from "../services/reseller-stats.service.js";
+import { getResellerBillingUser } from "../services/reseller-billing.js";
 import { ResellerService } from "../services/reseller.service.js";
 import { ResellerAuditService } from "../services/reseller-audit.service.js";
 import { canResellerAdmin } from "../rbac/reseller-permissions.js";
@@ -155,9 +156,15 @@ async function buildResellerDetail(
   ];
 
   if (reseller) {
+    const billing = await getResellerBillingUser(ctx.appDataSource, resellerId);
+    const balanceLine =
+      billing.ok
+        ? `Wallet: <b>$${billing.user.balance.toFixed(2)}</b>`
+        : "Wallet: <i>not linked — top up unavailable for API</i>";
     lines.push(
       `Status: <b>${reseller.status}</b> • Plan: <b>${reseller.plan}</b>`,
       `TG: ${reseller.telegramId ? `<code>${reseller.telegramId}</code>` : "—"} @${escapeUserInput(reseller.telegramUsername || "—")}`,
+      balanceLine,
       `Company: ${escapeUserInput(reseller.company || "—")}`,
       `Profit %: <b>${reseller.profitPercent}</b> • Max VPS: <b>${reseller.maxVps}</b>`,
       `API rate: <b>${reseller.apiRatePerMinute}</b>/min • Abuse: <b>${reseller.abuseScore}</b>`,

@@ -6,7 +6,7 @@ import ResellerApiKey, {
   ResellerApiKeyStatus,
   ResellerApiKeyType,
 } from "../../../entities/ResellerApiKey.js";
-import User from "../../../entities/User.js";
+import User, { Role, UserStatus } from "../../../entities/User.js";
 import { RESELLER_PLAN_LIMITS, RESELLER_API_BASE_URL } from "../domain/reseller-plans.js";
 import {
   generateApiKeyPair,
@@ -152,6 +152,27 @@ export class ResellerService {
 
     await this.dataSource.getRepository(Reseller).save(reseller);
 
+    if (reseller.telegramId) {
+      const userRepo = this.dataSource.getRepository(User);
+      let botUser = await userRepo.findOneBy({ telegramId: reseller.telegramId });
+      if (!botUser) {
+        botUser = userRepo.create({
+          telegramId: reseller.telegramId,
+          telegramUsername: reseller.telegramUsername,
+          role: Role.User,
+          status: UserStatus.User,
+          lang: "en",
+          isBanned: false,
+          balance: 0,
+          referralBalance: 0,
+        });
+        await userRepo.save(botUser);
+      } else if (reseller.telegramUsername && !botUser.telegramUsername) {
+        botUser.telegramUsername = reseller.telegramUsername;
+        await userRepo.save(botUser);
+      }
+    }
+
     const apiKeyRow = new ResellerApiKey();
     apiKeyRow.resellerId = id;
     apiKeyRow.keyType = ResellerApiKeyType.Production;
@@ -279,9 +300,9 @@ export class ResellerService {
       `OpenAPI: ${RESELLER_API_BASE_URL}/reseller/openapi.json`,
       `Health: ${RESELLER_API_BASE_URL}/reseller/health`,
       "",
-      "<b>Limits</b>",
-      `• Max VPS: ${limits.maxVps}`,
-      `• API rate: ${limits.apiRatePerMinute}/min`,
+      "<b>Billing</b>",
+      "Top up balance in @diorhost_bot (Profile → Deposit) on <b>this Telegram account</b>.",
+      "Each API VPS create/renew charges your bot wallet (same prices as retail).",
       "",
       "Headers: <code>x-api-key</code>, optional HMAC <code>x-signature</code>, <code>x-timestamp</code>, <code>x-nonce</code>",
       "",
