@@ -213,6 +213,131 @@ button-automations = 📬 Automations & Notifications
 button-statistics = 📊 Statistics
 button-resellers = 🤝 Resellers
 admin-resellers-line-mrr = • MRR (Monthly Recurring Revenue), est.: <b>{ $amount }</b>
+
+# DIOR CONTROL — reseller panel (ars)
+ars-hub-title = 🏢 <b>DIOR CONTROL</b> — Resellers
+ars-hub-stats-db = 📊 In DB: <b>{ $db }</b> • legacy IDs: <b>{ $legacy }</b>
+ars-hub-stats-services = 🖥 Services: <b>{ $total }</b> • active: <b>{ $active }</b>
+ars-hub-hint = <i>Manage resellers from Telegram — pick a section:</i>
+ars-hub-top-mrr = <b>Top MRR:</b>
+ars-hub-top-line = { $n }. <code>{ $id }</code> — { $amount } ({ $svc } svc)
+
+ars-btn-dashboard = 📊 Dashboard
+ars-btn-resellers = 👤 Resellers
+ars-btn-api-keys = 🔑 API Keys
+ars-btn-services = 🖥 Services
+ars-btn-finance = 💰 Finance
+ars-btn-analytics = 📈 Analytics
+ars-btn-abuse = ⚠ Abuse
+ars-btn-logs = 🧾 Logs
+ars-btn-security = 🔒 Security
+ars-btn-system = ⚙ System
+ars-btn-add-reseller = ➕ Add Reseller
+ars-btn-hub = ◀️ Hub
+ars-btn-add = ➕ Add
+ars-btn-list = ◀️ List
+ars-btn-reseller-back = ◀️ Reseller
+ars-btn-create = ✅ Create
+ars-btn-cancel = ❌ Cancel
+ars-btn-skip = ⏭ Skip
+ars-btn-confirm-rotate = ✅ Confirm
+ars-btn-rotate-key = 🔄 Rotate API key
+ars-btn-suspend = ⛔ Suspend
+ars-btn-activate = ✅ Activate
+
+ars-list-title = 👤 <b>Resellers</b>
+ars-list-page = Page { $page } / { $total }
+ars-list-empty = — no DB records yet. Use Add Reseller or legacy IDs from services.
+
+ars-detail-title = 👤 <b>Reseller</b> <code>{ $id }</code>
+ars-detail-wallet = Wallet: <b>{ $balance }</b>
+ars-detail-wallet-unlinked = Wallet: <i>not linked — API top-up unavailable</i>
+ars-detail-status-line = Status: <b>{ $status }</b> • Plan: <b>{ $plan }</b>
+ars-detail-tg = TG: { $line }
+ars-detail-company = Company: { $company }
+ars-detail-limits = Margin: <b>{ $profit }%</b> • max VPS: <b>{ $maxVps }</b>
+ars-detail-api-rate = API: <b>{ $rate }</b>/min • Abuse: <b>{ $abuse }</b>
+ars-detail-referral = Referral: <code>{ $code }</code>
+ars-detail-legacy = <i>Legacy reseller (services only, no DB profile)</i>
+ars-detail-stats = 🖥 Services: <b>{ $count }</b> • active: <b>{ $active }</b>
+ars-detail-clients = 👥 Clients: <b>{ $clients }</b>
+ars-detail-api-keys-title = <b>API keys:</b>
+ars-detail-api-keys-none = — none
+
+ars-finance-title = 💰 <b>Finance</b>
+ars-finance-mrr = MRR (reseller VPS): <b>{ $mrr }</b>
+ars-finance-active = Active subscriptions (VPS): <b>{ $count }</b>
+ars-finance-accounts = Reseller accounts: <b>{ $accounts }</b>
+ars-finance-arr = <i>ARR estimate:</i> { $arr }
+ars-finance-top = <b>Top resellers:</b>
+ars-finance-top-line = { $n }. <code>{ $id }</code> — { $amount }
+
+ars-analytics-title = 📈 <b>Analytics</b>
+ars-analytics-vps = Reseller-linked VPS: <b>{ $count }</b>
+ars-analytics-api = API: { $url }
+ars-analytics-phase2 = Per-reseller CPU/RAM/bandwidth metrics — coming soon.
+
+ars-abuse-title = ⚠ <b>Abuse Center</b>
+ars-abuse-empty = No flagged resellers.
+ars-abuse-line = • <code>{ $id }</code> score <b>{ $score }</b> • { $status }
+ars-abuse-phase2 = <i>API anomaly rules — coming soon.</i>
+
+ars-logs-title = 🧾 <b>Audit log</b>
+ars-logs-page = Page { $page }
+ars-logs-empty = — empty
+
+ars-security-title = 🔒 <b>Security</b>
+ars-security-b1 = • API keys stored as SHA-256 hash only
+ars-security-b2 = • Optional HMAC (x-signature, x-timestamp, x-nonce)
+ars-security-b3 = • IP allowlist per reseller
+ars-security-b4 = • Rate limits per key
+ars-security-b5 = • Audit log for admin actions
+ars-security-docs = Docs: { $url }
+
+ars-system-title = ⚙ <b>System</b>
+ars-system-api = API: { $url }
+ars-system-enabled = RESELLER_API_ENABLED: { $enabled }
+ars-system-port = Port: { $port }
+ars-system-env-hint = After pm2 restart: paste new keys into .env JSON (bot shows snippet on create/rotate).
+
+ars-keys-title = 🔑 <b>API Keys</b>
+
+ars-services-recent-title = 📦 <b>Recent reseller services</b>
+ars-services-recent-empty = — no reseller services yet
+ars-services-title = 🖥 <b>Services</b> — <code>{ $id }</code>
+ars-services-line = #{ $sid } VM { $vmid } • { $ip } • ${ $price }
+
+ars-rotate-confirm = 🔄 Rotate API key for <code>{ $id }</code>?
+
+Old keys will be revoked. New key shown once.
+ars-rotate-done-title = ✅ <b>API key rotated</b>
+ars-rotate-done-reseller = Reseller: <code>{ $id }</code>
+ars-rotate-done-key = New key: <code>{ $key }</code>
+ars-rotate-failed = Failed to rotate key
+
+ars-access-denied = Access denied
+
+ars-onb-title = ➕ <b>Add Reseller</b>
+ars-onb-step1 = <b>Step 1/2</b> — Telegram contact (optional):
+ars-onb-step1-hint = Send ID or @username, or tap <b>Skip</b>.
+ars-onb-step2-title = <b>Step 2/2</b> — Confirm creation?
+ars-onb-id = ID: <code>{ $id }</code>
+ars-onb-tg-linked = Telegram: <code>{ $tgId }</code>{ $username }
+ars-onb-tg-billing-hint = <i>API billing uses this account — top up in bot before selling.</i>
+ars-onb-tg-skipped = Telegram: <i>not linked — API create will fail without TG</i>
+ars-onb-plan-line = Plan: <b>{ $plan }</b> (default, see card for limits)
+ars-onb-confirm-hint = Send <code>yes</code> to create or anything else to cancel.
+ars-onb-cancelled = Cancelled.
+ars-onb-created-title = ✅ <b>Reseller created</b>
+ars-onb-env-hint = <b>Admin — save to .env after restart:</b>
+ars-onb-dm-ok = 📨 Onboarding DM sent to reseller.
+ars-onb-dm-fail = ⚠️ Could not DM reseller (no TG / blocked bot).
+ars-onb-failed = ❌ Failed: { $error }
+
+ars-status-active = active
+ars-status-suspended = suspended
+ars-status-pending = pending
+
 admin-automations-header = <strong>📬 Automations & Notifications</strong>
 admin-automations-description = Enable or disable scenarios. Full config in web panel.
 admin-automations-empty = No scenarios. Add them via API or web panel.

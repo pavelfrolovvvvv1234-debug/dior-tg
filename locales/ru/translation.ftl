@@ -215,6 +215,131 @@ button-statistics = 📊 Статистика
 button-resellers = 🤝 Реселлеры
 # MRR = Monthly Recurring Revenue; коротко по-русски без простыни
 admin-resellers-line-mrr = • MRR (ежемесячная выручка), оценка: <b>{ $amount }</b>
+
+# DIOR CONTROL — панель реселлеров (ars)
+ars-hub-title = 🏢 <b>DIOR CONTROL</b> — Реселлеры
+ars-hub-stats-db = 📊 В БД: <b>{ $db }</b> • legacy ID: <b>{ $legacy }</b>
+ars-hub-stats-services = 🖥 Услуги: <b>{ $total }</b> • активных: <b>{ $active }</b>
+ars-hub-hint = <i>Управление реселлерами из Telegram — выберите раздел:</i>
+ars-hub-top-mrr = <b>Топ по MRR:</b>
+ars-hub-top-line = { $n }. <code>{ $id }</code> — { $amount } ({ $svc } усл.)
+
+ars-btn-dashboard = 📊 Дашборд
+ars-btn-resellers = 👤 Реселлеры
+ars-btn-api-keys = 🔑 API ключи
+ars-btn-services = 🖥 Услуги
+ars-btn-finance = 💰 Финансы
+ars-btn-analytics = 📈 Аналитика
+ars-btn-abuse = ⚠ Абуз
+ars-btn-logs = 🧾 Логи
+ars-btn-security = 🔒 Безопасность
+ars-btn-system = ⚙ Система
+ars-btn-add-reseller = ➕ Добавить реселлера
+ars-btn-hub = ◀️ В хаб
+ars-btn-add = ➕ Добавить
+ars-btn-list = ◀️ Список
+ars-btn-reseller-back = ◀️ Реселлер
+ars-btn-create = ✅ Создать
+ars-btn-cancel = ❌ Отмена
+ars-btn-skip = ⏭ Пропустить
+ars-btn-confirm-rotate = ✅ Подтвердить
+ars-btn-rotate-key = 🔄 Сменить API ключ
+ars-btn-suspend = ⛔ Заморозить
+ars-btn-activate = ✅ Активировать
+
+ars-list-title = 👤 <b>Реселлеры</b>
+ars-list-page = Стр. { $page } / { $total }
+ars-list-empty = — записей в БД нет. Нажмите «Добавить реселлера» или используйте legacy ID из услуг.
+
+ars-detail-title = 👤 <b>Реселлер</b> <code>{ $id }</code>
+ars-detail-wallet = Кошелёк: <b>{ $balance }</b>
+ars-detail-wallet-unlinked = Кошелёк: <i>не привязан — пополнение для API недоступно</i>
+ars-detail-status-line = Статус: <b>{ $status }</b> • План: <b>{ $plan }</b>
+ars-detail-tg = TG: { $line }
+ars-detail-company = Компания: { $company }
+ars-detail-limits = Маржа: <b>{ $profit }%</b> • макс. VPS: <b>{ $maxVps }</b>
+ars-detail-api-rate = API: <b>{ $rate }</b>/мин • Абуз: <b>{ $abuse }</b>
+ars-detail-referral = Реферал: <code>{ $code }</code>
+ars-detail-legacy = <i>Legacy реселлер (только услуги, без профиля в БД)</i>
+ars-detail-stats = 🖥 Услуги: <b>{ $count }</b> • активных: <b>{ $active }</b>
+ars-detail-clients = 👥 Клиентов: <b>{ $clients }</b>
+ars-detail-api-keys-title = <b>API ключи:</b>
+ars-detail-api-keys-none = — нет
+
+ars-finance-title = 💰 <b>Финансы</b>
+ars-finance-mrr = MRR (VPS реселлеров): <b>{ $mrr }</b>
+ars-finance-active = Активных подписок (VPS): <b>{ $count }</b>
+ars-finance-accounts = Аккаунтов реселлеров: <b>{ $accounts }</b>
+ars-finance-arr = <i>Оценка ARR:</i> { $arr }
+ars-finance-top = <b>Топ реселлеров:</b>
+ars-finance-top-line = { $n }. <code>{ $id }</code> — { $amount }
+
+ars-analytics-title = 📈 <b>Аналитика</b>
+ars-analytics-vps = VPS с resellerId: <b>{ $count }</b>
+ars-analytics-api = API: { $url }
+ars-analytics-phase2 = Метрики CPU/RAM/трафик по реселлеру — в следующей версии.
+
+ars-abuse-title = ⚠ <b>Центр абуза</b>
+ars-abuse-empty = Подозрительных реселлеров нет.
+ars-abuse-line = • <code>{ $id }</code> score <b>{ $score }</b> • { $status }
+ars-abuse-phase2 = <i>Правила аномалий API — в следующей версии.</i>
+
+ars-logs-title = 🧾 <b>Аудит-лог</b>
+ars-logs-page = Стр. { $page }
+ars-logs-empty = — пусто
+
+ars-security-title = 🔒 <b>Безопасность</b>
+ars-security-b1 = • API ключи только в виде SHA-256 hash
+ars-security-b2 = • Опционально HMAC (x-signature, x-timestamp, x-nonce)
+ars-security-b3 = • IP allowlist на реселлера
+ars-security-b4 = • Rate limit на ключ
+ars-security-b5 = • Аудит действий админов
+ars-security-docs = Документация: { $url }
+
+ars-system-title = ⚙ <b>Система</b>
+ars-system-api = API: { $url }
+ars-system-enabled = RESELLER_API_ENABLED: { $enabled }
+ars-system-port = Порт: { $port }
+ars-system-env-hint = После pm2 restart: вставьте новые ключи в .env JSON (бот покажет snippet при создании/ротации).
+
+ars-keys-title = 🔑 <b>API ключи</b>
+
+ars-services-recent-title = 📦 <b>Недавние услуги реселлеров</b>
+ars-services-recent-empty = — услуг реселлеров пока нет
+ars-services-title = 🖥 <b>Услуги</b> — <code>{ $id }</code>
+ars-services-line = #{ $sid } VM { $vmid } • { $ip } • ${ $price }
+
+ars-rotate-confirm = 🔄 Сменить API ключ для <code>{ $id }</code>?
+
+Старые ключи будут отозваны. Новый ключ покажется один раз.
+ars-rotate-done-title = ✅ <b>API ключ обновлён</b>
+ars-rotate-done-reseller = Реселлер: <code>{ $id }</code>
+ars-rotate-done-key = Новый ключ: <code>{ $key }</code>
+ars-rotate-failed = Не удалось сменить ключ
+
+ars-access-denied = Доступ запрещён
+
+ars-onb-title = ➕ <b>Добавить реселлера</b>
+ars-onb-step1 = <b>Шаг 1/2</b> — Telegram контакт (необязательно):
+ars-onb-step1-hint = Отправьте ID или @username, или нажмите <b>Пропустить</b>.
+ars-onb-step2-title = <b>Шаг 2/2</b> — Подтвердить создание?
+ars-onb-id = ID: <code>{ $id }</code>
+ars-onb-tg-linked = Telegram: <code>{ $tgId }</code>{ $username }
+ars-onb-tg-billing-hint = <i>API списывает с этого аккаунта — сначала пополните баланс в боте.</i>
+ars-onb-tg-skipped = Telegram: <i>не привязан — create через API не сработает без TG</i>
+ars-onb-plan-line = План: <b>{ $plan }</b> (дефолт, лимиты в карточке)
+ars-onb-confirm-hint = Отправьте <code>да</code> для создания или что угодно для отмены.
+ars-onb-cancelled = Отменено.
+ars-onb-created-title = ✅ <b>Реселлер создан</b>
+ars-onb-env-hint = <b>Админ — после restart сохраните в .env:</b>
+ars-onb-dm-ok = 📨 Приветствие отправлено реселлеру в ЛС.
+ars-onb-dm-fail = ⚠️ Не удалось написать реселлеру (нет TG / заблокировал бота).
+ars-onb-failed = ❌ Ошибка: { $error }
+
+ars-status-active = активен
+ars-status-suspended = заморожен
+ars-status-pending = ожидает
+
 admin-automations-header = <strong>📬 Сценарии и уведомления</strong>
 admin-automations-description = Включите/выключите сценарии. Полная настройка — в веб-панели.
 admin-automations-empty = Нет сценариев. Добавьте их через API или веб-панель.

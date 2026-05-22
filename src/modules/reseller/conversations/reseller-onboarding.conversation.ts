@@ -1,21 +1,19 @@
 import { InlineKeyboard } from "grammy";
-import type { Conversation } from "@grammyjs/conversations";
 import type { AppContext } from "../../../shared/types/context.js";
+import type { AppConversation } from "../../../shared/types/context.js";
 import type { SessionData } from "../../../shared/types/session.js";
 import { ResellerPlan } from "../../../entities/Reseller.js";
 import { ResellerService, generateAutoResellerId } from "../services/reseller.service.js";
 import { openResellerHub } from "../admin/reseller-admin-panel.js";
 import { escapeUserInput } from "../../../helpers/formatting.js";
-import { RESELLER_PLAN_LIMITS } from "../domain/reseller-plans.js";
+import { ensureConversationTranslator, safeT } from "../../../shared/i18n/conversation-translate.js";
 
 const ONB_SKIP_TG = "ars:onb:skip-tg";
 const DEFAULT_PLAN = ResellerPlan.Starter;
 
 type OnboardState = NonNullable<SessionData["other"]["resellerOnboard"]>;
 
-async function ensureOnboardState(
-  conversation: Conversation<AppContext, AppContext>
-): Promise<OnboardState> {
+async function ensureOnboardState(conversation: AppConversation): Promise<OnboardState> {
   return conversation.external(async (ctx) => {
     const session = (await ctx.session) as SessionData;
     if (!session.other.resellerOnboard) {
@@ -30,6 +28,11 @@ function isSkipTelegramInput(text: string): boolean {
   return t === "skip" || t === "пропустить" || t === "-";
 }
 
+function isConfirmText(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return t === "yes" || t === "да" || t === "y";
+}
+
 async function applySkippedTelegram(state: OnboardState): Promise<void> {
   state.telegramInput = undefined;
   state.telegramId = null;
@@ -40,7 +43,7 @@ async function applySkippedTelegram(state: OnboardState): Promise<void> {
 }
 
 async function applyTelegramInput(
-  conversation: Conversation<AppContext, AppContext>,
+  conversation: AppConversation,
   state: OnboardState,
   input: string
 ): Promise<void> {
@@ -56,38 +59,39 @@ async function applyTelegramInput(
   state.step = "confirm";
 }
 
-function buildConfirmText(state: OnboardState): string {
-  const limits = RESELLER_PLAN_LIMITS[DEFAULT_PLAN];
+function buildConfirmText(ctx: AppContext, state: OnboardState): string {
   const tgLine = state.telegramId
-    ? `Telegram: <code>${state.telegramId}</code>${state.telegramUsername ? ` @${escapeUserInput(state.telegramUsername)}` : ""}\n<i>API billing uses this account — top up in bot before selling.</i>`
-    : "Telegram: <i>not linked — API create will fail until TG is set</i>";
+    ? [
+        safeT(ctx, "ars-onb-tg-linked", {
+          tgId: String(state.telegramId),
+          username: state.telegramUsername ? ` @${escapeUserInput(state.telegramUsername)}` : "",
+        }),
+        safeT(ctx, "ars-onb-tg-billing-hint"),
+      ].join("\n")
+    : safeT(ctx, "ars-onb-tg-skipped");
 
   return [
-    "<b>Step 2/2</b> — Confirm creation?",
+    safeT(ctx, "ars-onb-step2-title"),
     "",
-    `ID: <code>${escapeUserInput(state.resellerId!)}</code>`,
+    safeT(ctx, "ars-onb-id", { id: escapeUserInput(state.resellerId!) }),
     tgLine,
-    `Plan: <b>${DEFAULT_PLAN}</b> (${limits.maxVps} VPS, ${limits.apiRatePerMinute} req/min)`,
+    safeT(ctx, "ars-onb-plan-line", { plan: DEFAULT_PLAN }),
     "",
-    "Send <code>yes</code> to create or anything else to cancel.",
+    safeT(ctx, "ars-onb-confirm-hint"),
   ].join("\n");
 }
 
 export async function resellerOnboardingConversation(
-  conversation: Conversation<AppContext, AppContext>,
+  conversation: AppConversation,
   ctx: AppContext
 ): Promise<void> {
+  await ensureConversationTranslator(conversation as AppConversation, ctx);
   const state = await ensureOnboardState(conversation);
 
-  const step1Keyboard = new InlineKeyboard().text("⏭ Skip", ONB_SKIP_TG);
+  const step1Keyboard = new InlineKeyboard().text(safeT(ctx, "ars-btn-skip"), ONB_SKIP_TG);
 
   await ctx.editMessageText(
-    [
-      "➕ <b>Add Reseller</b>",
-      "",
-      "<b>Step 1/2</b> — Telegram contact (optional):",
-      "Send ID or @username, or tap <b>Skip</b>.",
-    ].join("\n"),
+    [safeT(ctx, "ars-onb-title"), "", safeT(ctx, "ars-onb-step1"), safeT(ctx, "ars-onb-step1-hint")].join("\n"),
     { parse_mode: "HTML", reply_markup: step1Keyboard }
   );
 
@@ -105,7 +109,7 @@ export async function resellerOnboardingConversation(
     }
   } else {
     await conversation.external(async (c) => {
-      await c.reply("Cancelled.");
+      await c.reply(safeT(c, "ars-onb-cancelled"));
       const session = (await c.session) as SessionData;
       delete session.other.resellerOnboard;
     });
@@ -113,10 +117,10 @@ export async function resellerOnboardingConversation(
   }
 
   const confirmKeyboard = new InlineKeyboard()
-    .text("✅ Create", "ars:onb:confirm")
-    .text("❌ Cancel", "ars:onb:cancel");
+    .text(safeT(ctx, "ars-btn-create"), "ars:onb:confirm")
+    .text(safeT(ctx, "ars-btn-cancel"), "ars:onb:cancel");
 
-  const confirmPrompt = buildConfirmText(state);
+  const confirmPrompt = buildConfirmText(ctx, state);
   if (step1.callbackQuery) {
     await step1.editMessageText(confirmPrompt, {
       parse_mode: "HTML",
@@ -137,17 +141,17 @@ export async function resellerOnboardingConversation(
     confirmed = true;
   } else if (step2.callbackQuery?.data === "ars:onb:cancel") {
     await step2.answerCallbackQuery().catch(() => {});
-    await step2.editMessageText("Cancelled.", { reply_markup: undefined }).catch(() => {});
+    await step2.editMessageText(safeT(ctx, "ars-onb-cancelled"), { reply_markup: undefined }).catch(() => {});
     await conversation.external(async (c) => {
       const session = (await c.session) as SessionData;
       delete session.other.resellerOnboard;
     });
     return;
-  } else if (step2.message?.text?.trim().toLowerCase() === "yes") {
+  } else if (step2.message?.text && isConfirmText(step2.message.text)) {
     confirmed = true;
   } else {
     await conversation.external(async (c) => {
-      await c.reply("Cancelled.");
+      await c.reply(safeT(c, "ars-onb-cancelled"));
       const session = (await c.session) as SessionData;
       delete session.other.resellerOnboard;
     });
@@ -188,13 +192,13 @@ export async function resellerOnboardingConversation(
     }
 
     const successText = [
-      "✅ <b>Reseller created</b>",
+      safeT(ctx, "ars-onb-created-title"),
       "",
       onboardHtml,
       "",
-      "<b>Admin — save to .env after restart:</b>",
+      safeT(ctx, "ars-onb-env-hint"),
       "<pre>" + escapeUserInput(result.envSnippet) + "</pre>",
-      dmOk ? "📨 Onboarding DM sent to reseller." : "⚠️ Could not DM reseller (no TG / blocked bot).",
+      dmOk ? safeT(ctx, "ars-onb-dm-ok") : safeT(ctx, "ars-onb-dm-fail"),
     ].join("\n");
 
     await conversation.external(async (c) => {
@@ -203,7 +207,7 @@ export async function resellerOnboardingConversation(
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     await conversation.external(async (c) => {
-      await c.reply(`❌ Failed: ${escapeUserInput(msg)}`);
+      await c.reply(safeT(c, "ars-onb-failed", { error: escapeUserInput(msg) }));
     });
   }
 
