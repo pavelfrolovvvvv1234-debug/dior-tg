@@ -6,12 +6,12 @@
 
 import { InlineKeyboard } from "grammy";
 import { Menu } from "@grammyjs/menu";
-import { MoreThanOrEqual, Not, IsNull } from "typeorm";
+import { MoreThanOrEqual } from "typeorm";
 import type { AppContext } from "../../shared/types/context";
 import type { DataSource } from "typeorm";
 import User, { Role } from "../../entities/User";
 import TopUp, { TopUpStatus } from "../../entities/TopUp";
-import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
+import { openResellerHub } from "../../modules/reseller/admin/reseller-admin-panel.js";
 import { Logger } from "../../app/logger";
 import { controlUsers } from "../../helpers/users-control";
 import { adminPromosMenu, buildAdminPromosText } from "./admin-promocodes-menu.js";
@@ -93,148 +93,6 @@ const safeEditMessageText = async (
 };
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
-
-async function buildResellerOverview(ctx: AppContext): Promise<{ text: string; keyboard: InlineKeyboard }> {
-  const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
-  const services = await vdsRepo.find({
-    where: { resellerId: Not(IsNull()) },
-    order: { id: "DESC" },
-    take: 1000,
-  });
-
-  const totalServices = services.length;
-  const totalMonthly = services.reduce((sum, s) => sum + Number(s.renewalPrice || 0), 0);
-  const uniqueResellers = new Set(services.map((s) => s.resellerId).filter(Boolean as any));
-  const activeServices = services.filter((s) => !s.adminBlocked && !s.managementLocked).length;
-
-  const byReseller = new Map<string, { count: number; monthly: number }>();
-  for (const s of services) {
-    const rid = String(s.resellerId || "unknown");
-    const prev = byReseller.get(rid) || { count: 0, monthly: 0 };
-    prev.count += 1;
-    prev.monthly += Number(s.renewalPrice || 0);
-    byReseller.set(rid, prev);
-  }
-
-  const topResellers = Array.from(byReseller.entries())
-    .sort((a, b) => b[1].monthly - a[1].monthly)
-    .slice(0, 10);
-
-  const lines = [
-    "🤝 <b>Reseller Panel</b>",
-    "",
-    `• Resellers: <b>${uniqueResellers.size}</b>`,
-    `• Services: <b>${totalServices}</b>`,
-    `• Active: <b>${activeServices}</b>`,
-    ctx.t("admin-resellers-line-mrr", { amount: `$${totalMonthly.toFixed(2)}` }),
-    "",
-    "<b>Top resellers by MRR:</b>",
-  ];
-
-  if (topResellers.length === 0) {
-    lines.push("— no reseller services yet");
-  } else {
-    topResellers.forEach(([rid, stats], idx) => {
-      lines.push(
-        `${idx + 1}. <code>${escapeUserInput(rid)}</code> — ${stats.count} svc • $${stats.monthly.toFixed(2)}`
-      );
-    });
-  }
-
-  const keyboard = new InlineKeyboard()
-    .text("🔄 Refresh", "admin-resellers-open")
-    .text("📦 Recent services", "admin-resellers-services")
-    .row();
-
-  topResellers.forEach(([rid], idx) => {
-    keyboard.text(`👤 ${rid}`, `admin-reseller:${rid}`);
-    if (idx % 2 === 1) keyboard.row();
-  });
-  keyboard.row().text(ctx.t("button-back"), "admin-menu-back");
-
-  return { text: lines.join("\n"), keyboard };
-}
-
-async function buildResellerServicesList(ctx: AppContext): Promise<{ text: string; keyboard: InlineKeyboard }> {
-  const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
-  const services = await vdsRepo.find({
-    where: { resellerId: Not(IsNull()) },
-    order: { id: "DESC" },
-    take: 25,
-  });
-
-  const lines = ["📦 <b>Recent reseller services</b>", ""];
-  if (services.length === 0) {
-    lines.push("— no reseller services yet");
-  } else {
-    for (const s of services) {
-      lines.push(
-        `#${s.id} • <code>${escapeUserInput(String(s.resellerId || "-"))}</code> • VM ${s.vdsId} • ${escapeUserInput(
-          s.rateName
-        )} • $${Number(s.renewalPrice || 0).toFixed(2)} • ${escapeUserInput(s.ipv4Addr || "0.0.0.0")}`
-      );
-    }
-  }
-
-  const keyboard = new InlineKeyboard()
-    .text(ctx.t("button-back-to-panel"), "admin-resellers-open");
-  return { text: lines.join("\n"), keyboard };
-}
-
-async function buildResellerDetails(
-  ctx: AppContext,
-  resellerId: string
-): Promise<{ text: string; keyboard: InlineKeyboard }> {
-  const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
-  const services = await vdsRepo.find({
-    where: { resellerId },
-    order: { id: "DESC" },
-    take: 50,
-  });
-
-  const totalMonthly = services.reduce((sum, s) => sum + Number(s.renewalPrice || 0), 0);
-  const active = services.filter((s) => !s.adminBlocked && !s.managementLocked).length;
-  const lines = [
-    `👤 <b>Reseller:</b> <code>${escapeUserInput(resellerId)}</code>`,
-    `• Services: <b>${services.length}</b>`,
-    `• Active: <b>${active}</b>`,
-    ctx.t("admin-resellers-line-mrr", { amount: `$${totalMonthly.toFixed(2)}` }),
-    "",
-    "<b>Services:</b>",
-  ];
-
-  if (services.length === 0) {
-    lines.push("— no services");
-  } else {
-    for (const s of services.slice(0, 20)) {
-      const client = s.resellerClientId ? ` • client ${escapeUserInput(s.resellerClientId)}` : "";
-      lines.push(
-        `#${s.id} • VM ${s.vdsId}${client}\n${escapeUserInput(s.rateName)} • ${escapeUserInput(
-          s.ipv4Addr || "0.0.0.0"
-        )} • $${Number(s.renewalPrice || 0).toFixed(2)}`
-      );
-    }
-  }
-
-  const keyboard = new InlineKeyboard()
-    .text(ctx.t("button-back-to-panel"), "admin-resellers-open");
-  return { text: lines.join("\n"), keyboard };
-}
-
-export async function openResellerPanel(ctx: AppContext): Promise<void> {
-  const { text, keyboard } = await buildResellerOverview(ctx);
-  await safeEditMessageText(ctx, text, { parse_mode: "HTML", reply_markup: keyboard });
-}
-
-export async function openResellerServicesList(ctx: AppContext): Promise<void> {
-  const { text, keyboard } = await buildResellerServicesList(ctx);
-  await safeEditMessageText(ctx, text, { parse_mode: "HTML", reply_markup: keyboard });
-}
-
-export async function openResellerDetails(ctx: AppContext, resellerId: string): Promise<void> {
-  const { text, keyboard } = await buildResellerDetails(ctx, resellerId);
-  await safeEditMessageText(ctx, text, { parse_mode: "HTML", reply_markup: keyboard });
-}
 
 /**
  * Broadcast conversation for admin.
@@ -369,7 +227,7 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
       return;
     }
     await safeAdminAction(ctx, async () => {
-      await openResellerPanel(ctx);
+      await openResellerHub(ctx);
     });
   })
   .row()

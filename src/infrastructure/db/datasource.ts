@@ -41,6 +41,9 @@ import {
 } from "../../entities/automations/index.js";
 import { Logger } from "../../app/logger.js";
 import AdminAuditLog from "../../entities/AdminAuditLog.js";
+import Reseller from "../../entities/Reseller.js";
+import ResellerApiKey from "../../entities/ResellerApiKey.js";
+import ResellerAuditLog from "../../entities/ResellerAuditLog.js";
 import {
   NotificationJob,
   NotificationDelivery,
@@ -92,6 +95,9 @@ const AppDataSource = new DataSource({
     AutomationEventLog,
     ScenarioMetric,
     AdminAuditLog,
+    Reseller,
+    ResellerApiKey,
+    ResellerAuditLog,
     NotificationJob,
     NotificationDelivery,
     UserEngagementProfile,

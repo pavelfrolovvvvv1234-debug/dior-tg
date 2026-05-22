@@ -41,7 +41,14 @@ import {
 } from "./helpers/users-control";
 import express, { type Request, type Response } from "express";
 import { run as grammyRun } from "@grammyjs/runner";
-import { adminMenu, openResellerDetails, openResellerPanel, openResellerServicesList } from "./ui/menus/admin-menu";
+import { adminMenu } from "./ui/menus/admin-menu";
+import {
+  openResellerDetails,
+  openResellerHub,
+  openResellerServicesList,
+  registerResellerAdminHandlers,
+} from "./modules/reseller/admin/reseller-admin-panel.js";
+import { reloadResellerAuthRuntime } from "./modules/reseller/services/reseller-auth-runtime.js";
 import { ticketViewMenu } from "./ui/menus/moderator-menu";
 import { moderatorMenu } from "./ui/menus/moderator-menu";
 import {
@@ -554,6 +561,7 @@ function isIgnoredTelegramBotNoise(err: unknown): boolean {
 async function index() {
   const { fluent, availableLocales } = await initFluent();
   const appDataSource = await getAppDataSource();
+  await reloadResellerAuthRuntime(appDataSource);
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");
@@ -1026,6 +1034,12 @@ async function index() {
   bot.use(
     createConversation(vdsPasswordManualConversation as any, "vdsPasswordManualConversation")
   );
+  const { resellerOnboardingConversation } = await import(
+    "./modules/reseller/conversations/reseller-onboarding.conversation.js"
+  );
+  bot.use(createConversation(resellerOnboardingConversation as any, "resellerOnboardingConversation"));
+
+  registerResellerAdminHandlers(bot);
 
   bot.use(adminMenu);
   bot.use(moderatorMenu);
@@ -1425,7 +1439,7 @@ async function index() {
       await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
       return;
     }
-    await openResellerPanel(ctx as AppContext);
+    await openResellerHub(ctx as AppContext);
   });
 
   bot.callbackQuery("admin-resellers-services", async (ctx) => {

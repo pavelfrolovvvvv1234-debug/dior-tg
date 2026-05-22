@@ -5,6 +5,7 @@
  */
 
 import { Role, UserStatus } from "../../entities/User.js";
+import type { ResellerPlan } from "../../entities/Reseller.js";
 import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-services/types.js";
 
 /**
@@ -114,6 +115,15 @@ export interface OtherSessionData {
   };
   promocode: {
     awaitingInput: boolean;
+  };
+  /** Admin: fast reseller onboarding wizard */
+  resellerOnboard?: {
+    step: "telegram" | "plan" | "confirm";
+    telegramInput?: string;
+    resellerId?: string;
+    telegramId?: number | null;
+    telegramUsername?: string | null;
+    plan?: ResellerPlan;
   };
   ticketsView: {
     list: "new" | "in_progress" | null;

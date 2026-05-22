@@ -13,6 +13,7 @@ import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recip
 import { retry } from "../shared/utils/retry.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
 import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
+import { getResellerAuthRuntime } from "../modules/reseller/services/reseller-auth-runtime.js";
 
 type ResellerAuthInfo = {
   resellerId: string;
@@ -176,46 +177,6 @@ function parseJsonRecord(raw: string | undefined): Record<string, unknown> {
   }
 }
 
-function getResellerKeysMap(): Record<string, string> {
-  const parsed = parseJsonRecord(process.env.RESELLER_API_KEYS_JSON);
-  const out: Record<string, string> = {};
-  for (const [resellerId, keyValue] of Object.entries(parsed)) {
-    const key = String(keyValue ?? "").trim();
-    if (resellerId.trim() && key.length >= 12) {
-      out[resellerId.trim()] = key;
-    }
-  }
-  return out;
-}
-
-function getResellerSigningSecretsMap(): Record<string, string> {
-  const parsed = parseJsonRecord(process.env.RESELLER_API_SIGNING_SECRETS_JSON);
-  const out: Record<string, string> = {};
-  for (const [resellerId, secretValue] of Object.entries(parsed)) {
-    const secret = String(secretValue ?? "").trim();
-    if (resellerId.trim() && secret.length >= 12) {
-      out[resellerId.trim()] = secret;
-    }
-  }
-  return out;
-}
-
-function getResellerAllowedIpsMap(): Record<string, string[]> {
-  const parsed = parseJsonRecord(process.env.RESELLER_API_ALLOWED_IPS_JSON);
-  const out: Record<string, string[]> = {};
-  for (const [resellerId, value] of Object.entries(parsed)) {
-    if (Array.isArray(value)) {
-      out[resellerId.trim()] = value.map((x) => String(x).trim()).filter(Boolean);
-    } else if (typeof value === "string") {
-      out[resellerId.trim()] = value
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
-    }
-  }
-  return out;
-}
-
 function getResellerWebhooksMap(): Record<string, string> {
   const parsed = parseJsonRecord(process.env.RESELLER_WEBHOOKS_JSON);
   const out: Record<string, string> = {};
@@ -265,17 +226,11 @@ function getClientIp(req: Request): string {
 }
 
 function requireResellerAuth(
-  keysMap: Record<string, string>,
   signingSecretsMap: Record<string, string>,
   allowedIpsMap: Record<string, string[]>,
   webhookMap: Record<string, string>,
   webhookSecrets: Record<string, string>
 ) {
-  const keyToReseller = new Map<string, string>();
-  for (const [resellerId, key] of Object.entries(keysMap)) {
-    keyToReseller.set(key, resellerId);
-  }
-
   const maxSkewSeconds = Number.parseInt(process.env.RESELLER_API_MAX_SKEW_SECONDS ?? "300", 10) || 300;
 
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
@@ -284,7 +239,8 @@ function requireResellerAuth(
       res.status(401).json({ ok: false, error: "missing_api_key" });
       return;
     }
-    const resellerId = keyToReseller.get(apiKey);
+    const runtime = getResellerAuthRuntime();
+    const resellerId = runtime.keysByHash[sha256Hex(apiKey)] ?? null;
     if (!resellerId) {
       res.status(403).json({ ok: false, error: "invalid_api_key" });
       return;
@@ -683,13 +639,13 @@ async function routeGuarded(req: AuthRequest, res: Response, fn: () => Promise<v
 
 export function startResellerApiServer(options: ResellerApiOptions): void {
   const enabled = parseBooleanEnv(process.env.RESELLER_API_ENABLED);
-  const keysMap = getResellerKeysMap();
-  if (!enabled || Object.keys(keysMap).length === 0) return;
+  const runtime = getResellerAuthRuntime();
+  if (!enabled || Object.keys(runtime.keysByHash).length === 0) return;
 
-  const signingSecretsMap = getResellerSigningSecretsMap();
-  const allowedIpsMap = getResellerAllowedIpsMap();
-  const webhookMap = getResellerWebhooksMap();
-  const webhookSecrets = getResellerWebhookSecretsMap();
+  const signingSecretsMap = runtime.signingSecrets;
+  const allowedIpsMap = runtime.allowedIps;
+  const webhookMap = { ...getResellerWebhooksMap(), ...runtime.webhooks };
+  const webhookSecrets = { ...getResellerWebhookSecretsMap(), ...runtime.webhookSecrets };
 
   const app = express();
   app.set("trust proxy", true);
@@ -725,7 +681,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
 
   app.use(
     "/reseller/v1",
-    requireResellerAuth(keysMap, signingSecretsMap, allowedIpsMap, webhookMap, webhookSecrets),
+    requireResellerAuth(signingSecretsMap, allowedIpsMap, webhookMap, webhookSecrets),
     requireRateLimit
   );
 
