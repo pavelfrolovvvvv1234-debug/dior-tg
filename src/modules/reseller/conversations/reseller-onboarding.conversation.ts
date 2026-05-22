@@ -75,7 +75,6 @@ function buildConfirmText(ctx: AppContext, state: OnboardState): string {
     "",
     safeT(ctx, "ars-onb-id", { id: escapeUserInput(state.resellerId!) }),
     tgLine,
-    safeT(ctx, "ars-onb-plan-line", { plan: DEFAULT_PLAN }),
     "",
     safeT(ctx, "ars-onb-confirm-hint"),
   ].join("\n");
@@ -91,7 +90,9 @@ export async function resellerOnboardingConversation(
   const step1Keyboard = new InlineKeyboard().text(safeT(ctx, "ars-btn-skip"), ONB_SKIP_TG);
 
   await ctx.editMessageText(
-    [safeT(ctx, "ars-onb-title"), "", safeT(ctx, "ars-onb-step1"), safeT(ctx, "ars-onb-step1-hint")].join("\n"),
+    [safeT(ctx, "ars-onb-title"), "", safeT(ctx, "ars-onb-step1"), safeT(ctx, "ars-onb-step1-hint")].join(
+      "\n"
+    ),
     { parse_mode: "HTML", reply_markup: step1Keyboard }
   );
 

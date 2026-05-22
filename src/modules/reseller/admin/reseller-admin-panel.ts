@@ -52,27 +52,22 @@ export async function buildResellerHub(ctx: AppContext): Promise<{ text: string;
   const lines = [
     ctx.t("ars-hub-title"),
     "",
-    ctx.t("ars-hub-stats-db", { db: dbResellers, legacy: overview.legacyResellerIds }),
-    ctx.t("ars-hub-stats-services", {
-      total: overview.totalServices,
+    ctx.t("ars-hub-kpi", {
+      partners: dbResellers,
       active: overview.activeServices,
+      total: overview.totalServices,
     }),
-    ctx.t("admin-resellers-line-mrr", { amount: `$${overview.totalMrr.toFixed(2)}` }),
-    "",
-    ctx.t("ars-hub-hint"),
+    ctx.t("ars-hub-mrr", { mrr: `$${overview.totalMrr.toFixed(2)}` }),
   ];
 
   const kb = new InlineKeyboard()
-    .text(ctx.t("ars-btn-dashboard"), "ars:hub")
     .text(ctx.t("ars-btn-resellers"), "ars:l:0")
-    .row()
     .text(ctx.t("ars-btn-api-keys"), "ars:keys:0")
+    .row()
     .text(ctx.t("ars-btn-services"), "admin-resellers-services")
-    .row()
     .text(ctx.t("ars-btn-finance"), "ars:fin")
-    .text(ctx.t("ars-btn-analytics"), "ars:an")
     .row()
-    .text(ctx.t("ars-btn-abuse"), "ars:abu")
+    .text(ctx.t("ars-btn-analytics"), "ars:an")
     .text(ctx.t("ars-btn-logs"), "ars:log:0")
     .row()
     .text(ctx.t("ars-btn-security"), "ars:sec")
@@ -87,7 +82,7 @@ export async function buildResellerHub(ctx: AppContext): Promise<{ text: string;
   kb.text(ctx.t("button-back"), "admin-menu-back");
 
   if (overview.topByMrr.length > 0) {
-    lines.push("", ctx.t("ars-hub-top-mrr"));
+    lines.push("", ctx.t("ars-hub-top-label"));
     overview.topByMrr.slice(0, 5).forEach((row, i) => {
       lines.push(
         ctx.t("ars-hub-top-line", {
@@ -164,10 +159,7 @@ async function buildResellerDetail(
     take: 5,
   });
 
-  const lines = [
-    ctx.t("ars-detail-title", { id: escapeUserInput(resellerId) }),
-    "",
-  ];
+  const lines = [ctx.t("ars-detail-title", { id: escapeUserInput(resellerId) }), ""];
 
   if (reseller) {
     const billing = await getResellerBillingUser(ctx.appDataSource, resellerId);
@@ -184,30 +176,35 @@ async function buildResellerDetail(
         line: `${tgPart}${reseller.telegramUsername ? ` @${escapeUserInput(reseller.telegramUsername)}` : ""}`,
       }),
       balanceLine,
-      ctx.t("ars-detail-company", { company: escapeUserInput(reseller.company || "—") }),
-      ctx.t("ars-detail-limits", { profit: reseller.profitPercent, maxVps: reseller.maxVps }),
-      ctx.t("ars-detail-api-rate", { rate: reseller.apiRatePerMinute, abuse: reseller.abuseScore }),
-      ctx.t("ars-detail-referral", { code: escapeUserInput(reseller.referralCode || "—") })
+      ctx.t("ars-detail-kpi", {
+        count: stats.serviceCount,
+        active: stats.activeCount,
+        clients: stats.uniqueClients,
+      }),
+      ctx.t("ars-detail-mrr", { mrr: `$${stats.monthlyRevenue.toFixed(2)}` })
     );
   } else {
     lines.push(ctx.t("ars-detail-legacy"));
+    lines.push(
+      ctx.t("ars-detail-kpi", {
+        count: stats.serviceCount,
+        active: stats.activeCount,
+        clients: stats.uniqueClients,
+      }),
+      ctx.t("ars-detail-mrr", { mrr: `$${stats.monthlyRevenue.toFixed(2)}` })
+    );
   }
 
-  lines.push(
-    "",
-    ctx.t("ars-detail-stats", { count: stats.serviceCount, active: stats.activeCount }),
-    ctx.t("ars-detail-clients", { clients: stats.uniqueClients }),
-    ctx.t("admin-resellers-line-mrr", { amount: `$${stats.monthlyRevenue.toFixed(2)}` }),
-    "",
-    ctx.t("ars-detail-api-keys-title")
-  );
-
+  lines.push("", ctx.t("ars-detail-api-keys-title"));
   if (keys.length === 0) {
     lines.push(ctx.t("ars-detail-api-keys-none"));
   } else {
     for (const k of keys) {
       lines.push(
-        `• ${k.status} <code>${escapeUserInput(k.keyPrefix)}…</code> (${k.keyType})`
+        ctx.t("ars-detail-key-line", {
+          status: k.status,
+          prefix: escapeUserInput(k.keyPrefix),
+        })
       );
     }
   }
@@ -233,20 +230,24 @@ async function buildFinanceView(ctx: AppContext): Promise<{ text: string; keyboa
   const text = [
     ctx.t("ars-finance-title"),
     "",
-    ctx.t("ars-finance-mrr", { mrr: `$${o.totalMrr.toFixed(2)}` }),
-    ctx.t("ars-finance-active", { count: o.activeServices }),
-    ctx.t("ars-finance-accounts", { accounts: o.resellerRecords }),
-    "",
-    ctx.t("ars-finance-arr", { arr: `$${(o.totalMrr * 12).toFixed(2)}` }),
-    "",
-    ctx.t("ars-finance-top"),
-    ...o.topByMrr.slice(0, 8).map((r, i) =>
-      ctx.t("ars-finance-top-line", {
-        n: i + 1,
-        id: escapeUserInput(r.resellerId),
-        amount: `$${r.stats.monthlyRevenue.toFixed(2)}`,
-      })
-    ),
+    ctx.t("ars-finance-mrr", { mrr: `$${o.totalMrr.toFixed(2)}`, count: o.activeServices }),
+    ctx.t("ars-finance-accounts", {
+      accounts: o.resellerRecords,
+      arr: `$${(o.totalMrr * 12).toFixed(2)}`,
+    }),
+    ...(o.topByMrr.length > 0
+      ? [
+          "",
+          ctx.t("ars-finance-top"),
+          ...o.topByMrr.slice(0, 6).map((r, i) =>
+            ctx.t("ars-finance-top-line", {
+              n: i + 1,
+              id: escapeUserInput(r.resellerId),
+              amount: `$${r.stats.monthlyRevenue.toFixed(2)}`,
+            })
+          ),
+        ]
+      : []),
   ].join("\n");
   return { text, keyboard: backHub(ctx) };
 }
@@ -257,39 +258,9 @@ async function buildAnalyticsView(ctx: AppContext): Promise<{ text: string; keyb
   const text = [
     ctx.t("ars-analytics-title"),
     "",
-    ctx.t("ars-analytics-vps", { count }),
-    ctx.t("ars-analytics-api", { url: RESELLER_API_BASE_URL }),
-    "",
-    ctx.t("ars-analytics-phase2"),
+    ctx.t("ars-analytics-body", { count, url: RESELLER_API_BASE_URL }),
   ].join("\n");
   return { text, keyboard: backHub(ctx) };
-}
-
-async function buildAbuseView(ctx: AppContext): Promise<{ text: string; keyboard: InlineKeyboard }> {
-  const resellers = await ctx.appDataSource.getRepository(Reseller).find({
-    where: {},
-    order: { abuseScore: "DESC" },
-    take: 10,
-  });
-  const flagged = resellers.filter((r) => r.abuseScore > 0 || r.status === ResellerStatus.Suspended);
-  const lines = [
-    ctx.t("ars-abuse-title"),
-    "",
-    flagged.length === 0
-      ? ctx.t("ars-abuse-empty")
-      : flagged
-          .map((r) =>
-            ctx.t("ars-abuse-line", {
-              id: escapeUserInput(r.id),
-              score: r.abuseScore,
-              status: trResellerStatus(ctx, r.status),
-            })
-          )
-          .join("\n"),
-    "",
-    ctx.t("ars-abuse-phase2"),
-  ];
-  return { text: lines.join("\n"), keyboard: backHub(ctx) };
 }
 
 async function buildLogsView(ctx: AppContext, page: number): Promise<{ text: string; keyboard: InlineKeyboard }> {
@@ -313,11 +284,7 @@ async function buildSecurityView(ctx: AppContext): Promise<{ text: string; keybo
   const text = [
     ctx.t("ars-security-title"),
     "",
-    ctx.t("ars-security-b1"),
-    ctx.t("ars-security-b2"),
-    ctx.t("ars-security-b3"),
-    ctx.t("ars-security-b4"),
-    ctx.t("ars-security-b5"),
+    ctx.t("ars-security-body"),
     "",
     ctx.t("ars-security-docs", { url: `${RESELLER_API_BASE_URL}/reseller/docs` }),
   ].join("\n");
@@ -328,9 +295,11 @@ async function buildSystemView(ctx: AppContext): Promise<{ text: string; keyboar
   const text = [
     ctx.t("ars-system-title"),
     "",
-    ctx.t("ars-system-api", { url: RESELLER_API_BASE_URL }),
-    ctx.t("ars-system-enabled", { enabled: process.env.RESELLER_API_ENABLED ?? "0" }),
-    ctx.t("ars-system-port", { port: process.env.RESELLER_API_PORT ?? "3003" }),
+    ctx.t("ars-system-body", {
+      url: RESELLER_API_BASE_URL,
+      enabled: process.env.RESELLER_API_ENABLED ?? "0",
+      port: process.env.RESELLER_API_PORT ?? "3003",
+    }),
     "",
     ctx.t("ars-system-env-hint"),
   ].join("\n");
@@ -497,13 +466,6 @@ export function registerResellerAdminHandlers(bot: Bot<AppContext>): void {
     await ctx.answerCallbackQuery().catch(() => {});
     if (!(await guard(ctx, "analytics.view"))) return;
     const { text, keyboard } = await buildAnalyticsView(ctx);
-    await safeEdit(ctx, text, keyboard);
-  });
-
-  bot.callbackQuery("ars:abu", async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    if (!(await guard(ctx, "abuse.view"))) return;
-    const { text, keyboard } = await buildAbuseView(ctx);
     await safeEdit(ctx, text, keyboard);
   });
 
