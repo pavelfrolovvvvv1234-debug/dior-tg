@@ -128,7 +128,6 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: f
     const { showVpsShopStep3List } = await import("../domain/vds/vds-shop-flow.js");
     await showVpsShopStep3List(ctx, 0);
   })
-  .row()
   .text((ctx) => ctx.t("vds-shop-btn-bulletproof"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
