@@ -919,7 +919,6 @@ vds-shop-standard-list-header = 🖥 Standard VPS/VDS
 vps-location-ru = 🇷🇺 Russia
 vps-location-by = 🇧🇾 Belarus
 vps-location-ab = 🇦🇧 Abkhazia
-vps-standard-ticket-note = Manual provisioning via support ticket (1–24h).
 vds-shop-tier-start = 🚀 Start
 vds-shop-tier-standard = ⚙️ Standard
 vds-shop-tier-performance = 🔥 Performance

@@ -479,10 +479,7 @@ async function showVpsLocationPicker(ctx: AppContext, rateId: number): Promise<v
     kb.text(vpsLocationLabel(ctx, key), `vsh:loc:${key}`).row();
   }
   kb.text(ctx.t("button-back"), `vsh:card:${rateId}`).row();
-  const title = bulletproof
-    ? ctx.t("dedicated-location-select-title")
-    : `${ctx.t("dedicated-location-select-title")}\n\n<i>${ctx.t("vps-standard-ticket-note")}</i>`;
-  await ctx.editMessageText(title, {
+  await ctx.editMessageText(ctx.t("dedicated-location-select-title"), {
     parse_mode: "HTML",
     reply_markup: kb,
     link_preview_options: { is_disabled: true },
@@ -610,9 +607,6 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
     : `<b>${ctx.t("vds-shop-standard-list-header")}</b>`;
 
   let body = `${header}\n\n${ctx.t("vds-shop-step3-prompt")}`;
-  if (!vr.bulletproof) {
-    body += `\n\n<i>${ctx.t("vps-standard-ticket-note")}</i>`;
-  }
   if (ids.length > VDS_SHOP_PAGE_SIZE) {
     body += `\n\n${ctx.t("vds-shop-list-page", { current: safePage + 1, total: totalPages })}`;
   }

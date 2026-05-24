@@ -933,7 +933,6 @@ vds-shop-standard-list-header = 🖥 Стандартные VPS/VDS
 vps-location-ru = 🇷🇺 Россия
 vps-location-by = 🇧🇾 Беларусь
 vps-location-ab = 🇦🇧 Абхазия
-vps-standard-ticket-note = Выдача вручную через тикет поддержки (1–24 ч).
 vds-shop-tier-start = 🚀 Старт (Lite)
 vds-shop-tier-standard = ⚙️ Стандарт (Lite+ / Elite)
 vds-shop-tier-performance = 🔥 Производительность (Elite+)
