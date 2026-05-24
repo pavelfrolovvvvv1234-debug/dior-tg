@@ -84,6 +84,10 @@ export default class User {
   @Column({ nullable: true, type: "datetime" })
   primeActiveUntil!: Date | null;
 
+  /** Extra order discount % from activated promo codes (stacks with Prime). */
+  @Column({ default: 0, type: "real", nullable: false })
+  orderDiscountPercent!: number;
+
   /** Whether user has already used the free 7-day trial (via channel). */
   @Column({ default: false, type: "boolean", nullable: false })
   primeTrialUsed!: boolean;

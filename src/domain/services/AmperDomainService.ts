@@ -14,6 +14,7 @@ import type { DomainProvider } from "../../infrastructure/domains/DomainProvider
 import { NotFoundError, BusinessError, ExternalApiError } from "../../shared/errors/index.js";
 import { Logger } from "../../app/logger.js";
 import User from "../../entities/User.js";
+import { computeOrderPriceFromUser } from "../../shared/pricing/order-discount.js";
 
 /**
  * Domain service for managing domain registrations.
@@ -83,12 +84,9 @@ export class AmperDomainService {
     period: number
   ): Promise<{ price: number; discountApplied: boolean }> {
     const basePrice = await this.getPrice(tld, period);
-    const hasPrime = await this.billingService.hasActivePrime(userId);
-    if (hasPrime) {
-      const discounted = Math.round(basePrice * 0.9 * 100) / 100;
-      return { price: discounted, discountApplied: true };
-    }
-    return { price: basePrice, discountApplied: false };
+    const user = await this.dataSource.getRepository(User).findOneBy({ id: userId });
+    const price = computeOrderPriceFromUser(user, basePrice);
+    return { price, discountApplied: price < basePrice };
   }
 
   /**

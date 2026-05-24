@@ -39,8 +39,7 @@ export class PromoRepository extends BaseRepository<Promo> {
   }
 
   /**
-   * Apply promo code to user (with transaction support).
-   * Returns the promo amount or throws error.
+   * Mark promo as used for user. Returns discount percent (does not update User — use promocode-input).
    */
   async applyPromo(
     code: string,

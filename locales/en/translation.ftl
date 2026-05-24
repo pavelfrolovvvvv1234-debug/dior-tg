@@ -786,13 +786,13 @@ new-promo-created = New promo are added /promo_codes - for see
 
 promocode-already-exist = promocode with this name already exists
 
-promocode = {$id} <strong>{$name}</strong> (Uses: {$use}/{$maxUses}) : {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+promocode = {$id} <strong>{$name}</strong> (Uses: {$use}/{$maxUses}) : −{$amount}%
 promocode-deleted = Promocode <strong>{$name}</strong> successfully deleted
 
 promocode-not-found = Promocode was not found
 promocode-not-exist = This promocode does not exist
 promocode-input-question = Enter the promocode
-promocode-used = The promo code was successfully used and you are credited on your balance {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+promocode-used = Promo activated: <strong>−{$percent}%</strong> off orders. Total order discount (Prime + promos): <strong>−{$totalPercent}%</strong>.
 
 menu-service-for-buy-choose = 🚀 <strong>Select a service</strong>
 
@@ -1289,8 +1289,8 @@ admin-promos-empty = No promo codes yet
 admin-promos-delete-confirm = Delete promo code <strong>{$code}</strong>?
 admin-promos-enter-code = Enter promo code name (letters, numbers, "-" or "_"):
 admin-promos-invalid-code = Invalid promo code format
-admin-promos-enter-amount = Enter discount amount (number):
-admin-promos-invalid-amount = Invalid amount
+admin-promos-enter-amount = Enter order discount percent (1–100):
+admin-promos-invalid-amount = Invalid percent (enter a number from 1 to 100)
 admin-promos-enter-max-uses = Enter max activations (number):
 admin-promos-invalid-max-uses = Invalid max activations
 admin-promos-created = Promo code <strong>{$code}</strong> created
@@ -1298,7 +1298,7 @@ admin-promos-updated = Promo code <strong>{$code}</strong> updated
 admin-promos-not-found = Promo code not found
 admin-promos-edit-missing = No promo selected for editing
 admin-promos-edit-code = Enter new code or /skip (current: {$code}):
-admin-promos-edit-amount = Enter new amount or /skip (current: {$amount}):
+admin-promos-edit-amount = Enter new discount percent or /skip (current: {$amount}%):
 admin-promos-edit-max-uses = Enter new max uses or /skip (current: {$maxUses}):
 
 Total: {$total}

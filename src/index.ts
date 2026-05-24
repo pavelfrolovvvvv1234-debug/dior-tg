@@ -120,7 +120,7 @@ import DedicatedServer, { DedicatedServerStatus } from "./entities/DedicatedServ
 import TopUp, { TopUpStatus } from "./entities/TopUp";
 import Ticket, { TicketType } from "./entities/Ticket";
 import Promo from "./entities/Promo";
-import { handlePromocodeInput, promocodeQuestion } from "./helpers/promocode-input";
+import { handlePromocodeInput } from "./helpers/promocode-input";
 import { registerDomainPurchaseFlow } from "./domain/domains/domain-purchase-flow.js";
 import { registerDedicatedShopHandlers } from "./domain/dedicated/dedicated-shop-flow.js";
 import { registerVpsShopHandlers } from "./domain/vds/vds-shop-flow.js";
@@ -1271,7 +1271,6 @@ async function index() {
   //   createConversation(confirmDomainRegistration, "confirmDomainRegistration")
   // );
 
-  bot.use(promocodeQuestion.middleware());
   bot.use(vdsManageSpecific);
 
   bot.callbackQuery(/^vds-renew-yes:(\d+):(\d+)$/, async (ctx) => {
@@ -3023,7 +3022,10 @@ async function index() {
 
     const [name, sum, maxUses] = args;
 
-    if (!name || isNaN(Number(sum)) || isNaN(Number(maxUses))) {
+    const sumNum = Number(sum);
+    const maxUsesNum = Number(maxUses);
+    const { isValidPromoDiscountPercent } = await import("./helpers/promocode-input.js");
+    if (!name || !isValidPromoDiscountPercent(sumNum) || isNaN(maxUsesNum) || maxUsesNum <= 0) {
       await ctx.reply(ctx.t("invalid-arguments"));
       return;
     }
@@ -3042,8 +3044,8 @@ async function index() {
     const newPromo = new Promo();
 
     newPromo.code = name.toLowerCase();
-    newPromo.maxUses = Number(maxUses);
-    newPromo.sum = Number(sum);
+    newPromo.maxUses = maxUsesNum;
+    newPromo.sum = sumNum;
     newPromo.isActive = true;
 
     await promoRepo.save(newPromo);

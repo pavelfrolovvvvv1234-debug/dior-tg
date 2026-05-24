@@ -12,6 +12,7 @@ import { Role } from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import { adminPromosMenu, buildAdminPromosText } from "../menus/admin-promocodes-menu.js";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
+import { isValidPromoDiscountPercent } from "../../helpers/promocode-input.js";
 
 const normalizeCode = (value: string): string => value.trim().toLowerCase();
 
@@ -87,7 +88,7 @@ export async function promoCreateConversation(
   await ctx.reply(safeT(ctx, "admin-promos-enter-amount"));
   const amountCtx = await conversation.waitFor("message:text");
   const amount = parseNumber(amountCtx.message.text.trim());
-  if (!Number.isFinite(amount) || amount <= 0) {
+  if (!isValidPromoDiscountPercent(amount)) {
     await ctx.reply(safeT(ctx, "admin-promos-invalid-amount"));
     await sendPromosView(ctx);
     return;
@@ -176,7 +177,7 @@ export async function promoEditConversation(
   const rawAmount = amountCtx.message.text.trim();
   if (rawAmount !== "/skip") {
     const amount = parseNumber(rawAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!isValidPromoDiscountPercent(amount)) {
       await ctx.reply(safeT(ctx, "admin-promos-invalid-amount"));
       await sendPromosView(ctx);
       return;

@@ -15,6 +15,7 @@ import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepositor
 import { BusinessError, NotFoundError } from "@/shared/errors";
 import { Logger } from "@/app/logger";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
+import { computeOrderPriceFromUser } from "../shared/pricing/order-discount.js";
 
 export function registerDomainRegistrationMiddleware(
   bot: Bot<AppContext, Api<RawApi>>
@@ -54,10 +55,7 @@ export function registerDomainRegistrationMiddleware(
       return;
     }
 
-    const hasPrime = await billingService.hasActivePrime(user.id);
-    const price = hasPrime
-      ? Math.round(basePrice * 0.9 * 100) / 100
-      : basePrice;
+    const price = computeOrderPriceFromUser(user, basePrice);
 
     user.balance -= price;
 

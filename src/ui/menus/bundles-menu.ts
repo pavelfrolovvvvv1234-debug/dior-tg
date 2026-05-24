@@ -11,6 +11,7 @@ import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import User from "../../entities/User.js";
 import { BundleType } from "../../domain/bundles/types.js";
 import { getBundleConfig, calculateBundlePrice } from "../../domain/bundles/config.js";
+import { getStackedOrderDiscountPercent } from "../../shared/pricing/order-discount.js";
 import { Logger } from "../../app/logger.js";
 
 const PERIOD_MONTHLY = "monthly";
@@ -146,9 +147,7 @@ async function showBundleDetails(ctx: AppContext, bundleType: BundleType, period
     const dataSource = await getAppDataSource();
     const userRepo = dataSource.getRepository(User);
     const user = await userRepo.findOneBy({ id: (await ctx.session).main.user.id });
-    const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-
-    const pricing = await calculateBundlePrice(config, hasPrime ?? false);
+    const pricing = await calculateBundlePrice(config, getStackedOrderDiscountPercent(user));
 
     const isStarterShield = bundleType === BundleType.STARTER_SHIELD;
     const isProPack = bundleType === BundleType.PRO_INFRASTRUCTURE_PACK;

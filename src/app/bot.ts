@@ -324,7 +324,6 @@ export async function createBot(): Promise<{
   const controlUsers = legacyMenus.usersControl.controlUsers;
   const controlUserStatus = legacyMenus.usersControl.controlUserStatus;
   
-  const promocodeQuestion = legacyMenus.promocodeInput.promocodeQuestion;
   const handlePromocodeInput = legacyMenus.promocodeInput.handlePromocodeInput;
   
   // Import Menu for creating new menus
@@ -581,7 +580,6 @@ export async function createBot(): Promise<{
   registerAdminPromosHandlers(bot);
 
   // Register other conversations
-  bot.use(promocodeQuestion.middleware());
   bot.use(domainQuestion.middleware());
   bot.use(vdsManageSpecific);
   bot.callbackQuery(

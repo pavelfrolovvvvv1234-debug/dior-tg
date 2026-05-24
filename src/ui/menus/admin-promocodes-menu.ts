@@ -26,18 +26,18 @@ const safeT = (
   return key;
 };
 
-const formatAmount = (amount: number): string =>
-  Number.isFinite(amount) ? amount.toFixed(2) : String(amount);
+const formatPercent = (amount: number): string =>
+  Number.isFinite(amount) ? `${amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(1)}%` : String(amount);
 
 const renderTable = (promos: Promo[], emptyText: string): string => {
   if (promos.length === 0) {
     return `<pre>${emptyText}</pre>`;
   }
 
-  const header = "CODE         | AMOUNT | USED/MAX | LEFT | STATUS";
+  const header = "CODE         |   %   | USED/MAX | LEFT | STATUS";
   const rows = promos.map((promo) => {
     const code = promo.code.padEnd(12).slice(0, 12);
-    const amount = formatAmount(promo.sum).padStart(6);
+    const amount = formatPercent(promo.sum).padStart(5);
     const used = `${promo.uses}/${promo.maxUses}`.padStart(7);
     const left = String(Math.max(0, promo.maxUses - promo.uses)).padStart(4);
     const status = promo.isActive !== false ? "ON " : "OFF";

@@ -434,7 +434,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
     const sum = Number.parseFloat(sumStr);
     const maxUses = Number.parseInt(maxUsesStr, 10);
 
-    if (!name || isNaN(sum) || isNaN(maxUses)) {
+    const { isValidPromoDiscountPercent } = await import("../../helpers/promocode-input.js");
+    if (!name || !isValidPromoDiscountPercent(sum) || isNaN(maxUses) || maxUses <= 0) {
       await ctx.reply(ctx.t("invalid-arguments"), {
         parse_mode: "HTML",
       });

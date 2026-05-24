@@ -689,7 +689,8 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
 
       if (promoStep === "amount") {
         const amount = parsePromoNumber(input);
-        if (!Number.isFinite(amount) || amount <= 0) {
+        const { isValidPromoDiscountPercent } = await import("../../helpers/promocode-input.js");
+        if (!isValidPromoDiscountPercent(amount)) {
           await ctx.reply(ctx.t("admin-promos-invalid-amount"));
           return;
         }

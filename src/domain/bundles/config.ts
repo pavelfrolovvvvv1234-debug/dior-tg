@@ -7,6 +7,7 @@
 import type { BundleConfig } from "./types.js";
 import { BundlePeriod, BundleType, BundleFeature } from "./types.js";
 import prices from "@helpers/prices";
+import { applyOrderDiscount } from "../../shared/pricing/order-discount.js";
 
 /**
  * Get bundle configuration by type and period.
@@ -155,12 +156,12 @@ export async function getBundleConfig(
  * Calculate bundle price.
  *
  * @param config - Bundle configuration
- * @param primeDiscount - Whether user has Prime (additional 10% on top)
+ * @param orderDiscountPercent - Stacked Prime + promo discount on the post-bundle price
  * @returns Bundle price calculation
  */
 export async function calculateBundlePrice(
   config: BundleConfig,
-  primeDiscount: boolean = false
+  orderDiscountPercent: number = 0
 ): Promise<{ basePrice: number; discountAmount: number; finalPrice: number; discountPercent: number }> {
   const pricesList = await prices();
 
@@ -185,15 +186,9 @@ export async function calculateBundlePrice(
   const bundleDiscountAmount = Math.round((basePrice * config.discountPercent) / 100 * 100) / 100;
   const priceAfterBundleDiscount = basePrice - bundleDiscountAmount;
 
-  // Apply Prime discount if applicable (10% on already discounted price)
-  let finalPrice = priceAfterBundleDiscount;
-  let totalDiscountPercent = config.discountPercent;
-  if (primeDiscount) {
-    const primeDiscountAmount = Math.round(priceAfterBundleDiscount * 0.1 * 100) / 100;
-    finalPrice = priceAfterBundleDiscount - primeDiscountAmount;
-    // Total discount = bundle discount + prime discount (compound)
-    totalDiscountPercent = Math.round((1 - finalPrice / basePrice) * 100);
-  }
+  const finalPrice = applyOrderDiscount(priceAfterBundleDiscount, orderDiscountPercent);
+  const totalDiscountPercent =
+    basePrice > 0 ? Math.round((1 - finalPrice / basePrice) * 100) : config.discountPercent;
 
   const discountAmount = basePrice - finalPrice;
 

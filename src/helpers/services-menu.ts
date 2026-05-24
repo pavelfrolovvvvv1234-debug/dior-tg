@@ -40,6 +40,7 @@ import {
   escapeHtml,
   getVpsCpuModelForRate,
 } from "../domain/vds/vps-onboarding-messages.js";
+import { getOrderPriceForUser } from "../shared/pricing/order-discount.js";
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
@@ -54,18 +55,6 @@ function cpuModelFromDedicatedName(name: string): string {
  */
 const buildServiceHeader = (ctx: AppContext, labelKey: string): string =>
   `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t(labelKey)}`;
-
-/** Apply Prime −10% discount if user has active Prime. */
-async function getPriceWithPrimeDiscount(
-  dataSource: AppContext["appDataSource"],
-  userId: number,
-  basePrice: number
-): Promise<number> {
-  const userRepo = dataSource.getRepository(User);
-  const user = await userRepo.findOneBy({ id: userId });
-  const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-  return hasPrime ? Math.round(basePrice * 0.9 * 100) / 100 : basePrice;
-}
 
 export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { autoAnswer: false, onMenuOutdated: false })
   .text((ctx) => ctx.t("dedicated-shop-btn-standard"), async (ctx) => {
@@ -300,7 +289,7 @@ async function createAndBuyVDS(
   }
 
   const basePrice = bulletproof ? rate.price.bulletproof : rate.price.default;
-  const price = await getPriceWithPrimeDiscount(appDataSource, userId, basePrice);
+  const price = await getOrderPriceForUser(appDataSource, userId, basePrice);
 
   // Remember this thing
   const generatedPassword = generatePassword(12);
@@ -562,7 +551,7 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
           const basePrice = session.other.vdsRate.bulletproof
             ? rate.price.bulletproof
             : rate.price.default;
-          const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+          const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
           const usersRepo = dataSource.getRepository(User);
           const user = await usersRepo.findOneBy({ id: session.main.user.id });
           if (!user) {
@@ -648,7 +637,7 @@ const editMessageDedicatedServer = async (
       : server.price.default) ?? 0;
   const dataSource = ctx.appDataSource;
   const userId: number = session.main?.user?.id ?? 0;
-  const price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+  const price = await getOrderPriceForUser(dataSource, userId, basePrice);
 
   await ctx.editMessageText(
     ctx.t("dedicated-rate-full-view", {
@@ -758,7 +747,7 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       return;
     }
     const userId: number = user.id ?? 0;
-    price = await getPriceWithPrimeDiscount(dataSource, userId, basePrice);
+    price = await getOrderPriceForUser(dataSource, userId, basePrice);
     if (user.balance < price) {
       await showTopupForMissingAmount(ctx, price - user.balance);
       return;

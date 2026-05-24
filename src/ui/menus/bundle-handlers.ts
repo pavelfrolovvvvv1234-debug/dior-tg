@@ -120,8 +120,10 @@ export async function handleBundleDomainInput(ctx: AppContext, text: string): Pr
   const user = await ctx.appDataSource.manager.findOne(await import("../../entities/User.js").then((m) => m.default), {
     where: { id: session.main.user.id },
   });
-  const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-  const pricing = await calculateBundlePrice(config, !!hasPrime);
+  const { getStackedOrderDiscountPercent } = await import(
+    "../../shared/pricing/order-discount.js"
+  );
+  const pricing = await calculateBundlePrice(config, getStackedOrderDiscountPercent(user));
 
   session.other.bundle.domainName = domainLabel;
   session.other.bundle.step = "awaiting_confirm";

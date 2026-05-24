@@ -9,6 +9,7 @@ import type { SessionData } from "../../shared/types/session.js";
 import prices from "../../helpers/prices.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import User from "../../entities/User.js";
+import { getOrderPriceForUser } from "../../shared/pricing/order-discount.js";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
 import {
   assertDedicatedCatalogLength,
@@ -33,16 +34,6 @@ function appendDedicatedShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, ba
   kb.text(ctx.t("button-back"), backData).row();
 }
 
-async function getPriceWithPrimeDiscount(
-  dataSource: AppContext["appDataSource"],
-  userId: number,
-  basePrice: number
-): Promise<number> {
-  const userRepo = dataSource.getRepository(User);
-  const user = await userRepo.findOneBy({ id: userId });
-  const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-  return hasPrime ? Math.round(basePrice * 0.9 * 100) / 100 : basePrice;
-}
 
 function cpuTitleFromName(name: string): string {
   return name.replace(/\s+\d+GB\s*$/i, "").trim();
@@ -144,7 +135,7 @@ export async function showDedicatedShopStep3List(ctx: AppContext, page?: number)
   for (const id of slice) {
     const server = list[id]!;
     const basePrice = dt.bulletproof ? server.price?.bulletproof : server.price?.default;
-    const price = await getPriceWithPrimeDiscount(ctx.appDataSource, session.main.user.id, Number(basePrice ?? 0));
+    const price = await getOrderPriceForUser(ctx.appDataSource, session.main.user.id, Number(basePrice ?? 0));
     const labelBase = DEDICATED_COMPACT_LABEL[id] ?? `#${id}`;
     const label = `${labelBase}  |  $${formatUsdShort(price)}`;
     kb.text(label, `dsh:sel:${id}`).row();
@@ -184,7 +175,7 @@ export async function showDedicatedShopStep4Card(ctx: AppContext, serverId: numb
   const basePrice: number =
     (isBp && server.price?.bulletproof != null ? server.price.bulletproof : server.price?.default) ?? 0;
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-  const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+  const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
 
   const compact = DEDICATED_COMPACT_LABEL[serverId] ?? server.name;
   const cpu = cpuTitleFromName(server.name ?? "");
@@ -223,7 +214,7 @@ export async function showDedicatedShopFullSpec(ctx: AppContext, serverId: numbe
   const basePrice: number =
     (isBp && server.price?.bulletproof != null ? server.price.bulletproof : server.price?.default) ?? 0;
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-  const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+  const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
 
   const text = ctx.t("dedicated-rate-full-view", {
     rateName: server.name,
@@ -355,7 +346,7 @@ export function registerDedicatedShopHandlers(bot: Bot<AppContext>): void {
       const basePrice: number =
         (isBp && server.price?.bulletproof != null ? server.price.bulletproof : server.price?.default) ?? 0;
       const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-      const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+      const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
       const usersRepo = dataSource.getRepository(User);
       const user = await usersRepo.findOneBy({ id: session.main.user.id });
       if (!user) {

@@ -26,6 +26,7 @@ export default class Promo {
   @Column({ type: "varchar", nullable: false })
   code!: string;
 
+  /** Order discount percent granted on activation (1–100). */
   @Column({ type: "real", nullable: false })
   sum!: number;
 

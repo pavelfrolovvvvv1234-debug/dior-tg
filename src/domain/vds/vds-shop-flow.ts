@@ -23,6 +23,7 @@ import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
 import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-recipients.js";
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
+import { getOrderPriceForUser } from "../../shared/pricing/order-discount.js";
 import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
 import ms from "../../lib/multims.js";
 import {
@@ -63,17 +64,6 @@ function appendVpsShopPrimeAndBack(kb: InlineKeyboard, ctx: AppContext, backData
 
 function appendVpsShopBackOnly(kb: InlineKeyboard, ctx: AppContext, backData: string): void {
   kb.text(ctx.t("button-back"), backData).row();
-}
-
-async function getPriceWithPrimeDiscount(
-  dataSource: AppContext["appDataSource"],
-  userId: number,
-  basePrice: number
-): Promise<number> {
-  const userRepo = dataSource.getRepository(User);
-  const user = await userRepo.findOneBy({ id: userId });
-  const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-  return hasPrime ? Math.round(basePrice * 0.9 * 100) / 100 : basePrice;
 }
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
@@ -126,7 +116,7 @@ async function createVpsOrderTicket(
   }
 
   const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
-  const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+  const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
   if (user.balance < price) {
     await showTopupForMissingAmount(ctx, price - user.balance);
     return;
@@ -273,7 +263,7 @@ async function createVpsOrderDirect(
   }
 
   const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
-  const price = await getPriceWithPrimeDiscount(dataSource, user.id, basePrice);
+  const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
   if (user.balance < price) {
     await showTopupForMissingAmount(ctx, price - user.balance);
     // Already handled for the user; do not fall back to ticket flow,
@@ -550,7 +540,7 @@ async function compactPlanButtonLabel(
 ): Promise<string> {
   const ds = ctx.appDataSource ?? (await getAppDataSource());
   const session = await ctx.session;
-  const price = await getPriceWithPrimeDiscount(ds, session.main.user.id, basePrice);
+  const price = await getOrderPriceForUser(ds, session.main.user.id, basePrice);
   const p = formatUsdShort(price);
   return `${rate.name} • ${rate.cpu}C / ${rate.ram}GB / ${rate.ssd}GB  |  $${p}`;
 }
@@ -651,7 +641,7 @@ export async function showVpsShopStep4Card(ctx: AppContext, rateId: number): Pro
   vr.selectedRateId = rateId;
   const basePrice = vr.bulletproof ? rate.price.bulletproof : rate.price.default;
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-  const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+  const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
 
   const text = ctx.t("vds-shop-card", {
     title: rate.name,
@@ -685,7 +675,7 @@ export async function showVpsShopFullDetails(ctx: AppContext, rateId: number): P
   const vr = session.other.vdsRate;
   const basePrice = vr.bulletproof ? rate.price.bulletproof : rate.price.default;
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-  const price = await getPriceWithPrimeDiscount(dataSource, session.main.user.id, basePrice);
+  const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
 
   const text = ctx.t("vds-rate-full-view", {
     rateName: rate.name,

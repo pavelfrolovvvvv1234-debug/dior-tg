@@ -8,6 +8,7 @@ import type { AppContext } from "../../shared/types/context.js";
 import prices from "../../helpers/prices.js";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import User from "../../entities/User.js";
+import { getOrderPriceForUser } from "../../shared/pricing/order-discount.js";
 import Domain from "../../entities/Domain.js";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
@@ -18,17 +19,6 @@ import {
   suffixToZone,
   zoneToCallbackSuffix,
 } from "./domain-purchase-config.js";
-
-async function getPriceWithPrimeDiscount(
-  dataSource: AppContext["appDataSource"],
-  userId: number,
-  basePrice: number
-): Promise<number> {
-  const userRepo = dataSource.getRepository(User);
-  const user = await userRepo.findOneBy({ id: userId });
-  const hasPrime = user?.primeActiveUntil && new Date(user.primeActiveUntil) > new Date();
-  return hasPrime ? Math.round(basePrice * 0.9 * 100) / 100 : basePrice;
-}
 
 async function loadDomainZones(): Promise<Record<string, { price: number }>> {
   const list = await prices();
@@ -62,7 +52,7 @@ export function getZonesForCategory(
 async function displayPriceForZone(ctx: AppContext, basePrice: number): Promise<number> {
   const ds = ctx.appDataSource ?? (await getAppDataSource());
   const session = await ctx.session;
-  return getPriceWithPrimeDiscount(ds, session.main.user.id, basePrice);
+  return getOrderPriceForUser(ds, session.main.user.id, basePrice);
 }
 
 export async function showDomainShopHome(ctx: AppContext): Promise<void> {
@@ -237,7 +227,7 @@ async function startRegisterForZone(ctx: AppContext, zone: string): Promise<void
 
   const ds = ctx.appDataSource ?? (await getAppDataSource());
   const base = catalog[zone].price;
-  const priceForCheck = await getPriceWithPrimeDiscount(ds, session.main.user.id, base);
+  const priceForCheck = await getOrderPriceForUser(ds, session.main.user.id, base);
   if (session.main.user.balance < priceForCheck) {
     await showTopupForMissingAmount(ctx, priceForCheck - session.main.user.balance);
     return;

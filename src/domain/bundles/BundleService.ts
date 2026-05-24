@@ -10,6 +10,7 @@ import VirtualDedicatedServer, { generatePassword, generateRandomName } from "..
 import Domain from "../../entities/Domain.js";
 import { BundleType, BundlePeriod, BundlePurchaseContext } from "./types.js";
 import { getBundleConfig, calculateBundlePrice } from "./config.js";
+import { getStackedOrderDiscountPercent } from "../../shared/pricing/order-discount.js";
 import { Logger } from "../../app/logger.js";
 import prices from "../../helpers/prices.js";
 import ms from "../../lib/multims.js";
@@ -76,8 +77,10 @@ export class BundleService {
       return { success: false, error: "Bundle configuration not found" };
     }
 
-    const hasPrime = Boolean(user.primeActiveUntil && new Date(user.primeActiveUntil) > new Date());
-    const pricing = await calculateBundlePrice(config, hasPrime);
+    const pricing = await calculateBundlePrice(
+      config,
+      getStackedOrderDiscountPercent(user)
+    );
 
     if (user.balance < pricing.finalPrice) {
       return {

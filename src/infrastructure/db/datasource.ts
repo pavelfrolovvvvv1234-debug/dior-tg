@@ -52,6 +52,7 @@ import {
 } from "../../entities/notifications/index.js";
 import { runRoleModelMigration } from "./role-migration.js";
 import { runProvisioningStatusMigration } from "./provisioning-status-migration.js";
+import { runPromoOrderDiscountMigrations } from "./promo-order-discount-migration.js";
 import { dedupeVdslistDuplicateVdsIds } from "./vdslist-dedupe.js";
 
 /**
@@ -133,6 +134,7 @@ export async function getAppDataSource(): Promise<DataSource> {
       await AppDataSource.initialize();
       await runRoleModelMigration(AppDataSource);
       await runProvisioningStatusMigration(AppDataSource);
+      await runPromoOrderDiscountMigrations(AppDataSource);
       Logger.info("Database DataSource initialized successfully");
     } catch (error) {
       Logger.error("Failed to initialize DataSource", error);
