@@ -116,6 +116,19 @@ export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { a
  * VPS step 1: standard vs bulletproof → inline shop step 2 (vsh:*).
  */
 export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: false, onMenuOutdated: false })
+  .text((ctx) => ctx.t("vds-shop-btn-standard"), async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!session.other) (session as any).other = createInitialOtherSession();
+    session.other.vdsRate.bulletproof = false;
+    session.other.vdsRate.shopTier = null;
+    session.other.vdsRate.shopListPage = 0;
+    session.other.vdsRate.selectedRateId = -1;
+    session.other.vdsRate.selectedOs = -1;
+    const { showVpsShopStep3List } = await import("../domain/vds/vds-shop-flow.js");
+    await showVpsShopStep3List(ctx, 0);
+  })
+  .row()
   .text((ctx) => ctx.t("vds-shop-btn-bulletproof"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
@@ -125,8 +138,8 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: f
     session.other.vdsRate.shopListPage = 0;
     session.other.vdsRate.selectedRateId = -1;
     session.other.vdsRate.selectedOs = -1;
-    const { showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
-    await showVpsShopStep2Tier(ctx);
+    const { showVpsShopStep3List } = await import("../domain/vds/vds-shop-flow.js");
+    await showVpsShopStep3List(ctx, 0);
   })
   .row()
   .text((ctx) => ctx.t("button-back"), async (ctx) => {
@@ -236,15 +249,8 @@ function buildServicesMenu(): Menu<AppContext> {
     m = m
       .text((ctx) => ctx.t("button-vds"), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
-        const session = await ctx.session;
-        if (!session.other) (session as any).other = createInitialOtherSession();
-        session.other.vdsRate.bulletproof = true;
-        session.other.vdsRate.shopTier = null;
-        session.other.vdsRate.shopListPage = 0;
-        session.other.vdsRate.selectedRateId = -1;
-        session.other.vdsRate.selectedOs = -1;
-        const { showVpsShopStep2Tier } = await import("../domain/vds/vds-shop-flow.js");
-        await showVpsShopStep2Tier(ctx);
+        const { showVpsShopStep1 } = await import("../domain/vds/vds-shop-flow.js");
+        await showVpsShopStep1(ctx);
       })
       .row();
   }

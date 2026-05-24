@@ -6,6 +6,9 @@ export type VpsShopTier = "start" | "standard" | "performance" | "enterprise";
 
 export const VDS_SHOP_PAGE_SIZE = 6;
 
+/** Standard (non-bulletproof) VPS — manual ticket provisioning locations only. */
+export const STANDARD_VPS_LOCATION_KEYS = ["ru", "by", "ab"] as const;
+
 /** Tier by index in prices.virtual_vds */
 export const VDS_INDEX_TIER: Record<number, VpsShopTier> = {
   0: "start",

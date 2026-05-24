@@ -12,6 +12,7 @@ import User, { Role } from "../../entities/User.js";
 import VirtualDedicatedServer, { generatePassword, generateRandomName } from "../../entities/VirtualDedicatedServer.js";
 import {
   assertVdsCatalogLength,
+  STANDARD_VPS_LOCATION_KEYS,
   VDS_INDEX_TIER,
   VDS_SHOP_PAGE_SIZE,
   type VpsShopTier,
@@ -78,7 +79,21 @@ async function getPriceWithPrimeDiscount(
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 const VPS_LOCATION_AUTO_ONLY_KEY = "nl-amsterdam";
 
-function getAllowedVpsLocationKeys(rate: { cpu?: number; ram?: number; ssd?: number }): string[] {
+function vpsLocationLabel(ctx: AppContext, locationKey: string): string {
+  const vpsKey = `vps-location-${locationKey}`;
+  const vpsLabel = ctx.t(vpsKey as "vps-location-ru");
+  if (vpsLabel !== vpsKey) return vpsLabel;
+  const dedKey = `dedicated-location-${locationKey}`;
+  const dedLabel = ctx.t(dedKey as "dedicated-location-nl-amsterdam");
+  if (dedLabel !== dedKey) return dedLabel;
+  return locationKey;
+}
+
+function getAllowedVpsLocationKeys(
+  rate: { cpu?: number; ram?: number; ssd?: number },
+  bulletproof: boolean
+): string[] {
+  if (!bulletproof) return [...STANDARD_VPS_LOCATION_KEYS];
   const cpu = Number(rate.cpu ?? 0);
   const ram = Number(rate.ram ?? 0);
   const ssd = Number(rate.ssd ?? 0);
@@ -129,7 +144,7 @@ async function createVpsOrderTicket(
       ? `tgcb:${ctx.callbackQuery.id}`
       : `vps:${session.main.user.id}:${rateId}:${Date.now()}`;
     const category = session.other.vdsRate.bulletproof ? "bulletproof" : "standard";
-    const locationLabel = locationKey ? ctx.t(`dedicated-location-${locationKey}` as any) : "N/A";
+    const locationLabel = locationKey ? vpsLocationLabel(ctx, locationKey) : "N/A";
     const osLabel = osKey ? ctx.t(`dedicated-os-${osKey}` as any) : "N/A";
 
     const buyerIsStaff = user.role === Role.Admin || user.role === Role.Moderator;
@@ -159,7 +174,9 @@ async function createVpsOrderTicket(
         osKey: osKey ?? null,
         osLabel,
         ddosProtection: session.other.vdsRate.bulletproof ? "enhanced" : "standard",
-        deploymentNotes: "Temporary VPS/VDS flow via provisioning tickets (as dedicated).",
+        deploymentNotes: session.other.vdsRate.bulletproof
+          ? "Bulletproof VPS — staff provisioning if auto-deploy unavailable."
+          : "Standard VPS — manual ticket provisioning (RU/BY/AB only).",
       },
     });
 
@@ -455,13 +472,17 @@ async function showVpsLocationPicker(ctx: AppContext, rateId: number): Promise<v
     await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
-  const allowedLocationKeys = getAllowedVpsLocationKeys(rate);
+  const bulletproof = session.other.vdsRate.bulletproof;
+  const allowedLocationKeys = getAllowedVpsLocationKeys(rate, bulletproof);
   const kb = new InlineKeyboard();
   for (const key of allowedLocationKeys) {
-    kb.text(ctx.t(`dedicated-location-${key}` as any), `vsh:loc:${key}`).row();
+    kb.text(vpsLocationLabel(ctx, key), `vsh:loc:${key}`).row();
   }
   kb.text(ctx.t("button-back"), `vsh:card:${rateId}`).row();
-  await ctx.editMessageText(ctx.t("dedicated-location-select-title"), {
+  const title = bulletproof
+    ? ctx.t("dedicated-location-select-title")
+    : `${ctx.t("dedicated-location-select-title")}\n\n<i>${ctx.t("vps-standard-ticket-note")}</i>`;
+  await ctx.editMessageText(title, {
     parse_mode: "HTML",
     reply_markup: kb,
     link_preview_options: { is_disabled: true },
@@ -586,9 +607,12 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
 
   const header = vr.bulletproof
     ? `<b>${ctx.t("vds-shop-bulletproof-list-header")}</b>`
-    : `<b>🖥 ${ctx.t("vds-shop-type-standard")}</b>`;
+    : `<b>${ctx.t("vds-shop-standard-list-header")}</b>`;
 
   let body = `${header}\n\n${ctx.t("vds-shop-step3-prompt")}`;
+  if (!vr.bulletproof) {
+    body += `\n\n<i>${ctx.t("vps-standard-ticket-note")}</i>`;
+  }
   if (ids.length > VDS_SHOP_PAGE_SIZE) {
     body += `\n\n${ctx.t("vds-shop-list-page", { current: safePage + 1, total: totalPages })}`;
   }
@@ -737,7 +761,7 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
-    const allowedLocationKeys = getAllowedVpsLocationKeys(rate);
+    const allowedLocationKeys = getAllowedVpsLocationKeys(rate, session.other.vdsRate.bulletproof);
     if (!allowedLocationKeys.includes(locationKey)) {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
@@ -762,7 +786,7 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       return;
     }
     await deleteVpsOsPickerMessage(ctx as AppContext);
-    if (isProxmoxEnabled()) {
+    if (session.other.vdsRate.bulletproof && isProxmoxEnabled()) {
       await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
       return;
     }
@@ -783,11 +807,7 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
 
   bot.callbackQuery("vsh:back:type", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const { servicesMenu } = await import("../../helpers/services-menu.js");
-    await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
-      parse_mode: "HTML",
-      reply_markup: servicesMenu,
-    });
+    await showVpsShopStep1(ctx);
   });
 
   bot.callbackQuery("vsh:back:tier", async (ctx) => {
