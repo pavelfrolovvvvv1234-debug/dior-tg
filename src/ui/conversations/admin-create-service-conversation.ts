@@ -8,7 +8,6 @@ import type { Bot } from "grammy";
 import { createConversation } from "@grammyjs/conversations";
 import { InlineKeyboard } from "grammy";
 import type { AppConversation, AppContext } from "../../shared/types/context.js";
-import type { SessionData } from "../../shared/types/session.js";
 import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-services/types.js";
 import { Role } from "../../entities/User.js";
 import {
@@ -17,7 +16,6 @@ import {
 } from "../../shared/auth/permissions.js";
 import { getAdminTelegramIds } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
-import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { AdminManualServiceService } from "../../modules/admin/manual-services/admin-manual-service.service.js";
 import { validateManualServiceDraft } from "../../modules/admin/manual-services/schemas.js";
@@ -90,23 +88,44 @@ function defaultCreateServiceState(): AdminCreateServiceSessionState {
   };
 }
 
-function getState(session: SessionData): AdminCreateServiceSessionState {
-  const full = ensureFullSession(session);
-  if (!full.other.adminCreateService) {
-    full.other.adminCreateService = defaultCreateServiceState();
-  }
-  return full.other.adminCreateService;
-}
-
-/** Persist wizard state across conversation checkpoints (Grammy replay-safe). */
-async function commitWizardState(
+/**
+ * Mirror the local wizard state to session storage by JSON snapshot.
+ * Use after any mutation to `st` (formFieldIndex, draft, step, etc.) so the
+ * real session reflects the change even on Grammy conversation replays.
+ *
+ * Required because @grammyjs/conversations v2 clones the value returned from
+ * `external` (structuredClone), so the local `st` is a copy and mutating it
+ * does not write through to `ctx.session.other.adminCreateService`.
+ */
+async function persistWizardState(
   conversation: AppConversation,
   ctx: AppContext,
   st: AdminCreateServiceSessionState
 ): Promise<void> {
+  const snapshot = JSON.parse(JSON.stringify(st)) as AdminCreateServiceSessionState;
   await conversation.external(async () => {
     const session = ensureFullSession(await ctx.session);
-    session.other.adminCreateService = st;
+    session.other.adminCreateService = snapshot;
+  });
+}
+
+/**
+ * Persist only chatId/messageId picked up by editWizardMessage on first run.
+ * Splitting this from `persistWizardState` keeps the conversation's external
+ * cache stable: after a wait() the snapshot still reflects the latest surface.
+ */
+async function persistWizardSurface(
+  conversation: AppConversation,
+  ctx: AppContext,
+  st: AdminCreateServiceSessionState
+): Promise<void> {
+  const surface = { chatId: st.chatId, messageId: st.messageId };
+  await conversation.external(async () => {
+    const session = ensureFullSession(await ctx.session);
+    const current = session.other.adminCreateService;
+    if (!current) return;
+    current.chatId = surface.chatId;
+    current.messageId = surface.messageId;
   });
 }
 
@@ -365,22 +384,22 @@ export async function adminCreateServiceConversation(
 
   await ensureConversationTranslator(conversation, ctx);
 
-  const session = await conversation.external(async () => {
+  const hasUser = await conversation.external(async () => {
     const s = ensureFullSession(await ctx.session);
-    if (!s.other.adminCreateService) {
-      s.other.adminCreateService = defaultCreateServiceState();
-    }
-    return s;
+    return Boolean(s?.main?.user);
   });
-  if (!session?.main?.user) {
+  if (!hasUser) {
     await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
 
-  const st = getState(session);
-  Object.assign(st, defaultCreateServiceState());
-  st.step = "type";
-  await commitWizardState(conversation, ctx, st);
+  const st = await conversation.external(async () => {
+    const s = ensureFullSession(await ctx.session);
+    const fresh = defaultCreateServiceState();
+    fresh.step = "type";
+    s.other.adminCreateService = fresh;
+    return fresh;
+  });
 
   await editWizardMessage(
     ctx,
@@ -388,6 +407,7 @@ export async function adminCreateServiceConversation(
     `${stepHeader(ctx, 1, 4, ctx.t("admin-cs-step-type"))}${ctx.t("admin-cs-type-prompt")}`,
     typeStepKeyboard(ctx)
   );
+  await persistWizardSurface(conversation, ctx, st);
 
   const typeCb = await waitCallback(conversation, ctx, (d) => d.startsWith(`${CB}:stype:`));
   if (typeCb === WIZARD_CANCELLED) {
@@ -405,7 +425,7 @@ export async function adminCreateServiceConversation(
   st.serviceType = serviceType;
   st.step = "form";
   st.formFieldIndex = 0;
-  await commitWizardState(conversation, ctx, st);
+  await persistWizardState(conversation, ctx, st);
 
   const fields = getWizardFields(serviceType);
   while (st.formFieldIndex < fields.length) {
@@ -422,6 +442,7 @@ export async function adminCreateServiceConversation(
       `${stepHeader(ctx, 2, 4, ctx.t("admin-cs-step-form"))}<i>${escapeHtml(fieldProgress)}</i>\n${escapeHtml(ctx.t(field.promptKey))}${hint}`,
       formNavKeyboard(ctx, canSkip)
     );
+    await persistWizardSurface(conversation, ctx, st);
 
     const next = await conversation.wait();
     const formCb = next.callbackQuery?.data;
@@ -438,65 +459,41 @@ export async function adminCreateServiceConversation(
     if (next.callbackQuery?.data === `${CB}:back-form`) {
       await next.answerCallbackQuery().catch(() => {});
       st.formFieldIndex = Math.max(0, st.formFieldIndex - 1);
-      await commitWizardState(conversation, ctx, st);
+      await persistWizardState(conversation, ctx, st);
       continue;
     }
     if (next.callbackQuery?.data === `${CB}:skip` && canSkip) {
       await next.answerCallbackQuery().catch(() => {});
       st.formFieldIndex += 1;
-      await commitWizardState(conversation, ctx, st);
+      await persistWizardState(conversation, ctx, st);
       continue;
     }
 
-    const text = next.message?.text?.trim();
+    const text = next.message?.text?.trim() ?? "";
     if (!text) {
       continue;
     }
 
-    if (!canSkip && text.length === 0) {
-      await conversation.external(async () => {
-        await ctx.reply(ctx.t("admin-cs-field-required"));
-      });
+    const errKey = validateField(serviceType, field.key, text, Boolean(field.optional));
+    if (errKey) {
+      await ctx.reply(`⚠️ ${ctx.t(errKey)}`, { parse_mode: "HTML" });
       continue;
     }
 
-    const applied = await conversation.external(async () => {
-      const session = ensureFullSession(await ctx.session);
-      const state = getState(session);
-      const errKey = validateField(serviceType, field.key, text, Boolean(field.optional));
-      if (errKey) {
-        return { ok: false as const, errKey };
-      }
-      assignDraftValue(state, field.key, text);
-      state.formFieldIndex += 1;
-      session.other.adminCreateService = state;
-      return { ok: true as const };
-    });
-
-    if (!applied.ok) {
-      await conversation.external(async () => {
-        await ctx.reply(`⚠️ ${ctx.t(applied.errKey)}`, { parse_mode: "HTML" });
-      });
-      const session = await conversation.external(async () => ensureFullSession(await ctx.session));
-      if (session?.other.adminCreateService) {
-        Object.assign(st, session.other.adminCreateService);
-      }
-      continue;
-    }
-    const session = await conversation.external(async () => ensureFullSession(await ctx.session));
-    if (session?.other.adminCreateService) {
-      Object.assign(st, session.other.adminCreateService);
-    }
+    assignDraftValue(st, field.key, text);
+    st.formFieldIndex += 1;
+    await persistWizardState(conversation, ctx, st);
   }
 
   st.step = "user";
-  await commitWizardState(conversation, ctx, st);
+  await persistWizardState(conversation, ctx, st);
   await editWizardMessage(
     ctx,
     st,
     `${stepHeader(ctx, 3, 4, ctx.t("admin-cs-step-user"))}${ctx.t("admin-cs-user-prompt")}`,
     new InlineKeyboard().text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL)
   );
+  await persistWizardSurface(conversation, ctx, st);
 
   let userAssigned = false;
   while (!userAssigned) {
@@ -528,33 +525,34 @@ export async function adminCreateServiceConversation(
     });
 
     if (!lookup.ok) {
-      await conversation.external(async (outsideCtx) => {
-        const octx = outsideCtx as AppContext;
-        await octx.reply(octx.t("admin-cs-user-not-found"));
-      });
+      await ctx.reply(ctx.t("admin-cs-user-not-found"));
       continue;
     }
 
     st.assignedUserId = lookup.id;
     st.assignedUserTelegramId = lookup.telegramId;
-    await commitWizardState(conversation, ctx, st);
+    await persistWizardState(conversation, ctx, st);
     userAssigned = true;
 
     const cardText = await conversation.external(async (outsideCtx) =>
       resolveUserCard(outsideCtx as AppContext, lookup.id)
     );
-    await conversation.external(async (outsideCtx) => {
-      await (outsideCtx as AppContext).reply(cardText, { parse_mode: "HTML" });
-    });
+    await ctx.reply(cardText, { parse_mode: "HTML" });
   }
 
   st.step = "review";
   st.confirmed = false;
-  const actor = session.main.user;
+  const actorId = await conversation.external(async () => {
+    const s = ensureFullSession(await ctx.session);
+    return s?.main?.user?.id ?? 0;
+  });
 
   while (st.step === "review") {
-    const userCard = st.assignedUserId
-      ? await resolveUserCard(ctx, st.assignedUserId)
+    const assignedUserId = st.assignedUserId;
+    const userCard = assignedUserId
+      ? await conversation.external(async (outsideCtx) =>
+          resolveUserCard(outsideCtx as AppContext, assignedUserId)
+        )
       : "—";
     const reviewText = [
       stepHeader(ctx, 4, 4, ctx.t("admin-cs-step-review")),
@@ -564,13 +562,14 @@ export async function adminCreateServiceConversation(
       userCard,
       "",
       `<b>${escapeHtml(ctx.t("admin-cs-review-meta"))}</b>`,
-      `• ${escapeHtml(ctx.t("admin-cs-created-by"))}: <code>${actor.id}</code>`,
+      `• ${escapeHtml(ctx.t("admin-cs-created-by"))}: <code>${actorId}</code>`,
       `• ${escapeHtml(ctx.t("admin-cs-created-at"))}: <code>${new Date().toISOString().slice(0, 19)}Z</code>`,
       "",
       `⚠️ <i>${escapeHtml(ctx.t("admin-cs-review-warning"))}</i>`,
     ].join("\n");
 
     await editWizardMessage(ctx, st, reviewText, reviewKeyboard(ctx, st.confirmed));
+    await persistWizardSurface(conversation, ctx, st);
 
     const reviewCb = await waitCallback(
       conversation,
@@ -586,7 +585,7 @@ export async function adminCreateServiceConversation(
     }
     if (reviewCb === `${CB}:toggle-confirm`) {
       st.confirmed = !st.confirmed;
-      await commitWizardState(conversation, ctx, st);
+      await persistWizardState(conversation, ctx, st);
       continue;
     }
     if (
@@ -628,17 +627,39 @@ export async function adminCreateServiceConversation(
         `${stepHeader(ctx, 4, 4, ctx.t("admin-cs-step-creating"))}\n\n${ctx.t("admin-cs-creating")}`,
         new InlineKeyboard()
       );
+      await persistWizardSurface(conversation, ctx, st);
+
+      const serviceType = st.serviceType;
+      const assignedUserId = st.assignedUserId;
+      const draftSnapshot = JSON.parse(JSON.stringify(st.draft)) as Record<string, unknown>;
+      const createResult = await conversation.external(async (outsideCtx) => {
+        const octx = outsideCtx as AppContext;
+        try {
+          const svc = new AdminManualServiceService(octx.appDataSource);
+          const result = await svc.create(
+            serviceType,
+            assignedUserId,
+            draftSnapshot as never
+          );
+          return { ok: true as const, result };
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          return { ok: false as const, error: msg };
+        }
+      });
+
+      if (!createResult.ok) {
+        await ctx.reply(ctx.t("admin-cs-error", { error: createResult.error }));
+        st.step = "review";
+        continue;
+      }
 
       try {
-        const svc = new AdminManualServiceService(ctx.appDataSource);
-        const result = await svc.create(
-          st.serviceType,
-          st.assignedUserId,
-          st.draft as never
-        );
+        const result = createResult.result;
         st.createdSummary = result.summary;
         st.createdServiceRef =
           st.serviceType === "vds" ? String(result.serviceId) : `${st.serviceType}:${result.serviceId}`;
+        await persistWizardState(conversation, ctx, st);
 
         const successKb = successKeyboard(
           ctx,
@@ -659,6 +680,7 @@ export async function adminCreateServiceConversation(
           ].join("\n"),
           successKb
         );
+        await persistWizardSurface(conversation, ctx, st);
 
         const doneCb = await waitCallback(
           conversation,
