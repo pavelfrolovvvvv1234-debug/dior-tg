@@ -3414,8 +3414,12 @@ async function index() {
           return;
         }
         console.error("[Bot Error]", err.name, err.message);
-        if (process.env["NODE_ENV"] == "development") {
+        if (err.stack) {
           console.error(err.stack);
+        }
+        const cause = (err.error as { stack?: string } | undefined)?.stack;
+        if (cause && cause !== err.stack) {
+          console.error("[Bot Error cause]", cause);
         }
         // Don't crash the bot on errors
       });

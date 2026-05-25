@@ -38,6 +38,30 @@ const getDemoVdsInfo = (): ListItem => {
   return { state: "active" } as ListItem;
 };
 
+/**
+ * Fetch VDS power state from Proxmox with retries. Returns a safe fallback
+ * (synthetic active state) when the VM is missing or VMManager is unavailable,
+ * so the management view always renders. Used for admin-issued manual VPS
+ * whose vmid is not provisioned in Proxmox.
+ */
+const resolveVdsManageInfo = async (
+  ctx: AppContext,
+  vds: VirtualDedicatedServer
+): Promise<ListItem> => {
+  if (isDemoVds(vds)) {
+    return getDemoVdsInfo();
+  }
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const info = await ctx.vmmanager.getInfoVM(vds.vdsId);
+      if (info) return info;
+    } catch {
+      // try next attempt
+    }
+  }
+  return { state: "active" } as ListItem;
+};
+
 const replyDemoOperation = async (ctx: AppContext): Promise<void> => {
   await ctx.reply(ctx.t("demo-operation-not-available"));
 };
@@ -213,19 +237,7 @@ async function replyVdsManagePanel(
     return;
   }
 
-  let info: ListItem | undefined;
-  if (isDemoVds(vds)) {
-    info = getDemoVdsInfo();
-  } else {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      info = await ctx.vmmanager.getInfoVM(vds.vdsId);
-      if (info) break;
-    }
-  }
-  if (!info) {
-    await ctx.reply(ctx.t("failed-to-retrieve-info"));
-    return;
-  }
+  const info = await resolveVdsManageInfo(ctx, vds);
 
   await ctx.reply(
     buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword),
@@ -429,28 +441,27 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     return;
   }
 
-  let info: ListItem | undefined;
-  const demoMode = isDemoVds(vds);
-
-  if (demoMode) {
-    info = getDemoVdsInfo();
-  } else {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      info = await ctx.vmmanager.getInfoVM(vds.vdsId);
-      if (info) break;
-    }
+  const info = await resolveVdsManageInfo(ctx, vds);
+  if (!isDemoVds(vds)) {
     // Refresh persisted IPv4 if it was unavailable at provisioning time.
-    const freshIpv4 = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
-    const freshIp = freshIpv4?.list?.[0]?.ip_addr;
-    if (freshIp && !isPlaceholderIpv4(freshIp) && vds.ipv4Addr !== freshIp) {
-      vds.ipv4Addr = freshIp;
-      await vdsRepo.save(vds);
+    // Best-effort; failures here must never block opening the management card
+    // (matters for admin-issued manual VPS whose vmid is not in Proxmox).
+    try {
+      const freshIpv4 = await ctx.vmmanager
+        .getIpv4AddrVM(vds.vdsId)
+        .catch(() => undefined);
+      const freshIp = freshIpv4?.list?.[0]?.ip_addr;
+      if (freshIp && !isPlaceholderIpv4(freshIp) && vds.ipv4Addr !== freshIp) {
+        vds.ipv4Addr = freshIp;
+        await vdsRepo.save(vds);
+      }
+    } catch (e) {
+      Logger.warn("updateVdsManageView: IPv4 refresh failed", {
+        vdsId: vds.id,
+        vmid: vds.vdsId,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
-  }
-
-  if (!info) {
-    await ctx.reply(ctx.t("failed-to-retrieve-info"));
-    return;
   }
 
   await ctx.editMessageText(
@@ -738,22 +749,8 @@ export const vdsManageSpecific = new Menu<AppContext>(
   const serviceId = vds.id;
   session.other.manageVds.lastPickedId = serviceId;
 
-  let info;
   const demoMode = isDemoVds(vds);
-
-  if (demoMode) {
-    info = getDemoVdsInfo();
-  } else {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      info = await ctx.vmmanager.getInfoVM(vds.vdsId);
-      if (info) break;
-    }
-  }
-
-  if (!info) {
-    await ctx.reply(ctx.t("failed-to-retrieve-info"));
-    return;
-  }
+  const info = await resolveVdsManageInfo(ctx, vds);
 
   if (isVdsManagementBlocked(vds)) {
     const extra = vds.adminBlocked
@@ -1197,7 +1194,14 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
         if (!demoMode) {
           let liveInfo: ListItem | undefined;
           for (let attempt = 0; attempt < 4; attempt++) {
-            liveInfo = await ctx.vmmanager.getInfoVM(expanded.vdsId);
+            try {
+              liveInfo = await ctx.vmmanager.getInfoVM(expanded.vdsId);
+            } catch (e) {
+              Logger.warn("vdsManageServiceMenu: getInfoVM threw", {
+                vmid: expanded.vdsId,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            }
             if (liveInfo?.state) break;
           }
           if (liveInfo?.state) powerState = liveInfo.state;
