@@ -295,6 +295,8 @@ async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
 async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Promise<string> {
   const vmInfo = await ctx.vmmanager.getInfoVM(v.vdsId).catch(() => undefined);
   const vmStateRaw = vmInfo?.state ?? "unknown";
+  // No live data from Proxmox = admin-issued manual VPS (or temporary outage).
+  const isManual = !vmInfo;
   const userRepo = new UserRepository(ctx.appDataSource);
   const owner = await userRepo.findById(v.targetUserId);
   const userDisplay = await resolveBuyerDisplay(ctx, owner?.telegramId ?? undefined);
@@ -313,11 +315,17 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
   let operationalState = "ACTIVE";
   if (v.adminBlocked) operationalState = "BLOCKED";
   else if (v.managementLocked) operationalState = "LOCKED";
+  else if (isManual) operationalState = "MANUAL";
   else if (vmStateRaw === "stopped") operationalState = "STOPPED";
 
-  const vmStateLabel =
-    vmStateRaw === "active" ? "Running" : vmStateRaw === "stopped" ? "Stopped" : "Unknown";
-  const provider = "Cloud";
+  const vmStateLabel = isManual
+    ? "Manual (no Proxmox VM)"
+    : vmStateRaw === "active"
+      ? "Running"
+      : vmStateRaw === "stopped"
+        ? "Stopped"
+        : "Unknown";
+  const provider = isManual ? "Manual" : "Cloud";
   const price = Number(v.renewalPrice ?? 0).toFixed(2);
   const planName = v.rateName || "-";
   const cpu = Number.isFinite(v.cpuCount) ? `${v.cpuCount} vCore` : "-";
@@ -505,6 +513,8 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
       await ctx.reply(ctx.t("bad-error"));
       return;
     }
+    let providerOk = true;
+    let providerError: string | null = null;
     try {
       if (action === "start") {
         await ctx.vmmanager.startVM(v.vdsId);
@@ -515,22 +525,39 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
         await ctx.vmmanager.startVM(v.vdsId);
       }
       await syncVdsIp(ctx, v).catch(() => {});
-      const refreshed = await vdsRepo.findById(id);
-      if (refreshed) {
-        const successMessage =
-          action === "start"
-            ? ctx.t("admin-vds-vm-started")
-            : action === "stop"
-              ? ctx.t("admin-vds-vm-stopped")
-              : ctx.t("admin-vds-vm-rebooted");
-        await ctx.reply(successMessage, { parse_mode: "HTML" });
-        await ctx.editMessageText(await buildDetailText(ctx, refreshed), {
-          parse_mode: "HTML",
-          reply_markup: detailKeyboard(refreshed, false, action === "start" ? "active" : action === "stop" ? "stopped" : "unknown"),
-        });
-      }
     } catch (e: any) {
-      await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }));
+      providerOk = false;
+      providerError = String(e?.message ?? e ?? "err").slice(0, 200);
+    }
+
+    const refreshed = (await vdsRepo.findById(id)) ?? v;
+    const successMessage =
+      action === "start"
+        ? ctx.t("admin-vds-vm-started")
+        : action === "stop"
+          ? ctx.t("admin-vds-vm-stopped")
+          : ctx.t("admin-vds-vm-rebooted");
+    const note = providerOk
+      ? successMessage
+      : `${successMessage}\n\n⚠️ VM provider error: ${providerError}\n(Action recorded; VM may not exist in Proxmox.)`;
+    await ctx.reply(note, { parse_mode: "HTML" }).catch(() => {});
+    try {
+      await ctx.editMessageText(await buildDetailText(ctx, refreshed), {
+        parse_mode: "HTML",
+        reply_markup: detailKeyboard(
+          refreshed,
+          false,
+          providerOk
+            ? action === "start"
+              ? "active"
+              : action === "stop"
+                ? "stopped"
+                : "unknown"
+            : "unknown"
+        ),
+      });
+    } catch {
+      /* ignore edit failures */
     }
     return;
   }
@@ -583,6 +610,8 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
       await svc.deleteVds(id);
       await ctx.reply(ctx.t("admin-vds-deleted"));
     } catch (e: any) {
+      // deleteVds now tolerates VM-provider errors and removes the DB row
+      // anyway, so a thrown error here means DB cleanup itself failed.
       await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }));
     }
     ad.selectedVdsId = null;

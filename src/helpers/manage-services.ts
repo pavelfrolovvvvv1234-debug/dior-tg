@@ -340,11 +340,24 @@ export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<bool
       await ctx.reply(ctx.t("error-access-denied"));
       return true;
     }
+    // Best-effort provider sync; manual admin-issued VPS will fail here
+    // but the user still gets the new password stored in our DB so they
+    // can use it (and the admin will reconcile the OS password offline).
     try {
-      const ok = await ctx.vmmanager.changePasswordVMCustom(vds.vdsId, text);
+      const ok = await ctx.vmmanager
+        .changePasswordVMCustom(vds.vdsId, text)
+        .catch((e) => {
+          Logger.warn("changePasswordVMCustom failed; saving DB only", {
+            vmid: vds.vdsId,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          return false;
+        });
       if (!ok) {
-        await ctx.reply(ctx.t("bad-error"));
-        return true;
+        Logger.warn(
+          "VM provider did not apply manual password; persisting to DB only",
+          { vmid: vds.vdsId }
+        );
       }
       vds.password = text;
       await vdsRepo.save(vds);
@@ -1119,10 +1132,20 @@ export async function vdsPasswordManualConversation(
     return;
   }
 
-  const ok = await ctx.vmmanager.changePasswordVMCustom(vds.vdsId, text);
+  const ok = await ctx.vmmanager
+    .changePasswordVMCustom(vds.vdsId, text)
+    .catch((e) => {
+      Logger.warn("changePasswordVMCustom failed; saving DB only", {
+        vmid: vds.vdsId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return false;
+    });
   if (!ok) {
-    await ctx.reply(ctx.t("bad-error"));
-    return;
+    Logger.warn(
+      "VM provider did not apply manual password; persisting to DB only",
+      { vmid: vds.vdsId }
+    );
   }
   vds.password = text;
   await vdsRepo.save(vds);
@@ -1313,7 +1336,19 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
               await replyDemoOperation(ctx);
               return;
             }
-            const newPassword = await ctx.vmmanager.changePasswordVM(vds.vdsId);
+            let newPassword: string;
+            try {
+              newPassword = await ctx.vmmanager.changePasswordVM(vds.vdsId);
+            } catch (e) {
+              // Manual admin-issued VPS: provider rejects the call.
+              // Generate locally and update DB only — admin will sync the OS
+              // password manually if needed.
+              Logger.warn("changePasswordVM failed; generating locally", {
+                vmid: vds.vdsId,
+                error: e instanceof Error ? e.message : String(e),
+              });
+              newPassword = generatePassword(16);
+            }
             vds.password = newPassword;
             await vdsRepo.save(vds);
             await ctx.reply(ctx.t("vds-new-password", { password: newPassword }), {
@@ -1367,8 +1402,17 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
                 await replyDemoOperation(ctx);
                 return;
               }
-              await ctx.vmmanager.stopVM(vds.vdsId);
-              await ctx.vmmanager.startVM(vds.vdsId);
+              try {
+                await ctx.vmmanager.stopVM(vds.vdsId);
+                await ctx.vmmanager.startVM(vds.vdsId);
+              } catch (e) {
+                Logger.warn("user-side reboot: VM provider failed", {
+                  vmid: vds.vdsId,
+                  error: e instanceof Error ? e.message : String(e),
+                });
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
               await updateVdsManageView(ctx);
             });
             range.text(ctx.t("vds-button-power-off"), async (ctx) => {
@@ -1383,7 +1427,16 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
                 await replyDemoOperation(ctx);
                 return;
               }
-              await ctx.vmmanager.stopVM(vds.vdsId);
+              try {
+                await ctx.vmmanager.stopVM(vds.vdsId);
+              } catch (e) {
+                Logger.warn("user-side power-off: VM provider failed", {
+                  vmid: vds.vdsId,
+                  error: e instanceof Error ? e.message : String(e),
+                });
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
               await updateVdsManageView(ctx);
             });
             range.row();
@@ -1400,7 +1453,16 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
                 await replyDemoOperation(ctx);
                 return;
               }
-              await ctx.vmmanager.startVM(vds.vdsId);
+              try {
+                await ctx.vmmanager.startVM(vds.vdsId);
+              } catch (e) {
+                Logger.warn("user-side power-on: VM provider failed", {
+                  vmid: vds.vdsId,
+                  error: e instanceof Error ? e.message : String(e),
+                });
+                await ctx.reply(ctx.t("bad-error"));
+                return;
+              }
               await updateVdsManageView(ctx);
             });
             range.row();

@@ -335,27 +335,33 @@ export class VdsService {
   async deleteVds(vdsId: number): Promise<boolean> {
     const vds = await this.getVdsById(vdsId);
 
-    // Delete from VMManager with retry
-    await retry(
-      () => this.vmManager.deleteVM(vds.vdsId),
-      {
-        maxAttempts: 3,
-        delayMs: 2000,
-        exponentialBackoff: true,
-      }
-    ).catch((error) => {
-      Logger.error(`Failed to delete VM ${vds.vdsId}`, error);
-      throw new ExternalApiError(
-        `Failed to delete VM: ${error.message}`,
-        "VMManager",
-        error
+    // Try to delete from VMManager but never block DB cleanup on it.
+    // Admin-issued manual VPS often have a vmid that does not exist in
+    // Proxmox, so the API returns 400/404 — that must not prevent the
+    // admin from removing the row from the database.
+    let providerDeleteFailed = false;
+    try {
+      await retry(
+        () => this.vmManager.deleteVM(vds.vdsId),
+        {
+          maxAttempts: 3,
+          delayMs: 2000,
+          exponentialBackoff: true,
+        }
       );
-    });
+    } catch (error) {
+      providerDeleteFailed = true;
+      Logger.warn(
+        `VM provider delete failed for vmid=${vds.vdsId}; proceeding with DB cleanup`,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
 
-    // Delete from database
     await this.vdsRepository.deleteById(vdsId);
 
-    Logger.info(`Deleted VDS ${vdsId} (VM ID: ${vds.vdsId})`);
+    Logger.info(
+      `Deleted VDS ${vdsId} (VM ID: ${vds.vdsId}, providerDeleteFailed=${providerDeleteFailed})`
+    );
 
     return true;
   }
