@@ -47,7 +47,11 @@ import {
   logDatabaseMode,
   validateProductionSecurity,
 } from "./security-guards.js";
-import { adminCallbackGuardMiddleware } from "./middlewares/admin-callback-guard.js";
+import {
+  adminCallbackGuardMiddleware,
+  staffCommandGuardMiddleware,
+  staffSensitiveInputMiddleware,
+} from "./middlewares/staff-guards.js";
 import { TopUpRepository } from "../infrastructure/db/repositories/TopUpRepository.js";
 import { ExpirationService } from "../domain/services/ExpirationService.js";
 import { handleCryptoPayWebhook } from "../infrastructure/payments/cryptopay-webhook.js";
@@ -267,7 +271,9 @@ export async function createBot(): Promise<{
 
   // Check if user is banned
   bot.use(banCheckMiddleware);
+  bot.use(staffCommandGuardMiddleware());
   bot.use(adminCallbackGuardMiddleware());
+  bot.use(staffSensitiveInputMiddleware());
 
   // Setup VMManager middleware
   bot.use(vmmanagerMiddleware(vmManager));

@@ -48,40 +48,21 @@ export async function ensureAdminAccess(ctx: AppContext): Promise<boolean> {
     return true;
   }
 
-  const ok = await ensureSessionUser(ctx);
-  if (!ok) {
+  if (!ctx.appDataSource || telegramId <= 0) {
     return false;
   }
 
-  if (session.main.user.role === Role.Admin) {
+  await ensureSessionUser(ctx);
+
+  const dbUser = await ctx.appDataSource.getRepository(User).findOne({
+    where: { telegramId },
+    select: ["id", "role", "status"],
+  });
+  if (dbUser?.role === Role.Admin) {
+    session.main.user.id = dbUser.id;
+    session.main.user.role = dbUser.role;
+    session.main.user.status = dbUser.status;
     return true;
-  }
-
-  if (ctx.appDataSource) {
-    if (session.main.user.id > 0) {
-      const dbUser = await ctx.appDataSource.getRepository(User).findOne({
-        where: { id: session.main.user.id },
-        select: ["role", "status"],
-      });
-      if (dbUser?.role === Role.Admin) {
-        session.main.user.role = dbUser.role;
-        session.main.user.status = dbUser.status;
-        return true;
-      }
-    }
-
-    if (telegramId > 0) {
-      const dbUser = await ctx.appDataSource.getRepository(User).findOne({
-        where: { telegramId },
-        select: ["id", "role", "status"],
-      });
-      if (dbUser?.role === Role.Admin) {
-        session.main.user.id = dbUser.id;
-        session.main.user.role = dbUser.role;
-        session.main.user.status = dbUser.status;
-        return true;
-      }
-    }
   }
 
   return false;
@@ -100,6 +81,8 @@ export async function requireAdmin(ctx: AppContext): Promise<boolean> {
   if (await ensureAdminAccess(ctx)) return true;
   if (ctx.callbackQuery) {
     await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  } else if (ctx.chat) {
+    await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
   }
   return false;
 }
@@ -132,12 +115,10 @@ export async function requireModeratorOrAdmin(ctx: AppContext): Promise<boolean>
     }
   }
 
-  if (canManageServices(session.main.user.role)) {
-    return true;
-  }
-
   if (ctx.callbackQuery) {
     await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  } else if (ctx.chat) {
+    await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
   }
   return false;
 }
@@ -189,12 +170,8 @@ export async function canAccessManualServiceWizard(ctx: AppContext): Promise<boo
     return true;
   }
 
-  await ensureSessionUser(ctx);
-  if (canManageServices(session.main.user.role)) {
-    return true;
-  }
-
   if (telegramId > 0 && ctx.appDataSource) {
+    await ensureSessionUser(ctx);
     const dbUser = await ctx.appDataSource.getRepository(User).findOne({
       where: { telegramId },
       select: ["id", "role", "status"],

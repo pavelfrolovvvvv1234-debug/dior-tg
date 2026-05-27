@@ -114,7 +114,11 @@ import {
   logDatabaseMode,
   validateProductionSecurity,
 } from "./app/security-guards.js";
-import { adminCallbackGuardMiddleware } from "./app/middlewares/admin-callback-guard.js";
+import {
+  adminCallbackGuardMiddleware,
+  staffCommandGuardMiddleware,
+  staffSensitiveInputMiddleware,
+} from "./app/middlewares/staff-guards.js";
 import { requireStaffAccess } from "./shared/auth/staff-access.js";
 import { requireAdmin } from "./shared/auth/permissions.js";
 import { ServicePaymentStatusChecker } from "./domain/billing/ServicePaymentStatusChecker.js";
@@ -938,7 +942,9 @@ async function index() {
     return next();
   });
 
+  bot.use(staffCommandGuardMiddleware());
   bot.use(adminCallbackGuardMiddleware());
+  bot.use(staffSensitiveInputMiddleware());
 
   // mainMenu обязательно регистрируем до /start: иначе при ctx.reply(..., mainMenu) плагин меню выдаёт "Cannot send menu 'main-menu'!"
   bot.use(mainMenu);
@@ -2746,9 +2752,7 @@ async function index() {
       await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
       return;
     }
-    if (session.main.user.role !== Role.Admin) {
-      return;
-    }
+    if (!(await requireAdmin(ctx as AppContext))) return;
 
     session.other.broadcast = { step: "awaiting_text" };
     await ctx.reply(ctx.t("broadcast-enter-text"), { parse_mode: "HTML" });
@@ -2762,9 +2766,7 @@ async function index() {
       await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }));
       return;
     }
-    if (session.main.user.role !== Role.Admin) {
-      return;
-    }
+    if (!(await requireAdmin(ctx as AppContext))) return;
 
     const text = ctx.message?.text?.split(" ").slice(1).join(" ").trim() || "";
     if (text.length === 0) {

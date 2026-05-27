@@ -277,9 +277,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
       return;
     }
 
-    if (session.main.user.role !== Role.Admin) {
-      return;
-    }
+    const { requireAdmin } = await import("../../shared/auth/permissions.js");
+    if (!(await requireAdmin(ctx))) return;
 
     session.other.broadcast = {
       step: "awaiting_text",
@@ -296,9 +295,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
       return;
     }
 
-    if (session.main.user.role !== Role.Admin) {
-      return;
-    }
+    const { requireAdmin } = await import("../../shared/auth/permissions.js");
+    if (!(await requireAdmin(ctx))) return;
 
     const text = ctx.message?.text?.split(" ").slice(1).join(" ").trim() || "";
     if (text.length === 0) {
@@ -358,13 +356,9 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Domain requests command (admin/moderator)
   bot.command("domainrequests", async (ctx) => {
+    const { requireStaffAccess } = await import("../../shared/auth/staff-access.js");
+    if (!(await requireStaffAccess(ctx))) return;
     const session = await ctx.session;
-    if (
-      session.main.user.role !== Role.Admin &&
-      session.main.user.role !== Role.Moderator
-    ) {
-      return;
-    }
 
     const dataSource = await getAppDataSource();
     const domainRequestRepo = new DomainRequestRepository(dataSource);
@@ -432,8 +426,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Create promo command (admin only)
   bot.command("create_promo", async (ctx) => {
-    const session = await ctx.session;
-    if (session.main.user.role !== Role.Admin) return;
+    const { requireAdmin } = await import("../../shared/auth/permissions.js");
+    if (!(await requireAdmin(ctx))) return;
 
     const args = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
 
@@ -484,8 +478,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Promo codes list command (admin only)
   bot.command("promo_codes", async (ctx) => {
-    const session = await ctx.session;
-    if (session.main.user.role !== Role.Admin) return;
+    const { requireAdmin } = await import("../../shared/auth/permissions.js");
+    if (!(await requireAdmin(ctx))) return;
 
     const dataSource = await getAppDataSource();
     const promoRepo = new PromoRepository(dataSource);
@@ -516,8 +510,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Remove promo command (admin only)
   bot.command("remove_promo", async (ctx) => {
-    const session = await ctx.session;
-    if (session.main.user.role !== Role.Admin) return;
+    const { requireAdmin } = await import("../../shared/auth/permissions.js");
+    if (!(await requireAdmin(ctx))) return;
 
     const args = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
 
@@ -564,13 +558,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Approve domain command (admin/moderator)
   bot.command("approve_domain", async (ctx) => {
-    const session = await ctx.session;
-    if (
-      session.main.user.role !== Role.Admin &&
-      session.main.user.role !== Role.Moderator
-    ) {
-      return;
-    }
+    const { requireStaffAccess } = await import("../../shared/auth/staff-access.js");
+    if (!(await requireStaffAccess(ctx))) return;
 
     const args = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
 
@@ -616,13 +605,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Show VDS command (admin/moderator)
   bot.command("showvds", async (ctx) => {
-    const session = await ctx.session;
-    if (
-      session.main.user.role !== Role.Admin &&
-      session.main.user.role !== Role.Moderator
-    ) {
-      return;
-    }
+    const { requireStaffAccess } = await import("../../shared/auth/staff-access.js");
+    if (!(await requireStaffAccess(ctx))) return;
 
     const args = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
 
@@ -673,13 +657,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Remove VDS command (admin/moderator)
   bot.command("removevds", async (ctx) => {
-    const session = await ctx.session;
-    if (
-      session.main.user.role !== Role.Admin &&
-      session.main.user.role !== Role.Moderator
-    ) {
-      return;
-    }
+    const { requireStaffAccess } = await import("../../shared/auth/staff-access.js");
+    if (!(await requireStaffAccess(ctx))) return;
 
     const args = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
 
@@ -745,13 +724,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Reject domain command (admin/moderator)
   bot.command("reject_domain", async (ctx) => {
-    const session = await ctx.session;
-    if (
-      session.main.user.role !== Role.Admin &&
-      session.main.user.role !== Role.Moderator
-    ) {
-      return;
-    }
+    const { requireStaffAccess } = await import("../../shared/auth/staff-access.js");
+    if (!(await requireStaffAccess(ctx))) return;
 
     const args = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
 
@@ -815,7 +789,8 @@ export function registerCommands(bot: Bot<AppContext>): void {
     }
 
     const session = await ctx.session;
-    if (session.main.user.role === Role.User) return;
+    const { requireStaffAccess } = await import("../../shared/auth/staff-access.js");
+    if (!(await requireStaffAccess(ctx))) return;
 
     try {
       const { controlUsers } = await import("../../helpers/users-control");

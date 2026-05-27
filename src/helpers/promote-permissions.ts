@@ -31,6 +31,11 @@ export function promotePermissions(): Middleware<AppContext> {
           return next();
         }
 
+        if (found.intendedTelegramId == null) {
+          await ctx.reply(ctx.t("link-expired"));
+          return next();
+        }
+
         const actorTid = ctx.from?.id;
         if (
           found.intendedTelegramId != null &&

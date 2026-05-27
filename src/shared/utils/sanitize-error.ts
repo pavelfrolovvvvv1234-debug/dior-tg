@@ -66,3 +66,8 @@ export function sanitizeErrorForUser(error: unknown): string {
   if (!s || s.length > 180) return GENERIC;
   return s;
 }
+
+/** Safe vars for ctx.t("error-unknown", …). */
+export function errorUnknownVars(error: unknown): { error: string } {
+  return { error: sanitizeErrorForUser(error) };
+}
