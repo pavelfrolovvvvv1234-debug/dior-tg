@@ -4,7 +4,7 @@
  * @module infrastructure/payments/cryptopay-webhook
  */
 
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import type { Request, Response } from "express";
 import { getAppDataSource } from "../db/datasource.js";
 import { ServicePaymentService } from "../../domain/billing/ServicePaymentService.js";
@@ -31,12 +31,19 @@ const getSignatureHeader = (req: Request): string | undefined => {
 };
 
 const verifySignature = (rawBody: string, signature?: string): boolean => {
-  if (!signature) {
+  if (!signature || !/^[a-f0-9]{64}$/i.test(signature.trim())) {
     return false;
   }
   const token = getCryptoPayToken();
   const expected = createHmac("sha256", token).update(rawBody).digest("hex");
-  return expected === signature;
+  try {
+    const a = Buffer.from(expected, "hex");
+    const b = Buffer.from(signature.trim(), "hex");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 };
 
 const parseInvoicePayload = (body: any): { invoiceId?: string; status?: string; payload?: string } => {
@@ -68,7 +75,11 @@ export const handleCryptoPayWebhook = async (
   bot: Bot<any, Api<RawApi>>
 ): Promise<void> => {
   try {
-    const rawBody = (req as any).rawBody ?? JSON.stringify(req.body || {});
+    const rawBody = (req as any).rawBody as string | undefined;
+    if (!rawBody) {
+      res.status(400).send("missing raw body");
+      return;
+    }
     const signature = getSignatureHeader(req);
     if (!verifySignature(rawBody, signature)) {
       res.status(401).send("invalid signature");

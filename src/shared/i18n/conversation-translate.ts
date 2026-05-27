@@ -5,6 +5,7 @@
 import type { Fluent } from "@moebius/fluent";
 import { initFluent } from "../../fluent.js";
 import type { AppContext, AppConversation } from "../types/context.js";
+import { patchTranslateVars } from "../utils/sanitize-error.js";
 
 let cachedFluent: Fluent | null = null;
 
@@ -59,7 +60,7 @@ export function safeT(
 ): string {
   const tFn = (ctx as { t?: TranslateFn }).t;
   if (typeof tFn === "function") {
-    return tFn(key, vars);
+    return tFn(key, patchTranslateVars(vars));
   }
   return key;
 }

@@ -5,6 +5,7 @@ import {
   UpdateDateColumn,
   CreateDateColumn,
 } from "typeorm";
+import { randomBytes } from "crypto";
 import { Role } from "./User";
 
 @Entity()
@@ -12,7 +13,7 @@ export default class TempLink {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ nullable: false, type: "varchar" })
+  @Column({ nullable: false, type: "varchar", unique: true })
   code!: string;
 
   @Column({ nullable: false, type: "varchar" })
@@ -32,9 +33,7 @@ export default class TempLink {
 }
 
 export function createLink(role: Role): TempLink {
-  const code =
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15);
+  const code = randomBytes(24).toString("base64url");
   const newTempLink = new TempLink();
 
   newTempLink.code = code;

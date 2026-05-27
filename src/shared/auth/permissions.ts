@@ -105,8 +105,40 @@ export async function requireAdmin(ctx: AppContext): Promise<boolean> {
 }
 
 export async function requireModeratorOrAdmin(ctx: AppContext): Promise<boolean> {
-  if (await isModerator(ctx)) return true;
-  await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  if (await ensureAdminAccess(ctx)) {
+    return true;
+  }
+
+  await ensureSessionUser(ctx);
+  const session = await ctx.session;
+  if (!session?.main?.user) {
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+    }
+    return false;
+  }
+
+  const telegramId = resolveActorTelegramId(ctx);
+  if (telegramId > 0 && ctx.appDataSource) {
+    const dbUser = await ctx.appDataSource.getRepository(User).findOne({
+      where: { telegramId },
+      select: ["id", "role", "status"],
+    });
+    if (dbUser && canManageServices(dbUser.role)) {
+      session.main.user.id = dbUser.id;
+      session.main.user.role = dbUser.role;
+      session.main.user.status = dbUser.status;
+      return true;
+    }
+  }
+
+  if (canManageServices(session.main.user.role)) {
+    return true;
+  }
+
+  if (ctx.callbackQuery) {
+    await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
+  }
   return false;
 }
 

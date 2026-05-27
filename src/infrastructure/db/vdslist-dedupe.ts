@@ -5,15 +5,15 @@
  * @module infrastructure/db/vdslist-dedupe
  */
 
-import path from "path";
 import Database from "better-sqlite3";
 import { Logger } from "../../app/logger.js";
+import { applySqlitePragmas } from "./sqlite-config.js";
 
 export function dedupeVdslistDuplicateVdsIds(databasePath: string): void {
-  const resolved = path.isAbsolute(databasePath) ? databasePath : path.resolve(process.cwd(), databasePath);
   let db: Database.Database | undefined;
   try {
-    db = new Database(resolved);
+    db = new Database(databasePath, { readonly: false });
+    applySqlitePragmas(db);
     const row = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'vdslist'")
       .get() as { name: string } | undefined;

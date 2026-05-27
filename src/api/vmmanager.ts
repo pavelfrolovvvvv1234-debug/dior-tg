@@ -1,4 +1,4 @@
-import { getAppDataSource } from "@/database";
+import { getAppDataSource } from "../infrastructure/db/datasource.js";
 import VirtualDedicatedServer, {
   generatePassword,
 } from "@/entities/VirtualDedicatedServer";

@@ -39,7 +39,7 @@ import {
   controlUserSubscription,
   registerAdminServiceManagementCallbacks,
 } from "./helpers/users-control";
-import express, { type Request, type Response } from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { run as grammyRun } from "@grammyjs/runner";
 import { adminMenu } from "./ui/menus/admin-menu";
 import {
@@ -104,6 +104,14 @@ import { domainUpdateNsConversation } from "./ui/conversations/domain-update-ns-
 import { withdrawRequestConversation } from "./ui/conversations/withdraw-conversation";
 import { registerPromoConversations } from "./ui/conversations/admin-promocodes-conversations.js";
 import { startCheckTopUpStatus } from "./api/payment";
+import { patchTranslateVars } from "./shared/utils/sanitize-error.js";
+import {
+  chatSequentializeMiddleware,
+  floodProtectionMiddleware,
+  checkStartCooldown,
+} from "./app/flood-protection.js";
+import { requireStaffAccess } from "./shared/auth/staff-access.js";
+import { requireAdmin } from "./shared/auth/permissions.js";
 import { ServicePaymentStatusChecker } from "./domain/billing/ServicePaymentStatusChecker.js";
 import { InlineKeyboard } from "grammy";
 import {
@@ -639,6 +647,9 @@ async function index() {
     return next();
   });
 
+  bot.use(chatSequentializeMiddleware());
+  bot.use(floodProtectionMiddleware());
+
   // Must run right after session: otherwise long middleware chains can reach Menu handlers
   // without ConversationFlavor and ctx.conversation.enter() throws (reading 'enter').
   bot.use(conversations());
@@ -763,19 +774,24 @@ async function index() {
             telegramId: ctx.chatId,
           });
           if (!user) {
-            const newUser = new User();
-            newUser.telegramId = ctx.chatId;
-            newUser.status = UserStatus.User;
-            newUser.referrerId = null;
-            user = await appDataSource.manager.save(newUser);
-            void import("./modules/automations/engine/event-bus.js").then(({ emit }) => {
-              emit({
-                event: "user.login",
-                userId: user!.id,
-                telegramId: tid,
-                timestamp: new Date(),
+            try {
+              const newUser = new User();
+              newUser.telegramId = ctx.chatId;
+              newUser.status = UserStatus.User;
+              newUser.referrerId = null;
+              user = await appDataSource.manager.save(newUser);
+              void import("./modules/automations/engine/event-bus.js").then(({ emit }) => {
+                emit({
+                  event: "user.login",
+                  userId: user!.id,
+                  telegramId: tid,
+                  timestamp: new Date(),
+                });
               });
-            });
+            } catch {
+              user = await appDataSource.manager.findOneBy(User, { telegramId: ctx.chatId });
+              if (!user) throw new Error("Failed to create or load user");
+            }
           }
           setCachedUser(tid, user);
           ctx.loadedUser = user;
@@ -817,17 +833,6 @@ async function index() {
       if (ctx.from?.username && ctx.loadedUser?.id) {
         void persistTelegramUsernameIfChanged(appDataSource, ctx.loadedUser.id, ctx.from.username);
       }
-    }
-    return next();
-  });
-
-  // Prime billing lifecycle:
-  // 1) trial grants 7 days via primeActiveUntil;
-  // 2) after expiration, if balance >= 9.99$, extend for 30 days and charge automatically.
-  bot.use(async (ctx, next) => {
-    const session = (await ctx.session) as SessionData;
-    if (session?.main?.user?.id) {
-      await ensurePrimePaidAfterTrial(ctx, session);
     }
     return next();
   });
@@ -914,10 +919,11 @@ async function index() {
         );
       }
       fluentObj.useLocale?.(locale);
+      const safeVars = patchTranslateVars(vars);
       return typeof fluentInstance.translate === "function"
-        ? String(fluentInstance.translate(locale, key, vars ?? {}))
+        ? String(fluentInstance.translate(locale, key, safeVars ?? {}))
         : typeof originalT === "function"
-          ? String(originalT(key, vars))
+          ? String(originalT(key, safeVars))
           : key;
     };
     (ctx as any).t = tFn;
@@ -931,10 +937,17 @@ async function index() {
   bot.use(promotePermissions());
   bot.command("start", async (ctx) => {
     try {
+      const tid = Number(ctx.chatId ?? ctx.from?.id ?? 0);
+      if (tid > 0 && !checkStartCooldown(tid)) {
+        return;
+      }
       if (ctx.message) {
         await ctx.deleteMessage().catch(() => {});
       }
       const session = (await ctx.session) as SessionData;
+      if (session?.main?.user?.id) {
+        await ensurePrimePaidAfterTrial(ctx as AppContext, session);
+      }
       const payload = ctx.match && typeof ctx.match === "string" ? ctx.match.trim() : "";
       if (payload.length > 0 && !payload.startsWith("promote_")) {
         try {
@@ -984,9 +997,9 @@ async function index() {
         reply_markup: keyboard,
         parse_mode: "HTML",
       });
-    } catch (error: any) {
-      console.error("[Start] Error in /start command:", error);
-      await ctx.reply("Error: " + (error.message || "Unknown error")).catch(() => {});
+    } catch (error: unknown) {
+      Logger.error("[Start] Error in /start command", error);
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
     }
   });
 
@@ -1472,6 +1485,9 @@ async function index() {
       await ctx.reply(ctx.t("error-unknown", { error: "Session not initialized" }).substring(0, 200)).catch(() => {});
       return;
     }
+    if (!(await requireStaffAccess(ctx as AppContext))) {
+      return;
+    }
 
     const {
       isAdminCreateServiceWizardActive,
@@ -1593,6 +1609,9 @@ async function index() {
 
   bot.callbackQuery("admin-referrals-back", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    if (!(await requireStaffAccess(ctx as AppContext))) {
+      return;
+    }
     const session = (await ctx.session) as SessionData;
     if (!session.other.controlUsersPage?.pickedUserData) return;
     const user = await ctx.appDataSource.manager.findOne(User, {
@@ -1810,6 +1829,9 @@ async function index() {
 
   bot.callbackQuery(/^admin-user-services-back-(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    if (!(await requireStaffAccess(ctx as AppContext))) {
+      return;
+    }
     const userId = parseInt(ctx.match[1]);
     const now = new Date();
     const totalDepositResult = await ctx.appDataSource.manager.getRepository(TopUp).createQueryBuilder("t")
@@ -2992,8 +3014,8 @@ async function index() {
   });
 
   bot.command("promote_link", async (ctx) => {
+    if (!(await requireAdmin(ctx as AppContext))) return;
     const session = (await ctx.session) as SessionData;
-    if (session.main.user.role != Role.Admin) return;
 
     const link = createLink(Role.Moderator);
     const createdLink = await ctx.appDataSource.manager.save(link);
@@ -3391,13 +3413,31 @@ async function index() {
       app.post("/webhooks/cryptopay", (req: Request, res: Response) =>
         handleCryptoPayWebhook(req, res, bot)
       );
+
+      const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+      if (webhookSecret) {
+        app.use((req: Request, res: Response, next: NextFunction) => {
+          if (req.path.startsWith("/webhooks/cryptopay")) {
+            return next();
+          }
+          const token = req.get("x-telegram-bot-api-secret-token");
+          if (token !== webhookSecret) {
+            res.status(403).send("forbidden");
+            return;
+          }
+          next();
+        });
+      }
+
       app.use(
         webhookCallback(bot, "express", {
           onTimeout: "return",
         })
       );
 
-      await bot.api.setWebhook(process.env.IS_WEBHOOK!);
+      await bot.api.setWebhook(process.env.IS_WEBHOOK!, {
+        secret_token: webhookSecret || undefined,
+      });
 
       app.listen(Number(process.env.PORT_WEBHOOK), () => {});
     } else {

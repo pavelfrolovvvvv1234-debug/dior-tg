@@ -54,14 +54,18 @@ import { runRoleModelMigration } from "./role-migration.js";
 import { runProvisioningStatusMigration } from "./provisioning-status-migration.js";
 import { runPromoOrderDiscountMigrations } from "./promo-order-discount-migration.js";
 import { dedupeVdslistDuplicateVdsIds } from "./vdslist-dedupe.js";
+import { applySqlitePragmas, resolveSqliteDatabasePath } from "./sqlite-config.js";
+
+const sqliteDatabasePath = resolveSqliteDatabasePath();
 
 /**
  * TypeORM DataSource singleton instance.
  */
 const AppDataSource = new DataSource({
   type: "better-sqlite3",
-  database: "data.db",
+  database: sqliteDatabasePath,
   synchronize: true, // TODO: Use migrations in production
+  prepareDatabase: applySqlitePragmas,
   entities: [
     User,
     TempLink,
@@ -125,11 +129,7 @@ export async function getAppDataSource(): Promise<DataSource> {
   if (!initialized) {
     initialized = true;
     try {
-      const dbPath =
-        typeof AppDataSource.options.database === "string"
-          ? AppDataSource.options.database
-          : "data.db";
-      dedupeVdslistDuplicateVdsIds(dbPath);
+      dedupeVdslistDuplicateVdsIds(sqliteDatabasePath);
 
       await AppDataSource.initialize();
       await runRoleModelMigration(AppDataSource);

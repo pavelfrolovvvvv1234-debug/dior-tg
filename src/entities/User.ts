@@ -23,7 +23,7 @@ export default class User {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ nullable: false, type: "integer" })
+  @Column({ nullable: false, type: "integer", unique: true })
   telegramId!: number;
 
   /** Last known @username (lowercase), synced from Telegram — used for admin lookup. */

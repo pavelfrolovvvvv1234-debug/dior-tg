@@ -20,7 +20,7 @@ import {
 } from "../../infrastructure/cdn/CdnClient";
 import { getCdnPlan, parseCdnPlanId, type CdnPlanId } from "../../infrastructure/cdn/cdn-plans";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money";
-import { getAppDataSource } from "../../database";
+import { getAppDataSource } from "../../infrastructure/db/datasource.js";
 import User from "../../entities/User";
 import { createInitialOtherSession } from "../../shared/session-initial";
 import CdnProxyService from "../../entities/CdnProxyService";

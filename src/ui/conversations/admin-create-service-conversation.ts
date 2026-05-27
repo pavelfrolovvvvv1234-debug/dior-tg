@@ -744,9 +744,6 @@ export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<vo
   if (!session.main.user) {
     session.main = createInitialMainSession();
   }
-  if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
-    session.main.user.role = Role.Admin;
-  }
   clearAdminVdsPanelState(session.other);
   resetAdminCreateServiceWizardState(session);
   if (session.other.promoAdmin) {

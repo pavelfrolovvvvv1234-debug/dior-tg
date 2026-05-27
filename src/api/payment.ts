@@ -1,4 +1,5 @@
-import { getAppDataSource } from "@/database";
+import { getAppDataSource } from "../infrastructure/db/datasource.js";
+import { withSqliteBusyRetry } from "../infrastructure/db/sqlite-config.js";
 import TopUp, { TopUpStatus } from "../entities/TopUp.js";
 import { createHash, randomUUID } from "crypto";
 import { CrystalPayClient } from "./crystal-pay";
@@ -253,7 +254,8 @@ async function claimPaidTopUpCredit(
   topUpId: number
 ): Promise<{ user: User; topUp: TopUp } | null> {
   const datasource = await getAppDataSource();
-  return datasource.transaction(async (em) => {
+  return withSqliteBusyRetry(() =>
+    datasource.transaction(async (em) => {
     const tup = await em.findOne(TopUp, {
       where: { id: topUpId, status: TopUpStatus.Created },
     });
@@ -289,7 +291,8 @@ async function claimPaidTopUpCredit(
       return null;
     }
     return { user: u, topUp: topUpFresh };
-  });
+    })
+  );
 }
 
 /** After gateways report paid status: grant balance once, then referrals / notifies / hooks. */

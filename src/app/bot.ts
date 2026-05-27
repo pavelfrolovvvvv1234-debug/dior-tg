@@ -40,6 +40,8 @@ import { ServicePaymentStatusChecker } from "../domain/billing/ServicePaymentSta
 import { BillingService } from "../domain/billing/BillingService.js";
 import { UserRepository } from "../infrastructure/db/repositories/UserRepository.js";
 import { invalidateUser } from "../shared/user-cache.js";
+import { patchTranslateVars } from "../shared/utils/sanitize-error.js";
+import { chatSequentializeMiddleware, floodProtectionMiddleware } from "./flood-protection.js";
 import { TopUpRepository } from "../infrastructure/db/repositories/TopUpRepository.js";
 import { ExpirationService } from "../domain/services/ExpirationService.js";
 import { handleCryptoPayWebhook } from "../infrastructure/payments/cryptopay-webhook.js";
@@ -217,6 +219,9 @@ export async function createBot(): Promise<{
     })
   );
 
+  bot.use(chatSequentializeMiddleware());
+  bot.use(floodProtectionMiddleware());
+
   // Setup middlewares
   bot.use(languagesMiddleware(availableLocales));
   bot.use(databaseMiddleware);
@@ -242,10 +247,11 @@ export async function createBot(): Promise<{
     const origT = (ctx as any).t;
     (ctx as any).t = (key: string, vars?: Record<string, string | number>) => {
       const locale = (ctx as any)._requestLocale ?? "ru";
+      const safeVars = patchTranslateVars(vars);
       if (key === "welcome") {
-        return String(fluent.translate(locale, "welcome", vars ?? {}));
+        return String(fluent.translate(locale, "welcome", safeVars ?? {}));
       }
-      return typeof origT === "function" ? origT(key, vars) : key;
+      return typeof origT === "function" ? origT(key, safeVars) : key;
     };
     return next();
   });
@@ -890,13 +896,15 @@ export async function startBot(bot: Bot<AppContext>): Promise<void> {
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-API-Key, Authorization");
       if (req.method === "OPTIONS") return res.sendStatus(204);
-      const apiKey = process.env.ADMIN_API_KEY;
-      if (apiKey && apiKey.length > 0) {
-        const key = req.get("X-Admin-API-Key") ?? req.get("Authorization")?.replace(/^Bearer\s+/i, "");
-        if (key !== apiKey) {
-          res.status(401).json({ error: "Unauthorized" });
-          return;
-        }
+      const apiKey = process.env.ADMIN_API_KEY?.trim();
+      if (!apiKey) {
+        res.status(503).json({ error: "Admin API disabled: set ADMIN_API_KEY" });
+        return;
+      }
+      const key = req.get("X-Admin-API-Key") ?? req.get("Authorization")?.replace(/^Bearer\s+/i, "");
+      if (key !== apiKey) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
       }
       next();
     });
@@ -908,13 +916,30 @@ export async function startBot(bot: Bot<AppContext>): Promise<void> {
     const { createAutomationsRouter } = await import("../api/admin/automations-routes.js");
     app.use("/api/admin/automations", createAutomationsRouter({ getBot: () => bot }));
 
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+    if (webhookSecret) {
+      app.use((req: Request, res: Response, next: NextFunction) => {
+        if (req.path.startsWith("/webhooks/cryptopay") || req.path.startsWith("/api/admin")) {
+          return next();
+        }
+        const token = req.get("x-telegram-bot-api-secret-token");
+        if (token !== webhookSecret) {
+          res.status(403).send("forbidden");
+          return;
+        }
+        next();
+      });
+    }
+
     app.use(
       webhookCallback(bot, "express", {
         onTimeout: "return",
       })
     );
 
-    await bot.api.setWebhook(config.IS_WEBHOOK!);
+    await bot.api.setWebhook(config.IS_WEBHOOK!, {
+      secret_token: webhookSecret || undefined,
+    });
     Logger.info(`Webhook set to: ${config.IS_WEBHOOK}`);
 
     const port = getWebhookPort();

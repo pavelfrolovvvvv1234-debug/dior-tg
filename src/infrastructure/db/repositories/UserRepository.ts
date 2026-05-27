@@ -8,6 +8,7 @@ import { DataSource } from "typeorm";
 import User, { Role, UserStatus } from "../../../entities/User";
 import { BaseRepository } from "./base";
 import { NotFoundError } from "../../../shared/errors/index";
+import { withSqliteBusyRetry } from "../sqlite-config.js";
 
 /**
  * User repository with user-specific operations.
@@ -30,16 +31,23 @@ export class UserRepository extends BaseRepository<User> {
    * Find or create user by Telegram ID.
    */
   async findOrCreateByTelegramId(telegramId: number): Promise<User> {
-    let user = await this.findByTelegramId(telegramId);
+    return withSqliteBusyRetry(async () => {
+      let user = await this.findByTelegramId(telegramId);
 
-    if (!user) {
-      user = new User();
-      user.telegramId = telegramId;
-      user.status = UserStatus.User;
-      user = await this.save(user);
-    }
+      if (!user) {
+        try {
+          user = new User();
+          user.telegramId = telegramId;
+          user.status = UserStatus.User;
+          user = await this.save(user);
+        } catch (error) {
+          user = await this.findByTelegramId(telegramId);
+          if (!user) throw error;
+        }
+      }
 
-    return user;
+      return user;
+    });
   }
 
   /**

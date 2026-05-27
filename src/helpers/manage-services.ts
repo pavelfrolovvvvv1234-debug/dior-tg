@@ -4,7 +4,7 @@ import { mainMenu } from "..";
 import type { AppContext, AppConversation } from "../shared/types/context";
 import DomainRequest, { DomainRequestStatus } from "@/entities/DomainRequest";
 import Domain from "@/entities/Domain";
-import { getAppDataSource } from "@/database";
+import { getAppDataSource } from "../infrastructure/db/datasource.js";
 import { InlineKeyboard } from "grammy";
 import VirtualDedicatedServer, {
   generatePassword,

@@ -3,6 +3,7 @@ import type { AppContext } from "../shared/types/context";
 import TempLink from "../entities/TempLink";
 import User, { Role } from "../entities/User";
 import { notifyAllAdminsAboutPromotedUser } from "./notifier";
+import { withSqliteBusyRetry } from "../infrastructure/db/sqlite-config.js";
 
 export const PREFIX_PROMOTE = "promote_";
 
@@ -18,11 +19,11 @@ export function promotePermissions(): Middleware<AppContext> {
       ctx.match.startsWith(PREFIX_PROMOTE) &&
       session.main.user.role !== Role.Admin
     ) {
-      const found = await ctx.appDataSource.manager.findOneBy(TempLink, {
-        code: Array.isArray(ctx.match)
-          ? ctx.match[0].slice(PREFIX_PROMOTE.length)
-          : ctx.match.slice(PREFIX_PROMOTE.length),
-      });
+      const code = Array.isArray(ctx.match)
+        ? ctx.match[0].slice(PREFIX_PROMOTE.length)
+        : ctx.match.slice(PREFIX_PROMOTE.length);
+
+      const found = await ctx.appDataSource.manager.findOneBy(TempLink, { code });
 
       if (found) {
         if (found.expiresAt.getTime() < Date.now()) {
@@ -30,7 +31,17 @@ export function promotePermissions(): Middleware<AppContext> {
           return next();
         }
 
-        if (found.userId) {
+        const claim = await withSqliteBusyRetry(async () => {
+          const result = await ctx.appDataSource
+            .createQueryBuilder()
+            .update(TempLink)
+            .set({ userId: session.main.user.id })
+            .where("id = :id AND userId IS NULL", { id: found.id })
+            .execute();
+          return (result.affected ?? 0) > 0;
+        });
+
+        if (!claim) {
           await ctx.reply(ctx.t("link-used"));
           return next();
         }
@@ -45,24 +56,18 @@ export function promotePermissions(): Middleware<AppContext> {
           await ctx.reply(ctx.t("promoted-to-moderator"));
         }
 
-        await ctx.appDataSource.manager.update(TempLink, found.id, {
-          userId: session.main.user.id,
-        });
-
         await ctx.appDataSource.manager.update(User, session.main.user.id, {
           role: found.userPromoteTo,
         });
-        ctx;
+
         await notifyAllAdminsAboutPromotedUser(ctx, {
           id: session.main.user.id,
           name:
-            ctx.from.username || `${ctx.from.first_name} ${ctx.from.last_name}`,
+            ctx.from?.username || `${ctx.from?.first_name ?? ""} ${ctx.from?.last_name ?? ""}`.trim(),
           role: found.userPromoteTo,
-          telegramId: ctx.from.id.toString(),
+          telegramId: ctx.from!.id.toString(),
         });
-        
-        // Don't call next() - stop here to prevent /start command from executing
-        // This prevents the welcome message from being sent
+
         return;
       }
     }
