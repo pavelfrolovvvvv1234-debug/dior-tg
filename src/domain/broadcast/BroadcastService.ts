@@ -14,6 +14,8 @@ import type { Bot } from "grammy";
 /**
  * Broadcast service for managing message broadcasts.
  */
+let broadcastSendInProgress = false;
+
 export class BroadcastService {
   constructor(
     private dataSource: DataSource,
@@ -69,6 +71,19 @@ export class BroadcastService {
    * @returns Final broadcast status
    */
   async sendBroadcast(broadcastId: number): Promise<Broadcast> {
+    if (broadcastSendInProgress) {
+      throw new Error("Another broadcast is already in progress");
+    }
+    broadcastSendInProgress = true;
+
+    try {
+      return await this.sendBroadcastInner(broadcastId);
+    } finally {
+      broadcastSendInProgress = false;
+    }
+  }
+
+  private async sendBroadcastInner(broadcastId: number): Promise<Broadcast> {
     const broadcastRepo = this.dataSource.getRepository(Broadcast);
     const broadcastLogRepo = this.dataSource.getRepository(BroadcastLog);
     const userRepo = this.dataSource.getRepository(User);
@@ -78,24 +93,31 @@ export class BroadcastService {
       throw new Error(`Broadcast ${broadcastId} not found`);
     }
 
-    // Update status to sending
     broadcast.status = BroadcastStatus.SENDING;
     await broadcastRepo.save(broadcast);
 
-    // Get all users
-    const users = await userRepo.find();
-
-    Logger.info(`Starting broadcast ${broadcastId} to ${users.length} users`);
-
-    // Send in batches with delay
     const BATCH_SIZE = 10;
-    const DELAY_MS = 1000; // 1 second between batches
+    const PAGE_SIZE = 250;
+    const DELAY_MS = 1000;
+    let skip = 0;
+    let totalUsers = 0;
 
-    for (let i = 0; i < users.length; i += BATCH_SIZE) {
-      const batch = users.slice(i, i + BATCH_SIZE);
+    while (true) {
+      const users = await userRepo.find({
+        take: PAGE_SIZE,
+        skip,
+        order: { id: "ASC" },
+        select: ["id", "telegramId"],
+      });
+      if (users.length === 0) break;
+      totalUsers += users.length;
+      skip += users.length;
 
-      await Promise.all(
-        batch.map(async (user) => {
+      for (let i = 0; i < users.length; i += BATCH_SIZE) {
+        const batch = users.slice(i, i + BATCH_SIZE);
+
+        await Promise.all(
+          batch.map(async (user) => {
           const log = new BroadcastLog();
           log.broadcastId = broadcastId;
           log.userId = user.id;
@@ -157,14 +179,14 @@ export class BroadcastService {
       if (i + BATCH_SIZE < users.length) {
         await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
       }
+      }
     }
 
-    // Final status
     broadcast.status = BroadcastStatus.DONE;
     await broadcastRepo.save(broadcast);
 
     Logger.info(
-      `Broadcast ${broadcastId} completed: ${broadcast.sentCount} sent, ${broadcast.failedCount} failed, ${broadcast.blockedCount} blocked`
+      `Broadcast ${broadcastId} completed (${totalUsers} users): ${broadcast.sentCount} sent, ${broadcast.failedCount} failed, ${broadcast.blockedCount} blocked`
     );
 
     return broadcast;

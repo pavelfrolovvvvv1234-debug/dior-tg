@@ -4,7 +4,6 @@ import {
   Bot,
   Context,
   LazySessionFlavor,
-  MemorySessionStorage,
   RawApi,
   session,
   webhookCallback,
@@ -110,6 +109,12 @@ import {
   floodProtectionMiddleware,
   checkStartCooldown,
 } from "./app/flood-protection.js";
+import {
+  acquireSingleInstanceLock,
+  logDatabaseMode,
+  validateProductionSecurity,
+} from "./app/security-guards.js";
+import { adminCallbackGuardMiddleware } from "./app/middlewares/admin-callback-guard.js";
 import { requireStaffAccess } from "./shared/auth/staff-access.js";
 import { requireAdmin } from "./shared/auth/permissions.js";
 import { ServicePaymentStatusChecker } from "./domain/billing/ServicePaymentStatusChecker.js";
@@ -578,6 +583,10 @@ function isIgnoredTelegramBotNoise(err: unknown): boolean {
 }
 
 async function index() {
+  validateProductionSecurity();
+  acquireSingleInstanceLock();
+  logDatabaseMode();
+
   const { fluent, availableLocales } = await initFluent();
   const appDataSource = await getAppDataSource();
   await reloadResellerAuthRuntime(appDataSource);
@@ -621,17 +630,16 @@ async function index() {
     }
   });
 
-  // Память для сессий — без диска, моментальный отклик. Перезапуск бота сбрасывает сессии.
   bot.use(
     session({
       type: "multi",
       other: {
-        storage: new MemorySessionStorage<SessionData["other"]>(),
+        storage: new FileAdapter({ dirName: "sessions/other" }),
         initial: createInitialOtherSession,
       },
       main: {
         initial: createInitialMainSession,
-        storage: new MemorySessionStorage<SessionData["main"]>(),
+        storage: new FileAdapter({ dirName: "sessions/main" }),
       },
     })
   );
@@ -929,6 +937,8 @@ async function index() {
     (ctx as any).t = tFn;
     return next();
   });
+
+  bot.use(adminCallbackGuardMiddleware());
 
   // mainMenu обязательно регистрируем до /start: иначе при ctx.reply(..., mainMenu) плагин меню выдаёт "Cannot send menu 'main-menu'!"
   bot.use(mainMenu);
@@ -3015,9 +3025,22 @@ async function index() {
 
   bot.command("promote_link", async (ctx) => {
     if (!(await requireAdmin(ctx as AppContext))) return;
-    const session = (await ctx.session) as SessionData;
 
-    const link = createLink(Role.Moderator);
+    const replyTid = ctx.message?.reply_to_message?.from?.id;
+    const argTid =
+      typeof ctx.match === "string" && ctx.match.trim()
+        ? Number.parseInt(ctx.match.trim(), 10)
+        : NaN;
+    const intendedTelegramId = replyTid ?? (Number.isFinite(argTid) ? argTid : NaN);
+    if (!Number.isFinite(intendedTelegramId) || intendedTelegramId <= 0) {
+      await ctx.reply(
+        "Укажите пользователя: ответьте (reply) на его сообщение или /promote_link <telegram_id>",
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    const link = createLink(Role.Moderator, intendedTelegramId);
     const createdLink = await ctx.appDataSource.manager.save(link);
 
     ctx.reply(ctx.t("promote-link"), {

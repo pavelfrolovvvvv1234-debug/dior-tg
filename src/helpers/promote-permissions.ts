@@ -31,6 +31,15 @@ export function promotePermissions(): Middleware<AppContext> {
           return next();
         }
 
+        const actorTid = ctx.from?.id;
+        if (
+          found.intendedTelegramId != null &&
+          (actorTid == null || Number(found.intendedTelegramId) !== Number(actorTid))
+        ) {
+          await ctx.reply(ctx.t("error-access-denied"));
+          return;
+        }
+
         const claim = await withSqliteBusyRetry(async () => {
           const result = await ctx.appDataSource
             .createQueryBuilder()

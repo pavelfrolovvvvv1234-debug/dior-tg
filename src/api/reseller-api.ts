@@ -11,6 +11,7 @@ import type { ListItem } from "./vmmanager.js";
 import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
 import { retry } from "../shared/utils/retry.js";
+import { rateLimitAllow } from "../infrastructure/redis/client.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
 import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
 import { getResellerAuthRuntime } from "../modules/reseller/services/reseller-auth-runtime.js";
@@ -22,10 +23,11 @@ import {
 type ResellerAuthInfo = {
   resellerId: string;
   apiKey: string;
-  signingSecret: string | null;
+  signingSecret: string;
   allowedIps: string[];
   webhookUrl: string | null;
   webhookSecret: string | null;
+  rateLimitPerMinute: number;
 };
 
 type AuthRequest = Request & {
@@ -221,11 +223,18 @@ function sha256Hex(input: string): string {
 }
 
 function getClientIp(req: Request): string {
-  const forwarded = String(req.header("x-forwarded-for") ?? "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean)[0];
-  const candidate = forwarded || req.ip || req.socket.remoteAddress || "";
+  const trustProxy =
+    process.env.TRUST_PROXY?.trim() === "1" || process.env.TRUST_PROXY?.trim() === "true";
+  if (trustProxy) {
+    const forwarded = String(req.header("x-forwarded-for") ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)[0];
+    if (forwarded) {
+      return forwarded.replace(/^::ffff:/, "");
+    }
+  }
+  const candidate = req.socket.remoteAddress || req.ip || "";
   return candidate.replace(/^::ffff:/, "");
 }
 
@@ -233,7 +242,8 @@ function requireResellerAuth(
   signingSecretsMap: Record<string, string>,
   allowedIpsMap: Record<string, string[]>,
   webhookMap: Record<string, string>,
-  webhookSecrets: Record<string, string>
+  webhookSecrets: Record<string, string>,
+  rateLimitsMap: Record<string, number>
 ) {
   const maxSkewSeconds = Number.parseInt(process.env.RESELLER_API_MAX_SKEW_SECONDS ?? "300", 10) || 300;
 
@@ -260,37 +270,43 @@ function requireResellerAuth(
     }
 
     const signingSecret = signingSecretsMap[resellerId] ?? null;
-    if (signingSecret) {
-      const timestamp = String(req.header("x-timestamp") ?? "").trim();
-      const signature = String(req.header("x-signature") ?? "").trim();
-      const nonce = String(req.header("x-nonce") ?? "").trim();
-      if (!timestamp || !signature) {
-        res.status(401).json({ ok: false, error: "missing_signature_headers" });
-        return;
-      }
-      if (!nonce) {
-        res.status(401).json({ ok: false, error: "missing_nonce_header" });
-        return;
-      }
-      const ts = Number.parseInt(timestamp, 10);
-      const now = Math.floor(Date.now() / 1000);
-      if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkewSeconds) {
-        res.status(401).json({ ok: false, error: "signature_timestamp_out_of_range" });
-        return;
-      }
-      const rawBody = req.rawBody ?? "";
-      const expected = buildSignature(signingSecret, timestamp, rawBody);
-      if (!secureEqual(expected, signature)) {
-        res.status(401).json({ ok: false, error: "invalid_signature" });
-        return;
-      }
-      const nonceKey = `${resellerId}:${nonce}:${timestamp}`;
-      if (signatureNonceStore.has(nonceKey)) {
-        res.status(409).json({ ok: false, error: "nonce_already_used" });
-        return;
-      }
-      signatureNonceStore.set(nonceKey, Date.now() + maxSkewSeconds * 1000);
+    if (!signingSecret) {
+      res.status(503).json({ ok: false, error: "hmac_signing_required_for_reseller" });
+      return;
     }
+
+    const timestamp = String(req.header("x-timestamp") ?? "").trim();
+    const signature = String(req.header("x-signature") ?? "").trim();
+    const nonce = String(req.header("x-nonce") ?? "").trim();
+    if (!timestamp || !signature) {
+      res.status(401).json({ ok: false, error: "missing_signature_headers" });
+      return;
+    }
+    if (!nonce) {
+      res.status(401).json({ ok: false, error: "missing_nonce_header" });
+      return;
+    }
+    const ts = Number.parseInt(timestamp, 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkewSeconds) {
+      res.status(401).json({ ok: false, error: "signature_timestamp_out_of_range" });
+      return;
+    }
+    const rawBody = req.rawBody ?? "";
+    const expected = buildSignature(signingSecret, timestamp, rawBody);
+    if (!secureEqual(expected, signature)) {
+      res.status(401).json({ ok: false, error: "invalid_signature" });
+      return;
+    }
+    const nonceKey = `${resellerId}:${nonce}:${timestamp}`;
+    if (signatureNonceStore.has(nonceKey)) {
+      res.status(409).json({ ok: false, error: "nonce_already_used" });
+      return;
+    }
+    signatureNonceStore.set(nonceKey, Date.now() + maxSkewSeconds * 1000);
+
+    const defaultMax = Number.parseInt(process.env.RESELLER_API_RATE_MAX ?? "120", 10) || 120;
+    const rateLimitPerMinute = rateLimitsMap[resellerId] ?? defaultMax;
 
     req.resellerAuth = {
       resellerId,
@@ -299,19 +315,28 @@ function requireResellerAuth(
       allowedIps,
       webhookUrl: webhookMap[resellerId] ?? null,
       webhookSecret: webhookSecrets[resellerId] ?? null,
+      rateLimitPerMinute,
     };
     next();
   };
 }
 
-function requireRateLimit(req: AuthRequest, res: Response, next: NextFunction): void {
+async function requireRateLimit(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const resellerId = req.resellerAuth?.resellerId;
   if (!resellerId) {
     res.status(500).json({ ok: false, error: "missing_reseller_context" });
     return;
   }
   const windowSec = Number.parseInt(process.env.RESELLER_API_RATE_WINDOW_SEC ?? "60", 10) || 60;
-  const maxReq = Number.parseInt(process.env.RESELLER_API_RATE_MAX ?? "120", 10) || 120;
+  const maxReq = req.resellerAuth!.rateLimitPerMinute;
+
+  const allowed = await rateLimitAllow(`reseller:${resellerId}`, maxReq, windowSec);
+  if (!allowed) {
+    res.setHeader("Retry-After", String(windowSec));
+    res.status(429).json({ ok: false, error: "rate_limit_exceeded", retryAfterSec: windowSec });
+    return;
+  }
+
   const now = Date.now();
   const state = rateLimitStore.get(resellerId);
   if (!state || now >= state.resetAt) {
@@ -666,27 +691,41 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
     res.json({ ok: true, service: "reseller-api" });
   });
 
-  app.get("/reseller/openapi.json", (req: Request, res: Response) => {
-    const host = req.header("host") || `localhost:${process.env.RESELLER_API_PORT ?? "3003"}`;
-    const proto = (req.header("x-forwarded-proto") || req.protocol || "https").toString();
-    res.json(buildOpenApiDoc(`${proto}://${host}`));
-  });
+  const exposeDocs =
+    process.env.RESELLER_API_EXPOSE_DOCS?.trim() === "1" ||
+    process.env.RESELLER_API_EXPOSE_DOCS?.trim() === "true";
 
-  app.get("/reseller/docs", (_req: Request, res: Response) => {
-    res.type("text/plain").send(
-      [
-        "DiorHost Reseller API docs:",
-        "1) OpenAPI JSON: /reseller/openapi.json",
-        "2) Endpoints base: /reseller/v1/*",
-        "3) Auth: x-api-key (+ optional HMAC headers)",
-      ].join("\n")
-    );
-  });
+  if (exposeDocs) {
+    app.get("/reseller/openapi.json", (req: Request, res: Response) => {
+      const host = req.header("host") || `localhost:${process.env.RESELLER_API_PORT ?? "3003"}`;
+      const proto = (req.header("x-forwarded-proto") || req.protocol || "https").toString();
+      res.json(buildOpenApiDoc(`${proto}://${host}`));
+    });
+
+    app.get("/reseller/docs", (_req: Request, res: Response) => {
+      res.type("text/plain").send(
+        [
+          "DiorHost Reseller API docs:",
+          "1) OpenAPI JSON: /reseller/openapi.json",
+          "2) Endpoints base: /reseller/v1/*",
+          "3) Auth: x-api-key + HMAC (x-timestamp, x-signature, x-nonce)",
+        ].join("\n")
+      );
+    });
+  }
 
   app.use(
     "/reseller/v1",
-    requireResellerAuth(signingSecretsMap, allowedIpsMap, webhookMap, webhookSecrets),
-    requireRateLimit
+    requireResellerAuth(
+      signingSecretsMap,
+      allowedIpsMap,
+      webhookMap,
+      webhookSecrets,
+      runtime.rateLimitPerMinute
+    ),
+    (req, res, next) => {
+      void requireRateLimit(req as AuthRequest, res, next);
+    }
   );
 
   app.get("/reseller/v1/services", async (req: AuthRequest, res: Response) => {

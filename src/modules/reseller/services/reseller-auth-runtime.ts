@@ -9,6 +9,7 @@ export type ResellerAuthRuntimeMaps = {
   allowedIps: Record<string, string[]>;
   webhooks: Record<string, string>;
   webhookSecrets: Record<string, string>;
+  rateLimitPerMinute: Record<string, number>;
 };
 
 let cache: ResellerAuthRuntimeMaps | null = null;
@@ -20,6 +21,7 @@ const pendingRuntime: ResellerAuthRuntimeMaps = {
   allowedIps: {},
   webhooks: {},
   webhookSecrets: {},
+  rateLimitPerMinute: {},
 };
 
 function parseJsonRecord(raw: string | undefined): Record<string, unknown> {
@@ -41,6 +43,7 @@ function mergeEnvMaps(base: ResellerAuthRuntimeMaps): ResellerAuthRuntimeMaps {
     allowedIps: { ...base.allowedIps },
     webhooks: { ...base.webhooks },
     webhookSecrets: { ...base.webhookSecrets },
+    rateLimitPerMinute: { ...base.rateLimitPerMinute },
   };
 
   const keysParsed = parseJsonRecord(process.env.RESELLER_API_KEYS_JSON);
@@ -106,6 +109,7 @@ export async function reloadResellerAuthRuntime(dataSource: DataSource): Promise
     allowedIps: { ...pendingRuntime.allowedIps },
     webhooks: { ...pendingRuntime.webhooks },
     webhookSecrets: { ...pendingRuntime.webhookSecrets },
+    rateLimitPerMinute: { ...pendingRuntime.rateLimitPerMinute },
   };
 
   const resellers = await dataSource.getRepository(Reseller).find();
@@ -113,6 +117,7 @@ export async function reloadResellerAuthRuntime(dataSource: DataSource): Promise
     if (r.status !== ResellerStatus.Active && r.status !== ResellerStatus.Pending) continue;
     if (r.webhookUrl) maps.webhooks[r.id] = r.webhookUrl;
     if (r.ipWhitelist?.length) maps.allowedIps[r.id] = r.ipWhitelist;
+    if (r.apiRatePerMinute > 0) maps.rateLimitPerMinute[r.id] = r.apiRatePerMinute;
   }
 
   cache = mergeEnvMaps(maps);
@@ -128,6 +133,7 @@ export function getResellerAuthRuntime(): ResellerAuthRuntimeMaps {
     allowedIps: { ...pendingRuntime.allowedIps },
     webhooks: { ...pendingRuntime.webhooks },
     webhookSecrets: { ...pendingRuntime.webhookSecrets },
+    rateLimitPerMinute: { ...pendingRuntime.rateLimitPerMinute },
   });
 }
 

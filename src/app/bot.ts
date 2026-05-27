@@ -42,6 +42,12 @@ import { UserRepository } from "../infrastructure/db/repositories/UserRepository
 import { invalidateUser } from "../shared/user-cache.js";
 import { patchTranslateVars } from "../shared/utils/sanitize-error.js";
 import { chatSequentializeMiddleware, floodProtectionMiddleware } from "./flood-protection.js";
+import {
+  acquireSingleInstanceLock,
+  logDatabaseMode,
+  validateProductionSecurity,
+} from "./security-guards.js";
+import { adminCallbackGuardMiddleware } from "./middlewares/admin-callback-guard.js";
 import { TopUpRepository } from "../infrastructure/db/repositories/TopUpRepository.js";
 import { ExpirationService } from "../domain/services/ExpirationService.js";
 import { handleCryptoPayWebhook } from "../infrastructure/payments/cryptopay-webhook.js";
@@ -60,6 +66,9 @@ export async function createBot(): Promise<{
   cleanup: () => Promise<void>;
 }> {
   Logger.info("Initializing bot...");
+  validateProductionSecurity();
+  acquireSingleInstanceLock();
+  logDatabaseMode();
 
   // Initialize Fluent i18n
   const { fluent, availableLocales } = await initFluent();
@@ -258,6 +267,7 @@ export async function createBot(): Promise<{
 
   // Check if user is banned
   bot.use(banCheckMiddleware);
+  bot.use(adminCallbackGuardMiddleware());
 
   // Setup VMManager middleware
   bot.use(vmmanagerMiddleware(vmManager));

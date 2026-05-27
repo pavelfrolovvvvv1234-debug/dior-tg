@@ -247,7 +247,10 @@ export class PaymentBuilder {
   }
 }
 
-const TOP_UP_POLL_MS = 10_000;
+const TOP_UP_POLL_MS = Math.max(
+  15_000,
+  Number.parseInt(process.env.PAYMENT_POLL_MS ?? "15000", 10) || 15_000
+);
 
 /** Atomically: Created → Completed + credit user balance. Idempotent via single-row CAS on status. */
 async function claimPaidTopUpCredit(

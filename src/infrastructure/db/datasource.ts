@@ -5,122 +5,18 @@
  */
 
 import { DataSource } from "typeorm";
-import User from "../../entities/User.js";
-import TempLink from "../../entities/TempLink.js";
-import TopUp from "../../entities/TopUp.js";
-import DomainRequest from "../../entities/DomainRequest.js";
-import Promo from "../../entities/Promo.js";
-import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
-import DomainService from "../../entities/DomainService.js";
-import Ticket from "../../entities/Ticket.js";
-import Broadcast from "../../entities/Broadcast.js";
-import BroadcastLog from "../../entities/BroadcastLog.js";
-import DedicatedServer from "../../entities/DedicatedServer.js";
-import TicketAudit from "../../entities/TicketAudit.js";
-import Domain from "../../entities/Domain.js";
-import DomainOperation from "../../entities/DomainOperation.js";
-import ReferralReward from "../../entities/ReferralReward.js";
-import ServiceInvoice from "../../entities/ServiceInvoice.js";
-import GrowthEvent from "../../entities/GrowthEvent.js";
-import CdnProxyService from "../../entities/CdnProxyService.js";
-import CdnProxyAudit from "../../entities/CdnProxyAudit.js";
-import DedicatedServerOrder from "../../entities/DedicatedServerOrder.js";
-import ProvisioningTicket from "../../entities/ProvisioningTicket.js";
-import ProvisioningTicketStatusHistory from "../../entities/ProvisioningTicketStatusHistory.js";
-import ProvisioningTicketNote from "../../entities/ProvisioningTicketNote.js";
-import ProvisioningTicketAssignment from "../../entities/ProvisioningTicketAssignment.js";
-import ProvisioningTicketChecklist from "../../entities/ProvisioningTicketChecklist.js";
-import ProvisioningTicketEvent from "../../entities/ProvisioningTicketEvent.js";
-import {
-  AutomationScenario,
-  ScenarioVersion,
-  UserNotificationState,
-  OfferInstance,
-  AutomationEventLog,
-  ScenarioMetric,
-} from "../../entities/automations/index.js";
 import { Logger } from "../../app/logger.js";
-import AdminAuditLog from "../../entities/AdminAuditLog.js";
-import Reseller from "../../entities/Reseller.js";
-import ResellerApiKey from "../../entities/ResellerApiKey.js";
-import ResellerAuditLog from "../../entities/ResellerAuditLog.js";
-import {
-  NotificationJob,
-  NotificationDelivery,
-  UserEngagementProfile,
-  UserFunnelState,
-} from "../../entities/notifications/index.js";
 import { runRoleModelMigration } from "./role-migration.js";
 import { runProvisioningStatusMigration } from "./provisioning-status-migration.js";
 import { runPromoOrderDiscountMigrations } from "./promo-order-discount-migration.js";
 import { dedupeVdslistDuplicateVdsIds } from "./vdslist-dedupe.js";
-import { applySqlitePragmas, resolveSqliteDatabasePath } from "./sqlite-config.js";
+import { resolveSqliteDatabasePath } from "./sqlite-config.js";
+import { buildDataSourceOptions, resolveDatabaseKind } from "./datasource-options.js";
 
-const sqliteDatabasePath = resolveSqliteDatabasePath();
-
-/**
- * TypeORM DataSource singleton instance.
- */
-const AppDataSource = new DataSource({
-  type: "better-sqlite3",
-  database: sqliteDatabasePath,
-  synchronize: true, // TODO: Use migrations in production
-  prepareDatabase: applySqlitePragmas,
-  entities: [
-    User,
-    TempLink,
-    TopUp,
-    DomainRequest,
-    Promo,
-    VirtualDedicatedServer,
-    DomainService,
-    Ticket,
-    Broadcast,
-    BroadcastLog,
-    DedicatedServer,
-    TicketAudit,
-    Domain,
-    DomainOperation,
-    ReferralReward,
-    ServiceInvoice,
-    GrowthEvent,
-    CdnProxyService,
-    CdnProxyAudit,
-    DedicatedServerOrder,
-    ProvisioningTicket,
-    ProvisioningTicketStatusHistory,
-    ProvisioningTicketNote,
-    ProvisioningTicketAssignment,
-    ProvisioningTicketChecklist,
-    ProvisioningTicketEvent,
-    AutomationScenario,
-    ScenarioVersion,
-    UserNotificationState,
-    OfferInstance,
-    AutomationEventLog,
-    ScenarioMetric,
-    AdminAuditLog,
-    Reseller,
-    ResellerApiKey,
-    ResellerAuditLog,
-    NotificationJob,
-    NotificationDelivery,
-    UserEngagementProfile,
-    UserFunnelState,
-  ],
-  enableWAL: true,
-  logging: false,
-});
+const AppDataSource = new DataSource(buildDataSourceOptions());
 
 let initialized = false;
 
-/**
- * Get or initialize the application DataSource.
- * Ensures only one initialization attempt.
- *
- * @returns {Promise<DataSource>} Initialized DataSource instance
- * @throws {Error} If DataSource initialization fails
- */
 export async function getAppDataSource(): Promise<DataSource> {
   if (AppDataSource.isInitialized) {
     return AppDataSource;
@@ -129,13 +25,17 @@ export async function getAppDataSource(): Promise<DataSource> {
   if (!initialized) {
     initialized = true;
     try {
-      dedupeVdslistDuplicateVdsIds(sqliteDatabasePath);
+      if (resolveDatabaseKind() === "sqlite") {
+        dedupeVdslistDuplicateVdsIds(resolveSqliteDatabasePath());
+      }
 
       await AppDataSource.initialize();
       await runRoleModelMigration(AppDataSource);
       await runProvisioningStatusMigration(AppDataSource);
       await runPromoOrderDiscountMigrations(AppDataSource);
-      Logger.info("Database DataSource initialized successfully");
+      Logger.info("Database DataSource initialized successfully", {
+        driver: resolveDatabaseKind(),
+      });
     } catch (error) {
       Logger.error("Failed to initialize DataSource", error);
       initialized = false;
@@ -146,11 +46,6 @@ export async function getAppDataSource(): Promise<DataSource> {
   return AppDataSource;
 }
 
-/**
- * Close the DataSource connection gracefully.
- *
- * @returns {Promise<void>}
- */
 export async function closeDataSource(): Promise<void> {
   if (AppDataSource.isInitialized) {
     await AppDataSource.destroy();

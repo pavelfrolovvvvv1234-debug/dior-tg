@@ -398,11 +398,25 @@ export function registerCommands(bot: Bot<AppContext>): void {
 
   // Promote link command (admin only)
   bot.command("promote_link", async (ctx) => {
-    const session = await ctx.session;
-    if (session.main.user.role !== Role.Admin) return;
+    const { requireAdmin } = await import("../../shared/auth/permissions.js");
+    if (!(await requireAdmin(ctx))) return;
+
+    const replyTid = ctx.message?.reply_to_message?.from?.id;
+    const argTid =
+      typeof ctx.match === "string" && ctx.match.trim()
+        ? Number.parseInt(ctx.match.trim(), 10)
+        : NaN;
+    const intendedTelegramId = replyTid ?? (Number.isFinite(argTid) ? argTid : NaN);
+    if (!Number.isFinite(intendedTelegramId) || intendedTelegramId <= 0) {
+      await ctx.reply(
+        "Reply to the user's message or: /promote_link <telegram_id>",
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
 
     const dataSource = await getAppDataSource();
-    const link = createLink(Role.Moderator);
+    const link = createLink(Role.Moderator, intendedTelegramId);
     const savedLink = await dataSource.getRepository(TempLink).save(link);
 
     const linkUrl = `tg://msg_url?url=https://t.me/${config.BOT_USERNAME}?start=${PREFIX_PROMOTE}${savedLink.code}`;
