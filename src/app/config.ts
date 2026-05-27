@@ -5,11 +5,11 @@
  * @module app/config
  */
 
+import path from "path";
 import { z } from "zod";
-import dotenv from "dotenv";
+import { loadEnvFile } from "./load-env.js";
 
-// Load environment variables (.env wins over stale process env, e.g. PM2)
-dotenv.config({ override: true });
+loadEnvFile(path.join(__dirname, ".."));
 
 /**
  * Zod schema for environment variables validation.

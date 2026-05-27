@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import "./preload-env.js";
 import {
   Api,
   Bot,
@@ -9,7 +10,6 @@ import {
   webhookCallback,
 } from "grammy";
 import path from "path";
-import { loadEnvFile } from "./app/load-env.js";
 import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
@@ -159,9 +159,6 @@ import { handleCryptoPayWebhook } from "./infrastructure/payments/cryptopay-webh
 import { registerWelcomeMainMenu } from "./ui/menus/main-menu-registry.js";
 // Note: Commands are registered via registerCommands call below
 // Using dynamic import to avoid ts-node ESM resolution issues
-// .env next to package.json (works when PM2 cwd is not ~/dior-tg)
-loadEnvFile(__dirname);
-
 const PRIME_MONTHLY_PRICE_USD = 9.99;
 const PRIME_BILLING_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 const primeBillingLocks = new Set<number>();

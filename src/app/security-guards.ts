@@ -7,6 +7,7 @@
 import fs from "fs";
 import path from "path";
 import { Logger } from "./logger.js";
+import { loadEnvFile } from "./load-env.js";
 import { resolveSqliteDatabasePath } from "../infrastructure/db/sqlite-config.js";
 
 function isWebhookMode(): boolean {
@@ -29,6 +30,9 @@ function isResellerApiEnabled(): boolean {
  * Fail fast on insecure production configuration.
  */
 export function validateProductionSecurity(): void {
+  // Ensure .env from project root wins over empty PM2-injected vars
+  loadEnvFile(path.join(__dirname, ".."));
+
   const prod = process.env.NODE_ENV === "production";
 
   if (isWebhookMode() && !process.env.TELEGRAM_WEBHOOK_SECRET?.trim()) {
