@@ -1,5 +1,4 @@
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
-import { withSqliteBusyRetry } from "../infrastructure/db/sqlite-config.js";
 import TopUp, { TopUpStatus } from "../entities/TopUp.js";
 import { createHash, randomUUID } from "crypto";
 import { CrystalPayClient } from "./crystal-pay";
@@ -10,6 +9,7 @@ import { invalidateUser } from "../shared/user-cache.js";
 import axios from "axios";
 import { notifyAdminsAboutTopUp, notifyReferrerAboutReferralTopUp } from "../helpers/notifier.js";
 import { Logger } from "../app/logger.js";
+import { settleTopUpBalance } from "../domain/billing/settle-top-up.js";
 
 const CRYPTOBOT_API_URL = "https://pay.crypt.bot/api";
 const HELEKET_API_URL = process.env["PAYMENT_HELEKET_API_URL"]?.trim() || "https://api.heleket.com";
@@ -252,71 +252,25 @@ const TOP_UP_POLL_MS = Math.max(
   Number.parseInt(process.env.PAYMENT_POLL_MS ?? "15000", 10) || 15_000
 );
 
-/** Atomically: Created → Completed + credit user balance. Idempotent via single-row CAS on status. */
-async function claimPaidTopUpCredit(
-  topUpId: number
-): Promise<{ user: User; topUp: TopUp } | null> {
-  const datasource = await getAppDataSource();
-  return withSqliteBusyRetry(() =>
-    datasource.transaction(async (em) => {
-    const tup = await em.findOne(TopUp, {
-      where: { id: topUpId, status: TopUpStatus.Created },
-    });
-    if (!tup) {
-      return null;
-    }
-    const u = await em.findOneBy(User, { id: tup.target_user_id });
-    if (!u) {
-      Logger.error("[Payment] claimPaidTopUpCredit: user missing for TopUp", { topUpId, target: tup.target_user_id });
-      return null;
-    }
-    const updateRes = await em
-      .getRepository(TopUp)
-      .createQueryBuilder()
-      .update(TopUp)
-      .set({ status: TopUpStatus.Completed })
-      .where("id = :id AND status = :st", {
-        id: topUpId,
-        st: TopUpStatus.Created,
-      })
-      .execute();
-    if ((updateRes.affected ?? 0) < 1) {
-      return null;
-    }
-
-    const amount = tup.amount;
-    u.balance += amount;
-    await em.save(u);
-    await em.update(TopUp, { id: topUpId }, { balanceCreditedAt: new Date() });
-
-    const topUpFresh = await em.findOneBy(TopUp, { id: topUpId });
-    if (!topUpFresh) {
-      return null;
-    }
-    return { user: u, topUp: topUpFresh };
-    })
-  );
-}
-
 /** After gateways report paid status: grant balance once, then referrals / notifies / hooks. */
 export async function finalizePaidTopUp(bot: Bot<AppContext, Api<RawApi>>, topUpId: number): Promise<void> {
-  const claimed = await claimPaidTopUpCredit(topUpId);
-  if (!claimed) {
+  const settled = await settleTopUpBalance(topUpId);
+  if (!settled?.newlyCredited) {
     return;
   }
 
-  invalidateUser(claimed.user.telegramId);
+  invalidateUser(settled.user.telegramId);
 
   try {
-    await runPostTopUpCreditSideEffects(bot, claimed.user, claimed.topUp);
+    await runPostTopUpCreditSideEffects(bot, settled.user, settled.topUp);
   } catch (error) {
     Logger.error("[Payment] post-topup side effects failed (balance already credited)", error, {
-      topUpId: claimed.topUp.id,
-      userId: claimed.user.id,
+      topUpId: settled.topUp.id,
+      userId: settled.user.id,
     });
     try {
       await bot.api.sendMessage(
-        claimed.user.telegramId,
+        settled.user.telegramId,
         "Пополнение зачислено. Дополнительные уведомления временно недоступны — обратитесь в поддержку при вопросах."
       );
     } catch {

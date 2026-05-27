@@ -16,7 +16,7 @@ export default class ReferralReward {
   @Column({ nullable: false, type: "integer" })
   refereeId!: number;
 
-  @Column({ nullable: false, type: "integer" })
+  @Column({ nullable: false, type: "integer", unique: true })
   topUpId!: number;
 
   @Column({ nullable: false, type: "real" })

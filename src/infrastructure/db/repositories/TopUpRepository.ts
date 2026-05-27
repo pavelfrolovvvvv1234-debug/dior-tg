@@ -4,7 +4,7 @@
  * @module infrastructure/db/repositories/TopUpRepository
  */
 
-import { DataSource } from "typeorm";
+import { DataSource, IsNull } from "typeorm";
 import TopUp, { TopUpStatus } from "../../../entities/TopUp";
 import { BaseRepository } from "./base";
 import { NotFoundError } from "../../../shared/errors/index";
@@ -27,11 +27,14 @@ export class TopUpRepository extends BaseRepository<TopUp> {
   }
 
   /**
-   * Find all pending top-ups (status: Created).
+   * Find top-ups awaiting gateway settlement or balance credit.
    */
   async findPending(): Promise<TopUp[]> {
     return this.repository.find({
-      where: { status: TopUpStatus.Created },
+      where: [
+        { status: TopUpStatus.Created },
+        { status: TopUpStatus.Completed, balanceCreditedAt: IsNull() },
+      ],
     });
   }
 

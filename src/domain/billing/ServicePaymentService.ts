@@ -120,13 +120,23 @@ export class ServicePaymentService {
       return null;
     }
 
-    invoice.status = ServiceInvoiceStatus.Paid;
-    invoice.paidAt = new Date();
-    await repo.save(invoice);
+    const markPaid = await repo.update(
+      { invoiceId, status: ServiceInvoiceStatus.Pending },
+      { status: ServiceInvoiceStatus.Paid, paidAt: new Date() }
+    );
+    if ((markPaid.affected ?? 0) < 1) {
+      const existing = await repo.findOne({ where: { invoiceId } });
+      return existing;
+    }
 
-    await this.applyServicePayment(invoice);
+    const paidInvoice = await repo.findOne({ where: { invoiceId } });
+    if (!paidInvoice) {
+      return null;
+    }
 
-    return invoice;
+    await this.applyServicePayment(paidInvoice);
+
+    return paidInvoice;
   }
 
   async getPaidUntil(

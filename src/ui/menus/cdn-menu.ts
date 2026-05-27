@@ -26,6 +26,11 @@ import { createInitialOtherSession } from "../../shared/session-initial";
 import CdnProxyService from "../../entities/CdnProxyService";
 import CdnProxyAudit from "../../entities/CdnProxyAudit";
 import { ensureSessionUser } from "../../shared/utils/session-user.js";
+import {
+  deductUserBalance,
+  refundUserBalance,
+} from "../../shared/billing/balance-ops.js";
+import { BusinessError } from "../../shared/errors/index.js";
 
 const DOMAIN_REGEX =
   /^(?!https?:\/\/)(?!www\.$)(?!.*\/$)([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -392,30 +397,31 @@ export async function cdnAddProxyConversation(
   }
 
   const dataSource = await getAppDataSource();
-  const userRepo = dataSource.getRepository(User);
   const userId = session?.main?.user?.id;
   if (userId == null || userId <= 0) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
     session.other.cdn = { step: "idle" };
     return;
   }
-  const user = await userRepo.findOneBy({ id: userId });
-  const bal = Number(user?.balance);
-  if (!user || !Number.isFinite(bal) || bal < price) {
-    await showTopupForMissingAmount(ctx, price - (Number.isFinite(bal) ? bal : 0));
-    session.other.cdn = { step: "idle" };
-    return;
-  }
 
-  user.balance -= price;
-  await userRepo.save(user);
-  session.main.user.balance = user.balance;
+  let user: User;
+  try {
+    user = await deductUserBalance(dataSource, userId, price);
+    session.main.user.balance = user.balance;
+  } catch (err) {
+    if (err instanceof BusinessError) {
+      const bal = session.main.user.balance ?? 0;
+      await showTopupForMissingAmount(ctx, price - bal);
+      session.other.cdn = { step: "idle" };
+      return;
+    }
+    throw err;
+  }
 
   const tid = session.other.cdn.telegramId ?? confirmCtx.from?.id ?? ctx.loadedUser?.telegramId;
   if (tid == null) {
-    user.balance += price;
-    await userRepo.save(user);
-    session.main.user.balance = user.balance;
+    const refunded = await refundUserBalance(dataSource, userId, price);
+    session.main.user.balance = refunded.balance;
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
     session.other.cdn = { step: "idle" };
     return;
@@ -435,9 +441,8 @@ export async function cdnAddProxyConversation(
     });
 
     if (!result.success) {
-      user.balance += price;
-      await userRepo.save(user);
-      session.main.user.balance = user.balance;
+      const refunded = await refundUserBalance(dataSource, userId, price);
+      session.main.user.balance = refunded.balance;
       await ctx.reply(ctx.t("cdn-error", { error: result.error ?? "Create failed" }), {
         parse_mode: "HTML",
       });
@@ -470,9 +475,8 @@ export async function cdnAddProxyConversation(
       );
     }
   } catch (e: any) {
-    user.balance += price;
-    await userRepo.save(user);
-    session.main.user.balance = user.balance;
+    const refunded = await refundUserBalance(dataSource, userId, price);
+    session.main.user.balance = refunded.balance;
     await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Request failed" }), {
       parse_mode: "HTML",
     });
@@ -522,24 +526,25 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
   session.other.cdn.price = price;
 
   const dataSource = await getAppDataSource();
-  const userRepo = dataSource.getRepository(User);
   const userId = session?.main?.user?.id;
   if (userId == null || userId <= 0) {
     await ctx.reply(ctx.t("cdn-error", { error: "User not found" }), { parse_mode: "HTML" });
     session.other.cdn = { step: "idle" };
     return;
   }
-  const user = await userRepo.findOneBy({ id: userId });
-  const bal = Number(user?.balance);
-  if (!user || !Number.isFinite(bal) || bal < price) {
-    await showTopupForMissingAmount(ctx, price - (Number.isFinite(bal) ? bal : 0));
-    session.other.cdn = { step: "idle" };
-    return;
-  }
 
-  user.balance -= price;
-  await userRepo.save(user);
-  session.main.user.balance = user.balance;
+  try {
+    const charged = await deductUserBalance(dataSource, userId, price);
+    session.main.user.balance = charged.balance;
+  } catch (err) {
+    if (err instanceof BusinessError) {
+      const bal = session.main.user.balance ?? 0;
+      await showTopupForMissingAmount(ctx, price - bal);
+      session.other.cdn = { step: "idle" };
+      return;
+    }
+    throw err;
+  }
 
   await ctx.reply("⏳ Подключаем CDN, обычно это занимает до 30 секунд...", {
     parse_mode: "HTML",
@@ -559,9 +564,8 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
     });
 
     if (!result.success) {
-      user.balance += price;
-      await userRepo.save(user);
-      session.main.user.balance = user.balance;
+      const refunded = await refundUserBalance(dataSource, userId, price);
+      session.main.user.balance = refunded.balance;
       await ctx.reply(ctx.t("cdn-error", { error: result.error ?? "Create failed" }), {
         parse_mode: "HTML",
       });
@@ -594,9 +598,8 @@ async function finalizeCdnCreateFromSession(ctx: AppContext, session: any): Prom
       );
     }
   } catch (e: any) {
-    user.balance += price;
-    await userRepo.save(user);
-    session.main.user.balance = user.balance;
+    const refunded = await refundUserBalance(dataSource, userId, price);
+    session.main.user.balance = refunded.balance;
     await ctx.reply(ctx.t("cdn-error", { error: e?.message ?? "Request failed" }), {
       parse_mode: "HTML",
     });

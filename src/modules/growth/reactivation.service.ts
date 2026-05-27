@@ -5,7 +5,7 @@
  */
 
 import type { DataSource } from "typeorm";
-import { setOffer, getOffer, deleteOffer } from "./storage.js";
+import { setOffer, getOffer, deleteOffer, acquireLock } from "./storage.js";
 import type { ReactivationOffer } from "./types.js";
 import User from "../../entities/User.js";
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
@@ -83,7 +83,15 @@ export class ReactivationService {
   ): Promise<{ applied: boolean; bonusAmount: number }> {
     const offer = await this.getActiveOffer(userId);
     if (!offer) return { applied: false, bonusAmount: 0 };
-    const bonusAmount = Math.round((amount * (offer.bonusPercent / 100)) * 100) / 100;
+
+    const lockKey = `reactivation_bonus_user:${userId}`;
+    const acquired = await acquireLock(lockKey, 60);
+    if (!acquired) return { applied: false, bonusAmount: 0 };
+
+    const offerAfterLock = await this.getActiveOffer(userId);
+    if (!offerAfterLock) return { applied: false, bonusAmount: 0 };
+
+    const bonusAmount = Math.round((amount * (offerAfterLock.bonusPercent / 100)) * 100) / 100;
     if (bonusAmount <= 0) return { applied: false, bonusAmount: 0 };
 
     const GrowthEvent = (await import("../../entities/GrowthEvent.js")).default;

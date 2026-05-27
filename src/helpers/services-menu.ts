@@ -299,6 +299,19 @@ async function createAndBuyVDS(
     return "money-not-enough" as const;
   }
 
+  const { deductUserBalance, refundUserBalance } = await import(
+    "../shared/billing/balance-ops.js"
+  );
+  let balanceCharged = false;
+  try {
+    const charged = await deductUserBalance(appDataSource, userId, price);
+    user.balance = charged.balance;
+    balanceCharged = true;
+  } catch {
+    await showTopupForMissingAmount(ctx, price - user.balance);
+    return "money-not-enough" as const;
+  }
+
   const chatId = ctx.chat?.id;
   const waitMessage = chatId
     ? await ctx.reply(ctx.t("vds-provisioning-wait"), {
@@ -329,6 +342,9 @@ async function createAndBuyVDS(
   }
 
   if (result === false) {
+    if (balanceCharged) {
+      await refundUserBalance(appDataSource, userId, price).catch(() => {});
+    }
     if (waitMessage && chatId) {
       await ctx.api.deleteMessage(chatId, waitMessage.message_id).catch(() => {});
     }
@@ -367,11 +383,14 @@ async function createAndBuyVDS(
   newVds.managementLocked = false;
   newVds.extraIpv4Count = 0;
 
-  await vdsRepo.save(newVds);
-
-  user.balance -= price;
-
-  await usersRepo.save(user);
+  try {
+    await vdsRepo.save(newVds);
+  } catch (saveErr) {
+    if (balanceCharged) {
+      await refundUserBalance(appDataSource, userId, price).catch(() => {});
+    }
+    throw saveErr;
+  }
 
   const displayHost = (info?.name && String(info.name).trim()) || vmHostLabel;
   const osEntry = ctx.osList?.list.find((o) => o.id === osId);

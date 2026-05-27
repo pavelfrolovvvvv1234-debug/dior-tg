@@ -72,11 +72,16 @@ export class UpsellService {
       return { applied: false, bonusAmount: 0 };
     }
 
-    const lockKey = `upsell_lock:${userId}:${topUpId}`;
+    const lockKey = `upsell_bonus_user:${userId}`;
     const acquired = await acquireLock(lockKey, 60);
     if (!acquired) return { applied: false, bonusAmount: 0 };
 
-    const bonusAmount = Math.round((amount * (offer.bonusPercent / 100)) * 100) / 100;
+    const offerAfterLock = await this.getActiveOffer(userId);
+    if (!offerAfterLock || amount < offerAfterLock.requiredAmount) {
+      return { applied: false, bonusAmount: 0 };
+    }
+
+    const bonusAmount = Math.round((amount * (offerAfterLock.bonusPercent / 100)) * 100) / 100;
     if (bonusAmount <= 0) return { applied: false, bonusAmount: 0 };
 
     await this.dataSource.transaction(async (manager) => {

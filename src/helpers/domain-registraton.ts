@@ -16,6 +16,7 @@ import { BusinessError, NotFoundError } from "@/shared/errors";
 import { Logger } from "@/app/logger";
 import { showTopupForMissingAmount } from "@helpers/deposit-money";
 import { computeOrderPriceFromUser } from "../shared/pricing/order-discount.js";
+import { deductUserBalance } from "../shared/billing/balance-ops.js";
 
 export function registerDomainRegistrationMiddleware(
   bot: Bot<AppContext, Api<RawApi>>
@@ -57,9 +58,13 @@ export function registerDomainRegistrationMiddleware(
 
     const price = computeOrderPriceFromUser(user, basePrice);
 
-    user.balance -= price;
+    if (user.balance < price) {
+      await showTopupForMissingAmount(ctx, price - user.balance);
+      return;
+    }
 
-    await usersRepo.save(user);
+    const charged = await deductUserBalance(ctx.appDataSource, user.id, price);
+    user.balance = charged.balance;
 
     const domainRequest = new DomainRequest();
 

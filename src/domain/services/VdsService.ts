@@ -94,7 +94,6 @@ export class VdsService {
   ): Promise<CreateVdsResult> {
     const price = this.calculatePrice(rate, bulletproof);
 
-    // Check balance before starting
     if (!(await this.canAffordVds(userId, rate, bulletproof))) {
       const balance = await this.billingService.getBalance(userId);
       throw new BusinessError(
@@ -102,12 +101,14 @@ export class VdsService {
       );
     }
 
-    // Generate credentials
+    await this.billingService.deductBalance(userId, price);
+
     const password = generatePassword(12);
     const name = generateRandomName(13);
 
-    // Create VM with retry
-    const vmResult = await retry(
+    let vmResult: Awaited<ReturnType<VmProvider["createVM"]>>;
+    try {
+      vmResult = await retry(
       () =>
         this.vmManager.createVM(
           name,
@@ -126,67 +127,94 @@ export class VdsService {
         delayMs: 2000,
         exponentialBackoff: true,
       }
-    ).catch((error) => {
-      Logger.error("Failed to create VM", error);
-      throw new ExternalApiError(
-        `Failed to create VM: ${error.message}`,
-        "VMManager",
-        error
-      );
-    });
+      ).catch((error) => {
+        Logger.error("Failed to create VM", error);
+        throw new ExternalApiError(
+          `Failed to create VM: ${error.message}`,
+          "VMManager",
+          error
+        );
+      });
+    } catch (provisionError) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after VDS provision error", refundErr);
+      });
+      throw provisionError;
+    }
 
     if (vmResult === false || !vmResult) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after VM create false", refundErr);
+      });
       throw new ExternalApiError("VMManager returned false", "VMManager");
     }
 
-    // Get VM info with retry
-    const vmInfo = await retry(
+    let vmInfo: Awaited<ReturnType<VmProvider["getInfoVM"]>>;
+    try {
+      vmInfo = await retry(
       () => this.vmManager.getInfoVM(vmResult.id),
       {
         maxAttempts: 5,
         delayMs: 1000,
         exponentialBackoff: true,
       }
-    ).catch((error) => {
-      Logger.error("Failed to get VM info", error);
-      throw new ExternalApiError(
-        `Failed to get VM info: ${error.message}`,
-        "VMManager",
-        error
-      );
-    });
+      ).catch((error) => {
+        Logger.error("Failed to get VM info", error);
+        throw new ExternalApiError(
+          `Failed to get VM info: ${error.message}`,
+          "VMManager",
+          error
+        );
+      });
+    } catch (infoError) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after VM info error", refundErr);
+      });
+      throw infoError;
+    }
 
     if (!vmInfo) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after missing VM info", refundErr);
+      });
       throw new ExternalApiError("VM info not available", "VMManager");
     }
 
-    // Get IPv4 address with retry
-    const ipv4Addrs = await retry(
+    let ipv4Addrs: Awaited<ReturnType<VmProvider["getIpv4AddrVM"]>>;
+    try {
+      ipv4Addrs = await retry(
       () => this.vmManager.getIpv4AddrVM(vmResult.id),
       {
         maxAttempts: 5,
         delayMs: 1000,
         exponentialBackoff: true,
       }
-    ).catch((error) => {
-      Logger.error("Failed to get IPv4 address", error);
-      throw new ExternalApiError(
-        `Failed to get IPv4 address: ${error.message}`,
-        "VMManager",
-        error
-      );
-    });
+      ).catch((error) => {
+        Logger.error("Failed to get IPv4 address", error);
+        throw new ExternalApiError(
+          `Failed to get IPv4 address: ${error.message}`,
+          "VMManager",
+          error
+        );
+      });
+    } catch (ipError) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after IPv4 error", refundErr);
+      });
+      throw ipError;
+    }
 
     if (!ipv4Addrs || !ipv4Addrs.list || ipv4Addrs.list.length === 0) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after missing IPv4", refundErr);
+      });
       throw new ExternalApiError("IPv4 address not available", "VMManager");
     }
 
-    // Create VDS record and deduct balance in transaction
-    return await this.dataSource.transaction(async (manager) => {
+    try {
+      return await this.dataSource.transaction(async (manager) => {
       const vdsRepo = manager.getRepository(VirtualDedicatedServer);
-      const userRepo = manager.getRepository(User);
 
-      // Create VDS entity
       const vds = new VirtualDedicatedServer();
       vds.vdsId = vmResult.id;
       vds.cpuCount = rate.cpu;
@@ -206,22 +234,6 @@ export class VdsService {
       vds.managementLocked = false;
       vds.extraIpv4Count = 0;
 
-      // Deduct balance
-      const user = await userRepo.findOne({ where: { id: userId } });
-      if (!user) {
-        throw new NotFoundError("User", userId);
-      }
-
-      if (user.balance < price) {
-        throw new BusinessError(
-          `Insufficient balance. Required: ${price}, Available: ${user.balance}`
-        );
-      }
-
-      user.balance -= price;
-
-      // Save both in transaction
-      await userRepo.save(user);
       const savedVds = await vdsRepo.save(vds);
 
       Logger.info(
@@ -242,7 +254,13 @@ export class VdsService {
         vds: savedVds,
         price,
       };
-    });
+      });
+    } catch (saveError) {
+      await this.billingService.addBalance(userId, price).catch((refundErr) => {
+        Logger.error("Failed to refund balance after VDS DB save error", refundErr);
+      });
+      throw saveError;
+    }
   }
 
   /**

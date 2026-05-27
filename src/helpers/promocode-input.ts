@@ -1,13 +1,8 @@
-import Promo from "../entities/Promo.js";
 import { StatelessQuestion } from "@grammyjs/stateless-question";
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../shared/types/context";
-import User from "../entities/User.js";
 import { invalidateUser } from "../shared/user-cache.js";
-import {
-  getStackedOrderDiscountPercent,
-  MAX_TOTAL_ORDER_DISCOUNT_PERCENT,
-} from "../shared/pricing/order-discount.js";
+import { applyPromoCodeInTransaction } from "../shared/promo/apply-promo-code.js";
 
 /**
  * Process promocode input and apply order discount percent to the user.
@@ -26,43 +21,9 @@ export async function handlePromocodeInput(
   const userId = session.main.user.id;
 
   try {
-    const applied = await dataSource.transaction(async (manager) => {
-      const promoRepo = manager.getRepository(Promo);
-      const usersRepo = manager.getRepository(User);
-
-      const promo = await promoRepo.findOne({
-        where: { code: normalizedCode },
-      });
-
-      if (!promo) return null;
-      if (!promo.isActive || promo.uses >= promo.maxUses || promo.users.includes(userId)) {
-        return null;
-      }
-
-      const user = await usersRepo.findOne({ where: { id: userId } });
-      if (!user) return null;
-
-      const addPercent = Math.min(100, Math.max(0, Number(promo.sum) || 0));
-      if (addPercent <= 0) return null;
-
-      const balanceBefore = user.balance;
-
-      promo.uses += 1;
-      promo.users.push(userId);
-      user.orderDiscountPercent = Math.min(
-        MAX_TOTAL_ORDER_DISCOUNT_PERCENT,
-        (Number(user.orderDiscountPercent) || 0) + addPercent
-      );
-      // Promos grant % off orders only — never wallet balance.
-      user.balance = balanceBefore;
-      await promoRepo.save(promo);
-      await usersRepo.save(user);
-      return {
-        percent: addPercent,
-        totalOrderDiscountPercent: getStackedOrderDiscountPercent(user),
-        telegramId: user.telegramId,
-      };
-    });
+    const applied = await dataSource.transaction(async (manager) =>
+      applyPromoCodeInTransaction(manager, normalizedCode, userId)
+    );
 
     if (applied == null) {
       await ctx.reply(ctx.t("promocode-not-found"), {

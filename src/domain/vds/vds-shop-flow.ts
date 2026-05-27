@@ -122,10 +122,13 @@ async function createVpsOrderTicket(
     return;
   }
 
+  const { deductUserBalance, refundUserBalance } = await import(
+    "../../shared/billing/balance-ops.js"
+  );
   let deducted = false;
   try {
-    user.balance -= price;
-    await usersRepo.save(user);
+    const charged = await deductUserBalance(dataSource, user.id, price);
+    user.balance = charged.balance;
     deducted = true;
     session.main.user.balance = user.balance;
 
@@ -214,9 +217,8 @@ async function createVpsOrderTicket(
   } catch (error: any) {
     if (deducted) {
       try {
-        user.balance += price;
-        await usersRepo.save(user);
-        session.main.user.balance = user.balance;
+        const refunded = await refundUserBalance(dataSource, user.id, price);
+        session.main.user.balance = refunded.balance;
       } catch {
         // ignore rollback failure, original error is still returned below
       }

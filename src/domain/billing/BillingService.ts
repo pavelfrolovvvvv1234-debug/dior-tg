@@ -17,6 +17,12 @@ import { PaymentError, BusinessError, NotFoundError } from "../../shared/errors/
 import { Logger } from "../../app/logger";
 import { retry } from "../../shared/utils/retry";
 import type { ReferralRewardApplied } from "../referral/ReferralService.js";
+import { settleTopUpBalance } from "./settle-top-up.js";
+
+export type PaymentStatusProbe = {
+  topUp: TopUp;
+  gatewayStatus: InvoiceStatus;
+};
 
 export type ApplyPaymentResult = {
   amount: number;
@@ -96,28 +102,27 @@ export class BillingService {
   }
 
   /**
-   * Check payment status and update TopUp record.
+   * Probe gateway status. Does not mark TopUp Completed on PAID — use settleTopUpBalance / finalizePaidTopUp.
    *
    * @param topUpId - TopUp ID
-   * @returns Updated TopUp entity with new status
    * @throws {NotFoundError} If TopUp not found
    * @throws {PaymentError} If status check fails
    */
-  async checkPaymentStatus(topUpId: number): Promise<TopUp> {
+  async checkPaymentStatus(topUpId: number): Promise<PaymentStatusProbe> {
     const topUp = await this.topUpRepository.findById(topUpId);
     if (!topUp) {
       throw new NotFoundError("TopUp", topUpId);
     }
 
-    // Skip if already completed or expired
-    if (topUp.status !== TopUpStatus.Created) {
-      return topUp;
+    if (topUp.status === TopUpStatus.Completed) {
+      return { topUp, gatewayStatus: InvoiceStatus.PAID };
+    }
+    if (topUp.status === TopUpStatus.Expired) {
+      return { topUp, gatewayStatus: InvoiceStatus.EXPIRED };
     }
 
-    // Get payment provider
     const paymentProvider = createPaymentProvider(topUp.paymentSystem);
 
-    // Check status with retry
     const status = await retry(
       () => paymentProvider.checkStatus(topUp.orderId),
       {
@@ -132,21 +137,24 @@ export class BillingService {
       );
     });
 
-    // Update status
     switch (status) {
-      case InvoiceStatus.PAID:
-        topUp.status = TopUpStatus.Completed;
-        break;
       case InvoiceStatus.EXPIRED:
       case InvoiceStatus.FAILED:
         topUp.status = TopUpStatus.Expired;
+        await this.topUpRepository.save(topUp);
+        break;
+      case InvoiceStatus.PAID:
+        // Balance credited via settleTopUpBalance / finalizePaidTopUp only.
         break;
       default:
-        // Still pending
         break;
     }
 
-    return await this.topUpRepository.save(topUp);
+    const fresh = await this.topUpRepository.findById(topUpId);
+    return {
+      topUp: fresh ?? topUp,
+      gatewayStatus: status,
+    };
   }
 
   /**
@@ -159,80 +167,50 @@ export class BillingService {
    * @throws {BusinessError} If payment not completed
    */
   async applyPayment(topUpId: number): Promise<ApplyPaymentResult> {
-    return await this.dataSource.transaction(async (manager) => {
-      // Use transaction repositories
-      const topUpRepo = manager.getRepository(TopUp);
-      const userRepo = manager.getRepository(User);
+    const settled = await settleTopUpBalance(topUpId);
+    if (!settled) {
+      throw new BusinessError(`Cannot settle TopUp ${topUpId}`);
+    }
 
-      // Get TopUp with lock
-      const topUp = await topUpRepo.findOne({
-        where: { id: topUpId },
-      });
+    if (!settled.newlyCredited) {
+      return {
+        amount: settled.topUp.amount,
+        skippedDuplicate: true,
+      };
+    }
 
-      if (!topUp) {
-        throw new NotFoundError("TopUp", topUpId);
-      }
+    Logger.info(
+      `Applied payment ${topUpId} of ${settled.topUp.amount} to user ${settled.user.id}`
+    );
 
-      // Check if already applied
-      if (topUp.status !== TopUpStatus.Completed) {
-        throw new BusinessError(
-          `Cannot apply payment with status: ${topUp.status}`
+    let referralNotify: ReferralRewardApplied | undefined;
+    try {
+      const { ReferralService } = await import("../referral/ReferralService.js");
+      const referralService = new ReferralService(
+        this.dataSource,
+        this.userRepository
+      );
+      const referralResult = await referralService.applyReferralRewardOnTopup(
+        settled.topUp.target_user_id,
+        topUpId,
+        settled.topUp.amount
+      );
+
+      if (referralResult && typeof referralResult === "object") {
+        Logger.info(
+          `Applied referral reward ${referralResult.rewardAmount} for topUp ${topUpId}`
         );
+        referralNotify = referralResult;
       }
+    } catch (error: unknown) {
+      Logger.error(`Failed to apply referral reward:`, error);
+    }
 
-      if (topUp.balanceCreditedAt != null) {
-        return {
-          amount: topUp.amount,
-          skippedDuplicate: true,
-        };
-      }
-
-      // Get user with lock
-      const user = await userRepo.findOne({
-        where: { id: topUp.target_user_id },
-      });
-
-      if (!user) {
-        throw new NotFoundError("User", topUp.target_user_id);
-      }
-
-      // Apply balance
-      user.balance += topUp.amount;
-      topUp.balanceCreditedAt = new Date();
-
-      // Save both in transaction
-      await userRepo.save(user);
-      await topUpRepo.save(topUp);
-
-      Logger.info(`Applied payment ${topUpId} of ${topUp.amount} to user ${user.id}`);
-
-      // Apply referral reward if applicable (outside transaction to avoid deadlocks)
-      let referralNotify: ReferralRewardApplied | undefined;
-      try {
-        const { ReferralService } = await import("../referral/ReferralService.js");
-        const referralService = new ReferralService(
-          this.dataSource,
-          this.userRepository
-        );
-        const referralResult = await referralService.applyReferralRewardOnTopup(
-          topUp.target_user_id,
-          topUpId,
-          topUp.amount
-        );
-
-        if (referralResult && typeof referralResult === "object") {
-          Logger.info(
-            `Applied referral reward ${referralResult.rewardAmount} for topUp ${topUpId}`
-          );
-          referralNotify = referralResult;
-        }
-      } catch (error: any) {
-        Logger.error(`Failed to apply referral reward:`, error);
-        // Don't fail payment if referral reward fails
-      }
-
-      return { amount: topUp.amount, referralNotify, skippedDuplicate: false };
-    });
+    return {
+      amount: settled.topUp.amount,
+      referralNotify,
+      skippedDuplicate: false,
+    };
   }
 
   /**

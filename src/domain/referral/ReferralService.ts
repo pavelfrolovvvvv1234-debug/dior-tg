@@ -178,9 +178,9 @@ export class ReferralService {
       const userRepo = manager.getRepository(User);
       const rewardRepo = manager.getRepository(ReferralReward);
 
-      // Check if reward already applied (using findOne with where clause)
       const existingReward = await rewardRepo.findOne({
         where: { topUpId: topUpId },
+        lock: { mode: "pessimistic_write" },
       });
 
       if (existingReward) {

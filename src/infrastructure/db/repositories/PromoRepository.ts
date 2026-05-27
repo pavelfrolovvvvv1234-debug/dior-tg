@@ -7,7 +7,8 @@
 import { DataSource } from "typeorm";
 import Promo from "../../../entities/Promo";
 import { BaseRepository } from "./base";
-import { NotFoundError, BusinessError } from "../../../shared/errors/index";
+import { BusinessError } from "../../../shared/errors/index";
+import { applyPromoCodeInTransaction } from "../../../shared/promo/apply-promo-code.js";
 
 /**
  * Promo repository with promo code-specific operations.
@@ -46,28 +47,17 @@ export class PromoRepository extends BaseRepository<Promo> {
     userId: number,
     transaction?: DataSource
   ): Promise<number> {
-    const repo = transaction ? transaction.getRepository(Promo) : this.repository;
-    const promo = await repo.findOne({
-      where: { code: code.toLowerCase().trim() },
-    });
+    const run = async (manager: import("typeorm").EntityManager) => {
+      const applied = await applyPromoCodeInTransaction(manager, code, userId);
+      if (!applied) {
+        throw new BusinessError("Promo code not found or not available");
+      }
+      return applied.percent;
+    };
 
-    if (!promo) {
-      throw new BusinessError("Promo code not found");
+    if (transaction) {
+      return transaction.transaction(run);
     }
-
-    if (promo.uses >= promo.maxUses) {
-      throw new BusinessError("Promo code has reached maximum uses");
-    }
-
-    if (promo.users.includes(userId)) {
-      throw new BusinessError("Promo code already used by this user");
-    }
-
-    // Update promo
-    promo.uses += 1;
-    promo.users.push(userId);
-    await repo.save(promo);
-
-    return promo.sum;
+    return this.dataSource.transaction(run);
   }
 }
