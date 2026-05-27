@@ -113,6 +113,7 @@ import {
   acquireSingleInstanceLock,
   logDatabaseMode,
   validateProductionSecurity,
+  warnIfResellerApiUnconfigured,
 } from "./app/security-guards.js";
 import {
   adminCallbackGuardMiddleware,
@@ -586,7 +587,8 @@ async function index() {
 
   const { fluent, availableLocales } = await initFluent();
   const appDataSource = await getAppDataSource();
-  await reloadResellerAuthRuntime(appDataSource);
+  const resellerAuth = await reloadResellerAuthRuntime(appDataSource);
+  warnIfResellerApiUnconfigured(resellerAuth);
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");

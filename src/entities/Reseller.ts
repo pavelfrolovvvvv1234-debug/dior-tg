@@ -77,6 +77,14 @@ export default class Reseller {
   @Column({ type: "varchar", length: 64, nullable: true })
   signingSecretHash!: string | null;
 
+  /** Raw API HMAC signing secret (persisted for runtime reload; env JSON optional). */
+  @Column({ type: "varchar", length: 128, nullable: true })
+  apiSigningSecret!: string | null;
+
+  /** Raw outbound webhook HMAC secret. */
+  @Column({ type: "varchar", length: 128, nullable: true })
+  webhookSigningSecret!: string | null;
+
   @Column({ type: "simple-json", nullable: true })
   ipWhitelist!: string[] | null;
 

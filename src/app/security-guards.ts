@@ -21,9 +21,29 @@ function isWebhookMode(): boolean {
   }
 }
 
-function isResellerApiEnabled(): boolean {
+export function isResellerApiEnabled(): boolean {
   const v = process.env.RESELLER_API_ENABLED?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
+}
+
+/** Warn if reseller HTTP API is on but no credentials were loaded (non-fatal). */
+export function warnIfResellerApiUnconfigured(
+  maps: { keysByHash: Record<string, string>; signingSecrets: Record<string, string> }
+): void {
+  if (!isResellerApiEnabled()) return;
+  const keyCount = Object.keys(maps.keysByHash).length;
+  const signingCount = Object.keys(maps.signingSecrets).length;
+  if (keyCount === 0) {
+    Logger.warn(
+      "[Security] RESELLER_API_ENABLED=1 but no API keys loaded (create a partner in admin or set RESELLER_API_KEYS_JSON)"
+    );
+    return;
+  }
+  if (signingCount === 0) {
+    Logger.warn(
+      "[Security] RESELLER_API_ENABLED=1 but no signing secrets loaded (create/rotate partner in admin)"
+    );
+  }
 }
 
 /**
@@ -42,18 +62,6 @@ export function validateProductionSecurity(): void {
       throw new Error(msg);
     }
     Logger.warn(`[Security] ${msg}`);
-  }
-
-  if (isResellerApiEnabled()) {
-    const signing = process.env.RESELLER_API_SIGNING_SECRETS_JSON?.trim();
-    if (!signing || signing === "{}") {
-      const msg =
-        "RESELLER_API_SIGNING_SECRETS_JSON is required when RESELLER_API_ENABLED=1 (wrap JSON in single quotes in .env, e.g. RESELLER_API_SIGNING_SECRETS_JSON='{\"partner\":\"secret\"}')";
-      if (prod) {
-        throw new Error(msg);
-      }
-      Logger.warn(`[Security] ${msg}`);
-    }
   }
 
   if (prod && process.env.TYPEORM_SYNCHRONIZE?.trim().toLowerCase() === "true") {

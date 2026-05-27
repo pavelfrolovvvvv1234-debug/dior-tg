@@ -239,6 +239,10 @@ ars-btn-cancel = ✕ Cancel
 ars-btn-skip = Skip →
 ars-btn-confirm-rotate = Confirm
 ars-btn-rotate-key = ↻ API key
+ars-btn-show-signing = 🔏 Signing
+ars-show-signing-done = Signing secret for <code>{ $id }</code> (stored in DB):\n<code>{ $secret }</code>
+ars-show-signing-missing = No signing secret stored for <code>{ $id }</code>. Open partner profile after bot restart or rotate API key.
+ars-rotate-done-signing = Signing: <code>{ $secret }</code>
 ars-btn-suspend = Suspend
 ars-btn-activate = Activate
 

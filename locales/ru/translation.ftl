@@ -241,6 +241,10 @@ ars-btn-cancel = ✕ Отмена
 ars-btn-skip = Пропустить →
 ars-btn-confirm-rotate = Подтвердить
 ars-btn-rotate-key = ↻ API ключ
+ars-btn-show-signing = 🔏 Signing
+ars-show-signing-done = Signing secret для <code>{ $id }</code> (в БД):\n<code>{ $secret }</code>
+ars-show-signing-missing = Нет signing secret для <code>{ $id }</code>. Перезапусти бота (миграция) или открой профиль партнёра / ротируй API ключ.
+ars-rotate-done-signing = Signing: <code>{ $secret }</code>
 ars-btn-suspend = Заморозить
 ars-btn-activate = Активировать
 

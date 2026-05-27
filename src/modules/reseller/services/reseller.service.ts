@@ -44,6 +44,7 @@ export type CreateResellerResult = {
 export type RotateKeyResult = {
   apiKey: string;
   prefix: string;
+  signingSecret: string;
   envSnippet: string;
 };
 
@@ -109,8 +110,9 @@ export class ResellerService {
 
   buildEnvSnippet(resellerId: string, apiKey: string, signingSecret: string): string {
     return [
-      `# Add to /root/dior-tg/.env (merge into JSON maps):`,
+      `# Credentials are stored in the database — .env JSON maps are optional.`,
       `RESELLER_API_ENABLED=1`,
+      `# Optional legacy env: RESELLER_API_KEYS_JSON / RESELLER_API_SIGNING_SECRETS_JSON`,
       `# "${resellerId}": "${apiKey}"`,
       `# signing: "${signingSecret}"`,
     ].join("\n");
@@ -146,7 +148,9 @@ export class ResellerService {
     reseller.apiRatePerMinute = limits.apiRatePerMinute;
     reseller.referralCode = referralCode;
     reseller.signingSecretHash = signing.hash;
+    reseller.apiSigningSecret = signing.raw;
     reseller.webhookSecretHash = webhook.hash;
+    reseller.webhookSigningSecret = webhook.raw;
     reseller.ipWhitelist = [];
     reseller.lastActivityAt = new Date();
 
@@ -251,10 +255,16 @@ export class ResellerService {
       targetId: String(row.id),
     });
 
+    const signingSecret = reseller.apiSigningSecret?.trim() ?? "";
     return {
       apiKey: publicKey,
       prefix,
-      envSnippet: `${this.buildEnvSnippet(resellerId, publicKey, "<unchanged>")}\n# Signing secret unchanged`,
+      signingSecret,
+      envSnippet: this.buildEnvSnippet(
+        resellerId,
+        publicKey,
+        signingSecret || "<stored in database>"
+      ),
     };
   }
 

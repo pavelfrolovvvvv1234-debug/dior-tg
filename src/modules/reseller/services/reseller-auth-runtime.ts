@@ -1,6 +1,13 @@
 import type { DataSource } from "typeorm";
+import { resolveDatabaseKind } from "../../../infrastructure/db/datasource-options.js";
 import Reseller, { ResellerStatus } from "../../../entities/Reseller.js";
-import { sha256Hex } from "./reseller-crypto.js";
+import ResellerApiKey, { ResellerApiKeyStatus } from "../../../entities/ResellerApiKey.js";
+import { Logger } from "../../../app/logger.js";
+import {
+  generateSigningSecret,
+  generateWebhookSecret,
+  sha256Hex,
+} from "./reseller-crypto.js";
 
 export type ResellerAuthRuntimeMaps = {
   keysByResellerId: Record<string, string>;
@@ -88,6 +95,40 @@ function mergeEnvMaps(base: ResellerAuthRuntimeMaps): ResellerAuthRuntimeMaps {
   return out;
 }
 
+async function ensureResellerSecretsPersisted(
+  dataSource: DataSource,
+  reseller: Reseller
+): Promise<void> {
+  const repo = dataSource.getRepository(Reseller);
+  let changed = false;
+
+  let signing = reseller.apiSigningSecret?.trim() ?? "";
+  if (!signing && reseller.signingSecretHash) {
+    const generated = generateSigningSecret();
+    signing = generated.raw;
+    reseller.apiSigningSecret = signing;
+    reseller.signingSecretHash = generated.hash;
+    changed = true;
+    Logger.warn(
+      `[Reseller] Generated API signing secret for "${reseller.id}" (legacy row had hash only — partner must use the new secret)`
+    );
+  }
+
+  let webhook = reseller.webhookSigningSecret?.trim() ?? "";
+  if (!webhook && reseller.webhookSecretHash) {
+    const generated = generateWebhookSecret();
+    webhook = generated.raw;
+    reseller.webhookSigningSecret = webhook;
+    reseller.webhookSecretHash = generated.hash;
+    changed = true;
+    Logger.warn(
+      `[Reseller] Generated webhook secret for "${reseller.id}" (legacy row had hash only)`
+    );
+  }
+
+  if (changed) await repo.save(reseller);
+}
+
 export function registerRuntimeApiKey(resellerId: string, apiKey: string): void {
   pendingRuntime.keysByResellerId[resellerId] = apiKey;
   pendingRuntime.keysByHash[sha256Hex(apiKey)] = resellerId;
@@ -101,7 +142,36 @@ export function registerRuntimeWebhookSecret(resellerId: string, secret: string)
   pendingRuntime.webhookSecrets[resellerId] = secret;
 }
 
+async function ensureResellerSecretColumns(dataSource: DataSource): Promise<void> {
+  const runner = dataSource.createQueryRunner();
+  try {
+    const table = await runner.getTable("resellers");
+    if (!table) return;
+    const kind = resolveDatabaseKind();
+    if (!table.findColumnByName("apiSigningSecret")) {
+      const sql =
+        kind === "postgres"
+          ? `ALTER TABLE resellers ADD COLUMN "apiSigningSecret" varchar(128)`
+          : `ALTER TABLE resellers ADD COLUMN apiSigningSecret varchar(128)`;
+      await runner.query(sql);
+    }
+    if (!table.findColumnByName("webhookSigningSecret")) {
+      const sql =
+        kind === "postgres"
+          ? `ALTER TABLE resellers ADD COLUMN "webhookSigningSecret" varchar(128)`
+          : `ALTER TABLE resellers ADD COLUMN webhookSigningSecret varchar(128)`;
+      await runner.query(sql);
+    }
+  } catch (e) {
+    Logger.warn("[Reseller] Could not ensure secret columns on resellers table", e);
+  } finally {
+    await runner.release();
+  }
+}
+
 export async function reloadResellerAuthRuntime(dataSource: DataSource): Promise<ResellerAuthRuntimeMaps> {
+  await ensureResellerSecretColumns(dataSource);
+
   const maps: ResellerAuthRuntimeMaps = {
     keysByResellerId: { ...pendingRuntime.keysByResellerId },
     keysByHash: { ...pendingRuntime.keysByHash },
@@ -112,12 +182,30 @@ export async function reloadResellerAuthRuntime(dataSource: DataSource): Promise
     rateLimitPerMinute: { ...pendingRuntime.rateLimitPerMinute },
   };
 
+  const apiKeys = await dataSource.getRepository(ResellerApiKey).find({
+    where: { status: ResellerApiKeyStatus.Active },
+  });
+  for (const row of apiKeys) {
+    const hash = row.keyHash?.trim();
+    const rid = row.resellerId?.trim();
+    if (hash && rid) maps.keysByHash[hash] = rid;
+  }
+
   const resellers = await dataSource.getRepository(Reseller).find();
   for (const r of resellers) {
     if (r.status !== ResellerStatus.Active && r.status !== ResellerStatus.Pending) continue;
+
+    await ensureResellerSecretsPersisted(dataSource, r);
+
     if (r.webhookUrl) maps.webhooks[r.id] = r.webhookUrl;
     if (r.ipWhitelist?.length) maps.allowedIps[r.id] = r.ipWhitelist;
     if (r.apiRatePerMinute > 0) maps.rateLimitPerMinute[r.id] = r.apiRatePerMinute;
+
+    const signing = r.apiSigningSecret?.trim();
+    if (signing && signing.length >= 12) maps.signingSecrets[r.id] = signing;
+
+    const webhookSecret = r.webhookSigningSecret?.trim();
+    if (webhookSecret) maps.webhookSecrets[r.id] = webhookSecret;
   }
 
   cache = mergeEnvMaps(maps);

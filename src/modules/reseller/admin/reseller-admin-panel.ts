@@ -211,7 +211,8 @@ async function buildResellerDetail(
 
   const kb = new InlineKeyboard();
   if (canResellerAdmin((await ctx.session).main.user.role, "api_key.rotate")) {
-    kb.text(ctx.t("ars-btn-rotate-key"), `ars:kr:${resellerId}`).row();
+    kb.text(ctx.t("ars-btn-rotate-key"), `ars:kr:${resellerId}`);
+    kb.text(ctx.t("ars-btn-show-signing"), `ars:sg:${resellerId}`).row();
   }
   if (reseller?.status === ResellerStatus.Active && canResellerAdmin((await ctx.session).main.user.role, "reseller.suspend")) {
     kb.text(ctx.t("ars-btn-suspend"), `ars:sus:${resellerId}`);
@@ -362,6 +363,25 @@ export function registerResellerAdminHandlers(bot: Bot<AppContext>): void {
     await safeEdit(ctx, text, keyboard);
   });
 
+  bot.callbackQuery(/^ars:sg:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    if (!(await guard(ctx, "api_key.rotate"))) return;
+    const resellerId = ctx.match![1];
+    const repo = ctx.appDataSource.getRepository(Reseller);
+    const reseller = await repo.findOneBy({ id: resellerId });
+    if (!reseller?.apiSigningSecret?.trim()) {
+      await ctx.reply(ctx.t("ars-show-signing-missing", { id: escapeUserInput(resellerId) }));
+      return;
+    }
+    await ctx.reply(
+      ctx.t("ars-show-signing-done", {
+        id: escapeUserInput(resellerId),
+        secret: escapeUserInput(reseller.apiSigningSecret.trim()),
+      }),
+      { parse_mode: "HTML" }
+    );
+  });
+
   bot.callbackQuery(/^ars:kr:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     if (!(await guard(ctx, "api_key.rotate"))) return;
@@ -389,6 +409,9 @@ export function registerResellerAdminHandlers(bot: Bot<AppContext>): void {
           ctx.t("ars-rotate-done-title"),
           ctx.t("ars-rotate-done-reseller", { id: escapeUserInput(resellerId) }),
           ctx.t("ars-rotate-done-key", { key: escapeUserInput(result.apiKey) }),
+          ...(result.signingSecret
+            ? [ctx.t("ars-rotate-done-signing", { secret: escapeUserInput(result.signingSecret) })]
+            : []),
           "",
           "<pre>" + escapeUserInput(result.envSnippet) + "</pre>",
         ].join("\n"),
