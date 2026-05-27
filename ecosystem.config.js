@@ -2,6 +2,7 @@ module.exports = {
   apps: [
     {
       name: "dior-host-bot",
+      cwd: __dirname,
       script: "dist/index.js",
       interpreter: "node",
       interpreter_args: "--no-deprecation",
