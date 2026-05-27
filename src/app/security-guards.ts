@@ -48,7 +48,7 @@ export function validateProductionSecurity(): void {
     const signing = process.env.RESELLER_API_SIGNING_SECRETS_JSON?.trim();
     if (!signing || signing === "{}") {
       const msg =
-        "RESELLER_API_SIGNING_SECRETS_JSON is required when RESELLER_API_ENABLED=1 (HMAC mandatory)";
+        "RESELLER_API_SIGNING_SECRETS_JSON is required when RESELLER_API_ENABLED=1 (wrap JSON in single quotes in .env, e.g. RESELLER_API_SIGNING_SECRETS_JSON='{\"partner\":\"secret\"}')";
       if (prod) {
         throw new Error(msg);
       }
