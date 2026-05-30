@@ -45,6 +45,13 @@ export function sanitizeErrorForUser(error: unknown): string {
 
     const lower = msg.toLowerCase();
     if (
+      lower.includes("locking is not supported") ||
+      lower.includes("блокировка не поддерживается") ||
+      lower.includes("locknotsupported")
+    ) {
+      return GENERIC_BUSY;
+    }
+    if (
       lower.includes("sqlite") ||
       lower.includes("typeorm") ||
       lower.includes("econnrefused") ||

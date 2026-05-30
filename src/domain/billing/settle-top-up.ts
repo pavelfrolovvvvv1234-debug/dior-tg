@@ -6,6 +6,7 @@
 
 import { IsNull } from "typeorm";
 import { getAppDataSource } from "../../infrastructure/db/datasource.js";
+import { pessimisticWriteLock } from "../../infrastructure/db/row-lock.js";
 import { withSqliteBusyRetry } from "../../infrastructure/db/sqlite-config.js";
 import TopUp, { TopUpStatus } from "../../entities/TopUp.js";
 import User from "../../entities/User.js";
@@ -35,7 +36,7 @@ export async function settleTopUpBalance(
 
       const user = await em.findOne(User, {
         where: { id: topUp.target_user_id },
-        lock: { mode: "pessimistic_write" },
+        ...pessimisticWriteLock(),
       });
       if (!user) {
         Logger.error("[SettleTopUp] user missing for TopUp", {

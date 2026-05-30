@@ -6,6 +6,7 @@
 
 import type { DataSource } from "typeorm";
 import User from "../../entities/User.js";
+import { pessimisticWriteLock } from "../../infrastructure/db/row-lock.js";
 import { BusinessError, NotFoundError } from "../errors/index.js";
 import { withSqliteBusyRetry } from "../../infrastructure/db/sqlite-config.js";
 
@@ -22,7 +23,7 @@ export async function deductUserBalance(
       const userRepo = em.getRepository(User);
       const user = await userRepo.findOne({
         where: { id: userId },
-        lock: { mode: "pessimistic_write" },
+        ...pessimisticWriteLock(),
       });
       if (!user) {
         throw new NotFoundError("User", userId);
@@ -51,7 +52,7 @@ export async function refundUserBalance(
       const userRepo = em.getRepository(User);
       const user = await userRepo.findOne({
         where: { id: userId },
-        lock: { mode: "pessimistic_write" },
+        ...pessimisticWriteLock(),
       });
       if (!user) {
         throw new NotFoundError("User", userId);

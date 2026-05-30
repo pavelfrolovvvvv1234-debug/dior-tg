@@ -5,6 +5,7 @@
  */
 
 import type { EntityManager } from "typeorm";
+import { pessimisticWriteLock } from "../../infrastructure/db/row-lock.js";
 import Promo from "../../entities/Promo.js";
 import User from "../../entities/User.js";
 import {
@@ -33,7 +34,7 @@ export async function applyPromoCodeInTransaction(
 
   const promo = await promoRepo.findOne({
     where: { code: normalizedCode },
-    lock: { mode: "pessimistic_write" },
+    ...pessimisticWriteLock(),
   });
 
   if (!promo || !promo.isActive || promo.uses >= promo.maxUses) {
@@ -46,7 +47,7 @@ export async function applyPromoCodeInTransaction(
 
   const user = await usersRepo.findOne({
     where: { id: userId },
-    lock: { mode: "pessimistic_write" },
+    ...pessimisticWriteLock(),
   });
   if (!user) {
     return null;

@@ -5,6 +5,7 @@
  */
 
 import { DataSource } from "typeorm";
+import { pessimisticWriteLock } from "../../infrastructure/db/row-lock.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import User from "../../entities/User.js";
 import ReferralReward from "../../entities/ReferralReward.js";
@@ -180,7 +181,7 @@ export class ReferralService {
 
       const existingReward = await rewardRepo.findOne({
         where: { topUpId: topUpId },
-        lock: { mode: "pessimistic_write" },
+        ...pessimisticWriteLock(),
       });
 
       if (existingReward) {
