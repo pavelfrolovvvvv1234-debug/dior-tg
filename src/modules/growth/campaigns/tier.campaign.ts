@@ -10,15 +10,15 @@ import type { DataSource } from "typeorm";
 import { getOffer, setOffer } from "../storage.js";
 import type { UserTier } from "../types.js";
 import { TIER_THRESHOLDS } from "../types.js";
-import User from "../../../entities/User.js";
 import TopUp, { TopUpStatus } from "../../../entities/TopUp.js";
+import { getLazyFluent, pickLocale } from "../../../shared/i18n/lazy-fluent.js";
 
 const TIER_LAST_KEY = "growth_tier_last:";
 
-const TIER_MESSAGES: Record<Exclude<UserTier, "bronze">, string> = {
-  silver: "Вы перешли в Silver. Теперь +3% к каждому пополнению.",
-  gold: "Вы перешли в Gold. Теперь +5% к каждому пополнению.",
-  platinum: "Вы перешли в Platinum. Теперь +7% к каждому пополнению и приоритетная поддержка.",
+const TIER_MESSAGE_KEYS: Record<Exclude<UserTier, "bronze">, string> = {
+  silver: "growth-tier-silver",
+  gold: "growth-tier-gold",
+  platinum: "growth-tier-platinum",
 };
 
 function getTierByLtv(ltv: number): UserTier {
@@ -55,7 +55,8 @@ export interface TierUpgradeInfo {
 export async function getTierUpgradeInfo(
   dataSource: DataSource,
   userId: number,
-  newLtvAfterTopUp: number
+  newLtvAfterTopUp: number,
+  locale?: string | null
 ): Promise<TierUpgradeInfo | null> {
   const newTier = getTierByLtv(newLtvAfterTopUp);
   if (newTier === "bronze") return null;
@@ -67,8 +68,10 @@ export async function getTierUpgradeInfo(
   const newIdx = tierOrder.indexOf(newTier);
   if (newIdx <= prevIdx) return null;
   await setOffer(key, newTier, 365 * 24 * 60 * 60);
+  const t = await getLazyFluent();
+  const loc = pickLocale(locale);
   return {
-    message: TIER_MESSAGES[newTier],
+    message: t(loc, TIER_MESSAGE_KEYS[newTier]),
     newTier,
     previousTier: prevTier,
     cumulativeDeposit: newLtvAfterTopUp,

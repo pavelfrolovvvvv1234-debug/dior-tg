@@ -56,6 +56,9 @@ jobs:
       - name: Test TypeScript compilation
         run: npm run typecheck
 
+      - name: Run unit tests
+        run: npm test
+
       - name: Test build
         run: npm run build
 

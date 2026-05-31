@@ -773,8 +773,16 @@ export async function createBot(): Promise<{
   let onGraceDayCheck: import("../domain/services/ExpirationService.js").OnGraceDayCheck | undefined;
   try {
     const { maybeSendGraceDay2OrDay3 } = await import("../modules/growth/campaigns/index.js");
-    onGraceDayCheck = (vdsId, userId, telegramId, payDayAt) =>
-      maybeSendGraceDay2OrDay3(vdsId, userId, telegramId, payDayAt, sendGrowthMessage);
+    onGraceDayCheck = (vdsId, userId, telegramId, payDayAt, locale) =>
+      maybeSendGraceDay2OrDay3(
+        vdsId,
+        userId,
+        telegramId,
+        payDayAt,
+        locale,
+        sendGrowthMessage,
+        (loc, key) => fluent.translate(loc, key)
+      );
   } catch {
     // optional
   }

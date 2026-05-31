@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import {
   filterAndSortOsTemplatesForVpsPicker,
   humanizeVmmOsName,
@@ -26,34 +27,30 @@ describe("filterAndSortOsTemplatesForVpsPicker", () => {
     ];
 
     const sorted = filterAndSortOsTemplatesForVpsPicker(list);
-    expect(sorted.map((o) => o.name)).toEqual([
-      "ubuntu2404",
-      "centosstream9",
-      "ubuntu2204",
-      "fedora41",
-      "debian11",
-      "winserver2019",
-    ]);
+    assert.deepEqual(
+      sorted.map((o) => o.name),
+      ["ubuntu2404", "centosstream9", "ubuntu2204", "fedora41", "debian11", "winserver2019"]
+    );
   });
 
   it("respects allowedIds when provided", () => {
-    const list = [
-      mockOs("ubuntu2404", 10),
-      mockOs("ubuntu2204", 11),
-    ];
+    const list = [mockOs("ubuntu2404", 10), mockOs("ubuntu2204", 11)];
     const sorted = filterAndSortOsTemplatesForVpsPicker(list, {
       allowedIds: new Set([11]),
     });
-    expect(sorted.map((o) => o.id)).toEqual([11]);
+    assert.deepEqual(
+      sorted.map((o) => o.id),
+      [11]
+    );
   });
 });
 
 describe("humanizeVmmOsName", () => {
   it("uses catalog labels for stream CentOS and Windows desktop", () => {
-    expect(humanizeVmmOsName("centos9")).toBe("CentOS Stream 9");
-    expect(humanizeVmmOsName("centosstream8")).toBe("CentOS Stream 8");
-    expect(humanizeVmmOsName("winserver2012r2")).toBe("Windows Server 2012 R2");
-    expect(humanizeVmmOsName("windows11")).toBe("Windows 11 Pro");
-    expect(humanizeVmmOsName("fedora42")).toBe("Fedora (latest)");
+    assert.equal(humanizeVmmOsName("centos9"), "CentOS Stream 9");
+    assert.equal(humanizeVmmOsName("centosstream8"), "CentOS Stream 8");
+    assert.equal(humanizeVmmOsName("winserver2012r2"), "Windows Server 2012 R2");
+    assert.equal(humanizeVmmOsName("windows11"), "Windows 11 Pro");
+    assert.equal(humanizeVmmOsName("fedora42"), "Fedora (latest)");
   });
 });

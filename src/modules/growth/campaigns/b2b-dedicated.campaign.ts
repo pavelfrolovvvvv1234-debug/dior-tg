@@ -12,13 +12,13 @@ import User from "../../../entities/User.js";
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
 import TopUp, { TopUpStatus } from "../../../entities/TopUp.js";
 import { Logger } from "../../../app/logger.js";
+import { growthMessage } from "./localized-message.js";
 
 const B2B_COOLDOWN_KEY = "growth_b2b:";
 const B2B_COOLDOWN_SEC = 14 * 24 * 60 * 60; // 14 days
 const MIN_VDS_COUNT = 2;
 const MIN_TOTAL_DEPOSIT = 1000;
-const MESSAGE =
-  "Рассмотрите выделенный сервер. Выгода до 18% по сравнению с текущими расходами.";
+const MESSAGE_KEY = "growth-b2b";
 
 /**
  * Find users with 2+ active VDS and total completed top-ups > 1000.
@@ -58,9 +58,9 @@ export async function runB2BDedicatedCampaign(
         if (!Number.isNaN(ts) && Date.now() - ts * 1000 < B2B_COOLDOWN_SEC * 1000) continue;
       }
       if (!(await canSendCommercialPush(userId))) continue;
-      const user = await userRepo.findOne({ where: { id: userId }, select: ["telegramId"] });
+      const user = await userRepo.findOne({ where: { id: userId }, select: ["telegramId", "lang"] });
       if (!user?.telegramId) continue;
-      await sendMessage(user.telegramId, MESSAGE);
+      await sendMessage(user.telegramId, await growthMessage(user.lang, MESSAGE_KEY));
       await setOffer(key, String(Math.floor(Date.now() / 1000)), B2B_COOLDOWN_SEC);
       await markCommercialPushSent(userId);
       sent++;

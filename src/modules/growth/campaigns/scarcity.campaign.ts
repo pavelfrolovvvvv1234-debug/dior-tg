@@ -11,10 +11,11 @@ import { getOffer, setOffer } from "../storage.js";
 import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limiter.js";
 import User from "../../../entities/User.js";
 import { Logger } from "../../../app/logger.js";
+import { growthMessage } from "./localized-message.js";
 
 const SCARCITY_COOLDOWN_KEY = "growth_scarcity:";
 const SCARCITY_COOLDOWN_SEC = 30 * 24 * 60 * 60; // ~1 month
-const MESSAGE = "Закрываем месяц. +12% бонус к пополнению до 23:59.";
+const MESSAGE_KEY = "growth-scarcity";
 
 function isLastDaysOfMonth(): boolean {
   const now = new Date();
@@ -37,7 +38,7 @@ export async function runScarcityCampaign(
   const users = await userRepo
     .createQueryBuilder("u")
     .where("u.isBanned = 0")
-    .select(["u.id", "u.telegramId"])
+    .select(["u.id", "u.telegramId", "u.lang"])
     .take(limit)
     .getMany();
   let sent = 0;
@@ -50,7 +51,7 @@ export async function runScarcityCampaign(
         if (!Number.isNaN(ts) && Date.now() - ts * 1000 < SCARCITY_COOLDOWN_SEC * 1000) continue;
       }
       if (!(await canSendCommercialPush(u.id))) continue;
-      await sendMessage(u.telegramId, MESSAGE);
+      await sendMessage(u.telegramId, await growthMessage(u.lang, MESSAGE_KEY));
       await setOffer(key, String(Math.floor(Date.now() / 1000)), SCARCITY_COOLDOWN_SEC);
       await markCommercialPushSent(u.id);
       sent++;

@@ -11,12 +11,23 @@ import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limi
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
 import User from "../../../entities/User.js";
 import { Logger } from "../../../app/logger.js";
+import { InlineKeyboard } from "grammy";
+import { growthMessage } from "./localized-message.js";
+import type { GrowthSendMessageFn } from "./send-message.js";
+
+function buildNpsKeyboard(): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  for (let i = 1; i <= 5; i++) {
+    kb.text(String(i), `nps:${i}`);
+  }
+  return kb;
+}
 
 const NPS_DAYS_AFTER_VDS = 14;
 const NPS_SENT_KEY = "growth_nps_sent:";
 const NPS_COOLDOWN_SEC = 365 * 24 * 60 * 60; // 1 year per user
-const MESSAGE_REQUEST = "Оцените сервис от 1 до 5.";
-const MESSAGE_FOLLOWUP = "Спасибо. Реферальная программа и годовая скидка -10% — в боте.";
+const MESSAGE_REQUEST_KEY = "growth-nps-request";
+const MESSAGE_FOLLOWUP_KEY = "growth-nps-followup";
 
 /**
  * Find users whose first VDS was created exactly ~14 days ago; send NPS request if not sent yet.
@@ -24,7 +35,7 @@ const MESSAGE_FOLLOWUP = "Спасибо. Реферальная програм�
  */
 export async function runNpsCampaign(
   dataSource: DataSource,
-  sendMessage: (telegramId: number, text: string) => Promise<void>,
+  sendMessage: GrowthSendMessageFn,
   limit: number = 200
 ): Promise<number> {
   const vdsRepo = dataSource.getRepository(VirtualDedicatedServer);
@@ -45,9 +56,11 @@ export async function runNpsCampaign(
       const key = `${NPS_SENT_KEY}${row.userId}`;
       if (await getOffer(key)) continue;
       if (!(await canSendCommercialPush(row.userId))) continue;
-      const user = await userRepo.findOne({ where: { id: row.userId }, select: ["telegramId"] });
+      const user = await userRepo.findOne({ where: { id: row.userId }, select: ["telegramId", "lang"] });
       if (!user?.telegramId) continue;
-      await sendMessage(user.telegramId, MESSAGE_REQUEST);
+      await sendMessage(user.telegramId, await growthMessage(user.lang, MESSAGE_REQUEST_KEY), {
+        replyMarkup: buildNpsKeyboard(),
+      });
       await setOffer(key, "1", NPS_COOLDOWN_SEC);
       await markCommercialPushSent(row.userId);
       sent++;
@@ -58,6 +71,6 @@ export async function runNpsCampaign(
   return sent;
 }
 
-export function getNpsFollowupMessage(): string {
-  return MESSAGE_FOLLOWUP;
+export async function getNpsFollowupMessage(locale?: string | null): Promise<string> {
+  return growthMessage(locale, MESSAGE_FOLLOWUP_KEY);
 }

@@ -127,7 +127,7 @@ import { InlineKeyboard } from "grammy";
 import {
   bundleManageServicesMenu,
   domainManageServicesMenu,
-  manageSerivcesMenu,
+  manageServicesMenu,
   vdsManageServiceMenu,
   vdsManageSpecific,
   vdsReinstallOs,
@@ -670,6 +670,13 @@ async function index() {
   const vmmanager = createVmProvider();
   startResellerApiServer({ dataSource: appDataSource, vmProvider: vmmanager, botApi: bot.api });
 
+  const { createTelegramGrowthSender } = await import(
+    "./modules/growth/campaigns/send-message.js"
+  );
+  const sendGrowthMessage = createTelegramGrowthSender((telegramId, text, extra) =>
+    bot.api.sendMessage(telegramId, text, extra)
+  );
+
   {
     const { ExpirationService } = await import("./domain/services/ExpirationService.js");
     let onGracePeriodStarted: import("./domain/services/ExpirationService.js").OnGracePeriodStarted | undefined;
@@ -687,10 +694,16 @@ async function index() {
     let onGraceDayCheck: import("./domain/services/ExpirationService.js").OnGraceDayCheck | undefined;
     try {
       const { maybeSendGraceDay2OrDay3 } = await import("./modules/growth/campaigns/index.js");
-      const sendGrowthMessage = (telegramId: number, text: string): Promise<void> =>
-        bot.api.sendMessage(telegramId, text, { parse_mode: "HTML" }).then(() => {});
-      onGraceDayCheck = (vdsId, userId, telegramId, payDayAt) =>
-        maybeSendGraceDay2OrDay3(vdsId, userId, telegramId, payDayAt, sendGrowthMessage);
+      onGraceDayCheck = (vdsId, userId, telegramId, payDayAt, locale) =>
+        maybeSendGraceDay2OrDay3(
+          vdsId,
+          userId,
+          telegramId,
+          payDayAt,
+          locale,
+          sendGrowthMessage,
+          (loc, key) => fluent.translate(loc, key)
+        );
     } catch {
       /* optional */
     }
@@ -713,6 +726,93 @@ async function index() {
   } catch (notificationErr) {
     Logger.warn("Notification engine not started", notificationErr);
   }
+
+  let stopAutomationHandler: (() => void) | undefined;
+  let stopDueStepsCron: (() => void) | undefined;
+  let stopScheduleRunner: (() => void) | undefined;
+  let stopReactivation: (() => void) | undefined;
+  let stopCampaignsCron: (() => void) | undefined;
+  let stopHealthServer: (() => void) | undefined;
+
+  try {
+    const { setupAutomationEventHandler } = await import(
+      "./modules/automations/integration/event-handler.js"
+    );
+    stopAutomationHandler = setupAutomationEventHandler(appDataSource, bot as never);
+    Logger.info("Automation event handler started");
+
+    const sendAutomationMessage = async (
+      tid: number,
+      text: string,
+      buttons?: Array<{ text: string; url?: string; callback_data?: string }>
+    ): Promise<void> => {
+      const extra: { parse_mode: "HTML"; reply_markup?: import("grammy").InlineKeyboard } = {
+        parse_mode: "HTML",
+      };
+      if (buttons?.length) {
+        const { InlineKeyboard } = await import("grammy");
+        const kb = new InlineKeyboard();
+        for (const b of buttons) {
+          if (b.url) kb.url(b.text, b.url);
+          else if (b.callback_data) kb.text(b.text, b.callback_data);
+        }
+        extra.reply_markup = kb;
+      }
+      await bot.api.sendMessage(tid, text, extra).catch(() => {});
+    };
+
+    const { runDueMultiSteps } = await import("./modules/automations/engine/index.js");
+    const dueStepsTick = () => {
+      runDueMultiSteps(appDataSource, sendAutomationMessage).then((n) => {
+        if (n > 0) Logger.info(`[Automations] Due steps sent: ${n}`);
+      });
+    };
+    const dueStepsIntervalId = setInterval(dueStepsTick, 30 * 60 * 1000);
+    dueStepsTick();
+    stopDueStepsCron = () => clearInterval(dueStepsIntervalId);
+    Logger.info("Automation due-steps cron started (30m)");
+
+    const { startScheduleRunner } = await import(
+      "./modules/automations/integration/schedule-runner.js"
+    );
+    stopScheduleRunner = startScheduleRunner(appDataSource, bot as never);
+    Logger.info("Automation schedule runner started");
+  } catch (automationErr) {
+    Logger.warn("Automation event handler not started", automationErr);
+  }
+
+  try {
+    const { startReactivationCron } = await import("./modules/growth/growth.module.js");
+    stopReactivation = await startReactivationCron(appDataSource, sendGrowthMessage);
+    Logger.info("Growth reactivation cron started");
+
+    const { runAllCampaignsCron } = await import("./modules/growth/campaigns/index.js");
+    const campaignIntervalMs = 24 * 60 * 60 * 1000;
+    const campaignsTick = () => {
+      runAllCampaignsCron(appDataSource, sendGrowthMessage).then((r) => {
+        const total = Object.values(r).reduce((a, b) => a + b, 0);
+        if (total > 0) Logger.info("[Growth] Campaigns cron sent", r);
+      });
+    };
+    const campaignIntervalId = setInterval(campaignsTick, campaignIntervalMs);
+    campaignsTick();
+    stopCampaignsCron = () => clearInterval(campaignIntervalId);
+    Logger.info("Growth campaigns cron started (24h)");
+  } catch (growthCronErr) {
+    Logger.warn("Growth reactivation/campaigns not started", growthCronErr);
+  }
+
+  const shutdownBackgroundJobs = (): void => {
+    stopAutomationHandler?.();
+    stopDueStepsCron?.();
+    stopScheduleRunner?.();
+    stopReactivation?.();
+    stopCampaignsCron?.();
+    stopNotificationEngine?.();
+    stopHealthServer?.();
+  };
+  process.once("SIGINT", shutdownBackgroundJobs);
+  process.once("SIGTERM", shutdownBackgroundJobs);
 
   startOsListBackgroundRefresh(vmmanager);
 
@@ -1081,7 +1181,7 @@ async function index() {
   bot.use(ticketViewMenu);
   bot.use(servicesMenu);
   bot.use(profileMenu);
-  bot.use(manageSerivcesMenu);
+  bot.use(manageServicesMenu);
   bot.use(domainsMenu);
   bot.use(vdsMenu);
   bot.use(dedicatedTypeMenu);
@@ -1182,7 +1282,7 @@ async function index() {
     if (dedicatedModule?.dedicatedMenu) {
       bot.use(dedicatedModule.dedicatedMenu as any);
       dedicatedTypeMenu.register(dedicatedModule.dedicatedMenu, "dedicated-type-menu");
-      manageSerivcesMenu.register(dedicatedModule.dedicatedMenu, "manage-services-menu");
+      manageServicesMenu.register(dedicatedModule.dedicatedMenu, "manage-services-menu");
       console.log("[Bot] Dedicated menu registered via bot.use()");
     }
   } catch (error: any) {
@@ -2820,18 +2920,48 @@ async function index() {
   });
 
   // Register bot commands in Telegram menu (after all commands are registered)
-  bot.api.setMyCommands([
-    { command: "start", description: "Главное меню" },
-    { command: "balance", description: "Проверить баланс" },
-    { command: "services", description: "Услуги" },
-  ]).catch((error) => {
-    console.error("Failed to set bot commands:", error);
+  const { registerBotCommandMenu } = await import("./ui/commands/register-bot-commands.js");
+  await registerBotCommandMenu(bot, fluent);
+
+  bot.callbackQuery(/^exp:topup$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    session.other.deposit.prefilledAmount = false;
+    session.other.deposit.selectedAmount = 50;
+    session.other.deposit.awaitingAmount = false;
+    session.main.lastSumDepositsEntered = 0;
+    await ctx.reply(ctx.t("topup-select-method"), {
+      reply_markup: topupMethodMenu,
+      parse_mode: "HTML",
+    });
+  });
+
+  bot.callbackQuery(/^exp:vds:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const match = ctx.callbackQuery?.data?.match(/^exp:vds:(\d+)$/);
+    const vdsId = match ? Number.parseInt(match[1], 10) : NaN;
+    if (!Number.isFinite(vdsId)) return;
+    const session = (await ctx.session) as SessionData;
+    session.other.manageVds = session.other.manageVds ?? {
+      expandedId: null,
+      lastPickedId: null,
+      showPassword: false,
+      pendingRenewMonths: null,
+    };
+    session.other.manageVds.expandedId = vdsId;
+    session.other.manageVds.lastPickedId = vdsId;
+    (session.other.manageVds as { panelMode?: string }).panelMode = "main";
+    const { vdsManageServiceMenu } = await import("./helpers/manage-services.js");
+    await ctx.reply(ctx.t("vds-manage-title"), {
+      reply_markup: vdsManageServiceMenu,
+      parse_mode: "HTML",
+    });
   });
 
   mainMenu.register(supportMenu, "main-menu");
   mainMenu.register(profileMenu, "main-menu");
   mainMenu.register(servicesMenu, "main-menu");
-  mainMenu.register(manageSerivcesMenu, "main-menu");
+  mainMenu.register(manageServicesMenu, "main-menu");
   
   // Register referrals menu in main menu
   try {
@@ -2857,9 +2987,9 @@ async function index() {
     }
   }
 
-  manageSerivcesMenu.register(domainManageServicesMenu, "manage-services-menu");
-  manageSerivcesMenu.register(vdsManageServiceMenu, "manage-services-menu");
-  manageSerivcesMenu.register(bundleManageServicesMenu, "manage-services-menu");
+  manageServicesMenu.register(domainManageServicesMenu, "manage-services-menu");
+  manageServicesMenu.register(vdsManageServiceMenu, "manage-services-menu");
+  manageServicesMenu.register(bundleManageServicesMenu, "manage-services-menu");
   // CDN menu is registered under services-menu only; manage services opens it via .text() + reply_markup
   // Register bundles menu
   try {
@@ -3423,6 +3553,9 @@ async function index() {
       console.info("[Dior Host Bot]: Starting in webhook mode");
       const app = express();
 
+      const { registerHealthRoute } = await import("./infrastructure/http/register-health-route.js");
+      registerHealthRoute(app);
+
       app.use(
         express.json({
           verify: (req: Request, _res: Response, buf: Buffer) => {
@@ -3430,14 +3563,48 @@ async function index() {
           },
         })
       );
+
+      const corsOrigin = process.env.CORS_ORIGIN ?? "*";
+      app.use("/api/admin/automations", (req: Request, res: Response, next: NextFunction) => {
+        res.setHeader("Access-Control-Allow-Origin", corsOrigin);
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-API-Key, Authorization");
+        if (req.method === "OPTIONS") {
+          res.sendStatus(204);
+          return;
+        }
+        const apiKey = process.env.ADMIN_API_KEY?.trim();
+        if (!apiKey) {
+          res.status(503).json({ error: "Admin API disabled: set ADMIN_API_KEY" });
+          return;
+        }
+        const key = req.get("X-Admin-API-Key") ?? req.get("Authorization")?.replace(/^Bearer\s+/i, "");
+        if (key !== apiKey) {
+          res.status(401).json({ error: "Unauthorized" });
+          return;
+        }
+        next();
+      });
+
       app.post("/webhooks/cryptopay", (req: Request, res: Response) =>
         handleCryptoPayWebhook(req, res, bot)
       );
 
+      try {
+        const { createAutomationsRouter } = await import("./api/admin/automations-routes.js");
+        app.use("/api/admin/automations", createAutomationsRouter({ getBot: () => bot }));
+      } catch (adminApiErr) {
+        console.warn("[Bot] Admin automations API not mounted", adminApiErr);
+      }
+
       const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
       if (webhookSecret) {
         app.use((req: Request, res: Response, next: NextFunction) => {
-          if (req.path.startsWith("/webhooks/cryptopay")) {
+          if (
+            req.path.startsWith("/webhooks/cryptopay") ||
+            req.path.startsWith("/api/admin") ||
+            req.path === "/health"
+          ) {
             return next();
           }
           const token = req.get("x-telegram-bot-api-secret-token");
@@ -3468,6 +3635,14 @@ async function index() {
       }
       // Delete webhook anyway in this way :)
       await bot.api.deleteWebhook();
+
+      const healthPort = process.env.PORT_WEBHOOK?.trim();
+      if (healthPort) {
+        const { startHealthServer } = await import(
+          "./infrastructure/http/start-health-server.js"
+        );
+        stopHealthServer = startHealthServer(Number(healthPort));
+      }
 
       bot.catch((err) => {
         if (isIgnoredTelegramBotNoise(err)) {

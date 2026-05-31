@@ -9,9 +9,9 @@ import type { DataSource } from "typeorm";
 import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limiter.js";
 import User from "../../../entities/User.js";
 import { Logger } from "../../../app/logger.js";
+import { growthMessage } from "./localized-message.js";
 
-const MESSAGE =
-  "Рекомендуем подключить мониторинг + авто-ребут. Бесплатно 7 дней.";
+const MESSAGE_KEY = "growth-incident-upsell";
 
 /**
  * Call when incident webhook fires for a VDS. Send technical notice (caller) + this upsell if user hasn't had commercial push in 72h.
@@ -24,9 +24,9 @@ export async function sendIncidentUpsell(
   try {
     if (!(await canSendCommercialPush(userId))) return false;
     const userRepo = dataSource.getRepository(User);
-    const user = await userRepo.findOne({ where: { id: userId }, select: ["telegramId"] });
+    const user = await userRepo.findOne({ where: { id: userId }, select: ["telegramId", "lang"] });
     if (!user?.telegramId) return false;
-    await sendMessage(user.telegramId, MESSAGE);
+    await sendMessage(user.telegramId, await growthMessage(user.lang, MESSAGE_KEY));
     await markCommercialPushSent(userId);
     return true;
   } catch (e) {

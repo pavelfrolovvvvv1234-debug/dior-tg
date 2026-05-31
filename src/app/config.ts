@@ -71,6 +71,21 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+
+  // Optional integrations
+  ADMIN_API_KEY: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  PAYMENT_CRYPTOBOT_TOKEN: z.string().optional(),
+  PAYMENT_CRYPTO_PAY_TOKEN: z.string().optional(),
+  DATABASE_URL: z.string().optional(),
+  DATABASE_PATH: z.string().optional(),
+  REDIS_URL: z.string().optional(),
+  AMPER_API_BASE_URL: z.string().optional(),
+  AMPER_API_TOKEN: z.string().optional(),
+  CORS_ORIGIN: z.string().optional(),
+  TYPEORM_SYNCHRONIZE: z.string().optional(),
+  RESELLER_API_ENABLED: z.string().optional(),
+  PAYMENT_POLL_MS: z.string().optional(),
 });
 
 /**

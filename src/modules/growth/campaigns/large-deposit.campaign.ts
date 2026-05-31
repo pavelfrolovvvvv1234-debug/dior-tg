@@ -7,15 +7,14 @@
 
 import type { DataSource } from "typeorm";
 import { getOffer, setOffer, deleteOffer } from "../storage.js";
-import User from "../../../entities/User.js";
 import { Logger } from "../../../app/logger.js";
+import { getLazyFluent, pickLocale } from "../../../shared/i18n/lazy-fluent.js";
 
 const LARGE_DEPOSIT_THRESHOLD = 300;
 const LARGE_DEPOSIT_FOLLOW_AMOUNT = 200;
 const LARGE_DEPOSIT_TTL_SEC = 24 * 60 * 60; // 24h
 const LARGE_DEPOSIT_OFFER_KEY = "growth_large_deposit_offer:";
-const MESSAGE =
-  "Спасибо за крупное пополнение. Хотите закрепить бонус +3% навсегда? Пополните ещё $200 в течение 24ч.";
+const MESSAGE_KEY = "growth-large-deposit";
 
 export interface LargeDepositResult {
   shouldSendMessage: boolean;
@@ -30,7 +29,8 @@ export interface LargeDepositResult {
 export async function handleLargeDeposit(
   dataSource: DataSource,
   userId: number,
-  amount: number
+  amount: number,
+  locale?: string | null
 ): Promise<LargeDepositResult> {
   const key = `${LARGE_DEPOSIT_OFFER_KEY}${userId}`;
   const existing = await getOffer(key);
@@ -45,7 +45,8 @@ export async function handleLargeDeposit(
   if (amount >= LARGE_DEPOSIT_THRESHOLD) {
     const offer = { expiresAt: Math.floor(Date.now() / 1000) + LARGE_DEPOSIT_TTL_SEC };
     await setOffer(key, JSON.stringify(offer), LARGE_DEPOSIT_TTL_SEC);
-    return { shouldSendMessage: true, message: MESSAGE, offerCreated: true };
+    const t = await getLazyFluent();
+    return { shouldSendMessage: true, message: t(pickLocale(locale), MESSAGE_KEY), offerCreated: true };
   }
   return { shouldSendMessage: false, message: "", offerCreated: false };
 }

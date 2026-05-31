@@ -7,12 +7,12 @@
 
 import type { DataSource } from "typeorm";
 import { getOffer, setOffer } from "../storage.js";
-import User from "../../../entities/User.js";
+import { getLazyFluent, pickLocale } from "../../../shared/i18n/lazy-fluent.js";
+
 const REFERRAL_PUSH_MIN_AMOUNT = 20; // $X
 const REFERRAL_PUSH_COOLDOWN_KEY = "growth_referral_push:";
 const REFERRAL_PUSH_COOLDOWN_SEC = 30 * 24 * 60 * 60; // 30 days
-const MESSAGE =
-  "Поделитесь реферальной ссылкой. За первый депозит реферала — +10% на ваш баланс.";
+const MESSAGE_KEY = "growth-referral-push";
 
 /**
  * If user just topped up >= REFERRAL_PUSH_MIN_AMOUNT and we haven't sent this in cooldown, return message.
@@ -33,8 +33,9 @@ export async function shouldSendReferralPush(
   return true;
 }
 
-export function getReferralPushMessage(): string {
-  return MESSAGE;
+export async function getReferralPushMessage(locale?: string | null): Promise<string> {
+  const t = await getLazyFluent();
+  return t(pickLocale(locale), MESSAGE_KEY);
 }
 
 export async function markReferralPushSent(userId: number): Promise<void> {

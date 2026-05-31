@@ -32,20 +32,18 @@ export {
   VIP_PRIVILEGE_MESSAGE,
 } from "./ltv-bonus.campaign.js";
 export { sendIncidentUpsell } from "./incident-upsell.campaign.js";
+export type { GrowthSendMessageFn } from "./send-message.js";
+export { createTelegramGrowthSender } from "./send-message.js";
 
 import type { DataSource } from "typeorm";
-import { runUsageUpsellCampaign } from "./usage-upsell.campaign.js";
 import { runWinBackCampaign } from "./winback.campaign.js";
 import { runScarcityCampaign } from "./scarcity.campaign.js";
 import { runCrossSellCampaign } from "./cross-sell.campaign.js";
 import { runAnniversaryCampaign } from "./anniversary.campaign.js";
 import { runB2BDedicatedCampaign } from "./b2b-dedicated.campaign.js";
-import { runBehavioralUpsellCampaign } from "./behavioral.campaign.js";
-import { runAntiChurnCampaign } from "./anti-churn.campaign.js";
 import { runNpsCampaign } from "./nps.campaign.js";
 import { Logger } from "../../../app/logger.js";
-
-export type SendMessageFn = (telegramId: number, text: string) => Promise<void>;
+import type { GrowthSendMessageFn } from "./send-message.js";
 
 /**
  * Run all cron-based campaigns (daily). Respects 72h commercial push limit per user.
@@ -53,7 +51,7 @@ export type SendMessageFn = (telegramId: number, text: string) => Promise<void>;
  */
 export async function runAllCampaignsCron(
   dataSource: DataSource,
-  sendMessage: SendMessageFn
+  sendMessage: GrowthSendMessageFn
 ): Promise<{ [campaign: string]: number }> {
   const results: { [campaign: string]: number } = {};
   try {
@@ -62,9 +60,10 @@ export async function runAllCampaignsCron(
     results.crossSell = await runCrossSellCampaign(dataSource, sendMessage);
     results.anniversary = await runAnniversaryCampaign(dataSource, sendMessage);
     results.b2b = await runB2BDedicatedCampaign(dataSource, sendMessage);
-    results.usageUpsell = await runUsageUpsellCampaign(dataSource, sendMessage);
-    results.behavioral = await runBehavioralUpsellCampaign(dataSource, sendMessage);
-    results.antiChurn = await runAntiChurnCampaign(dataSource, sendMessage);
+    // Stubs disabled until metrics/API wired (usage, behavioral, anti-churn)
+    results.usageUpsell = 0;
+    results.behavioral = 0;
+    results.antiChurn = 0;
     results.nps = await runNpsCampaign(dataSource, sendMessage);
   } catch (e) {
     Logger.error("[Growth] runAllCampaignsCron error", e);

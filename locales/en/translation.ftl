@@ -461,12 +461,20 @@ ref-admin-view-referees = 👥 User referrals
 ref-admin-top-affiliates = 🏆 Top affiliates
 
 referrals-share-text = Join me on Dior Host! Use my referral link to get started.
-referral-new-joined = 👋 You have a new referral.
-    Your total referrals: <b>{$count}</b>
-referral-topup-notify = 💰 Your referral topped up their balance by <b>{ $amount }</b>.
-    Your percentage: <b>{ $percent }%</b> — <b>{ $reward }</b> has been added to your referral balance.
+referral-new-joined =
+    👋 <strong>New referral</strong>
 
-Select an action:
+    Someone joined via your link.
+    Total referrals: <b>{$count}</b>
+
+referral-topup-notify =
+    💰 <strong>Referral topped up</strong>
+
+    ├ Top-up amount: <b>{ $amount }</b>
+    ├ Your rate: <b>{ $percent }%</b>
+    └ Credited to referral balance: <b>{ $reward }</b>
+
+    Select an action:
 
 pagination-left = ⬅️
 pagination-right = ➡️
@@ -474,7 +482,10 @@ pagination-right = ➡️
 block-user = 🚫 Block
 unblock-user = ✅ Unblock
 
-message-about-block = Unfortunately you are blocked. Contact support for clarification of the reasons for blocking.
+message-about-block =
+    🚫 <strong>Account blocked</strong>
+
+    Contact support — we'll explain why and what to do next.
 
 button-buy = 💸 Make order
 
@@ -513,10 +524,28 @@ domain-shop-register = 🛒 Register
 domain-shop-my-domains = 📋 My Domains
 domain-shop-my-title = 📋 <b>My domains</b>
 domain-shop-my-empty = No domains yet.
-domain-invalid = The entered domain is incorrect <i>{$domain}</i> try again
-domain-not-available = 🚫 Domain <i>{$domain}</i>, already taken. Try to take another one.
-domain-available = ✅ Domain <i>{$domain}</i> is available for registration. You want to buy it?
-domain-registration-in-progress = 🔄 Domain registration in progress for <i>{$domain}</i> (Your balance has been debited) You can follow the status in the service management menu
+domain-invalid =
+    ⚠️ <strong>Invalid domain</strong>
+
+    <code>{$domain}</code> — check the format and try again.
+
+domain-not-available =
+    🚫 <strong>Domain taken</strong>
+
+    <code>{$domain}</code> — already registered. Try another option.
+domain-available =
+    ✅ <strong>Domain available</strong>
+
+    <code>{$domain}</code> — ready to register.
+
+    Continue purchase?
+
+domain-registration-in-progress =
+    🔄 <strong>Domain registration</strong>
+
+    <code>{$domain}</code> — request accepted, balance charged.
+
+    Status — «Manage services → Domains».
 
 cdn-service = 🌐 <strong>CDN &amp; Traffic</strong> — optimized routing, protection, and delivery. Pick a plan to connect a proxy.
 
@@ -676,21 +705,59 @@ button-cdn-autorenew-off = ⏸ Auto-renew OFF
 button-cdn-retry-ssl = ♻️ Retry SSL
 button-cdn-delete = 🗑 Delete
 button-cdn-refresh = 🔁 Refresh
-cdn-renew-success = ✅ Renewal started.
-cdn-renew-failed = ❌ Failed to renew proxy.
-cdn-autorenew-on-success = ✅ Auto-renew enabled.
-cdn-autorenew-off-success = ✅ Auto-renew disabled.
-cdn-autorenew-failed = ❌ Failed to change auto-renew state.
-cdn-retry-ssl-success = ✅ SSL re-issuance started.
-cdn-retry-ssl-failed = ❌ Failed to start SSL re-issuance.
-cdn-delete-success = ✅ Proxy deleted.
-cdn-delete-failed = ❌ Failed to delete proxy.
+cdn-renew-success =
+    ✅ <strong>CDN renewal</strong>
+
+    Request accepted — status will update automatically.
+
+cdn-renew-failed =
+    ❌ <strong>Renewal failed</strong>
+
+    Try again later or contact support.
+
+cdn-autorenew-on-success =
+    ✅ <strong>Auto-renew enabled</strong>
+
+    CDN will renew automatically from your balance.
+
+cdn-autorenew-off-success =
+    ⏸ <strong>Auto-renew disabled</strong>
+
+    Remember to renew manually before expiry.
+
+cdn-autorenew-failed =
+    ❌ <strong>Error</strong>
+
+    Could not change auto-renew. Try again later.
+
+cdn-retry-ssl-success =
+    ✅ <strong>SSL</strong>
+
+    Certificate re-issuance started.
+
+cdn-retry-ssl-failed =
+    ❌ <strong>SSL</strong>
+
+    Could not start re-issuance. Contact support.
+
+cdn-delete-success =
+    ✅ <strong>Proxy deleted</strong>
+
+    You can remove DNS records at your registrar.
+
+cdn-delete-failed =
+    ❌ <strong>Delete failed</strong>
+
+    Try again later or contact support.
 cdn-delete-confirm = <b>Delete this proxy permanently?</b>
 
 empty = Empty
 list-empty = The list is empty
 
-service-maintenance = Currently under maintenance. Please try later.
+service-maintenance =
+    🔧 <strong>Maintenance</strong>
+
+    This section is temporarily unavailable. Try again in a few minutes.
 
 service-pay-message = <strong>Service payment</strong>
 
@@ -721,8 +788,17 @@ domain-request = {$id}. <code>{$domain}</code> from user ({$targetId}).
 
 domain-request-list-info = (/approve_domain &lt;id&gt; &lt;expire_at: 1year or 1y&gt; - approve, /reject_domain &lt;id&gt; - reject)
 domain-request-list-header = <strong>List of domain registration requests:</strong>
-domain-registration-complete = ❗️ To finalize the domain purchase, please send information about the IP address to which it should be bound, or specify two NS servers separated by a space ❗️
-domain-registration-complete-fail-message-length  = The information is too long try making the text smaller
+domain-registration-complete =
+    📋 <strong>Complete domain setup</strong>
+
+    Send in one message:
+    ├ <b>IP address</b> to bind
+    └ <b>or</b> two NS servers separated by space
+
+domain-registration-complete-fail-message-length =
+    ⚠️ <strong>Message too long</strong>
+
+    Shorten the text and send again.
 
 domains-manage = <strong>Manage domains</strong>
 domain-already-pending-registration = Domain already in pending await
@@ -775,14 +851,47 @@ deposit-success-sum = ✅ Great, now all that's left to do is <u>pay</u> and we'
 
  <strong>Select a payment method</strong>
 
-payment-information = After payment wait a little, the system will automatically confirm the payment and the funds will be automatically credited to your account, if this did not happen please contact support.
-payment-next-url-label = Proceed to payment
-payment-await = Please wait...
+payment-information =
+    💳 <strong>Payment</strong>
 
-deposit-by-sum = Your account has been funded with {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+    After transfer, wait 1–2 minutes — balance updates automatically.
 
-money-not-enough = You don't have enough money on your balance ({NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ short)
-money-not-enough-go-topup = You need {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ more. Choose payment method:
+    If funds don't arrive — contact support with your ticket number.
+
+deposit-by-sum =
+    ✅ <strong>Balance topped up</strong>
+
+    💳 Credited: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $
+
+payment-credited =
+    ✅ <strong>Balance topped up</strong>
+
+    💳 Credited: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+
+payment-credited-bonus =
+    🎁 Bonus: +{NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+
+payment-credited-reactivation-bonus =
+    🎁 Welcome-back bonus: +{NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+
+service-payment-paid =
+    ✅ <strong>Payment received</strong>
+
+    Paid until: {$date}
+
+money-not-enough =
+    ⚠️ <strong>Insufficient balance</strong>
+
+    Short by: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+
+    Top up to continue.
+
+money-not-enough-go-topup =
+    ⚠️ <strong>Insufficient balance</strong>
+
+    Short by: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+
+    Choose a payment method below.
 
 invalid-arguments = Invalid arguments
 
@@ -796,7 +905,14 @@ promocode-deleted = Promocode <strong>{$name}</strong> successfully deleted
 promocode-not-found = Promocode was not found
 promocode-not-exist = This promocode does not exist
 promocode-input-question = Enter the promocode
-promocode-used = Promo activated: <strong>−{$percent}%</strong> off orders. Total order discount (Prime + promos): <strong>−{$totalPercent}%</strong>.
+payment-next-url-label = Proceed to payment
+payment-await = Please wait...
+
+promocode-used =
+    🎁 <strong>Promo activated</strong>
+
+    ├ Promo discount: <b>−{$percent}%</b>
+    └ Total on orders (Prime + promos): <b>−{$totalPercent}%</b>
 
 menu-service-for-buy-choose = 🚀 <strong>Select a service</strong>
 
@@ -954,8 +1070,11 @@ vds-provisioning-wait =
     We're connecting networking, storage, and access. Most setups finish within a minute.
 
 vps-provisioning-failed =
-    We couldn't finish configuring your server. The charge was reversed and your balance was restored.
-    If this keeps happening, contact support.
+    ❌ <strong>Could not create VPS</strong>
+
+    Payment cancelled — funds returned to balance.
+
+    If this repeats — contact support.
 
 vps-premium-region-auto = Region: automatic
 
@@ -985,9 +1104,15 @@ vps-premium-rdp-body = Use <b>Remote Desktop</b> to connect to <code>{$ip}</code
 
 vps-premium-console-hint = Power controls, reinstall, billing, and password changes are under Main menu → My services.
 
-bad-error = Sorry, there's been a mistake on our end, we're fixing it now.
+bad-error =
+    ⚠️ <strong>Temporary error</strong>
 
-vds-created = Your server is ready. Manage it under Main menu → My services.
+    We're on it. Try again in a minute or contact support.
+
+vds-created =
+    ✅ <strong>VDS created</strong>
+
+    Server is ready. Manage — «Main menu → My services».
 
 vds-manage-title = Manage VDS
 vds-manage-list-item = {$label} - {$ip}
@@ -996,12 +1121,22 @@ button-my-vds = 🖥 VPS/VDS
 vds-autorenew-line = <strong>Auto-renew:</strong> {$state}
 vds-autorenew-on = on
 vds-autorenew-off = off
-vds-admin-blocked-notice = ⚠️ This service is blocked by the administrator. Only renewal and support are available.
-vds-management-locked-notice = ⚠️ Subscription expired: management disabled. Renew or top up for auto-renewal.
+vds-management-locked-notice =
+    ⚠️ <strong>Subscription expired</strong>
+
+    Management disabled. Top up your balance or renew manually.
 
 vds-renew-period-label = 📅 {$months} mo — {NUMBER($total, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
 vds-renew-confirm-ask = Renew for <strong>{$months}</strong> mo. for <strong>{NUMBER($total, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $</strong>?
-vds-renew-success = ✅ Subscription renewed for {$months} mo.
+vds-renew-success =
+    ✅ <strong>Subscription renewed</strong>
+
+    Period: <b>{$months}</b> mo. Manage — in «My services».
+
+vds-admin-blocked-notice =
+    🔒 <strong>Service blocked</strong>
+
+    Admin restricted access. Renewal and support are available.
 
 vds-autorenew-enable = 🔄 Enable auto-renewal
 vds-autorenew-disable = ⏸ Disable auto-renewal
@@ -1203,7 +1338,11 @@ Deleted: {$deleted}
 admin-cdn-search-prompt = Send search query (proxyId, domain, origin) or “clear”.
 admin-cdn-sync-success = ✅ CDN records synchronized.
 
-vds-autorenew-notify = ✅ VDS #{$vdsId}: renewed for one month. Charged {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ from balance.
+vds-autorenew-notify =
+    ✅ <strong>VDS #{$vdsId} — subscription renewed</strong>
+
+    🔄 Auto-renewed for 1 month
+    💳 Charged from balance: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
 
 vds-stopped = Machine is DISABLED ⛔️
 vds-work = Machine is ENABLED ✳️
@@ -1243,13 +1382,50 @@ vds-reinstall-failed = ❌ OS reinstall failed (hypervisor error or clone timeou
 
 dedicated-servers = This section will be available soon. In the meantime, you can get information about dedicated servers via DM in tech support.
 
-vds-expiration = VDS #{$vdsId}: subscription expired. Top up {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ (or renew manually).
+vds-expiration =
+    ⏰ <strong>VDS #{$vdsId} subscription expired</strong>
 
-vds-grace-insufficient = ⚠️ VDS #{$vdsId}: expired — auto-renew failed (short by {NUMBER($missing, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $; need {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $/mo). VM stopped. <strong>3 days</strong> grace, then removal.
+    💰 Top up {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ or renew manually.
 
-vds-grace-autorenew-off = ⚠️ VDS #{$vdsId}: expired — auto-renew is <strong>off</strong>. VM stopped. Renew manually within <strong>3 days</strong> or the service will be deleted.
+    ⏳ You have <strong>3 days</strong> before the service is removed.
 
-vds-deleted-after-grace = ❌ VDS #{$vdsId} removed: grace period ended without payment.
+vds-grace-insufficient =
+    ⚠️ <strong>VDS #{$vdsId} subscription expired</strong>
+
+    ├ 🖥 <b>Status:</b> VM stopped
+    ├ 🔄 <b>Auto-renew:</b> failed — insufficient balance
+    ├ 💳 <b>Short by:</b> {NUMBER($missing, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
+    └ 📦 <b>Need:</b> {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $/mo
+
+    ⏳ <strong>3 days</strong> left — top up or renew manually, or the service will be deleted.
+
+vds-grace-autorenew-off =
+    ⚠️ <strong>VDS #{$vdsId} subscription expired</strong>
+
+    ├ 🖥 <b>Status:</b> VM stopped
+    ├ 🔄 <b>Auto-renew:</b> off
+    └ 💰 <b>Renewal:</b> {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $/mo
+
+    ⏳ Renew manually within <strong>3 days</strong>, or the service will be deleted.
+
+vds-deleted-after-grace =
+    ❌ <strong>VDS #{$vdsId} removed</strong>
+
+    The 3-day grace period ended without payment — service and data deleted.
+
+vds-grace-day2 =
+    🎁 <strong>VDS reminder</strong>
+
+    <b>+5%</b> renewal discount — valid for <strong>24 more hours</strong>.
+
+    Renew now to keep your data.
+
+vds-grace-day3 =
+    🔴 <strong>Last day</strong>
+
+    VDS will be deleted soon. <b>5%</b> renewal discount still active.
+
+    Renew now to save your data.
 
 no-vds-found = User don't have VDS
 
@@ -1920,9 +2096,129 @@ profile-status-active-label = Active
 profile-status-banned-label = Banned
 profile-username-unknown = —
 
-nps-promoter = Thanks for the high rating! 🎉 Invite friends via your referral link — earn % from their deposits. Or use the yearly renewal discount in your profile.
-nps-detractor = Sorry something wasn't right. Contact support — we'll look into it and help. The «Ask question» button in the menu opens a chat with us.
-nps-neutral = Thanks for your feedback. If you have ideas on how we can improve — contact support. We're here for you.
+bot-cmd-start = Main menu
+bot-cmd-balance = Check balance
+bot-cmd-services = Services
+
+vds-expiration-btn-topup = 💳 Top up balance
+vds-expiration-btn-manage = 🖥 My services
+
+nps-promoter =
+    🎉 <strong>Thanks for the rating!</strong>
+
+    Invite friends via your referral link — earn % from their deposits.
+
+    Or use the yearly renewal discount in your profile.
+
+nps-detractor =
+    💬 <strong>Sorry to hear that</strong>
+
+    Contact support — we'll look into it and help.
+
+    The «Ask question» button opens a chat with us.
+
+nps-neutral =
+    🙏 <strong>Thanks for your feedback</strong>
+
+    If you have ideas how we can improve — contact support. We're here for you.
+
+growth-upsell-offer =
+    🎯 <strong>Special offer</strong>
+
+    Top up another <b>$50</b> and get <b>+10%</b> bonus.
+
+growth-winback =
+    💼 <strong>Balance ready to deploy</strong>
+
+    You have <b>{NUMBER($balance, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0)} $</b> — enough for a VDS.
+
+    🎁 Launch today and get <b>+5%</b> extra term.
+
+growth-scarcity =
+    ⏰ <strong>End of month</strong>
+
+    <b>+12%</b> top-up bonus — until <strong>23:59</strong>.
+
+growth-anniversary =
+    🎂 <strong>One year with DiorHost</strong>
+
+    Thank you for staying! <b>+15%</b> on top-up — <strong>48 hours</strong> left.
+
+growth-cross-sell =
+    🛡 <strong>Strengthen your stack</strong>
+
+    Backup IP or backup pack for project stability.
+
+    🎁 <b>−7%</b> — <strong>72 hours</strong> left.
+
+growth-b2b =
+    🏢 <strong>Scale up</strong>
+
+    Running multiple VDS? Consider a dedicated server.
+
+    💰 Save up to <b>18%</b> vs current spend.
+
+growth-reactivation =
+    👋 <strong>We miss you</strong>
+
+    Come back and get <b>+15%</b> on your next top-up.
+
+growth-referral-push =
+    🤝 <strong>Referral program</strong>
+
+    Share your link — <b>+10%</b> on your balance when a referral makes their first deposit.
+
+growth-large-deposit =
+    💎 <strong>Large deposit</strong>
+
+    Thank you! Lock in <b>+3% forever</b> — top up another <b>$200</b> within <strong>24h</strong>.
+
+growth-tier-silver =
+    🥈 <strong>Silver tier</strong>
+
+    Now <b>+3%</b> on every top-up.
+
+growth-tier-gold =
+    🥇 <strong>Gold tier</strong>
+
+    Now <b>+5%</b> on every top-up.
+
+growth-tier-platinum =
+    💎 <strong>Platinum tier</strong>
+
+    <b>+7%</b> on top-ups and priority support.
+
+growth-nps-request =
+    ⭐ <strong>Rate DiorHost</strong>
+
+    How satisfied are you? From <b>1</b> to <b>5</b>.
+
+growth-nps-followup =
+    🙏 <strong>Thank you!</strong>
+
+    Referral program and <b>−10%</b> yearly discount — in the bot.
+
+growth-usage-upsell =
+    📈 <strong>Load near limit</strong>
+
+    Upgrade plan — <b>+40%</b> resources with no downtime.
+
+    🎁 <b>10%</b> off — <strong>48h</strong> left.
+
+growth-behavioral =
+    ⚡ <strong>Active usage</strong>
+
+    Need snapshots, backup or extra IP? Enable in one click.
+
+growth-anti-churn =
+    📉 <strong>Activity dropped</strong>
+
+    We can optimize your plan or move you to a better tariff.
+
+growth-incident-upsell =
+    🔔 <strong>Recommendation</strong>
+
+    Add monitoring + auto-reboot — <b>7 days free</b>.
 
 # Infrastructure Bundles
 button-infrastructure-bundle = 🚀 Infrastructure Bundle

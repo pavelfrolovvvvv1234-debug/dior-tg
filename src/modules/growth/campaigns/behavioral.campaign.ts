@@ -8,8 +8,9 @@
 
 import type { DataSource } from "typeorm";
 import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limiter.js";
-const MESSAGE =
-  "Вижу активную работу. Нужны snapshot/backup/доп IP? Подключите за 1 клик.";
+import { growthMessage } from "./localized-message.js";
+
+const MESSAGE_KEY = "growth-behavioral";
 
 /**
  * Stub: would need last N "sessions" or panel API. Returns empty list until we have activity source.

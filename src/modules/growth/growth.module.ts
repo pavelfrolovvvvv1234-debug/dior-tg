@@ -21,9 +21,10 @@ export { setOffer, getOffer, deleteOffer, acquireLock, isRedisAvailable } from "
  */
 export async function startReactivationCron(
   dataSource: import("typeorm").DataSource,
-  sendMessage?: (telegramId: number, text: string) => Promise<void>
+  sendMessage?: import("./campaigns/send-message.js").GrowthSendMessageFn
 ): Promise<() => void> {
   const { ReactivationService } = await import("./reactivation.service.js");
+  const { growthMessage } = await import("./campaigns/localized-message.js");
   const reactivation = new ReactivationService(dataSource);
   const intervalMs = 24 * 60 * 60 * 1000; // 24h
   const tick = async () => {
@@ -32,7 +33,7 @@ export async function startReactivationCron(
       for (const u of users) {
         await reactivation.createOffer(u.id);
         if (sendMessage) {
-          await sendMessage(u.telegramId, "Вернитесь и получите +15% к депозиту!").catch(() => {});
+          await sendMessage(u.telegramId, await growthMessage(u.lang, "growth-reactivation")).catch(() => {});
         }
       }
     } catch (e) {

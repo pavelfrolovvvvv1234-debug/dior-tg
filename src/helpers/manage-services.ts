@@ -596,7 +596,9 @@ function buildManageServicesMenu(): Menu<AppContext> {
   );
 }
 
-export const manageSerivcesMenu = buildManageServicesMenu();
+export const manageServicesMenu = buildManageServicesMenu();
+/** @deprecated Typo alias — use manageServicesMenu */
+export const manageSerivcesMenu = manageServicesMenu;
 
 const LIMIT_ON_PAGE = 10;
 
@@ -1619,7 +1621,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
 
       await ctx.editMessageText(ctx.t("manage-services-header"), {
         parse_mode: "HTML",
-        reply_markup: manageSerivcesMenu,
+        reply_markup: manageServicesMenu,
       });
     }
   );
@@ -1920,7 +1922,7 @@ export const bundleManageServicesMenu = new Menu<AppContext>(
     async (ctx) => {
       await ctx.editMessageText(ctx.t("manage-services-header"), {
         parse_mode: "HTML",
-        reply_markup: manageSerivcesMenu,
+        reply_markup: manageServicesMenu,
       });
     }
   );

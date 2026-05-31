@@ -45,14 +45,16 @@ export function registerCommands(bot: Bot<AppContext>): void {
   }
   registeredBots.add(bot);
   
-  // Register bot commands in Telegram menu
-  bot.api.setMyCommands([
-    { command: "start", description: "Главное меню" },
-    { command: "balance", description: "Проверить баланс" },
-    { command: "services", description: "Услуги" },
-  ]).catch((error) => {
-    Logger.error("Failed to set bot commands:", error);
-  });
+  // Register bot commands in Telegram menu (RU + EN)
+  void (async () => {
+    try {
+      const { fluent } = await import("../../fluent.js").then((m) => m.initFluent());
+      const { registerBotCommandMenu } = await import("./register-bot-commands.js");
+      await registerBotCommandMenu(bot, fluent);
+    } catch (error) {
+      Logger.error("Failed to set bot commands:", error);
+    }
+  })();
 
   // Bot profile: name and descriptions (visible in @ mention and profile)
   bot.api.setMyName("Dior Host").catch((error) => {

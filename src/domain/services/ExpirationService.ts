@@ -31,7 +31,8 @@ export type OnGraceDayCheck = (
   vdsId: number,
   userId: number,
   telegramId: number,
-  payDayAt: Date
+  payDayAt: Date,
+  locale: string
 ) => Promise<boolean>;
 
 /**
@@ -201,7 +202,9 @@ export class ExpirationService {
             graceKey = "vds-grace-autorenew-off";
           }
 
-          await this.notifyUser(user.telegramId, user.lang || "ru", graceKey, graceArgs);
+          await this.notifyUser(user.telegramId, user.lang || "ru", graceKey, graceArgs, {
+            vdsId: vds.id,
+          });
           if (this.onGracePeriodStarted) {
             this.onGracePeriodStarted(user.id, vds.id, "vds").catch((e) =>
               Logger.error(`[Expiration] onGracePeriodStarted failed`, e)
@@ -252,7 +255,7 @@ export class ExpirationService {
 
           await this.notifyUser(user.telegramId, user.lang || "ru", "vds-deleted-after-grace", {
             vdsId: deletedId,
-          });
+          }, { withActions: false });
 
           await vdsRepo.deleteById(vds.id);
           Logger.info(`VDS ${vds.id} deleted (grace period expired)`);
@@ -260,7 +263,7 @@ export class ExpirationService {
         }
 
         if (this.onGraceDayCheck && vds.payDayAt) {
-          this.onGraceDayCheck(vds.id, user.id, user.telegramId, vds.payDayAt).catch((e) =>
+          this.onGraceDayCheck(vds.id, user.id, user.telegramId, vds.payDayAt, user.lang || "ru").catch((e) =>
             Logger.error(`[Expiration] onGraceDayCheck failed`, e)
           );
         }
@@ -338,13 +341,21 @@ export class ExpirationService {
     telegramId: number,
     locale: string,
     key: string,
-    args?: Record<string, string | number>
+    args?: Record<string, string | number>,
+    options?: { vdsId?: number; withActions?: boolean }
   ): Promise<void> {
     try {
       const message = this.fluent.translate(locale, key, (args || {}) as Record<string, string | number>);
-      await this.bot.api.sendMessage(telegramId, message, {
+      const extra: { parse_mode: "HTML"; reply_markup?: import("grammy").InlineKeyboard } = {
         parse_mode: "HTML",
-      });
+      };
+      if (options?.withActions !== false && options?.vdsId != null) {
+        const { InlineKeyboard } = await import("grammy");
+        extra.reply_markup = new InlineKeyboard()
+          .text(this.fluent.translate(locale, "vds-expiration-btn-topup"), "exp:topup")
+          .text(this.fluent.translate(locale, "vds-expiration-btn-manage"), `exp:vds:${options.vdsId}`);
+      }
+      await this.bot.api.sendMessage(telegramId, message, extra);
     } catch (error) {
       Logger.error(`Failed to notify user ${telegramId}`, error);
     }

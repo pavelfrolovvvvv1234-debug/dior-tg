@@ -8,8 +8,9 @@
 
 import type { DataSource } from "typeorm";
 import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limiter.js";
-const MESSAGE =
-  "Видим снижение активности. Предлагаем оптимизацию тарифа или перенос на более выгодный план.";
+import { growthMessage } from "./localized-message.js";
+
+const MESSAGE_KEY = "growth-anti-churn";
 
 /**
  * Stub: would need VDS age 60+ days and recent traffic drop from monitoring.

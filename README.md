@@ -4,8 +4,8 @@ Production-ready Telegram bot built with grammY, TypeORM, SQLite, and Fluent i18
 
 ## 📋 Requirements
 
-- **Node.js**: v18+ (v23 recommended)
-- **pnpm**: Latest version ([installation guide](https://pnpm.io/installation))
+- **Node.js**: v18+ (v20–22 recommended; matches Docker/CI)
+- **npm**: Comes with Node.js
 - **SQLite3**: System dependency
 
 ## 🚀 Quick Start
@@ -13,8 +13,7 @@ Production-ready Telegram bot built with grammY, TypeORM, SQLite, and Fluent i18
 ### 1. Installation
 
 ```bash
-# Install dependencies
-pnpm install
+npm install
 ```
 
 ### 2. Environment Setup
@@ -49,27 +48,19 @@ DOMAINR_TOKEN="domain_checker_token"
 
 ### 3. Database Initialization
 
-The database will be automatically created and initialized on first run using TypeORM synchronization. For production, consider using migrations:
-
-```bash
-# Generate migration (when ready)
-pnpm run migration:generate
-
-# Run migrations
-pnpm run migration:run
-```
+The database is created automatically on first run via TypeORM synchronization.
 
 ### 4. Development
 
 ```bash
 # Start with hot-reload (nodemon)
-pnpm dev
+npm run dev
 
 # Build TypeScript
-pnpm build
+npm run build
 
 # Run production build
-pnpm start
+npm start
 ```
 
 ## 🏗 Project Structure
@@ -101,20 +92,20 @@ src/
 ## 📦 Scripts
 
 ```bash
-pnpm dev          # Start development server (nodemon)
-pnpm build        # Compile TypeScript to dist/
-pnpm start        # Run production build
-pnpm lint         # Run ESLint
-pnpm format       # Format code with Prettier
-pnpm typecheck    # Type check without emitting
-pnpm test         # Run tests
+npm run dev          # Start development server (nodemon)
+npm run build        # Compile TypeScript to dist/
+npm start            # Run production build
+npm run lint         # Run ESLint
+npm run format       # Format code with Prettier
+npm run typecheck    # Type check without emitting
+npm test             # Run tests
 ```
 
 ## 🌐 Localization
 
 Supported languages:
-- English (`en`) - Default
-- Russian (`ru`)
+- Russian (`ru`) — default
+- English (`en`)
 
 Translation files are located in `locales/{lang}/`:
 - `translation.ftl` - General translations

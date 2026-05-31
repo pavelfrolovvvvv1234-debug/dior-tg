@@ -9,8 +9,10 @@ import { UpsellService } from "./upsell.service.js";
 import { ReactivationService } from "./reactivation.service.js";
 import { TriggerEngine } from "./trigger.engine.js";
 import { OfferEngine } from "./offer.engine.js";
+import User from "../../entities/User.js";
 import GrowthEvent, { GrowthEventType } from "../../entities/GrowthEvent.js";
 import { Logger } from "../../app/logger.js";
+import { getLazyFluent, pickLocale } from "../../shared/i18n/lazy-fluent.js";
 
 export interface GrowthHandleTopUpResult {
   upsellOfferCreated: boolean;
@@ -68,7 +70,10 @@ export class GrowthService {
         if (created) {
           result.upsellOfferCreated = true;
           await this.offerEngine.markOfferShown(userId);
-          result.messageOffer = "Пополните ещё $50 и получите +10% бонуса";
+          const userRepo = this.dataSource.getRepository(User);
+          const user = await userRepo.findOne({ where: { id: userId }, select: ["lang"] });
+          const t = await getLazyFluent();
+          result.messageOffer = t(pickLocale(user?.lang), "growth-upsell-offer");
         }
       }
     } catch (e) {

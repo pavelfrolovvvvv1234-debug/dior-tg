@@ -11,7 +11,7 @@ jobs:
   test:
     name: Test & Build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,41 +19,41 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Type check
         run: npm run typecheck
-        continue-on-error: true
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Format check
         run: npm run format:check
-        continue-on-error: true
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build
         run: npm run build
-        continue-on-error: true
 
       - name: Check for build artifacts
         run: |
           if [ -d "dist" ]; then
-            echo "✅ Build successful"
+            echo "Build successful"
             ls -la dist/
           else
-            echo "⚠️ Build directory not found"
+            echo "Build directory not found"
+            exit 1
           fi
 
   validate-config:
     name: Validate Configuration
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -61,8 +61,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -72,14 +72,13 @@ jobs:
           node -e "
             try {
               require('./src/app/config.js');
-              console.log('✅ Config structure is valid');
+              console.log('Config structure is valid');
             } catch (e) {
-              console.error('❌ Config validation failed:', e.message);
+              console.error('Config validation failed:', e.message);
               process.exit(1);
             }
           "
         env:
-          # Use dummy values for validation (actual values should be in secrets)
           BOT_TOKEN: ${{ secrets.BOT_TOKEN || 'dummy_token' }}
           BOT_USERNAME: ${{ secrets.BOT_USERNAME || 'dummy_bot' }}
           WEBSITE_URL: https://example.com

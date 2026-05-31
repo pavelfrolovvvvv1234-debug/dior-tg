@@ -491,19 +491,19 @@ export class ScenarioAdminService {
           templates: {
             vds_expiration: {
               key: "vds_expiration",
-              ru: { text: "VDS истекает. Пополните на {{amount}} $. Скидка 5% при продлении — 72ч." },
-              en: { text: "VDS expiring. Top up {{amount}} $. 5% renewal discount — 72h." },
+              ru: { text: "⏰ <strong>Срок VDS истёк</strong>\n\n💰 Пополните на {{amount}} $.\n🎁 Скидка <b>5%</b> на продление — <strong>72 ч</strong>." },
+              en: { text: "⏰ <strong>VDS subscription expired</strong>\n\n💰 Top up {{amount}} $.\n🎁 <b>5%</b> renewal discount — <strong>72h</strong> left." },
               variables: ["amount"],
             },
             grace_day2: {
               key: "grace_day2",
-              ru: { text: "Скидка 5% при продлении ещё 24ч. Продлите сейчас." },
-              en: { text: "5% renewal discount for 24h more. Renew now." },
+              ru: { text: "🎁 <strong>Напоминание о VDS</strong>\n\nСкидка <b>+5%</b> на продление — ещё <strong>24 часа</strong>.\n\nПродлите сейчас, чтобы сохранить данные." },
+              en: { text: "🎁 <strong>VDS reminder</strong>\n\n<b>+5%</b> renewal discount — <strong>24 more hours</strong>.\n\nRenew now to keep your data." },
             },
             grace_day3: {
               key: "grace_day3",
-              ru: { text: "Последний шанс продлить без потери данных. Скидка 5% активна." },
-              en: { text: "Last chance to renew without data loss. 5% discount still active." },
+              ru: { text: "🔴 <strong>Последний день</strong>\n\nVDS скоро будет удалена. Скидка <b>5%</b> на продление ещё активна.\n\nПродлите сейчас — данные сохранятся." },
+              en: { text: "🔴 <strong>Last day</strong>\n\nVDS will be deleted soon. <b>5%</b> renewal discount still active.\n\nRenew now to save your data." },
             },
           },
           throttle: { perUserPerScenarioHours: 24, perStepCap: 3 },

@@ -267,8 +267,6 @@ async function createAndBuyVDS(
 
   const rate = pricesList.virtual_vds[rateId];
 
-  console.log(osId);
-
   if (!rate) {
     await ctx.reply(ctx.t("bad-error"));
     return;

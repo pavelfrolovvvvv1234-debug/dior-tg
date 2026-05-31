@@ -10,6 +10,9 @@ import { getAppDataSource } from "../db/datasource.js";
 import { ServicePaymentService } from "../../domain/billing/ServicePaymentService.js";
 import { Logger } from "../../app/logger.js";
 import type { Bot, Api, RawApi } from "grammy";
+import User from "../../entities/User.js";
+import { getLazyFluent, pickLocale } from "../../shared/i18n/lazy-fluent.js";
+import type ServiceInvoice from "../../entities/ServiceInvoice.js";
 
 const getCryptoPayToken = (): string => {
   const token =
@@ -59,14 +62,24 @@ const parseInvoicePayload = (body: any): { invoiceId?: string; status?: string; 
   };
 };
 
-const buildPaidMessage = (paidUntil: Date | null): string => {
-  const dateText = paidUntil
-    ? new Intl.DateTimeFormat("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(paidUntil)
-    : "N/A";
-  return `✅ Paid\nPaid until: ${dateText}`;
+const formatPaidUntil = (paidUntil: Date | null, locale: string): string => {
+  if (!paidUntil) return "—";
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(paidUntil);
+};
+
+const buildPaidMessage = async (
+  invoice: ServiceInvoice,
+  paidUntil: Date | null
+): Promise<string> => {
+  const translate = await getLazyFluent();
+  const dataSource = await getAppDataSource();
+  const user = await dataSource.getRepository(User).findOne({ where: { id: invoice.userId } });
+  const locale = pickLocale(user?.lang);
+  const date = formatPaidUntil(paidUntil, locale);
+  return translate(locale, "service-payment-paid", { date });
 };
 
 export const handleCryptoPayWebhook = async (
@@ -107,10 +120,12 @@ export const handleCryptoPayWebhook = async (
 
     const paidUntil = await service.getPaidUntil(invoice);
     if (invoice.chatId && invoice.messageId) {
+      const message = await buildPaidMessage(invoice, paidUntil);
       await bot.api.editMessageText(
         invoice.chatId,
         invoice.messageId,
-        buildPaidMessage(paidUntil)
+        message,
+        { parse_mode: "HTML" }
       );
     }
 

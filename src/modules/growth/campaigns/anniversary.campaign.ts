@@ -10,10 +10,11 @@ import { getOffer, setOffer } from "../storage.js";
 import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limiter.js";
 import User from "../../../entities/User.js";
 import { Logger } from "../../../app/logger.js";
+import { growthMessage } from "./localized-message.js";
 
 const ANNIVERSARY_COOLDOWN_KEY = "growth_anniversary:";
 const ANNIVERSARY_COOLDOWN_SEC = 365 * 24 * 60 * 60; // 1 year
-const MESSAGE = "Год с нами. +15% к пополнению в течение 48ч.";
+const MESSAGE_KEY = "growth-anniversary";
 const REGISTRATION_DAYS_AGO_MIN = 365;
 const REGISTRATION_DAYS_AGO_MAX = 375; // window to catch
 
@@ -33,7 +34,7 @@ export async function runAnniversaryCampaign(
     .where("u.createdAt >= :from", { from })
     .andWhere("u.createdAt <= :to", { to })
     .andWhere("u.isBanned = 0")
-    .select(["u.id", "u.telegramId"])
+    .select(["u.id", "u.telegramId", "u.lang"])
     .take(limit)
     .getMany();
   let sent = 0;
@@ -46,7 +47,7 @@ export async function runAnniversaryCampaign(
         if (!Number.isNaN(ts) && Date.now() - ts * 1000 < ANNIVERSARY_COOLDOWN_SEC * 1000) continue;
       }
       if (!(await canSendCommercialPush(u.id))) continue;
-      await sendMessage(u.telegramId, MESSAGE);
+      await sendMessage(u.telegramId, await growthMessage(u.lang, MESSAGE_KEY));
       await setOffer(key, String(Math.floor(Date.now() / 1000)), ANNIVERSARY_COOLDOWN_SEC);
       await markCommercialPushSent(u.id);
       sent++;

@@ -13,11 +13,11 @@ import User from "../../../entities/User.js";
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
 import Domain from "../../../entities/Domain.js";
 import { Logger } from "../../../app/logger.js";
+import { growthMessage } from "./localized-message.js";
 
 const CROSSSELL_COOLDOWN_KEY = "growth_cross_sell:";
 const CROSSSELL_COOLDOWN_SEC = 14 * 24 * 60 * 60; // 14 days
-const MESSAGE =
-  "Для стабильности проекта подключите резервный IP / бэкап-пакет. -7% 72 часа.";
+const MESSAGE_KEY = "growth-cross-sell";
 
 /**
  * Find users with at least one active VDS and no domain (or no backup — we only check domain for now).
@@ -48,9 +48,9 @@ export async function runCrossSellCampaign(
         if (!Number.isNaN(ts) && Date.now() - ts * 1000 < CROSSSELL_COOLDOWN_SEC * 1000) continue;
       }
       if (!(await canSendCommercialPush(userId))) continue;
-      const user = await userRepo.findOne({ where: { id: userId }, select: ["telegramId"] });
+      const user = await userRepo.findOne({ where: { id: userId }, select: ["telegramId", "lang"] });
       if (!user?.telegramId) continue;
-      await sendMessage(user.telegramId, MESSAGE);
+      await sendMessage(user.telegramId, await growthMessage(user.lang, MESSAGE_KEY));
       await setOffer(key, String(Math.floor(Date.now() / 1000)), CROSSSELL_COOLDOWN_SEC);
       await markCommercialPushSent(userId);
       sent++;

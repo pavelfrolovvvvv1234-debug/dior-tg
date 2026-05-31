@@ -101,6 +101,13 @@ export async function domainRegisterConversation(
     (ctx as any).fluent.useLocale(locale);
   }
   ensureTranslator(ctx, locale);
+  const { isAmperApiConfigured } = await import("../../infrastructure/domains/amper-config.js");
+  if (!isAmperApiConfigured()) {
+    await ctx.reply(safeT(ctx, "domain-api-not-configured", { baseUrl: "AMPER_API" }), {
+      parse_mode: "HTML",
+    });
+    return;
+  }
   const apiBaseUrl = process.env.AMPER_API_BASE_URL || "";
   const apiToken = process.env.AMPER_API_TOKEN || "";
 

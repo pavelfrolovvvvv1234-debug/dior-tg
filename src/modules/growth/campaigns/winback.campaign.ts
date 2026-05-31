@@ -13,13 +13,11 @@ import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js"
 import DedicatedServer from "../../../entities/DedicatedServer.js";
 import Domain from "../../../entities/Domain.js";
 import { Logger } from "../../../app/logger.js";
+import { growthMessage } from "./localized-message.js";
 
 const WINBACK_MIN_BALANCE = 10; // $X
 const NO_SERVICES_DAYS = 7;
-
-function formatMessage(balance: number): string {
-  return `У вас ${balance.toFixed(0)} $ на балансе. Запустите VDS сегодня — +5% к сроку.`;
-}
+const MESSAGE_KEY = "growth-winback";
 
 /**
  * Find users: balance >= WINBACK_MIN_BALANCE, no VDS/dedicated/domain activity in last 7 days.
@@ -40,7 +38,7 @@ export async function runWinBackCampaign(
     .createQueryBuilder("u")
     .where("u.balance >= :minBal", { minBal: WINBACK_MIN_BALANCE })
     .andWhere("u.isBanned = 0")
-    .select(["u.id", "u.telegramId", "u.balance"])
+    .select(["u.id", "u.telegramId", "u.balance", "u.lang"])
     .take(limit)
     .getMany();
 
@@ -62,7 +60,7 @@ export async function runWinBackCampaign(
         .getOne();
       if (hasRecentDomain) continue;
       if (!(await canSendCommercialPush(u.id))) continue;
-      await sendMessage(u.telegramId, formatMessage(u.balance));
+      await sendMessage(u.telegramId, await growthMessage(u.lang, MESSAGE_KEY, { balance: u.balance }));
       await markCommercialPushSent(u.id);
       sent++;
     } catch (e) {

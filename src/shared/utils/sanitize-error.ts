@@ -5,9 +5,9 @@
  */
 
 const GENERIC_BUSY =
-  "Сервис временно перегружен. Подождите несколько секунд и повторите.";
+  "⚠️ <strong>Сервис перегружен</strong>\n\nПодождите несколько секунд и повторите.";
 const GENERIC =
-  "Не удалось выполнить операцию. Попробуйте позже или обратитесь в поддержку.";
+  "⚠️ <strong>Не удалось выполнить операцию</strong>\n\nПопробуйте позже или обратитесь в поддержку.";
 
 function isSqliteBusyError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;

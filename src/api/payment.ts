@@ -417,19 +417,31 @@ async function runPostTopUpCreditSideEffects(
     // Don't fail payment if referral reward fails
   }
 
-  let balanceMessage = `+ ${new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(topUp.amount)} $`;
+  let balanceMessage: string;
+  try {
+    const { getLazyFluent, pickLocale } = await import("../shared/i18n/lazy-fluent.js");
+    const t = await getLazyFluent();
+    const loc = pickLocale(user.lang);
+    balanceMessage = t(loc, "payment-credited", { amount: topUp.amount });
+  } catch {
+    balanceMessage = `+ ${new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(topUp.amount)} $`;
+  }
   try {
     const { GrowthService } = await import("../modules/growth/growth.service.js");
     const growthService = new GrowthService(datasource);
     const growthResult = await growthService.handleTopUpSuccess(targetUser, topUpId, topUp.amount);
     if (growthResult.upsellBonusApplied > 0) {
-      balanceMessage += `\n+ бонус ${growthResult.upsellBonusApplied.toFixed(2)} $`;
+      const { getLazyFluent, pickLocale } = await import("../shared/i18n/lazy-fluent.js");
+      const t = await getLazyFluent();
+      balanceMessage += `\n${t(pickLocale(user.lang), "payment-credited-bonus", { amount: growthResult.upsellBonusApplied })}`;
     }
     if (growthResult.reactivationBonusApplied > 0) {
-      balanceMessage += `\n+ бонус возврата ${growthResult.reactivationBonusApplied.toFixed(2)} $`;
+      const { getLazyFluent, pickLocale } = await import("../shared/i18n/lazy-fluent.js");
+      const t = await getLazyFluent();
+      balanceMessage += `\n${t(pickLocale(user.lang), "payment-credited-reactivation-bonus", { amount: growthResult.reactivationBonusApplied })}`;
     }
     if (growthResult.upsellOfferCreated && growthResult.messageOffer) {
       await bot.api
@@ -440,7 +452,7 @@ async function runPostTopUpCreditSideEffects(
     console.error("[Growth] handleTopUpSuccess failed:", growthErr);
   }
 
-  await bot.api.sendMessage(user.telegramId, balanceMessage).catch((err: unknown) => {
+  await bot.api.sendMessage(user.telegramId, balanceMessage, { parse_mode: "HTML" }).catch((err: unknown) => {
     Logger.error("[Payment] send balance notification failed", err);
   });
 
@@ -477,7 +489,7 @@ async function runPostTopUpCreditSideEffects(
     } = await import("../modules/growth/campaigns/referral-push.campaign.js");
     if (await canSendCommercialPush(targetUser)) {
       const newLtv = await getCumulativeDeposit(datasource, targetUser);
-      const tierInfo = await getTierUpgradeInfo(datasource, targetUser, newLtv);
+      const tierInfo = await getTierUpgradeInfo(datasource, targetUser, newLtv, user.lang);
       if (tierInfo) {
         await bot.api.sendMessage(user.telegramId, tierInfo.message, { parse_mode: "HTML" }).catch(() => {});
         await markCommercialPushSent(targetUser);
@@ -495,13 +507,13 @@ async function runPostTopUpCreditSideEffects(
           // Ignore if automations module not available
         }
       } else {
-        const largeResult = await handleLargeDeposit(datasource, targetUser, topUp.amount);
+        const largeResult = await handleLargeDeposit(datasource, targetUser, topUp.amount, user.lang);
         if (largeResult.shouldSendMessage && largeResult.message) {
           await bot.api.sendMessage(user.telegramId, largeResult.message, { parse_mode: "HTML" }).catch(() => {});
           await markCommercialPushSent(targetUser);
         } else if (await shouldSendReferralPush(datasource, targetUser, topUp.amount)) {
           await bot.api
-            .sendMessage(user.telegramId, getReferralPushMessage(), { parse_mode: "HTML" })
+            .sendMessage(user.telegramId, await getReferralPushMessage(user.lang), { parse_mode: "HTML" })
             .catch(() => {});
           await markReferralPushSent(targetUser);
           await markCommercialPushSent(targetUser);

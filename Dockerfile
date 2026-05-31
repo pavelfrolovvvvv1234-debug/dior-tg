@@ -26,8 +26,8 @@ RUN if [ -f "pnpm-lock.yaml" ]; then \
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build || (echo "Build skipped - check tsconfig" && mkdir -p dist && cp -r src dist)
+# Build the application (fail if TypeScript errors)
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine
