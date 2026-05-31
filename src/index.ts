@@ -730,11 +730,14 @@ async function index() {
   let stopAutomationHandler: (() => void) | undefined;
   let stopDueStepsCron: (() => void) | undefined;
   let stopScheduleRunner: (() => void) | undefined;
-  let stopReactivation: (() => void) | undefined;
-  let stopCampaignsCron: (() => void) | undefined;
   let stopHealthServer: (() => void) | undefined;
 
   try {
+    const { enforceCommercialAutomationPolicy } = await import(
+      "./modules/automations/commercial-policy.js"
+    );
+    await enforceCommercialAutomationPolicy(appDataSource);
+
     const { setupAutomationEventHandler } = await import(
       "./modules/automations/integration/event-handler.js"
     );
@@ -768,7 +771,6 @@ async function index() {
       });
     };
     const dueStepsIntervalId = setInterval(dueStepsTick, 30 * 60 * 1000);
-    dueStepsTick();
     stopDueStepsCron = () => clearInterval(dueStepsIntervalId);
     Logger.info("Automation due-steps cron started (30m)");
 
@@ -781,32 +783,12 @@ async function index() {
     Logger.warn("Automation event handler not started", automationErr);
   }
 
-  try {
-    const { startReactivationCron } = await import("./modules/growth/growth.module.js");
-    stopReactivation = await startReactivationCron(appDataSource, sendGrowthMessage);
-    Logger.info("Growth reactivation cron started");
-
-    const { runAllCampaignsCron } = await import("./modules/growth/campaigns/index.js");
-    const campaignIntervalMs = 24 * 60 * 60 * 1000;
-    const campaignsTick = () => {
-      runAllCampaignsCron(appDataSource, sendGrowthMessage).then((r) => {
-        const total = Object.values(r).reduce((a, b) => a + b, 0);
-        if (total > 0) Logger.info("[Growth] Campaigns cron sent", r);
-      });
-    };
-    const campaignIntervalId = setInterval(campaignsTick, campaignIntervalMs);
-    stopCampaignsCron = () => clearInterval(campaignIntervalId);
-    Logger.info("Growth campaigns cron started (24h)");
-  } catch (growthCronErr) {
-    Logger.warn("Growth reactivation/campaigns not started", growthCronErr);
-  }
+  // Commercial growth crons disabled — marketing pushes handled manually if needed (COMMERCIAL_PUSH_ENABLED=1).
 
   const shutdownBackgroundJobs = (): void => {
     stopAutomationHandler?.();
     stopDueStepsCron?.();
     stopScheduleRunner?.();
-    stopReactivation?.();
-    stopCampaignsCron?.();
     stopNotificationEngine?.();
     stopHealthServer?.();
   };

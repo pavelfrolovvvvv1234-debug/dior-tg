@@ -28,7 +28,8 @@ async function loadSampleConfig(key: string): Promise<ScenarioConfig | null> {
 
 export async function publishDefaultScenarios(dataSource: DataSource): Promise<number> {
   const service = new ScenarioAdminService(dataSource);
-  const keys = ["B01", "B02", "B03", "S01", "S04", "S07", "S09", "S11"];
+  // Commercial scenarios stay disabled — see commercial-policy.ts
+  const keys: string[] = [];
   let published = 0;
   for (const key of keys) {
     try {

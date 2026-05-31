@@ -804,6 +804,11 @@ export async function createBot(): Promise<{
   let stopScheduleRunner: (() => void) | undefined;
   try {
     const dataSource = await getAppDataSource();
+    const { enforceCommercialAutomationPolicy } = await import(
+      "../modules/automations/commercial-policy.js"
+    );
+    await enforceCommercialAutomationPolicy(dataSource);
+
     const { setupAutomationEventHandler } = await import("../modules/automations/integration/event-handler.js");
     stopAutomationHandler = setupAutomationEventHandler(dataSource, bot as any);
     Logger.info("Automation event handler started");
@@ -828,7 +833,6 @@ export async function createBot(): Promise<{
       });
     };
     const dueStepsIntervalId = setInterval(dueStepsTick, 30 * 60 * 1000);
-    dueStepsTick();
     stopDueStepsCron = () => clearInterval(dueStepsIntervalId);
     Logger.info("Automation due-steps cron started (30m)");
 
@@ -839,29 +843,7 @@ export async function createBot(): Promise<{
     Logger.warn("Automation event handler not started", e);
   }
 
-  // Growth: reactivation cron (inactive 30d → offer +15%)
-  let stopReactivation: (() => void) | undefined;
-  let stopCampaignsCron: (() => void) | undefined;
-  try {
-    const dataSource = await getAppDataSource();
-    const { startReactivationCron } = await import("../modules/growth/growth.module.js");
-    stopReactivation = await startReactivationCron(dataSource, sendGrowthMessage);
-    Logger.info("Growth reactivation cron started");
-
-    const { runAllCampaignsCron } = await import("../modules/growth/campaigns/index.js");
-    const campaignIntervalMs = 24 * 60 * 60 * 1000;
-    const campaignsTick = () => {
-      runAllCampaignsCron(dataSource, sendGrowthMessage).then((r) => {
-        const total = Object.values(r).reduce((a, b) => a + b, 0);
-        if (total > 0) Logger.info("[Growth] Campaigns cron sent", r);
-      });
-    };
-    const campaignIntervalId = setInterval(campaignsTick, campaignIntervalMs);
-    stopCampaignsCron = () => clearInterval(campaignIntervalId);
-    Logger.info("Growth campaigns cron started (24h)");
-  } catch (e) {
-    Logger.warn("Growth reactivation/campaigns not started", e);
-  }
+  // Commercial growth crons disabled (see COMMERCIAL_PUSH_ENABLED in .env).
 
   try {
     const { startNotificationEngine } = await import("../modules/notifications/index.js");
@@ -877,8 +859,6 @@ export async function createBot(): Promise<{
     stopAutomationHandler?.();
     stopDueStepsCron?.();
     stopScheduleRunner?.();
-    stopReactivation?.();
-    stopCampaignsCron?.();
     paymentChecker.stop();
     servicePaymentChecker.stop();
     expirationService.stop();

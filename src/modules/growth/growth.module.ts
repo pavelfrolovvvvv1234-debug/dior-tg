@@ -23,6 +23,10 @@ export async function startReactivationCron(
   dataSource: import("typeorm").DataSource,
   sendMessage?: import("./campaigns/send-message.js").GrowthSendMessageFn
 ): Promise<() => void> {
+  const { isCommercialPushEnabled } = await import("./commercial-config.js");
+  if (!isCommercialPushEnabled()) {
+    return () => {};
+  }
   const { ReactivationService } = await import("./reactivation.service.js");
   const { growthMessage } = await import("./campaigns/localized-message.js");
   const reactivation = new ReactivationService(dataSource);

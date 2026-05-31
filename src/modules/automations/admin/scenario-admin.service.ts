@@ -10,6 +10,7 @@ import type { ScenarioConfig } from "../schemas/scenario-config.schema.js";
 import AutomationScenario from "../../../entities/automations/AutomationScenario.js";
 import ScenarioVersion from "../../../entities/automations/ScenarioVersion.js";
 import type { ScenarioCategory } from "../../../entities/automations/AutomationScenario.js";
+import { defaultScenarioEnabled } from "../commercial-policy.js";
 
 export interface ListScenariosFilters {
   category?: ScenarioCategory;
@@ -195,7 +196,7 @@ export class ScenarioAdminService {
         name: d.name ?? null,
         description: d.description ?? null,
         tags: d.tags ? JSON.stringify(d.tags) : null,
-        enabled: d.enabled ?? true,
+        enabled: d.enabled ?? defaultScenarioEnabled(d.key),
       })
     );
     await repo.save(rows);
@@ -682,7 +683,7 @@ export class ScenarioAdminService {
       name: input.name ?? null,
       description: input.description ?? null,
       tags: input.tags ? JSON.stringify(input.tags) : null,
-      enabled: input.enabled ?? true,
+      enabled: input.enabled ?? defaultScenarioEnabled(input.key),
     });
     return repo.save(row);
   }

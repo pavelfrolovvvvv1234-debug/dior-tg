@@ -52,6 +52,10 @@ export async function runAllCampaignsCron(
   dataSource: DataSource,
   sendMessage: GrowthSendMessageFn
 ): Promise<{ [campaign: string]: number }> {
+  const { isCommercialPushEnabled } = await import("../commercial-config.js");
+  if (!isCommercialPushEnabled()) {
+    return {};
+  }
   const results: { [campaign: string]: number } = {};
   try {
     results.winback = await runWinBackCampaign(dataSource, sendMessage);

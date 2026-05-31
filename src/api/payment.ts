@@ -444,9 +444,12 @@ async function runPostTopUpCreditSideEffects(
       balanceMessage += `\n${t(pickLocale(user.lang), "payment-credited-reactivation-bonus", { amount: growthResult.reactivationBonusApplied })}`;
     }
     if (growthResult.upsellOfferCreated && growthResult.messageOffer) {
-      await bot.api
-        .sendMessage(user.telegramId, growthResult.messageOffer, { parse_mode: "HTML" })
-        .catch(() => {});
+      const { isCommercialPushEnabled } = await import("../modules/growth/commercial-config.js");
+      if (isCommercialPushEnabled()) {
+        await bot.api
+          .sendMessage(user.telegramId, growthResult.messageOffer, { parse_mode: "HTML" })
+          .catch(() => {});
+      }
     }
   } catch (growthErr: unknown) {
     console.error("[Growth] handleTopUpSuccess failed:", growthErr);
@@ -475,6 +478,10 @@ async function runPostTopUpCreditSideEffects(
 
   // At most one commercial campaign per 72h: tier upgrade, large deposit, or referral push
   try {
+    const { isCommercialPushEnabled } = await import("../modules/growth/commercial-config.js");
+    if (!isCommercialPushEnabled()) {
+      return;
+    }
     const { canSendCommercialPush, markCommercialPushSent } = await import(
       "../modules/growth/campaigns/commercial-limiter.js"
     );
