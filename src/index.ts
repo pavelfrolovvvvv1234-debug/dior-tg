@@ -795,7 +795,6 @@ async function index() {
       });
     };
     const campaignIntervalId = setInterval(campaignsTick, campaignIntervalMs);
-    campaignsTick();
     stopCampaignsCron = () => clearInterval(campaignIntervalId);
     Logger.info("Growth campaigns cron started (24h)");
   } catch (growthCronErr) {

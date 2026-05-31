@@ -5,6 +5,7 @@
  */
 
 import type { InlineKeyboard } from "grammy";
+import { isBotBlockedError } from "../../../shared/telegram/is-bot-blocked-error.js";
 
 export type GrowthSendMessageFn = (
   telegramId: number,
@@ -23,5 +24,10 @@ export function createTelegramGrowthSender(
     send(telegramId, text, {
       parse_mode: "HTML",
       reply_markup: options?.replyMarkup,
-    }).then(() => {});
+    })
+      .then(() => {})
+      .catch((error: unknown) => {
+        if (isBotBlockedError(error)) return;
+        throw error;
+      });
 }

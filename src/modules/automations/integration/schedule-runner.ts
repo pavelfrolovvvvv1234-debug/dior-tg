@@ -13,9 +13,10 @@ import AutomationScenario from "../../../entities/automations/AutomationScenario
 import User from "../../../entities/User.js";
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
 import { Logger } from "../../../app/logger.js";
+import { getOffer, setOffer } from "../../growth/storage.js";
 
 const lastCronRun = new Map<string, number>();
-const lastCalendarRun = new Map<string, string>();
+const CALENDAR_RUN_TTL_SEC = 35 * 24 * 60 * 60;
 
 function isEndOfMonth(daysBefore: number, tz: string): boolean {
   const now = new Date();
@@ -23,6 +24,18 @@ function isEndOfMonth(daysBefore: number, tz: string): boolean {
   const day = parseInt(formatter.format(now), 10);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   return day >= lastDay - daysBefore && day <= lastDay;
+}
+
+function calendarSlot(now: Date): string {
+  return `${now.getUTCFullYear()}-${now.getUTCMonth()}`;
+}
+
+async function calendarSlotAlreadyRan(scenarioKey: string, slot: string): Promise<boolean> {
+  return !!(await getOffer(`automation_calendar:${scenarioKey}:${slot}`));
+}
+
+async function markCalendarSlotRan(scenarioKey: string, slot: string): Promise<void> {
+  await setOffer(`automation_calendar:${scenarioKey}:${slot}`, "1", CALENDAR_RUN_TTL_SEC);
 }
 
 function cronShouldRunNow(scenarioKey: string, expression: string): boolean {
@@ -41,7 +54,11 @@ function cronShouldRunNow(scenarioKey: string, expression: string): boolean {
   }
 }
 
-function matchesSchedule(config: ScenarioConfig, scenarioKey: string, now: Date): boolean {
+async function matchesSchedule(
+  config: ScenarioConfig,
+  scenarioKey: string,
+  now: Date
+): Promise<boolean> {
   const schedule = config.trigger.schedule;
   if (!schedule) return false;
   if (schedule.type === "cron") {
@@ -52,10 +69,8 @@ function matchesSchedule(config: ScenarioConfig, scenarioKey: string, now: Date)
     const daysBefore = schedule.daysBefore ?? 2;
     if (schedule.window === "end_of_month") {
       if (!isEndOfMonth(daysBefore, tz)) return false;
-      const slot = `${now.getUTCFullYear()}-${now.getUTCMonth()}`;
-      if (lastCalendarRun.get(scenarioKey) === slot) return false;
-      lastCalendarRun.set(scenarioKey, slot);
-      return true;
+      const slot = calendarSlot(now);
+      return !(await calendarSlotAlreadyRan(scenarioKey, slot));
     }
   }
   return false;
@@ -150,7 +165,12 @@ export function startScheduleRunner(dataSource: DataSource, bot: Bot): () => voi
         const config = await getPublishedConfig(dataSource, key);
         if (!config) continue;
         if (config.trigger.type !== "SCHEDULE") continue;
-        if (!matchesSchedule(config, key, now)) continue;
+        if (!(await matchesSchedule(config, key, now))) continue;
+
+        const schedule = config.trigger.schedule;
+        if (schedule?.type === "calendar" && schedule.window === "end_of_month") {
+          await markCalendarSlotRan(key, calendarSlot(now));
+        }
 
         const segmentKey = config.segment?.segmentKey;
         const users = await getUsersForSegment(dataSource, segmentKey, 500);
@@ -179,6 +199,5 @@ export function startScheduleRunner(dataSource: DataSource, bot: Bot): () => voi
 
   const intervalMs = 60 * 60 * 1000;
   const id = setInterval(tick, intervalMs);
-  tick();
   return () => clearInterval(id);
 }

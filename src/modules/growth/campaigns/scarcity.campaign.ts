@@ -12,6 +12,7 @@ import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limi
 import User from "../../../entities/User.js";
 import { Logger } from "../../../app/logger.js";
 import { growthMessage } from "./localized-message.js";
+import { isBotBlockedError } from "../../../shared/telegram/is-bot-blocked-error.js";
 
 const SCARCITY_COOLDOWN_KEY = "growth_scarcity:";
 const SCARCITY_COOLDOWN_SEC = 30 * 24 * 60 * 60; // ~1 month
@@ -56,7 +57,9 @@ export async function runScarcityCampaign(
       await markCommercialPushSent(u.id);
       sent++;
     } catch (e) {
-      Logger.error(`[Growth] Scarcity for user ${u.id} failed`, e);
+      if (!isBotBlockedError(e)) {
+        Logger.error(`[Growth] Scarcity for user ${u.id} failed`, e);
+      }
     }
   }
   return sent;

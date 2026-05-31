@@ -41,6 +41,5 @@ export async function startReactivationCron(
     }
   };
   const id = setInterval(tick, intervalMs);
-  tick();
   return () => clearInterval(id);
 }

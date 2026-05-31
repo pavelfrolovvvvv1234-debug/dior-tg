@@ -37,7 +37,6 @@ export { createTelegramGrowthSender } from "./send-message.js";
 
 import type { DataSource } from "typeorm";
 import { runWinBackCampaign } from "./winback.campaign.js";
-import { runScarcityCampaign } from "./scarcity.campaign.js";
 import { runCrossSellCampaign } from "./cross-sell.campaign.js";
 import { runAnniversaryCampaign } from "./anniversary.campaign.js";
 import { runB2BDedicatedCampaign } from "./b2b-dedicated.campaign.js";
@@ -56,7 +55,8 @@ export async function runAllCampaignsCron(
   const results: { [campaign: string]: number } = {};
   try {
     results.winback = await runWinBackCampaign(dataSource, sendMessage);
-    results.scarcity = await runScarcityCampaign(dataSource, sendMessage);
+    // Scarcity disabled: end-of-month promo handled by automation S04 (avoids duplicate +5%/+12% spam).
+    results.scarcity = 0;
     results.crossSell = await runCrossSellCampaign(dataSource, sendMessage);
     results.anniversary = await runAnniversaryCampaign(dataSource, sendMessage);
     results.b2b = await runB2BDedicatedCampaign(dataSource, sendMessage);
