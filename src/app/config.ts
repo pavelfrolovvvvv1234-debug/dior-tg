@@ -7,6 +7,7 @@
 
 import path from "path";
 import { z } from "zod";
+import { getDefaultProxmoxTemplateVmid as resolveDefaultProxmoxVmid, resolveProxmoxTemplateMap } from "./proxmox-templates.js";
 import { loadEnvFile } from "./load-env.js";
 
 loadEnvFile(path.join(__dirname, ".."));
@@ -209,22 +210,17 @@ export const isProxmoxEnabled = (): boolean => {
   return baseUrl.length > 0 && node.length > 0 && tokenId.length > 0 && tokenSecret.length > 0;
 };
 
-/** Parse PROXMOX_TEMPLATE_MAP JSON (osKey -> template VMID). */
-export const getProxmoxTemplateMap = (): Record<string, number> => {
-  const raw = (config.PROXMOX_TEMPLATE_MAP ?? process.env.PROXMOX_TEMPLATE_MAP ?? "").trim();
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const out: Record<string, number> = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      const id = Number(value);
-      if (!Number.isNaN(id) && id > 0) out[key] = id;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-};
+function proxmoxTemplateEnvOverride(): string {
+  return (config.PROXMOX_TEMPLATE_MAP ?? process.env.PROXMOX_TEMPLATE_MAP ?? "").trim();
+}
+
+/** Proxmox osKey → template VMID: bundled `src/config/proxmox-templates.json` + optional env override. */
+export const getProxmoxTemplateMap = (): Record<string, number> =>
+  resolveProxmoxTemplateMap(proxmoxTemplateEnvOverride());
+
+/** Default template VMID when osId is omitted (see `defaultTemplateKey` in proxmox-templates.json). */
+export const getDefaultProxmoxTemplateVmid = (): number =>
+  resolveDefaultProxmoxVmid(proxmoxTemplateEnvOverride());
 
 export const isProxmoxInsecureTls = (): boolean => {
   const value = (config.PROXMOX_INSECURE_TLS ?? process.env.PROXMOX_INSECURE_TLS ?? "").trim().toLowerCase();

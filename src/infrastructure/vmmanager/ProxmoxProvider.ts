@@ -14,7 +14,15 @@ import type {
   ListItem,
   Os,
 } from "../../api/vmmanager.js";
-import type { VmProvider } from "./provider.js";
+import type {
+  GuestBackupTask,
+  GuestDnsConfig,
+  GuestFirewallRule,
+  GuestMetrics,
+  GuestSnapshotInfo,
+  VmProvider,
+  VncConsoleInfo,
+} from "./provider.js";
 
 type ProxmoxTemplate = {
   vmid: number;
@@ -589,6 +597,34 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
+  private async collectUsedIpv4OnBridge(): Promise<Set<string>> {
+    const bridgeConfig = await this.getBridgeNetworkConfig();
+    const usedIps = new Set<string>();
+    if (bridgeConfig) {
+      const [networkIp] = bridgeConfig.cidr.split("/");
+      usedIps.add(bridgeConfig.gateway);
+      if (networkIp) usedIps.add(networkIp);
+    }
+    try {
+      const nodes = [...new Set([this.node, ...(await this.listClusterNodeNames())])];
+      for (const node of nodes) {
+        const vms = await this.apiGet<Array<{ vmid: number }>>(`/nodes/${node}/qemu`).catch(() => []);
+        for (const vm of vms) {
+          const config = await this.apiGet<{ ipconfig0?: string; ipconfig1?: string }>(
+            `/nodes/${node}/qemu/${vm.vmid}/config`
+          ).catch(() => undefined);
+          for (const key of ["ipconfig0", "ipconfig1"] as const) {
+            const ip = this.parseIpFromIpConfig(config?.[key]);
+            if (ip) usedIps.add(ip);
+          }
+        }
+      }
+    } catch (error) {
+      Logger.warn("Failed to build used IPv4 set from Proxmox config", error);
+    }
+    return usedIps;
+  }
+
   private async pickFreeIpv4FromBridge(): Promise<{ ipconfig0: string; nameserver: string } | undefined> {
     const bridgeConfig = await this.getBridgeNetworkConfig();
     if (!bridgeConfig) return undefined;
@@ -601,17 +637,7 @@ export class ProxmoxProvider implements VmProvider {
     const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
     const subnetBase = networkInt & mask;
 
-    const usedIps = new Set<string>([bridgeConfig.gateway, networkIp]);
-    try {
-      const vms = await this.apiGet<Array<{ vmid: number }>>(`/nodes/${this.node}/qemu`);
-      for (const vm of vms) {
-        const config = await this.apiGet<{ ipconfig0?: string }>(`/nodes/${this.node}/qemu/${vm.vmid}/config`).catch(() => undefined);
-        const existingIp = this.parseIpFromIpConfig(config?.ipconfig0);
-        if (existingIp) usedIps.add(existingIp);
-      }
-    } catch (error) {
-      Logger.warn("Failed to build used IPv4 set from Proxmox config", error);
-    }
+    const usedIps = await this.collectUsedIpv4OnBridge();
 
     // Keep a safe allocation range in the same /24-like segment.
     const startHost = 100;
@@ -1167,8 +1193,26 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
-  async addIpv4ToHost(_id: number): Promise<boolean> {
-    return false;
+  async addIpv4ToHost(id: number): Promise<boolean> {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const cfg = await this.apiGet<{ ipconfig0?: string; ipconfig1?: string }>(
+        `/nodes/${node}/qemu/${id}/config`
+      );
+      if (typeof cfg.ipconfig1 === "string" && cfg.ipconfig1.trim()) {
+        return true;
+      }
+      const picked = await this.pickFreeIpv4FromBridge();
+      if (!picked) return false;
+      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+        ipconfig1: picked.ipconfig0,
+      });
+      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox addIpv4ToHost failed guest=${id}`, error);
+      return false;
+    }
   }
 
   async startVM(id: number): Promise<unknown> {
@@ -1348,17 +1392,338 @@ export class ProxmoxProvider implements VmProvider {
 
   async changePasswordVM(id: number): Promise<string> {
     const password = generatePassword(12);
-    await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+    const node = await this.resolveQemuNodeForGuest(id);
+    await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
       cipassword: password,
     });
     return password;
   }
 
   async changePasswordVMCustom(id: number, password: string): Promise<boolean> {
-    await this.apiPost(`/nodes/${this.node}/qemu/${id}/config`, {
+    const node = await this.resolveQemuNodeForGuest(id);
+    await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
       cipassword: password,
     });
     return true;
+  }
+
+  async getGuestMetrics(id: number): Promise<GuestMetrics | undefined> {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const s = await this.apiGet<{
+        status?: string;
+        cpu?: number;
+        mem?: number;
+        maxmem?: number;
+        disk?: number;
+        maxdisk?: number;
+        netin?: number;
+        netout?: number;
+        uptime?: number;
+      }>(`/nodes/${node}/qemu/${id}/status/current`);
+      const cpuPct = s.cpu != null ? Math.round(s.cpu * 1000) / 10 : null;
+      return {
+        hypervisorStatus: String(s.status ?? "unknown"),
+        cpuUsagePercent: cpuPct,
+        ramUsedMib: s.mem != null ? Math.round(s.mem / (1024 * 1024)) : null,
+        ramTotalMib: s.maxmem != null ? Math.round(s.maxmem / (1024 * 1024)) : null,
+        diskUsedBytes: s.disk ?? null,
+        diskTotalBytes: s.maxdisk ?? null,
+        networkInBytes: s.netin ?? null,
+        networkOutBytes: s.netout ?? null,
+        uptimeSec: s.uptime ?? null,
+        sampledAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      Logger.warn(`Proxmox getGuestMetrics failed guest=${id}`, error);
+      return undefined;
+    }
+  }
+
+  async getVncConsole(id: number): Promise<VncConsoleInfo | undefined> {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const data = await this.apiPost<{ port?: string | number; ticket?: string }>(
+        `/nodes/${node}/qemu/${id}/vncproxy`,
+        { websocket: 1 }
+      );
+      if (!data?.ticket) return undefined;
+      const port = Number(data.port);
+      const ticket = String(data.ticket);
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      const wsHost = this.baseUrl.replace(/^https?:\/\//, "");
+      const websocketUrl = `wss://${wsHost}/api2/json/nodes/${node}/qemu/${id}/vncwebsocket?port=${port}&vncticket=${encodeURIComponent(ticket)}`;
+      return {
+        type: "vnc",
+        proxmoxBaseUrl: this.baseUrl,
+        node,
+        vmid: id,
+        port,
+        ticket,
+        expiresAt,
+        websocketUrl,
+      };
+    } catch (error) {
+      Logger.warn(`Proxmox getVncConsole failed guest=${id}`, error);
+      return undefined;
+    }
+  }
+
+  private sanitizeSnapshotName(name: string): string {
+    const cleaned = name.trim().replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+    return cleaned || `snap_${Date.now()}`;
+  }
+
+  async listSnapshots(id: number) {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const rows = await this.apiGet<
+        Array<{ name: string; description?: string; snaptime?: number; vmstate?: 0 | 1 }>
+      >(`/nodes/${node}/qemu/${id}/snapshot`);
+      return (rows ?? []).map((s) => ({
+        name: s.name,
+        description: s.description ?? null,
+        snaptime: s.snaptime ?? null,
+        vmstate: s.vmstate === 1,
+      }));
+    } catch (error) {
+      Logger.warn(`Proxmox listSnapshots failed guest=${id}`, error);
+      return undefined;
+    }
+  }
+
+  async createSnapshot(id: number, name: string, description?: string) {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const snapname = this.sanitizeSnapshotName(name);
+      await this.apiPost(`/nodes/${node}/qemu/${id}/snapshot`, {
+        snapname,
+        description: description?.trim() || `api-${new Date().toISOString()}`,
+      });
+      return {
+        name: snapname,
+        description: description ?? null,
+        snaptime: Math.floor(Date.now() / 1000),
+        vmstate: false,
+      };
+    } catch (error) {
+      Logger.warn(`Proxmox createSnapshot failed guest=${id}`, error);
+      return false;
+    }
+  }
+
+  async deleteSnapshot(id: number, name: string): Promise<boolean> {
+    const raw = name.trim().toLowerCase();
+    if (raw === "current" || raw === "rollback") {
+      return false;
+    }
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const snapname = encodeURIComponent(name.trim());
+      await this.apiDelete(`/nodes/${node}/qemu/${id}/snapshot/${snapname}`);
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox deleteSnapshot failed guest=${id} snap=${name}`, error);
+      return false;
+    }
+  }
+
+  async rollbackSnapshot(id: number, name: string): Promise<boolean> {
+    const raw = name.trim().toLowerCase();
+    if (raw === "current") {
+      return false;
+    }
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const snapname = encodeURIComponent(name.trim());
+      await this.apiPost(`/nodes/${node}/qemu/${id}/snapshot/${snapname}/rollback`, {});
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox rollbackSnapshot failed guest=${id} snap=${name}`, error);
+      return false;
+    }
+  }
+
+  async createBackup(id: number) {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const storage = this.storage.trim();
+      if (!storage) {
+        Logger.error("Proxmox createBackup: PROXMOX_STORAGE is not set");
+        return false;
+      }
+      const upid = await this.apiPost<string | number | null>(`/nodes/${node}/vzdump`, {
+        vmid: id,
+        storage,
+        mode: "snapshot",
+        compress: "zstd",
+      });
+      const taskId = this.normalizeTaskUpid(upid);
+      if (!taskId) return false;
+      return { taskId, node, vmid: id, storage };
+    } catch (error) {
+      Logger.warn(`Proxmox createBackup failed guest=${id}`, error);
+      return false;
+    }
+  }
+
+  async waitBackupTask(taskId: string, timeoutMs = 3_600_000): Promise<boolean> {
+    return this.waitForNodeTask(taskId, timeoutMs);
+  }
+
+  private encodeProxmoxSshKeys(publicKeys: string[]): string {
+    return publicKeys
+      .map((k) => k.trim())
+      .filter(Boolean)
+      .map((k) => encodeURIComponent(k))
+      .join("%0A");
+  }
+
+  async setSshKeys(id: number, publicKeys: string[]): Promise<boolean> {
+    try {
+      const keys = publicKeys.map((k) => k.trim()).filter(Boolean);
+      if (keys.length === 0) return false;
+      const node = await this.resolveQemuNodeForGuest(id);
+      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+        sshkeys: this.encodeProxmoxSshKeys(keys),
+      });
+      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox setSshKeys failed guest=${id}`, error);
+      return false;
+    }
+  }
+
+  async getGuestDns(id: number) {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const cfg = await this.apiGet<{ nameserver?: string }>(`/nodes/${node}/qemu/${id}/config`);
+      const raw = String(cfg.nameserver ?? "").trim();
+      const nameservers = raw ? raw.split(/\s+/).filter(Boolean) : [];
+      return { nameservers };
+    } catch (error) {
+      Logger.warn(`Proxmox getGuestDns failed guest=${id}`, error);
+      return undefined;
+    }
+  }
+
+  async setGuestDns(id: number, nameservers: string[]): Promise<boolean> {
+    try {
+      const list = nameservers.map((n) => n.trim()).filter(Boolean);
+      if (list.length === 0) return false;
+      const node = await this.resolveQemuNodeForGuest(id);
+      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+        nameserver: list.join(" "),
+      });
+      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox setGuestDns failed guest=${id}`, error);
+      return false;
+    }
+  }
+
+  async getFirewallRules(id: number) {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const rows = await this.apiGet<
+        Array<{
+          pos: number;
+          enable?: 0 | 1;
+          action?: string;
+          type?: string;
+          proto?: string;
+          dport?: string;
+          sport?: string;
+          source?: string;
+          dest?: string;
+          comment?: string;
+        }>
+      >(`/nodes/${node}/qemu/${id}/firewall/rules`);
+      return (rows ?? []).map((r) => ({
+        pos: r.pos,
+        enable: r.enable !== 0,
+        action: String(r.action ?? "ACCEPT"),
+        type: String(r.type ?? "in"),
+        proto: r.proto,
+        dport: r.dport,
+        sport: r.sport,
+        source: r.source,
+        dest: r.dest,
+        comment: r.comment,
+      }));
+    } catch (error) {
+      Logger.warn(`Proxmox getFirewallRules failed guest=${id}`, error);
+      return undefined;
+    }
+  }
+
+  async replaceFirewallRules(
+    id: number,
+    rules: Array<{
+      pos: number;
+      enable: boolean;
+      action: string;
+      type: string;
+      proto?: string;
+      dport?: string;
+      sport?: string;
+      source?: string;
+      dest?: string;
+      comment?: string;
+    }>
+  ): Promise<boolean> {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const existing = (await this.getFirewallRules(id)) ?? [];
+      for (const row of [...existing].sort((a, b) => b.pos - a.pos)) {
+        await this.apiDelete(`/nodes/${node}/qemu/${id}/firewall/rules/${row.pos}`).catch(() => {});
+      }
+      for (const rule of rules) {
+        await this.apiPost(`/nodes/${node}/qemu/${id}/firewall/rules`, {
+          enable: rule.enable ? 1 : 0,
+          action: rule.action,
+          type: rule.type,
+          proto: rule.proto,
+          dport: rule.dport,
+          sport: rule.sport,
+          source: rule.source,
+          dest: rule.dest,
+          comment: rule.comment,
+        });
+      }
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox replaceFirewallRules failed guest=${id}`, error);
+      return false;
+    }
+  }
+
+  async resetNetworkConfig(id: number): Promise<boolean> {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const cfg = await this.apiGet<{ ipconfig0?: string; nameserver?: string }>(
+        `/nodes/${node}/qemu/${id}/config`
+      );
+      let ipconfig0 = typeof cfg.ipconfig0 === "string" ? cfg.ipconfig0 : undefined;
+      let nameserver = typeof cfg.nameserver === "string" ? cfg.nameserver : undefined;
+      if (!ipconfig0) {
+        const picked = await this.pickFreeIpv4FromBridge();
+        if (!picked) return false;
+        ipconfig0 = picked.ipconfig0;
+        nameserver = nameserver ?? picked.nameserver;
+      }
+      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+        ipconfig0,
+        nameserver: nameserver ?? "1.1.1.1",
+      });
+      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox resetNetworkConfig failed guest=${id}`, error);
+      return false;
+    }
   }
 
 }

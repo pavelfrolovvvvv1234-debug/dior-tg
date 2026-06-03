@@ -1,0 +1,110 @@
+{
+  "defaultTemplateKey": "ubuntu2404",
+  "templates": {
+    "winserver2012": {
+      "vmid": 934,
+      "proxmoxName": "windows-server-2012-en-template",
+      "label": "Windows Server 2012 EN"
+    },
+    "winserver2016": {
+      "vmid": 935,
+      "proxmoxName": "windows-server-2016-en-template",
+      "label": "Windows Server 2016 EN"
+    },
+    "winserver2019": {
+      "vmid": 106,
+      "proxmoxName": "windows-server-2019-en-template",
+      "label": "Windows Server 2019 EN"
+    },
+    "windows10": {
+      "vmid": 904,
+      "proxmoxName": "windows-10-pro-en-template",
+      "label": "Windows 10 EN"
+    },
+    "windows10ru": {
+      "vmid": 103,
+      "proxmoxName": "windows-10-pro-ru-template",
+      "label": "Windows 10 RU"
+    },
+    "windows11": {
+      "vmid": 906,
+      "proxmoxName": "windows-11-pro-en-template",
+      "label": "Windows 11 EN"
+    },
+    "ubuntu2004": {
+      "vmid": 922,
+      "proxmoxName": "ubuntu-20.04-template",
+      "label": "Ubuntu 20.04"
+    },
+    "ubuntu2204": {
+      "vmid": 102,
+      "proxmoxName": "ubuntu-22.04-template",
+      "label": "Ubuntu 22.04"
+    },
+    "ubuntu2404": {
+      "vmid": 900,
+      "proxmoxName": "ubuntu-24.04-template",
+      "label": "Ubuntu 24.04"
+    },
+    "debian11": {
+      "vmid": 903,
+      "proxmoxName": "debian-11-template",
+      "label": "Debian 11"
+    },
+    "debian12": {
+      "vmid": 902,
+      "proxmoxName": "debian-12-template",
+      "label": "Debian 12"
+    },
+    "debian13": {
+      "vmid": 901,
+      "proxmoxName": "debian-13-template",
+      "label": "Debian 13"
+    },
+    "alma8": {
+      "vmid": 921,
+      "proxmoxName": "almalinux-8-template",
+      "label": "AlmaLinux 8"
+    },
+    "alma9": {
+      "vmid": 920,
+      "proxmoxName": "almalinux-9-template",
+      "label": "AlmaLinux 9"
+    },
+    "almalinux8": {
+      "vmid": 921,
+      "proxmoxName": "almalinux-8-template",
+      "label": "AlmaLinux 8"
+    },
+    "almalinux9": {
+      "vmid": 920,
+      "proxmoxName": "almalinux-9-template",
+      "label": "AlmaLinux 9"
+    },
+    "rockylinux": {
+      "vmid": 923,
+      "proxmoxName": "rockylinux-9-template",
+      "label": "Rocky Linux 9"
+    },
+    "rockylinux8": {
+      "vmid": 924,
+      "proxmoxName": "rockylinux-8-template",
+      "label": "Rocky Linux 8"
+    },
+    "rockylinux9": {
+      "vmid": 923,
+      "proxmoxName": "rockylinux-9-template",
+      "label": "Rocky Linux 9"
+    },
+    "centos9": {
+      "vmid": 925,
+      "proxmoxName": "centos-stream-9-template",
+      "label": "CentOS Stream 9"
+    },
+    "centosstream9": {
+      "vmid": 925,
+      "proxmoxName": "centos-stream-9-template",
+      "label": "CentOS Stream 9"
+    }
+  }
+}

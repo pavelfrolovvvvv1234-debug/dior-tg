@@ -1,6 +1,8 @@
 import type { DataSource, EntityManager } from "typeorm";
 import Reseller from "../../../entities/Reseller.js";
 import User from "../../../entities/User.js";
+import type { ResellerLedgerWrite } from "./reseller-wallet-ledger.js";
+import { recordResellerWalletDebit } from "./reseller-wallet-ledger.js";
 
 export type ResellerBillingCheck =
   | { ok: true; user: User; reseller: Reseller }
@@ -51,7 +53,8 @@ export async function assertResellerCanAfford(
 export async function debitResellerBalance(
   em: EntityManager,
   resellerId: string,
-  amount: number
+  amount: number,
+  ledger?: ResellerLedgerWrite
 ): Promise<ResellerBillingCheck> {
   const reseller = await em.findOne(Reseller, { where: { id: resellerId } });
   if (!reseller) {
@@ -74,5 +77,8 @@ export async function debitResellerBalance(
   }
   user.balance = Math.round((user.balance - amount) * 100) / 100;
   await em.save(user);
+  if (ledger) {
+    await recordResellerWalletDebit(em, resellerId, amount, user.balance, ledger);
+  }
   return { ok: true, user, reseller };
 }

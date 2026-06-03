@@ -28,7 +28,7 @@ function trResellerStatus(ctx: AppContext, status: ResellerStatus): string {
 }
 
 function backHub(ctx: AppContext): InlineKeyboard {
-  return new InlineKeyboard().text(ctx.t("ars-btn-hub"), "ars:hub");
+  return new InlineKeyboard().text(ctx.t("button-back"), "ars:hub");
 }
 
 async function safeEdit(
@@ -140,7 +140,7 @@ async function buildResellerList(ctx: AppContext, page: number): Promise<{ text:
 
   if (page > 0) kb.text("◀️", `ars:l:${page - 1}`);
   if ((page + 1) * PAGE_SIZE < all.length) kb.text("▶️", `ars:l:${page + 1}`);
-  kb.row().text(ctx.t("ars-btn-add"), "ars:add").text(ctx.t("ars-btn-hub"), "ars:hub");
+  kb.row().text(ctx.t("ars-btn-add"), "ars:add").text(ctx.t("button-back"), "ars:hub");
 
   return { text: lines.join("\n"), keyboard: kb };
 }
@@ -220,7 +220,7 @@ async function buildResellerDetail(
     kb.text(ctx.t("ars-btn-activate"), `ars:act:${resellerId}`);
   }
   kb.text(ctx.t("ars-btn-services"), `ars:svc:${resellerId}`).row();
-  kb.text(ctx.t("ars-btn-list"), "ars:l:0").text(ctx.t("ars-btn-hub"), "ars:hub");
+  kb.row().text(ctx.t("button-back"), "ars:l:0");
 
   return { text: lines.join("\n"), keyboard: kb };
 }
@@ -277,7 +277,7 @@ async function buildLogsView(ctx: AppContext, page: number): Promise<{ text: str
   const kb = new InlineKeyboard();
   if (page > 0) kb.text("◀️", `ars:log:${page - 1}`);
   if ((page + 1) * 12 < total) kb.text("▶️", `ars:log:${page + 1}`);
-  kb.row().text(ctx.t("ars-btn-hub"), "ars:hub");
+  kb.row().text(ctx.t("button-back"), "ars:hub");
   return { text: lines.join("\n"), keyboard: kb };
 }
 
@@ -321,7 +321,7 @@ async function buildApiKeysList(ctx: AppContext, page: number): Promise<{ text: 
   }
   const kb = new InlineKeyboard();
   slice.forEach((k) => kb.text(k.resellerId.slice(0, 14), `ars:d:${k.resellerId}`).row());
-  kb.text(ctx.t("ars-btn-hub"), "ars:hub");
+  kb.text(ctx.t("button-back"), "ars:hub");
   return { text: lines.join("\n"), keyboard: kb };
 }
 
@@ -472,9 +472,7 @@ export function registerResellerAdminHandlers(bot: Bot<AppContext>): void {
         })
       );
     }
-    const kb = new InlineKeyboard()
-      .text(ctx.t("ars-btn-reseller-back"), `ars:d:${resellerId}`)
-      .text(ctx.t("ars-btn-hub"), "ars:hub");
+    const kb = new InlineKeyboard().text(ctx.t("button-back"), `ars:d:${resellerId}`);
     await safeEdit(ctx, lines.join("\n"), kb);
   });
 
@@ -540,8 +538,7 @@ export async function openResellerServicesList(ctx: AppContext): Promise<void> {
       );
     }
   }
-  const keyboard = new InlineKeyboard()
-    .text(ctx.t("button-back-to-panel"), "ars:hub");
+  const keyboard = new InlineKeyboard().text(ctx.t("button-back"), "ars:hub");
   await safeEdit(ctx, lines.join("\n"), keyboard);
 }
 

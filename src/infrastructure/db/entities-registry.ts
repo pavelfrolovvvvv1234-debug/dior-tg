@@ -42,6 +42,7 @@ import AdminAuditLog from "../../entities/AdminAuditLog.js";
 import Reseller from "../../entities/Reseller.js";
 import ResellerApiKey from "../../entities/ResellerApiKey.js";
 import ResellerAuditLog from "../../entities/ResellerAuditLog.js";
+import ResellerWalletTransaction from "../../entities/ResellerWalletTransaction.js";
 import {
   NotificationJob,
   NotificationDelivery,
@@ -86,6 +87,7 @@ export const appEntities = [
   Reseller,
   ResellerApiKey,
   ResellerAuditLog,
+  ResellerWalletTransaction,
   NotificationJob,
   NotificationDelivery,
   UserEngagementProfile,

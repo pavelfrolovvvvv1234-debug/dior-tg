@@ -5,8 +5,77 @@ import type {
   ListItem,
 } from "../../api/vmmanager.js";
 
+export type GuestMetrics = {
+  hypervisorStatus: string;
+  cpuUsagePercent: number | null;
+  ramUsedMib: number | null;
+  ramTotalMib: number | null;
+  diskUsedBytes: number | null;
+  diskTotalBytes: number | null;
+  networkInBytes: number | null;
+  networkOutBytes: number | null;
+  uptimeSec: number | null;
+  sampledAt: string;
+};
+
+export type VncConsoleInfo = {
+  type: "vnc";
+  proxmoxBaseUrl: string;
+  node: string;
+  vmid: number;
+  port: number;
+  ticket: string;
+  expiresAt: string;
+  websocketUrl: string;
+};
+
+export type GuestSnapshotInfo = {
+  name: string;
+  description: string | null;
+  snaptime: number | null;
+  vmstate: boolean;
+};
+
+export type GuestFirewallRule = {
+  pos: number;
+  enable: boolean;
+  action: string;
+  type: string;
+  proto?: string;
+  dport?: string;
+  sport?: string;
+  source?: string;
+  dest?: string;
+  comment?: string;
+};
+
+export type GuestDnsConfig = {
+  nameservers: string[];
+};
+
+export type GuestBackupTask = {
+  taskId: string;
+  node: string;
+  vmid: number;
+  storage: string;
+};
+
 export interface VmProvider {
   getOsList(): Promise<GetOsListResponse | undefined>;
+  getGuestMetrics?(id: number): Promise<GuestMetrics | undefined>;
+  getVncConsole?(id: number): Promise<VncConsoleInfo | undefined>;
+  listSnapshots?(id: number): Promise<GuestSnapshotInfo[] | undefined>;
+  createSnapshot?(id: number, name: string, description?: string): Promise<GuestSnapshotInfo | false>;
+  deleteSnapshot?(id: number, name: string): Promise<boolean>;
+  rollbackSnapshot?(id: number, name: string): Promise<boolean>;
+  createBackup?(id: number): Promise<GuestBackupTask | false>;
+  waitBackupTask?(taskId: string, timeoutMs?: number): Promise<boolean>;
+  setSshKeys?(id: number, publicKeys: string[]): Promise<boolean>;
+  getGuestDns?(id: number): Promise<GuestDnsConfig | undefined>;
+  setGuestDns?(id: number, nameservers: string[]): Promise<boolean>;
+  getFirewallRules?(id: number): Promise<GuestFirewallRule[] | undefined>;
+  replaceFirewallRules?(id: number, rules: GuestFirewallRule[]): Promise<boolean>;
+  resetNetworkConfig?(id: number): Promise<boolean>;
   createVM(
     name: string,
     password: string,

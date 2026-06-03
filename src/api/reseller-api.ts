@@ -12,13 +12,46 @@ import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
 import { retry } from "../shared/utils/retry.js";
 import { rateLimitAllow } from "../infrastructure/redis/client.js";
+import {
+  beginIdempotentRequest,
+  claimNonceOnce,
+  completeIdempotentRequest,
+  pruneMemorySecurityCaches,
+  releaseIdempotentRequest,
+} from "../infrastructure/redis/reseller-security-store.js";
+import { ensureResellerWalletSchema } from "../infrastructure/db/ensure-reseller-wallet-schema.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
 import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
 import { getResellerAuthRuntime } from "../modules/reseller/services/reseller-auth-runtime.js";
 import {
   assertResellerCanAfford,
   debitResellerBalance,
+  getResellerBillingUser,
 } from "../modules/reseller/services/reseller-billing.js";
+import ResellerAuditLog from "../entities/ResellerAuditLog.js";
+import { getDefaultProxmoxTemplateVmid } from "../app/config.js";
+import {
+  buildOpenApiDoc,
+  getPlansMap,
+  listResellerLocations,
+  listResellerOsTemplates,
+  listResellerPlans,
+  mapGuestMetrics,
+  mapService,
+  RESELLER_API_ERROR_CODES,
+  RESELLER_WEBHOOK_EVENTS,
+} from "./reseller-api-catalog.js";
+import {
+  listResellerBillingTransactions,
+  recordResellerWalletDebit,
+} from "../modules/reseller/services/reseller-wallet-ledger.js";
+import {
+  deleteProvisionedVmWithRetry,
+  loadOwnedService,
+  providerHas,
+  respondVmNotSupported,
+  scheduleBackupCompletion,
+} from "./reseller-api-vm-ops.js";
 
 type ResellerAuthInfo = {
   resellerId: string;
@@ -34,18 +67,6 @@ type AuthRequest = Request & {
   rawBody?: string;
   resellerAuth?: ResellerAuthInfo;
   requestId?: string;
-};
-
-type PricePlan = {
-  name: string;
-  cpu: number;
-  ram: number;
-  ssd: number;
-  network: number;
-  price: {
-    bulletproof: number;
-    default: number;
-  };
 };
 
 type ResellerApiOptions = {
@@ -81,7 +102,11 @@ type WebhookEventType =
   | "service_password_set"
   | "service_renewed"
   | "service_reinstall_started"
-  | "service_deleted";
+  | "service_reinstall_completed"
+  | "service_status_changed"
+  | "service_deleted"
+  | "payment_failed"
+  | "backup_completed";
 
 type WebhookPayload = {
   event: WebhookEventType;
@@ -96,8 +121,6 @@ type RateLimitState = {
 };
 
 const rateLimitStore = new Map<string, RateLimitState>();
-const signatureNonceStore = new Map<string, number>();
-const idempotencyStore = new Map<string, { bodyHash: string; response: unknown; statusCode: number; expiresAt: number }>();
 
 const createSchema = z.object({
   rateName: z.string().min(1),
@@ -127,6 +150,41 @@ const actionRenewSchema = z.object({
 
 const actionReinstallSchema = z.object({
   osId: z.number().int().positive().optional(),
+  password: z.string().min(8).max(128).optional(),
+  sshKey: z.string().max(8192).optional(),
+});
+
+const reinstallEndpointSchema = actionReinstallSchema;
+
+const sshKeysSchema = z.object({
+  keys: z.array(z.string().min(16).max(8192)).min(1).max(16),
+});
+
+const snapshotCreateSchema = z.object({
+  name: z.string().min(1).max(64).optional(),
+  description: z.string().max(256).optional(),
+});
+
+const dnsUpdateSchema = z.object({
+  nameservers: z.array(z.string().min(1).max(64)).min(1).max(4),
+});
+
+const firewallReplaceSchema = z.object({
+  rules: z
+    .array(
+      z.object({
+        enable: z.boolean().optional(),
+        action: z.enum(["ACCEPT", "DROP", "REJECT"]),
+        type: z.enum(["in", "out", "group"]),
+        proto: z.string().max(16).optional(),
+        dport: z.string().max(32).optional(),
+        sport: z.string().max(32).optional(),
+        source: z.string().max(128).optional(),
+        dest: z.string().max(128).optional(),
+        comment: z.string().max(128).optional(),
+      })
+    )
+    .max(64),
 });
 
 const deleteByIpSchema = z.object({
@@ -136,40 +194,6 @@ const deleteByIpSchema = z.object({
 function parseBooleanEnv(value: string | undefined): boolean {
   const v = (value ?? "").trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
-}
-
-function buildOpenApiDoc(baseUrl: string) {
-  return {
-    openapi: "3.0.3",
-    info: {
-      title: "DiorHost Reseller API",
-      version: "1.0.0",
-      description: "Provision and manage reseller VPS services on DiorHost infrastructure.",
-    },
-    servers: [{ url: baseUrl }],
-    components: {
-      securitySchemes: {
-        ApiKeyAuth: {
-          type: "apiKey",
-          in: "header",
-          name: "x-api-key",
-        },
-      },
-    },
-    security: [{ ApiKeyAuth: [] }],
-    paths: {
-      "/reseller/health": { get: { summary: "Health check", responses: { "200": { description: "OK" } } } },
-      "/reseller/v1/services": { get: { summary: "List reseller services", responses: { "200": { description: "OK" } } } },
-      "/reseller/v1/services/create": { post: { summary: "Create VPS for reseller client", responses: { "200": { description: "OK" } } } },
-      "/reseller/v1/services/import-existing": {
-        post: { summary: "Attach existing Proxmox VM to reseller", responses: { "200": { description: "OK" } } },
-      },
-      "/reseller/v1/services/{id}": { get: { summary: "Get service details", responses: { "200": { description: "OK" } } } },
-      "/reseller/v1/services/{id}/actions/{action}": {
-        post: { summary: "Execute service action", responses: { "200": { description: "OK" } } },
-      },
-    },
-  } as const;
 }
 
 function parseJsonRecord(raw: string | undefined): Record<string, unknown> {
@@ -248,6 +272,7 @@ function requireResellerAuth(
   const maxSkewSeconds = Number.parseInt(process.env.RESELLER_API_MAX_SKEW_SECONDS ?? "300", 10) || 300;
 
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    void (async () => {
     const apiKey = String(req.header("x-api-key") ?? "").trim();
     if (!apiKey) {
       res.status(401).json({ ok: false, error: "missing_api_key" });
@@ -299,11 +324,11 @@ function requireResellerAuth(
       return;
     }
     const nonceKey = `${resellerId}:${nonce}:${timestamp}`;
-    if (signatureNonceStore.has(nonceKey)) {
+    const nonceOk = await claimNonceOnce(nonceKey, maxSkewSeconds);
+    if (!nonceOk) {
       res.status(409).json({ ok: false, error: "nonce_already_used" });
       return;
     }
-    signatureNonceStore.set(nonceKey, Date.now() + maxSkewSeconds * 1000);
 
     const defaultMax = Number.parseInt(process.env.RESELLER_API_RATE_MAX ?? "120", 10) || 120;
     const rateLimitPerMinute = rateLimitsMap[resellerId] ?? defaultMax;
@@ -318,6 +343,12 @@ function requireResellerAuth(
       rateLimitPerMinute,
     };
     next();
+    })().catch((err) => {
+      console.error("[Reseller API] auth middleware error", err);
+      if (!res.headersSent) {
+        res.status(500).json({ ok: false, error: "internal_error" });
+      }
+    });
   };
 }
 
@@ -367,42 +398,59 @@ function withRequestId(req: AuthRequest, res: Response, next: NextFunction): voi
 }
 
 function cleanupSecurityCaches(): void {
-  const now = Date.now();
-  for (const [k, exp] of signatureNonceStore.entries()) {
-    if (now >= exp) signatureNonceStore.delete(k);
-  }
-  for (const [k, entry] of idempotencyStore.entries()) {
-    if (now >= entry.expiresAt) idempotencyStore.delete(k);
-  }
+  pruneMemorySecurityCaches();
 }
 
-function checkIdempotency(req: AuthRequest): { hit: boolean; statusCode?: number; response?: unknown } | { hit: false; conflict: true } {
+function idempotencyStoreKey(req: AuthRequest): string | null {
   const key = String(req.header("x-idempotency-key") ?? "").trim();
-  if (!key || !req.resellerAuth) return { hit: false };
-  const resellerId = req.resellerAuth.resellerId;
-  const storeKey = `${resellerId}:${req.method}:${req.path}:${key}`;
-  const rawBody = req.rawBody ?? JSON.stringify(req.body ?? {});
-  const bodyHash = sha256Hex(rawBody);
-  const existing = idempotencyStore.get(storeKey);
-  if (!existing) return { hit: false };
-  if (existing.bodyHash !== bodyHash) return { hit: false, conflict: true };
-  return { hit: true, statusCode: existing.statusCode, response: existing.response };
+  if (!key || !req.resellerAuth) return null;
+  return `${req.resellerAuth.resellerId}:${req.method}:${req.path}:${key}`;
 }
 
-function saveIdempotency(req: AuthRequest, statusCode: number, response: unknown): void {
-  const key = String(req.header("x-idempotency-key") ?? "").trim();
-  if (!key || !req.resellerAuth) return;
-  const ttlSec = Number.parseInt(process.env.RESELLER_API_IDEMPOTENCY_TTL_SEC ?? "3600", 10) || 3600;
-  const resellerId = req.resellerAuth.resellerId;
-  const storeKey = `${resellerId}:${req.method}:${req.path}:${key}`;
+function idempotencyBodyHash(req: AuthRequest): string {
   const rawBody = req.rawBody ?? JSON.stringify(req.body ?? {});
-  const bodyHash = sha256Hex(rawBody);
-  idempotencyStore.set(storeKey, {
-    bodyHash,
-    statusCode,
-    response,
-    expiresAt: Date.now() + ttlSec * 1000,
-  });
+  return sha256Hex(rawBody);
+}
+
+/** Returns true when the handler should stop (response already sent). */
+async function runIdempotencyPrelude(req: AuthRequest, res: Response): Promise<boolean> {
+  const storeKey = idempotencyStoreKey(req);
+  if (!storeKey) return false;
+  const bodyHash = idempotencyBodyHash(req);
+  const begin = await beginIdempotentRequest(storeKey, bodyHash);
+  if (begin.action === "conflict") {
+    res.status(409).json({ ok: false, error: "idempotency_key_body_mismatch", ...requestMeta(req) });
+    return true;
+  }
+  if (begin.action === "replay") {
+    res.status(begin.statusCode).json({
+      ...(begin.response as object),
+      ...requestMeta(req),
+      idempotentReplay: true,
+    });
+    return true;
+  }
+  if (begin.action === "in_progress") {
+    res.status(409).json({
+      ok: false,
+      error: "idempotency_request_in_progress",
+      ...requestMeta(req),
+    });
+    return true;
+  }
+  return false;
+}
+
+async function idempotencyComplete(req: AuthRequest, statusCode: number, response: unknown): Promise<void> {
+  const storeKey = idempotencyStoreKey(req);
+  if (!storeKey) return;
+  await completeIdempotentRequest(storeKey, idempotencyBodyHash(req), statusCode, response);
+}
+
+async function idempotencyRelease(req: AuthRequest): Promise<void> {
+  const storeKey = idempotencyStoreKey(req);
+  if (!storeKey) return;
+  await releaseIdempotentRequest(storeKey, idempotencyBodyHash(req));
 }
 
 function parseBody<T>(schema: z.ZodType<T>, body: unknown): { ok: true; data: T } | { ok: false; error: string } {
@@ -412,12 +460,6 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): { ok: true; data: T 
     return { ok: false, error: `${issue?.path.join(".") || "body"}: ${issue?.message || "invalid_payload"}` };
   }
   return { ok: true, data: parsed.data };
-}
-
-function getPlansMap(): Map<string, PricePlan> {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const prices = require("../prices.json") as { virtual_vds: PricePlan[] };
-  return new Map(prices.virtual_vds.map((p) => [p.name.toLowerCase(), p]));
 }
 
 function parseMonthsToDays(months: number): number {
@@ -488,21 +530,61 @@ async function getOrCreateClientUser(
   return await userRepo.save(user);
 }
 
-function mapService(vds: VirtualDedicatedServer) {
-  return {
-    serviceId: vds.id,
-    vmid: vds.vdsId,
-    resellerId: vds.resellerId,
-    resellerClientId: vds.resellerClientId,
-    rateName: vds.rateName,
-    ip: vds.ipv4Addr,
-    login: vds.login,
-    expireAt: vds.expireAt,
-    autoRenewEnabled: vds.autoRenewEnabled !== false,
-    isBlocked: vds.adminBlocked || vds.managementLocked,
-    createdAt: vds.createdAt,
-    updatedAt: vds.lastUpdateAt,
-  };
+async function emitPaymentFailedWebhook(
+  auth: ResellerAuthInfo,
+  resellerId: string,
+  context: Record<string, unknown>
+): Promise<void> {
+  await emitWebhook(auth, {
+    event: "payment_failed",
+    resellerId,
+    timestamp: new Date().toISOString(),
+    data: context,
+  });
+}
+
+async function performServiceReinstall(
+  options: ResellerApiOptions,
+  vds: VirtualDedicatedServer,
+  body: { osId?: number; password?: string; sshKey?: string }
+): Promise<{ ok: true; password: string } | { ok: false; error: string }> {
+  const osId = body.osId ?? (vds.lastOsId || getDefaultProxmoxTemplateVmid());
+  const rootPw = body.password?.trim() || vds.password?.trim() || generatePassword(12);
+  let result: unknown;
+  try {
+    result = await options.vmProvider.reinstallOS(
+      vds.vdsId,
+      osId,
+      rootPw,
+      buildVdsProxmoxDescriptionLine(vds)
+    );
+  } catch {
+    return { ok: false, error: "reinstall_failed" };
+  }
+  if (!result) {
+    return { ok: false, error: "reinstall_failed" };
+  }
+  let password = rootPw;
+  if (
+    typeof result === "object" &&
+    result !== null &&
+    "_rootPassword" in result &&
+    typeof (result as { _rootPassword?: string })._rootPassword === "string"
+  ) {
+    const np = (result as { _rootPassword: string })._rootPassword;
+    if (np) password = np;
+  }
+  vds.password = password;
+  vds.lastOsId = osId;
+  const sshKey = body.sshKey?.trim();
+  if (sshKey) {
+    if (!providerHas(options.vmProvider, "setSshKeys")) {
+      return { ok: false, error: "ssh_key_not_supported" };
+    }
+    const ok = await options.vmProvider.setSshKeys(vds.vdsId, [sshKey]);
+    if (!ok) return { ok: false, error: "ssh_key_apply_failed" };
+  }
+  return { ok: true, password };
 }
 
 async function emitWebhook(auth: ResellerAuthInfo, payload: WebhookPayload): Promise<void> {
@@ -671,6 +753,10 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   const runtime = getResellerAuthRuntime();
   if (!enabled || Object.keys(runtime.keysByHash).length === 0) return;
 
+  void ensureResellerWalletSchema(options.dataSource).catch((err) => {
+    console.error("[Reseller API] ensureResellerWalletSchema failed", err);
+  });
+
   const signingSecretsMap = runtime.signingSecrets;
   const allowedIpsMap = runtime.allowedIps;
   const webhookMap = { ...getResellerWebhooksMap(), ...runtime.webhooks };
@@ -728,6 +814,97 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
     }
   );
 
+  app.get("/reseller/v1/plans", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      res.json({ ok: true, items: listResellerPlans(), ...requestMeta(req) });
+    });
+  });
+
+  app.get("/reseller/v1/locations", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      res.json({ ok: true, items: listResellerLocations(), ...requestMeta(req) });
+    });
+  });
+
+  app.get("/reseller/v1/os-templates", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const items = await listResellerOsTemplates(options.vmProvider);
+      res.json({ ok: true, items, ...requestMeta(req) });
+    });
+  });
+
+  app.get("/reseller/v1/billing/balance", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const billing = await getResellerBillingUser(options.dataSource, req.resellerAuth!.resellerId);
+      if (!billing.ok) {
+        res.status(403).json({ ok: false, error: billing.error, ...requestMeta(req) });
+        return;
+      }
+      res.json({
+        ok: true,
+        balanceUsd: billing.user.balance,
+        currency: "USD",
+        ...requestMeta(req),
+      });
+    });
+  });
+
+  app.get("/reseller/v1/billing/transactions", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const resellerId = req.resellerAuth!.resellerId;
+      const take = Math.min(200, Math.max(1, parsePositiveInt(req.query.limit) ?? 50));
+      const txResult = await listResellerBillingTransactions(options.dataSource, resellerId, take);
+      if (!txResult.ok) {
+        res.status(403).json({ ok: false, error: txResult.error, ...requestMeta(req) });
+        return;
+      }
+      res.json({ ok: true, items: txResult.items, ...requestMeta(req) });
+    });
+  });
+
+  app.get("/reseller/v1/billing/ledger", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const resellerId = req.resellerAuth!.resellerId;
+      const take = Math.min(100, Math.max(1, parsePositiveInt(req.query.limit) ?? 50));
+      const repo = options.dataSource.getRepository(ResellerAuditLog);
+      const rows = await repo.find({
+        where: { resellerId },
+        order: { id: "DESC" },
+        take,
+      });
+      res.json({
+        ok: true,
+        items: rows.map((r) => ({
+          id: r.id,
+          action: r.action,
+          detail: r.detail,
+          targetType: r.targetType,
+          targetId: r.targetId,
+          createdAt: r.createdAt,
+        })),
+        note: "Control-plane audit only. Use GET /billing/transactions for wallet debits and bot top-ups.",
+        ...requestMeta(req),
+      });
+    });
+  });
+
+  app.get("/reseller/v1/webhooks/events", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      res.json({
+        ok: true,
+        events: [...RESELLER_WEBHOOK_EVENTS],
+        signing: "Optional HMAC on webhook POST: x-timestamp + x-signature over raw JSON body",
+        ...requestMeta(req),
+      });
+    });
+  });
+
+  app.get("/reseller/v1/errors", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      res.json({ ok: true, codes: [...RESELLER_API_ERROR_CODES], ...requestMeta(req) });
+    });
+  });
+
   app.get("/reseller/v1/services", async (req: AuthRequest, res: Response) => {
     await routeGuarded(req, res, async () => {
       const resellerId = req.resellerAuth!.resellerId;
@@ -737,25 +914,18 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         order: { id: "DESC" },
         take: 500,
       });
-      res.json({ ok: true, items: services.map(mapService) });
+      res.json({ ok: true, items: services.map((vds) => mapService(vds)) });
     });
   });
 
   app.post("/reseller/v1/services/import-existing", async (req: AuthRequest, res: Response) => {
     await routeGuarded(req, res, async () => {
       cleanupSecurityCaches();
-      const idem = checkIdempotency(req);
-      if ("conflict" in idem) {
-        res.status(409).json({ ok: false, error: "idempotency_key_body_mismatch", ...requestMeta(req) });
-        return;
-      }
-      if (idem.hit) {
-        res.status(idem.statusCode || 200).json({ ...(idem.response as object), ...requestMeta(req), idempotentReplay: true });
-        return;
-      }
+      if (await runIdempotencyPrelude(req, res)) return;
 
       const bodyParsed = parseBody(importExistingSchema, req.body);
       if (!bodyParsed.ok) {
+        await idempotencyRelease(req);
         res.status(400).json({ ok: false, error: bodyParsed.error, ...requestMeta(req) });
         return;
       }
@@ -768,20 +938,23 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       const expiresAtRaw = body.expireAt.trim();
 
       if (!vmid || !rateName || !clientExternalId || !expiresAtRaw) {
-        res.status(400).json({ ok: false, error: "vmid, rateName, clientExternalId, expireAt are required" });
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: "vmid, rateName, clientExternalId, expireAt are required", ...requestMeta(req) });
         return;
       }
 
       const plansMap = getPlansMap();
       const plan = plansMap.get(rateName.toLowerCase());
       if (!plan) {
-        res.status(400).json({ ok: false, error: "unknown_rate_name" });
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: "unknown_rate_name", ...requestMeta(req) });
         return;
       }
 
       const expireAt = new Date(expiresAtRaw);
       if (Number.isNaN(expireAt.getTime())) {
-        res.status(400).json({ ok: false, error: "invalid_expireAt" });
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: "invalid_expireAt", ...requestMeta(req) });
         return;
       }
 
@@ -802,7 +975,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       entity.payDayAt = null;
       entity.ramSize = plan.ram;
       entity.diskSize = plan.ssd;
-      entity.lastOsId = body.osId ?? 900;
+      entity.lastOsId = body.osId ?? getDefaultProxmoxTemplateVmid();
       entity.rateName = plan.name;
       entity.expireAt = expireAt;
       entity.targetUserId = clientUser.id;
@@ -833,7 +1006,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         data: mapped,
       });
       const response = { ok: true, item: mapped, credentials: { login: "root", password }, ...requestMeta(req) };
-      saveIdempotency(req, 200, response);
+      await idempotencyComplete(req, 200, response);
       res.json(response);
     });
   });
@@ -841,18 +1014,11 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   app.post("/reseller/v1/services/create", async (req: AuthRequest, res: Response) => {
     await routeGuarded(req, res, async () => {
       cleanupSecurityCaches();
-      const idem = checkIdempotency(req);
-      if ("conflict" in idem) {
-        res.status(409).json({ ok: false, error: "idempotency_key_body_mismatch", ...requestMeta(req) });
-        return;
-      }
-      if (idem.hit) {
-        res.status(idem.statusCode || 200).json({ ...(idem.response as object), ...requestMeta(req), idempotentReplay: true });
-        return;
-      }
+      if (await runIdempotencyPrelude(req, res)) return;
 
       const bodyParsed = parseBody(createSchema, req.body);
       if (!bodyParsed.ok) {
+        await idempotencyRelease(req);
         res.status(400).json({ ok: false, error: bodyParsed.error, ...requestMeta(req) });
         return;
       }
@@ -862,21 +1028,33 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       const rateName = body.rateName.trim();
       const clientExternalId = body.clientExternalId.trim();
       if (!rateName || !clientExternalId) {
-        res.status(400).json({ ok: false, error: "rateName and clientExternalId are required" });
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: "rateName and clientExternalId are required", ...requestMeta(req) });
         return;
       }
 
       const plansMap = getPlansMap();
       const plan = plansMap.get(rateName.toLowerCase());
       if (!plan) {
-        res.status(400).json({ ok: false, error: "unknown_rate_name" });
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: "unknown_rate_name", ...requestMeta(req) });
         return;
       }
 
       const price = Number(plan.price.bulletproof || plan.price.default || 0);
       const afford = await assertResellerCanAfford(options.dataSource, resellerId, price);
       if (!afford.ok) {
+        await idempotencyRelease(req);
         const status = afford.error === "insufficient_balance" ? 402 : 403;
+        if (afford.error === "insufficient_balance") {
+          await emitPaymentFailedWebhook(auth, resellerId, {
+            action: "create",
+            rateName,
+            clientExternalId,
+            required: afford.required,
+            available: afford.available,
+          });
+        }
         res.status(status).json({
           ok: false,
           error: afford.error,
@@ -891,7 +1069,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         return;
       }
 
-      const osId = body.osId ?? 900;
+      const osId = body.osId ?? getDefaultProxmoxTemplateVmid();
       const password = generatePassword(12);
       const name = String(body.name ?? generateRandomName(13));
       const vm = await options.vmProvider.createVM(
@@ -907,14 +1085,20 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         plan.network
       );
       if (!vm) {
-        res.status(502).json({ ok: false, error: "vm_create_failed" });
+        await idempotencyRelease(req);
+        res.status(502).json({ ok: false, error: "vm_create_failed", ...requestMeta(req) });
         return;
       }
 
       const vmid = vm.id;
+      const rollbackCreatedVm = async (): Promise<void> => {
+        await deleteProvisionedVmWithRetry(options.vmProvider, vmid);
+      };
       const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
       const existingByVmid = await vdsRepo.findOneBy({ vdsId: vmid });
       if (existingByVmid) {
+        await rollbackCreatedVm();
+        await idempotencyRelease(req);
         res.status(409).json({
           ok: false,
           error: "vmid_already_registered",
@@ -959,9 +1143,17 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
             return { kind: "billing_failed" as const, error: debit.error, required: debit.required, available: debit.available };
           }
           const row = await em.save(VirtualDedicatedServer, entity);
+          await recordResellerWalletDebit(em, resellerId, price, debit.user.balance, {
+            type: "service_create",
+            serviceId: row.id,
+            vmid: row.vdsId,
+            detail: plan.name,
+          });
           return { kind: "saved" as const, saved: row };
         });
         if (tx.kind === "billing_failed") {
+          await rollbackCreatedVm();
+          await idempotencyRelease(req);
           res.status(402).json({
             ok: false,
             error: tx.error,
@@ -974,6 +1166,8 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         saved = tx.saved;
       } catch (err) {
         if (isUniqueConstraintError(err)) {
+          await rollbackCreatedVm();
+          await idempotencyRelease(req);
           res.status(409).json({
             ok: false,
             error: "vmid_duplicate",
@@ -982,6 +1176,8 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
           });
           return;
         }
+        await rollbackCreatedVm();
+        await idempotencyRelease(req);
         throw err;
       }
       const mapped = mapService(saved);
@@ -1000,7 +1196,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         data: mapped,
       });
       const response = { ok: true, item: mapped, credentials: { login: "root", password }, ...requestMeta(req) };
-      saveIdempotency(req, 200, response);
+      await idempotencyComplete(req, 200, response);
       res.json(response);
     });
   });
@@ -1041,25 +1237,527 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       const resellerId = req.resellerAuth!.resellerId;
       const serviceId = parsePositiveInt(req.params.id);
       if (!serviceId) {
-        res.status(400).json({ ok: false, error: "invalid_service_id" });
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
         return;
       }
-      const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
-      const vds = await vdsRepo.findOneBy({ id: serviceId, resellerId });
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
       if (!vds) {
-        res.status(404).json({ ok: false, error: "service_not_found" });
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
         return;
       }
       const info = await getInfoVmResilient(options.vmProvider, vds.vdsId);
+      const metrics = await options.vmProvider.getGuestMetrics?.(vds.vdsId).catch(() => undefined);
       res.json({
         ok: true,
-        item: {
-          ...mapService(vds),
-          vmState: info?.state ?? "unknown",
-          vmCpu: info?.cpu_number ?? null,
-          vmRamMib: info?.ram_mib ?? null,
-        },
+        item: mapService(vds, { vmInfo: info, metrics }),
+        ...requestMeta(req),
       });
+    });
+  });
+
+  app.get("/reseller/v1/services/:id/metrics", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      const raw = await options.vmProvider.getGuestMetrics?.(vds.vdsId);
+      res.json({
+        ok: true,
+        serviceId,
+        vmid: vds.vdsId,
+        metrics: mapGuestMetrics(raw),
+        ...requestMeta(req),
+      });
+    });
+  });
+
+  app.get("/reseller/v1/services/:id/network", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      const ipv4Api = await options.vmProvider.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
+      const fromApi = (ipv4Api?.list ?? []).map((x) => x.ip_addr).filter(Boolean);
+      const primary = vds.ipv4Addr && vds.ipv4Addr !== "0.0.0.0" ? [vds.ipv4Addr] : [];
+      const ipv4 = [...new Set([...primary, ...fromApi])];
+      const dns = providerHas(options.vmProvider, "getGuestDns")
+        ? await options.vmProvider.getGuestDns(vds.vdsId)
+        : undefined;
+      const firewall = providerHas(options.vmProvider, "getFirewallRules")
+        ? await options.vmProvider.getFirewallRules(vds.vdsId)
+        : undefined;
+      res.json({
+        ok: true,
+        serviceId,
+        ipv4,
+        ipv6: [],
+        dns: dns ?? { nameservers: [] },
+        firewall: firewall ?? [],
+        ...requestMeta(req),
+      });
+    });
+  });
+
+  app.put("/reseller/v1/services/:id/network/dns", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      if (!providerHas(options.vmProvider, "setGuestDns")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const parsed = parseBody(dnsUpdateSchema, req.body ?? {});
+      if (!parsed.ok) {
+        res.status(400).json({ ok: false, error: parsed.error, ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const ok = await options.vmProvider.setGuestDns(vds.vdsId, parsed.data.nameservers);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "dns_update_failed", ...meta });
+        return;
+      }
+      res.json({ ok: true, dns: { nameservers: parsed.data.nameservers }, ...meta });
+    });
+  });
+
+  app.get("/reseller/v1/services/:id/firewall", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      if (!providerHas(options.vmProvider, "getFirewallRules")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const rules = await options.vmProvider.getFirewallRules(vds.vdsId);
+      res.json({ ok: true, rules: rules ?? [], ...meta });
+    });
+  });
+
+  app.put("/reseller/v1/services/:id/firewall", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      if (!providerHas(options.vmProvider, "replaceFirewallRules")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const parsed = parseBody(firewallReplaceSchema, req.body ?? {});
+      if (!parsed.ok) {
+        res.status(400).json({ ok: false, error: parsed.error, ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const rules = parsed.data.rules.map((r, i) => ({
+        pos: i,
+        enable: r.enable !== false,
+        action: r.action,
+        type: r.type,
+        proto: r.proto,
+        dport: r.dport,
+        sport: r.sport,
+        source: r.source,
+        dest: r.dest,
+        comment: r.comment,
+      }));
+      const ok = await options.vmProvider.replaceFirewallRules(vds.vdsId, rules);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "firewall_update_failed", ...meta });
+        return;
+      }
+      res.json({ ok: true, rules, ...meta });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/network/ipv4", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      if (!providerHas(options.vmProvider, "addIpv4ToHost")) {
+        respondVmNotSupported(res, requestMeta(req));
+        return;
+      }
+      const ok = await options.vmProvider.addIpv4ToHost(vds.vdsId);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "ipv4_assignment_failed", ...requestMeta(req) });
+        return;
+      }
+      res.json({ ok: true, ...requestMeta(req) });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/network/reset", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      if (!providerHas(options.vmProvider, "resetNetworkConfig")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const ok = await options.vmProvider.resetNetworkConfig(vds.vdsId);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "network_reset_failed", ...meta });
+        return;
+      }
+      const ipData = await options.vmProvider.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
+      const ip = ipData?.list?.[0]?.ip_addr;
+      if (ip && ip !== "0.0.0.0") {
+        vds.ipv4Addr = ip;
+        await options.dataSource.getRepository(VirtualDedicatedServer).save(vds);
+      }
+      res.json({ ok: true, item: mapService(vds), ...meta });
+    });
+  });
+
+  app.get("/reseller/v1/services/:id/console", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      const consoleInfo = await options.vmProvider.getVncConsole?.(vds.vdsId);
+      if (!consoleInfo) {
+        res.status(501).json({ ok: false, error: "not_supported_on_provider", ...requestMeta(req) });
+        return;
+      }
+      res.json({ ok: true, console: consoleInfo, ...requestMeta(req) });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/password/reset", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const auth = req.resellerAuth!;
+      const resellerId = auth.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      const password = await options.vmProvider.changePasswordVM(vds.vdsId);
+      vds.password = password;
+      await options.dataSource.getRepository(VirtualDedicatedServer).save(vds);
+      await emitWebhook(auth, {
+        event: "service_password_reset",
+        resellerId,
+        timestamp: new Date().toISOString(),
+        data: mapService(vds),
+      });
+      res.json({ ok: true, credentials: { login: vds.login, password }, ...requestMeta(req) });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/ssh-keys", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      if (!providerHas(options.vmProvider, "setSshKeys")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const parsed = parseBody(sshKeysSchema, req.body ?? {});
+      if (!parsed.ok) {
+        res.status(400).json({ ok: false, error: parsed.error, ...meta });
+        return;
+      }
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const ok = await options.vmProvider.setSshKeys(vds.vdsId, parsed.data.keys);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "ssh_key_apply_failed", ...meta });
+        return;
+      }
+      res.json({ ok: true, ...meta });
+    });
+  });
+
+  app.get("/reseller/v1/services/:id/snapshots", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      if (!providerHas(options.vmProvider, "listSnapshots")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const items = await options.vmProvider.listSnapshots(vds.vdsId);
+      res.json({ ok: true, items: items ?? [], ...meta });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/snapshots", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      if (!providerHas(options.vmProvider, "createSnapshot")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const parsed = parseBody(snapshotCreateSchema, req.body ?? {});
+      if (!parsed.ok) {
+        res.status(400).json({ ok: false, error: parsed.error, ...meta });
+        return;
+      }
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const name = parsed.data.name ?? `snap-${Date.now()}`;
+      const created = await options.vmProvider.createSnapshot(vds.vdsId, name, parsed.data.description);
+      if (!created) {
+        res.status(502).json({ ok: false, error: "snapshot_create_failed", ...meta });
+        return;
+      }
+      res.json({ ok: true, snapshot: created, ...meta });
+    });
+  });
+
+  app.delete("/reseller/v1/services/:id/snapshots/:snapname", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      if (!providerHas(options.vmProvider, "deleteSnapshot")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      const snapname = String(req.params.snapname ?? "").trim();
+      if (!serviceId || !snapname) {
+        res.status(400).json({ ok: false, error: "invalid_request", ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const ok = await options.vmProvider.deleteSnapshot(vds.vdsId, snapname);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "snapshot_delete_failed", ...meta });
+        return;
+      }
+      res.json({ ok: true, deleted: snapname, ...meta });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/snapshots/:snapname/restore", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      if (!providerHas(options.vmProvider, "rollbackSnapshot")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const resellerId = req.resellerAuth!.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      const snapname = String(req.params.snapname ?? "").trim();
+      if (!serviceId || !snapname) {
+        res.status(400).json({ ok: false, error: "invalid_request", ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const ok = await options.vmProvider.rollbackSnapshot(vds.vdsId, snapname);
+      if (!ok) {
+        res.status(502).json({ ok: false, error: "snapshot_restore_failed", ...meta });
+        return;
+      }
+      res.json({ ok: true, restored: snapname, ...meta });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/backups", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      const meta = requestMeta(req);
+      const auth = req.resellerAuth!;
+      if (!providerHas(options.vmProvider, "createBackup")) {
+        respondVmNotSupported(res, meta);
+        return;
+      }
+      const resellerId = auth.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
+        return;
+      }
+      const task = await options.vmProvider.createBackup(vds.vdsId);
+      if (!task) {
+        res.status(502).json({ ok: false, error: "backup_start_failed", ...meta });
+        return;
+      }
+      scheduleBackupCompletion(options.vmProvider, task.taskId, (success) => {
+        if (!success) return;
+        void emitWebhook(auth, {
+          event: "backup_completed",
+          resellerId,
+          timestamp: new Date().toISOString(),
+          data: { ...mapService(vds), taskId: task.taskId, storage: task.storage },
+        });
+      });
+      res.status(202).json({ ok: true, backup: task, ...meta });
+    });
+  });
+
+  app.post("/reseller/v1/services/:id/reinstall", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      cleanupSecurityCaches();
+      if (await runIdempotencyPrelude(req, res)) return;
+
+      const auth = req.resellerAuth!;
+      const resellerId = auth.resellerId;
+      const serviceId = parsePositiveInt(req.params.id);
+      if (!serviceId) {
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        return;
+      }
+      const bodyParsed = parseBody(reinstallEndpointSchema, req.body ?? {});
+      if (!bodyParsed.ok) {
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: bodyParsed.error, ...requestMeta(req) });
+        return;
+      }
+      const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
+      if (!vds) {
+        await idempotencyRelease(req);
+        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        return;
+      }
+      const reinstall = await performServiceReinstall(options, vds, bodyParsed.data);
+      if (!reinstall.ok) {
+        await idempotencyRelease(req);
+        const status =
+          reinstall.error === "ssh_key_not_supported" || reinstall.error === "ssh_key_apply_failed"
+            ? 501
+            : 502;
+        res.status(status).json({ ok: false, error: reinstall.error, ...requestMeta(req) });
+        return;
+      }
+      const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
+      await vdsRepo.save(vds);
+      await emitWebhook(auth, {
+        event: "service_reinstall_started",
+        resellerId,
+        timestamp: new Date().toISOString(),
+        data: { ...mapService(vds), osId: vds.lastOsId },
+      });
+      await emitWebhook(auth, {
+        event: "service_reinstall_completed",
+        resellerId,
+        timestamp: new Date().toISOString(),
+        data: mapService(vds),
+      });
+      const response = {
+        ok: true,
+        item: mapService(vds),
+        credentials: { login: vds.login, password: reinstall.password },
+        ...requestMeta(req),
+      };
+      await idempotencyComplete(req, 200, response);
+      res.json(response);
     });
   });
 
@@ -1092,12 +1790,14 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       if (action === "start") {
         await options.vmProvider.startVM(vds.vdsId);
         await emit("service_started");
+        await emit("service_status_changed", { status: "online" });
         res.json({ ok: true });
         return;
       }
       if (action === "stop") {
         await options.vmProvider.stopVM(vds.vdsId);
         await emit("service_stopped");
+        await emit("service_status_changed", { status: "offline" });
         res.json({ ok: true });
         return;
       }
@@ -1145,6 +1845,14 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         const affordRenew = await assertResellerCanAfford(options.dataSource, resellerId, renewPrice);
         if (!affordRenew.ok) {
           const status = affordRenew.error === "insufficient_balance" ? 402 : 403;
+          if (affordRenew.error === "insufficient_balance") {
+            await emitPaymentFailedWebhook(auth, resellerId, {
+              action: "renew",
+              serviceId: vds.id,
+              required: affordRenew.required,
+              available: affordRenew.available,
+            });
+          }
           res.status(status).json({
             ok: false,
             error: affordRenew.error,
@@ -1166,6 +1874,12 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
           vds.payDayAt = null;
           vds.managementLocked = false;
           const row = await em.save(vds);
+          await recordResellerWalletDebit(em, resellerId, renewPrice, debit.user.balance, {
+            type: "service_renew",
+            serviceId: row.id,
+            vmid: row.vdsId,
+            detail: `${months}m`,
+          });
           return { kind: "saved" as const, saved: row };
         });
         if (tx.kind === "billing_failed") {
@@ -1188,39 +1902,23 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
           res.status(400).json({ ok: false, error: bodyParsed.error, ...requestMeta(req) });
           return;
         }
-        const osId = bodyParsed.data.osId ?? (vds.lastOsId || 900);
-        const rootPw = vds.password?.trim() || generatePassword(12);
-        let result: unknown;
-        try {
-          result = await options.vmProvider.reinstallOS(
-            vds.vdsId,
-            osId,
-            rootPw,
-            buildVdsProxmoxDescriptionLine(vds)
-          );
-        } catch {
-          res.status(502).json({ ok: false, error: "reinstall_failed" });
+        const reinstall = await performServiceReinstall(options, vds, bodyParsed.data);
+        if (!reinstall.ok) {
+          const status =
+            reinstall.error === "ssh_key_not_supported" || reinstall.error === "ssh_key_apply_failed"
+              ? 501
+              : 502;
+          res.status(status).json({ ok: false, error: reinstall.error, ...requestMeta(req) });
           return;
         }
-        if (!result) {
-          res.status(502).json({ ok: false, error: "reinstall_failed" });
-          return;
-        }
-        if (
-          typeof result === "object" &&
-          result !== null &&
-          "_rootPassword" in result &&
-          typeof (result as { _rootPassword?: string })._rootPassword === "string"
-        ) {
-          const np = (result as { _rootPassword: string })._rootPassword;
-          if (np) vds.password = np;
-        } else {
-          vds.password = rootPw;
-        }
-        vds.lastOsId = osId;
         await vdsRepo.save(vds);
-        await emit("service_reinstall_started", { osId });
-        res.json({ ok: true });
+        await emit("service_reinstall_started", { osId: vds.lastOsId });
+        await emit("service_reinstall_completed");
+        res.json({
+          ok: true,
+          credentials: { login: vds.login, password: reinstall.password },
+          ...requestMeta(req),
+        });
         return;
       }
       if (action === "delete") {
