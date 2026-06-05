@@ -1413,6 +1413,43 @@ async function index() {
     await ctx.deleteMessage().catch(() => {});
   });
 
+  bot.callbackQuery(/^vds-extra-ipv4-yes:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const vdsId = Number(ctx.match![1]);
+    if (!Number.isFinite(vdsId) || vdsId <= 0) return;
+    const { VdsService } = await import("./domain/services/VdsService.js");
+    const { VdsRepository } = await import("./infrastructure/db/repositories/VdsRepository.js");
+    const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+    const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+    const { BillingService } = await import("./domain/billing/BillingService.js");
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    const userRepo = new UserRepository(ctx.appDataSource);
+    const topUpRepo = new TopUpRepository(ctx.appDataSource);
+    const billing = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+    const vdsService = new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
+    try {
+      const result = await vdsService.purchaseExtraIpv4(vdsId, session.main.user.id);
+      const u = await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id });
+      if (u) session.main.user.balance = u.balance;
+      await ctx.reply(
+        ctx.t("vds-extra-ipv4-success", {
+          ip: result.extraIp,
+          price: result.monthlyPrice,
+        }),
+        { parse_mode: "HTML" }
+      );
+    } catch (e: any) {
+      await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
+    }
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^vds-extra-ipv4-no:\d+$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.deleteMessage().catch(() => {});
+  });
+
   bot.callbackQuery(/^advcs:start$/, async (ctx) => {
     const { startAdminCreateServiceWizard } = await import(
       "./ui/conversations/admin-create-service-conversation.js"
@@ -2830,7 +2867,8 @@ async function index() {
     }
     if (!(await requireAdmin(ctx as AppContext))) return;
 
-    session.other.broadcast = { step: "awaiting_text" };
+    const { beginBroadcastDraft } = await import("./shared/admin/admin-pending-input.js");
+    beginBroadcastDraft(session);
     await ctx.reply(ctx.t("broadcast-enter-text"), { parse_mode: "HTML" });
   });
 
@@ -2844,9 +2882,16 @@ async function index() {
     }
     if (!(await requireAdmin(ctx as AppContext))) return;
 
+    const { hasPendingAdminTextInput } = await import("./shared/admin/admin-pending-input.js");
+    if (hasPendingAdminTextInput(session)) {
+      await ctx.reply(ctx.t("broadcast-cancelled"), { parse_mode: "HTML" });
+      return;
+    }
+
     const text = ctx.message?.text?.split(" ").slice(1).join(" ").trim() || "";
     if (text.length === 0) {
-      session.other.broadcast = { step: "awaiting_text" };
+      const { beginBroadcastDraft } = await import("./shared/admin/admin-pending-input.js");
+      beginBroadcastDraft(session);
       await ctx.reply(ctx.t("broadcast-enter-text"), { parse_mode: "HTML" });
       return;
     }

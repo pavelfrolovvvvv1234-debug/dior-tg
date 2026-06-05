@@ -22,6 +22,7 @@ import {
 import { ensureResellerWalletSchema } from "../infrastructure/db/ensure-reseller-wallet-schema.js";
 import { AppError, ExternalApiError } from "../shared/errors/index.js";
 import { buildVdsProxmoxDescriptionLine } from "../shared/vds-proxmox-label.js";
+import { resolveVdsLoginForOs } from "../shared/vmm-os-display.js";
 import { getResellerAuthRuntime } from "../modules/reseller/services/reseller-auth-runtime.js";
 import {
   assertResellerCanAfford,
@@ -576,6 +577,7 @@ async function performServiceReinstall(
   }
   vds.password = password;
   vds.lastOsId = osId;
+  vds.login = resolveVdsLoginForOs({ osId });
   const sshKey = body.sshKey?.trim();
   if (sshKey) {
     if (!providerHas(options.vmProvider, "setSshKeys")) {
@@ -966,7 +968,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
 
       const entity = existing ?? vdsRepo.create();
       entity.vdsId = vmid;
-      entity.login = "root";
+      entity.login = resolveVdsLoginForOs({ osId: entity.lastOsId });
       entity.password = password;
       entity.ipv4Addr = String(body.ip ?? "0.0.0.0");
       entity.cpuCount = plan.cpu;
@@ -996,7 +998,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         resellerId,
         clientExternalId,
         vds: saved,
-        login: "root",
+        login: saved.login,
         password,
       });
       await emitWebhook(auth, {
@@ -1005,7 +1007,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         timestamp: new Date().toISOString(),
         data: mapped,
       });
-      const response = { ok: true, item: mapped, credentials: { login: "root", password }, ...requestMeta(req) };
+      const response = { ok: true, item: mapped, credentials: { login: saved.login, password }, ...requestMeta(req) };
       await idempotencyComplete(req, 200, response);
       res.json(response);
     });
@@ -1112,7 +1114,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       const clientUser = await getOrCreateClientUser(options.dataSource, resellerId, clientExternalId);
       const entity = vdsRepo.create({
         vdsId: vmid,
-        login: "root",
+        login: resolveVdsLoginForOs({ osId }),
         password,
         ipv4Addr: ip,
         cpuCount: plan.cpu,
@@ -1186,7 +1188,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         resellerId,
         clientExternalId,
         vds: saved,
-        login: "root",
+        login: saved.login,
         password,
       });
       await emitWebhook(auth, {
@@ -1195,7 +1197,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         timestamp: new Date().toISOString(),
         data: mapped,
       });
-      const response = { ok: true, item: mapped, credentials: { login: "root", password }, ...requestMeta(req) };
+      const response = { ok: true, item: mapped, credentials: { login: saved.login, password }, ...requestMeta(req) };
       await idempotencyComplete(req, 200, response);
       res.json(response);
     });
@@ -1813,7 +1815,13 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         vds.password = password;
         await vdsRepo.save(vds);
         await emit("service_password_reset");
-        res.json({ ok: true, credentials: { login: "root", password } });
+        res.json({
+          ok: true,
+          credentials: {
+            login: resolveVdsLoginForOs({ osId: vds.lastOsId, storedLogin: vds.login }),
+            password,
+          },
+        });
         return;
       }
       if (action === "set-password") {

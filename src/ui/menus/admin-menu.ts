@@ -246,9 +246,8 @@ export const adminMenu = new Menu<AppContext>("admin-menu")
       }
 
       await safeAdminAction(ctx, async () => {
-        session.other.broadcast = {
-          step: "awaiting_text",
-        };
+        const { beginBroadcastDraft } = await import("../../shared/admin/admin-pending-input.js");
+        beginBroadcastDraft(session);
         const keyboard = new InlineKeyboard().text(
           ctx.t("button-back"),
           "admin-menu-back"

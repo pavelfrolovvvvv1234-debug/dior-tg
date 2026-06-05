@@ -32,6 +32,7 @@ import {
   getVpsCpuModelForRate as getVpsCpuModel,
   type PremiumVpsReadyPayload,
 } from "./vps-onboarding-messages.js";
+import { resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
@@ -342,7 +343,7 @@ async function createVpsOrderDirect(
 
       const vds = new VirtualDedicatedServer();
       vds.vdsId = vmResult.id;
-      vds.login = "root";
+      vds.login = resolveVdsLoginForOs({ osKey, osId });
       vds.password = generatedPassword;
       vds.ipv4Addr = ip;
       vds.cpuCount = rate.cpu;

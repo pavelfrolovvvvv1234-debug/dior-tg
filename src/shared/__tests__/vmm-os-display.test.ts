@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   filterAndSortOsTemplatesForVpsPicker,
   humanizeVmmOsName,
+  resolveVdsLoginForOs,
 } from "../vmm-os-display.js";
 
 const mockOs = (name: string, id: number) => ({
@@ -42,6 +43,15 @@ describe("filterAndSortOsTemplatesForVpsPicker", () => {
       sorted.map((o) => o.id),
       [11]
     );
+  });
+});
+
+describe("resolveVdsLoginForOs", () => {
+  it("uses Administrator for Windows templates and root for Linux", () => {
+    assert.equal(resolveVdsLoginForOs({ osKey: "win10en" }), "Administrator");
+    assert.equal(resolveVdsLoginForOs({ osKey: "windows10" }), "Administrator");
+    assert.equal(resolveVdsLoginForOs({ osKey: "ubuntu2404" }), "root");
+    assert.equal(resolveVdsLoginForOs({ osName: "winserver2019" }), "Administrator");
   });
 });
 

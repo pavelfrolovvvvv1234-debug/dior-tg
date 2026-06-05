@@ -20,6 +20,7 @@ import { ReferralService } from "../domain/referral/ReferralService";
 import { ensureSessionUser } from "../shared/utils/session-user.js";
 import { canChangeRoles, canEditBalance, canManageServices } from "../shared/auth/permissions.js";
 import { writeAdminAuditLog } from "../shared/audit/admin-audit.js";
+import { getWritableSession, beginAdminVdsSearch } from "../shared/admin/admin-pending-input.js";
 import {
   ADMIN_USER_LIST_PAGE_SIZE,
   findUsersForAdminList,
@@ -531,36 +532,28 @@ export const controlUsers = new Menu<AppContext>("control-users", {})
     if (session.main.user.role != Role.User) {
       range.text(ctx.t("admin-lookup-user-button"), async (ctx) => {
         await ctx.answerCallbackQuery().catch(() => {});
+        const liveSession = await getWritableSession(ctx);
         const {
           isAdminCreateServiceWizardActive,
           resetAdminCreateServiceWizardState,
         } = await import("../shared/admin/admin-create-service-session.js");
-        if (isAdminCreateServiceWizardActive(session)) {
-          resetAdminCreateServiceWizardState(session);
+        const { clearBroadcastDraft } = await import("../shared/admin/admin-pending-input.js");
+        if (isAdminCreateServiceWizardActive(liveSession)) {
+          resetAdminCreateServiceWizardState(liveSession);
           await ctx.conversation.exitAll().catch(() => {});
         }
-        session.other.controlUsersPage.awaitingUserLookup = true;
+        clearBroadcastDraft(liveSession);
+        if (!liveSession.other.controlUsersPage) {
+          liveSession.other.controlUsersPage = { orderBy: "id", sortBy: "ASC", page: 0 };
+        }
+        liveSession.other.controlUsersPage.awaitingUserLookup = true;
         await ctx.reply(ctx.t("admin-lookup-user-prompt"), { parse_mode: "HTML" });
       });
       if (session.main.user.role === Role.Admin) {
         range.text(ctx.t("admin-lookup-vds-button"), async (ctx) => {
           await ctx.answerCallbackQuery().catch(() => {});
-          if (session.other.promoAdmin) {
-            session.other.promoAdmin.createStep = null;
-            session.other.promoAdmin.editStep = null;
-            session.other.promoAdmin.createDraft = {};
-            session.other.promoAdmin.editingPromoId = null;
-          }
-          if (!session.other.adminVds) {
-            session.other.adminVds = {
-              page: 0,
-              searchQuery: "",
-              selectedVdsId: null,
-              awaitingSearch: false,
-              awaitingTransferUserId: false,
-            };
-          }
-          session.other.adminVds.awaitingSearch = true;
+          const liveSession = await getWritableSession(ctx);
+          beginAdminVdsSearch(liveSession);
           await ctx.reply(ctx.t("admin-vds-search-prompt"), { parse_mode: "HTML" });
         });
       }

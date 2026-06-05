@@ -33,6 +33,7 @@ import { ensureSessionUser } from "../../shared/utils/session-user.js";
 import { escapeUserInput } from "../../helpers/formatting.js";
 import DedicatedServer from "../../entities/DedicatedServer";
 import { setModeratorChatId } from "../../shared/moderator-chat.js";
+import { formatTicketAssigneeDisplay } from "../../shared/tickets/ticket-display.js";
 import { createInitialOtherSession } from "../../shared/session-initial.js";
 import type { DomainShopCategory } from "../../domain/domains/domain-purchase-config.js";
 import { setPendingDomainNsUpdate } from "../conversations/domain-update-ns-conversation.js";
@@ -592,24 +593,10 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
 
     const promoStep = session.other.promoAdmin?.createStep;
     const promoEditStep = session.other.promoAdmin?.editStep;
-    const { isAdminCreateServiceWizardActive } = await import(
-      "../../shared/admin/admin-create-service-session.js"
+    const { hasPendingAdminTextInput } = await import(
+      "../../shared/admin/admin-pending-input.js"
     );
-    const hasOtherPendingAdminInput =
-      isAdminCreateServiceWizardActive(session) ||
-      !!session.other.deposit?.awaitingAmount ||
-      !!session.other.controlUsersPage?.awaitingUserLookup ||
-      !!session.other.adminVds?.awaitingSearch ||
-      !!session.other.adminVds?.awaitingTransferUserId ||
-      !!session.other.adminCdn?.awaitingSearch ||
-      !!session.other.balanceEdit ||
-      !!session.other.messageToUser ||
-      !!session.other.subscriptionEdit ||
-      !!session.other.referralPercentEdit ||
-      !!session.other.adminDomainNs ||
-      !!session.other.adminDomainSetAmperId ||
-      !!session.other.adminRegisterDomain ||
-      !!session.other.ticketsView?.pendingAction;
+    const hasOtherPendingAdminInput = hasPendingAdminTextInput(session);
     if ((promoStep || promoEditStep) && session.main.user.role === Role.Admin) {
       // Never let stale promo edit/create state steal text from other admin flows.
       if (hasOtherPendingAdminInput) {
@@ -1026,30 +1013,15 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         return next();
       }
 
-      if (session.other.broadcast?.step !== "awaiting_text") {
+      const { hasPendingAdminTextInput, clearBroadcastDraft } = await import(
+        "../../shared/admin/admin-pending-input.js"
+      );
+      if (hasPendingAdminTextInput(session)) {
+        clearBroadcastDraft(session);
         return next();
       }
 
-      // Do not steal text from other admin input flows (search, transfer, user lookup, etc.)
-      const { isAdminCreateServiceWizardActive } = await import(
-        "../../shared/admin/admin-create-service-session.js"
-      );
-      const hasOtherPendingAdminInput =
-        isAdminCreateServiceWizardActive(session) ||
-        !!session.other.deposit?.awaitingAmount ||
-        !!session.other.controlUsersPage?.awaitingUserLookup ||
-        !!session.other.adminVds?.awaitingSearch ||
-        !!session.other.adminVds?.awaitingTransferUserId ||
-        !!session.other.adminCdn?.awaitingSearch ||
-        !!session.other.balanceEdit ||
-        !!session.other.messageToUser ||
-        !!session.other.subscriptionEdit ||
-        !!session.other.referralPercentEdit ||
-        !!session.other.adminDomainNs ||
-        !!session.other.adminDomainSetAmperId ||
-        !!session.other.adminRegisterDomain ||
-        !!(session.other as { adminServiceDraft?: unknown }).adminServiceDraft;
-      if (hasOtherPendingAdminInput) {
+      if (session.other.broadcast?.step !== "awaiting_text") {
         return next();
       }
 
@@ -1333,9 +1305,7 @@ export function registerBroadcastAndTickets(bot: Bot<AppContext>): void {
         minute: "2-digit",
       });
       const statusLabel = ctx.t(`ticket-status-${ticket.status}` as "ticket-status-new");
-      const responsibleStr = ticket.assignedModeratorId
-        ? String(ticket.assignedModeratorId)
-        : ctx.t("ticket-card-responsible-none");
+      const responsibleStr = formatTicketAssigneeDisplay(ctx, ticket.assignedModeratorId);
 
       let descriptionText = ticketText;
       if (!descriptionText && isDedicatedOp) {
@@ -1931,7 +1901,7 @@ Are you sure you want to proceed?`,
       ticketNumber: ticket.ticketNumber,
       orderNumber: order.orderNumber,
       status: formatProvisioningStatus(ctx, ticket.status),
-      assignee: ticket.assigneeUserId ?? ctx.t("ticket-card-responsible-none"),
+      assignee: formatTicketAssigneeDisplay(ctx, ticket.assigneeUserId),
       userId: order.userId,
       amount: order.paymentAmount,
       currency: order.currency,

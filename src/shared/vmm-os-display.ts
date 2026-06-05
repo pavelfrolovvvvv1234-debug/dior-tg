@@ -2,6 +2,8 @@
  * Readable labels and VPS/VDS OS picker ordering for VMmanager template slugs.
  */
 
+import { getProxmoxTemplateMap } from "../app/config.js";
+
 export type VmmOsTemplateLike = {
   id: number;
   name: string;
@@ -228,4 +230,52 @@ export function humanizeVmmOsName(raw: string): string {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ")
     .trim();
+}
+
+export const LINUX_VDS_DEFAULT_LOGIN = "root";
+export const WINDOWS_VDS_DEFAULT_LOGIN = "Administrator";
+
+/** True for Windows Server / desktop template slugs (e.g. win10en, windows10, winserver2019). */
+export function isWindowsOsSlug(raw: string): boolean {
+  const slug = normalizeVmmOsSlug(raw);
+  if (!slug) return false;
+  if (slug.startsWith("win")) return true;
+  return slug.includes("windows");
+}
+
+/**
+ * Login shown to the user and stored on VDS after provision / reinstall.
+ * Windows templates use the built-in Administrator account, not root.
+ */
+export function resolveVdsLoginForOs(input?: {
+  osKey?: string | null;
+  osName?: string | null;
+  osId?: number | null;
+  storedLogin?: string | null;
+}): string {
+  const candidates: string[] = [];
+  if (input?.osKey?.trim()) candidates.push(input.osKey.trim());
+  if (input?.osName?.trim()) candidates.push(input.osName.trim());
+
+  if (input?.osId != null && Number.isFinite(input.osId)) {
+    const map = getProxmoxTemplateMap();
+    for (const [key, vmid] of Object.entries(map)) {
+      if (vmid === input.osId) {
+        candidates.push(key);
+        break;
+      }
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (isWindowsOsSlug(candidate)) {
+      return WINDOWS_VDS_DEFAULT_LOGIN;
+    }
+  }
+
+  const stored = input?.storedLogin?.trim();
+  if (stored && stored.toLowerCase() !== LINUX_VDS_DEFAULT_LOGIN) {
+    return stored;
+  }
+  return LINUX_VDS_DEFAULT_LOGIN;
 }

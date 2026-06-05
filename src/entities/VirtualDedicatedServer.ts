@@ -91,7 +91,7 @@ export default class VirtualDedicatedServer {
   @Column({ default: false, type: "boolean" })
   managementLocked!: boolean;
 
-  /** Legacy counter (extra IPv4 purchase disabled); not used in billing UI. */
+  /** Count of purchased extra IPv4 add-ons (+$18/mo each, max 1). */
   @Column({ default: 0, type: "integer" })
   extraIpv4Count!: number;
 

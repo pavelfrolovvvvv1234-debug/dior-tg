@@ -209,9 +209,10 @@ Pool reservation is not guaranteed under high load.`,
     "abandoned_deploy",
     true,
     {
-      ru: `Часть выбранных ресурсов (<code>{{config}}</code>) ограничена по availability.
+      ru: `Похоже, вы выбрали <code>{{config}}</code>, но ещё не оформили заказ.
+Рекомендуем завершить текущий заказ или выберите другой тарифный план.
 
-Рекомендуем завершить деплой или выбрать альтернативный план.`,
+А если требуется консультация, можете обратиться к ТП: @diorhost_bot`,
       en: `Some selected resources (<code>{{config}}</code>) have limited availability.
 
 Complete deploy or pick an alternative plan.`,

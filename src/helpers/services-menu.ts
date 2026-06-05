@@ -25,6 +25,7 @@ import { getVmManagerAllowedOsIds } from "../app/config.js";
 import {
   filterAndSortOsTemplatesForVpsPicker,
   humanizeVmmOsName,
+  resolveVdsLoginForOs,
 } from "../shared/vmm-os-display.js";
 import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
 import { DedicatedProvisioningService } from "../domain/dedicated/DedicatedProvisioningService.js";
@@ -363,7 +364,8 @@ async function createAndBuyVDS(
   newVds.ramSize = rate.ram;
   newVds.lastOsId = osId;
   newVds.password = generatedPassword;
-  newVds.login = "root";
+  const osEntryForLogin = ctx.osList?.list.find((o) => o.id === osId);
+  newVds.login = resolveVdsLoginForOs({ osId, osName: osEntryForLogin?.name });
   newVds.networkSpeed = rate.network;
   newVds.targetUserId = userId;
   newVds.isBulletproof = bulletproof;

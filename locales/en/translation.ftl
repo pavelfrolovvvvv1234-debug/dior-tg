@@ -1142,6 +1142,19 @@ vds-autorenew-enable = 🔄 Enable auto-renewal
 vds-autorenew-disable = ⏸ Disable auto-renewal
 vds-button-renew = 📅 Renew
 vds-button-more = ⚙️ More
+vds-button-extra-ipv4 = ➕ Extra IPv4 (${ $price }/mo)
+vds-extra-ipv4-confirm-ask =
+    Add <b>1 additional IPv4</b> for <b>${ $price }</b>/mo?
+
+    Charge now: <b>${ $price }</b>
+    Renewal price will become: <b>${ $renewal }</b>/mo (includes extra IP)
+vds-extra-ipv4-success =
+    ✅ Extra IPv4 added.
+
+    IP: <code>{ $ip }</code>
+    +${ $price }/mo added to plan (included in renewal)
+vds-extra-ipv4-active = Extra IPv4 is active (see second address above or in Proxmox)
+service-label-extra-ipv4 = Extra IPv4
 vds-button-power-off = 🔴 Shut down
 vds-button-power-on = 🟢 Power on
 vds-button-new-password = 🔁 New password
@@ -1512,6 +1525,7 @@ ticket-status-rejected = 🔴 Rejected
 ticket-card-client = Client
 ticket-card-created = Created
 ticket-card-responsible = Responsible
+ticket-support-label = Support
 ticket-card-responsible-none = —
 ticket-card-title = Ticket #{$id}
 ticket-card-status = Status
@@ -1523,7 +1537,7 @@ ticket-description-requested = User requested {$operation}.
 error-ticket-not-found = Ticket not found
 error-ticket-already-taken = Ticket already taken
 ticket-ask-user-enter-question = Enter the question for the user:
-ticket-question-from-moderator = <strong>Question from moderator</strong>
+ticket-question-from-moderator = <strong>Question from Support</strong>
 
 Ticket #{$ticketId}
 
@@ -1578,12 +1592,12 @@ dedicated-status-requested = <strong>Dedicated Server Request</strong>
 Ticket #{$ticketId}
 Status: {$status}
 
-Please wait for moderator to process your request.
+Please wait for Support to process your request.
 dedicated-status-requested-no-ticket = <strong>Dedicated Server Request</strong>
 
 Status: REQUESTED
 
-Please wait for moderator to process your request.
+Please wait for Support to process your request.
 dedicated-no-credentials = Dedicated server credentials not available yet
 dedicated-info = <strong>🔒 My Dedicated Server</strong>
 
@@ -1600,7 +1614,7 @@ button-dedicated-start = ✳️ Enable
 button-dedicated-stop = ⛔️ Disable
 dedicated-order-enter-requirements = Enter your requirements (CPU/RAM/SSD/Location):
 dedicated-order-enter-comment-optional = Enter additional comment (optional, press /skip to skip):
-dedicated-order-created = <strong>Request sent to moderator</strong>
+dedicated-order-created = <strong>Request sent to Support</strong>
 
 Ticket #{$ticketId}
 Status: {$status}
@@ -1615,7 +1629,7 @@ Please contact support.
 dedicated-operation-requested = <strong>Request sent to support</strong>
 
  Operation: {$operation}
- Ticket #{$ticketId}. Please wait for moderator response.
+ Ticket #{$ticketId}. Please wait for a response from Support.
 
 Operation: {$operation}
 Ticket #{$ticketId}
@@ -1769,7 +1783,7 @@ withdraw-request-created = <strong>Withdrawal Request Created</strong>
 
 Ticket #{ticketId}
 
-A moderator will process your request shortly.
+Support will process your request shortly.
 withdraw-new-notification = <strong>New Withdrawal Request #{$ticketId}</strong>
 
 User: <a href="tg://user?id={$userId}">@{$username}</a> ({$userId})

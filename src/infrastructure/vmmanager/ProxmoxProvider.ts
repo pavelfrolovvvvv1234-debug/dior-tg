@@ -6,6 +6,7 @@ import {
   isProxmoxInsecureTls,
 } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
+import { isWindowsOsSlug } from "../../shared/vmm-os-display.js";
 import { generatePassword } from "../../entities/VirtualDedicatedServer.js";
 import { retry } from "../../shared/utils/retry.js";
 import type {
@@ -278,6 +279,15 @@ export class ProxmoxProvider implements VmProvider {
       return osId;
     }
     return this.templateMap[normalizeOsKey(String(osId))];
+  }
+
+  /** Windows cloud-init uses Administrator; Linux uses root. */
+  private cloudInitUserForOsId(osId: number): string {
+    const key = this.reverseTemplateMap[osId];
+    if (key && isWindowsOsSlug(key)) {
+      return "Administrator";
+    }
+    return "root";
   }
 
   private async waitUntilQemuGuestAbsent(vmid: number, timeoutMs = 90000): Promise<boolean> {
@@ -834,7 +844,7 @@ export class ProxmoxProvider implements VmProvider {
       const baseConfig: Record<string, unknown> = {
         cores: cpuNumber,
         memory: ramSize * 1024,
-        ciuser: "root",
+        ciuser: this.cloudInitUserForOsId(osId),
         cipassword: password,
         description: comment,
         ipconfig0: autoIpConfig?.ipconfig0,
@@ -1167,7 +1177,16 @@ export class ProxmoxProvider implements VmProvider {
   async getIpv4AddrVM(id: number): Promise<{ list: Array<{ ip_addr: string }> } | undefined> {
     try {
       const node = await this.resolveQemuNodeForGuest(id);
-      const configData = await this.apiGet<{ ipconfig0?: string }>(`/nodes/${node}/qemu/${id}/config`).catch(() => undefined);
+      const configData = await this.apiGet<{ ipconfig0?: string; ipconfig1?: string }>(
+        `/nodes/${node}/qemu/${id}/config`
+      ).catch(() => undefined);
+      const configuredIps: string[] = [];
+      for (const key of ["ipconfig0", "ipconfig1"] as const) {
+        const ip = this.parseIpFromIpConfig(configData?.[key]);
+        if (ip && ip !== "0.0.0.0" && ip !== "127.0.0.1" && !configuredIps.includes(ip)) {
+          configuredIps.push(ip);
+        }
+      }
       const agent = await this.apiGet<{ result?: Array<{ "ip-addresses"?: Array<{ "ip-address"?: string }> }> }>(
         `/nodes/${node}/qemu/${id}/agent/network-get-interfaces`
       ).catch(() => null);
@@ -1182,7 +1201,13 @@ export class ProxmoxProvider implements VmProvider {
               ip !== "127.0.0.1" &&
               !ip.startsWith("169.254.")
           ) ?? [];
-      if (ips.length > 0) return { list: [{ ip_addr: ips[0]! }] };
+      if (ips.length > 0) {
+        const merged = [...new Set([...configuredIps, ...ips])];
+        return { list: merged.map((ip_addr) => ({ ip_addr })) };
+      }
+      if (configuredIps.length > 0) {
+        return { list: configuredIps.map((ip_addr) => ({ ip_addr })) };
+      }
       const configuredIp = this.parseIpFromIpConfig(configData?.ipconfig0);
       if (configuredIp && configuredIp !== "0.0.0.0" && configuredIp !== "127.0.0.1") {
         return { list: [{ ip_addr: configuredIp }] };
@@ -1344,7 +1369,7 @@ export class ProxmoxProvider implements VmProvider {
       await this.apiPost(`/nodes/${runNode}/qemu/${id}/config`, {
         cores: Number(existingConfig.cores ?? 1),
         memory: Number(existingConfig.memory ?? 1024),
-        ciuser: "root",
+        ciuser: this.cloudInitUserForOsId(osId),
         cipassword: rootPassword,
         description: descriptionMerged || "DiorHost reinstall",
         net0: net0Restored,

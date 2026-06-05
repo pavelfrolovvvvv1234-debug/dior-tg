@@ -17,6 +17,7 @@ import { TopUpRepository } from "../../infrastructure/db/repositories/TopUpRepos
 import VirtualDedicatedServer from "../../entities/VirtualDedicatedServer.js";
 import { ensureAdminAccess } from "../../shared/auth/permissions.js";
 import { ensureFullSession } from "../../shared/session-initial.js";
+import { resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
 
 const PAGE_SIZE = 10;
 const GEOIP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -332,7 +333,8 @@ async function buildDetailText(ctx: AppContext, v: VirtualDedicatedServer): Prom
   const ram = Number.isFinite(v.ramSize) ? `${v.ramSize}GB` : "-";
   const disk = Number.isFinite(v.diskSize) ? `${v.diskSize}GB` : "-";
   const daysSuffix = daysLeft == null ? "-" : `+${daysLeft}d`;
-  const login = (v.login || "root").trim() || "root";
+  const osEntry = ctx.osList?.list.find((o) => o.id === v.lastOsId);
+  const login = resolveVdsLoginForOs({ osName: osEntry?.name, osId: v.lastOsId, storedLogin: v.login });
   const password = String(v.password || "").trim();
   const passwordDisplay = password
     ? escapeHtml(password)
@@ -452,13 +454,8 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
   }
 
   if (rest === "search") {
-    if (session.other.promoAdmin) {
-      session.other.promoAdmin.createStep = null;
-      session.other.promoAdmin.editStep = null;
-      session.other.promoAdmin.createDraft = {};
-      session.other.promoAdmin.editingPromoId = null;
-    }
-    ad.awaitingSearch = true;
+    const { beginAdminVdsSearch } = await import("../../shared/admin/admin-pending-input.js");
+    beginAdminVdsSearch(session);
     await ctx.reply(ctx.t("admin-vds-search-prompt"), { parse_mode: "HTML" });
     return;
   }

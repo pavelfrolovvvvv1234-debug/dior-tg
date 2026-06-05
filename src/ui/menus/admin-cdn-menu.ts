@@ -138,6 +138,11 @@ export async function handleAdminCdnCallback(ctx: AppContext): Promise<void> {
     return;
   }
   if (rest === "search") {
+    const { clearBroadcastDraft, clearAdminTextCaptureModes } = await import(
+      "../../shared/admin/admin-pending-input.js"
+    );
+    clearBroadcastDraft(session);
+    clearAdminTextCaptureModes(session);
     state.awaitingSearch = true;
     await ctx.reply(ctx.t("admin-cdn-search-prompt"), { parse_mode: "HTML" });
     return;

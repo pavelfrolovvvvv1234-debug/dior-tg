@@ -18,6 +18,11 @@ import { NotFoundError, BusinessError, ExternalApiError } from "../../shared/err
 import { Logger } from "../../app/logger";
 import { retry } from "../../shared/utils/retry";
 import { buildVdsProxmoxDescriptionLine } from "../../shared/vds-proxmox-label.js";
+import { resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
+import {
+  getExtraIpv4MonthlyPriceUsd,
+  MAX_EXTRA_IPV4_PER_VDS,
+} from "../vds/extra-ipv4.js";
 
 /**
  * VDS rate structure from prices.json.
@@ -335,6 +340,7 @@ export class VdsService {
       vds.password = rootPassword;
     }
     vds.lastOsId = osId;
+    vds.login = resolveVdsLoginForOs({ osId });
     await this.vdsRepository.save(vds);
 
     Logger.info(`Reinstalled OS ${osId} on VDS ${vdsId}`);
@@ -549,5 +555,78 @@ export class VdsService {
     vds.managementLocked = false;
     await this.vdsRepository.save(vds);
     return vds;
+  }
+
+  /**
+   * Purchase one additional IPv4 for a VDS ($/mo added to renewal price).
+   */
+  async purchaseExtraIpv4(
+    vdsId: number,
+    userId: number
+  ): Promise<{ extraIp: string; monthlyPrice: number }> {
+    const vds = await this.getVdsById(vdsId);
+
+    if (vds.targetUserId !== userId) {
+      throw new BusinessError("You don't own this VDS");
+    }
+    if (vds.managementLocked) {
+      throw new BusinessError("VDS management is locked (subscription expired). Renew first.");
+    }
+    if (vds.adminBlocked) {
+      throw new BusinessError("VDS is blocked by administrator.");
+    }
+    if ((vds.extraIpv4Count ?? 0) >= MAX_EXTRA_IPV4_PER_VDS) {
+      throw new BusinessError("Extra IPv4 already added for this VDS");
+    }
+    if (typeof this.vmManager.addIpv4ToHost !== "function") {
+      throw new ExternalApiError("Extra IPv4 is not supported on this infrastructure", "VmProvider");
+    }
+
+    const monthlyPrice = getExtraIpv4MonthlyPriceUsd();
+    if (!(await this.billingService.hasSufficientBalance(userId, monthlyPrice))) {
+      const balance = await this.billingService.getBalance(userId);
+      throw new BusinessError(
+        `Insufficient balance. Required: ${monthlyPrice}, Available: ${balance}`
+      );
+    }
+
+    const provisioned = await this.vmManager.addIpv4ToHost(vds.vdsId);
+    if (!provisioned) {
+      throw new ExternalApiError("Failed to assign extra IPv4 on hypervisor", "VmProvider");
+    }
+
+    let extraIp = "";
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const ipData = await this.vmManager.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
+      const ips =
+        ipData?.list?.map((row) => row.ip_addr).filter((ip) => ip && ip !== "0.0.0.0") ?? [];
+      extraIp = ips.find((ip) => ip !== vds.ipv4Addr) ?? ips[1] ?? "";
+      if (extraIp) break;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const vdsRepo = manager.getRepository(VirtualDedicatedServer);
+      const userRepo = manager.getRepository(User);
+
+      const user = await userRepo.findOne({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundError("User", userId);
+      }
+      if (user.balance < monthlyPrice) {
+        throw new BusinessError("Insufficient balance");
+      }
+
+      user.balance -= monthlyPrice;
+      await userRepo.save(user);
+
+      vds.extraIpv4Count = (vds.extraIpv4Count ?? 0) + 1;
+      vds.renewalPrice = Math.round((Number(vds.renewalPrice) + monthlyPrice) * 100) / 100;
+      await vdsRepo.save(vds);
+    });
+
+    Logger.info(`Extra IPv4 purchased for VDS ${vdsId} (vmid ${vds.vdsId}), ip=${extraIp || "pending"}`);
+
+    return { extraIp: extraIp || "pending", monthlyPrice };
   }
 }

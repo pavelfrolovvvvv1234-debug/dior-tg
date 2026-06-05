@@ -24,10 +24,13 @@ import { escapeUserInput } from "./formatting.js";
 import {
   filterAndSortOsTemplatesForVpsPicker,
   humanizeVmmOsName,
+  resolveVdsLoginForOs,
 } from "../shared/vmm-os-display.js";
 import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
 import { buildVdsProxmoxDescriptionLine } from "@/shared/vds-proxmox-label.js";
 import { Logger } from "../app/logger.js";
+import { getExtraIpv4MonthlyPriceUsd, MAX_EXTRA_IPV4_PER_VDS } from "../domain/vds/extra-ipv4.js";
+import { providerHas } from "../api/reseller-api-vm-ops.js";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -99,6 +102,23 @@ export function hasPendingVdsManageText(session: {
 
 const isPlaceholderIpv4 = (ip?: string | null): boolean =>
   !ip || ip === "0.0.0.0" || ip === "127.0.0.1";
+
+async function resolveSecondaryIpv4(
+  ctx: AppContext,
+  vds: VirtualDedicatedServer
+): Promise<string | null> {
+  if ((vds.extraIpv4Count ?? 0) < 1) return null;
+  const data = await ctx.vmmanager.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
+  const ips =
+    data?.list?.map((row) => row.ip_addr).filter((ip) => ip && !isPlaceholderIpv4(ip)) ?? [];
+  return ips.find((ip) => ip !== vds.ipv4Addr) ?? ips[1] ?? null;
+}
+
+const canOfferExtraIpv4Purchase = (ctx: AppContext, vds: VirtualDedicatedServer): boolean =>
+  !isDemoVds(vds) &&
+  !isVdsManagementBlocked(vds) &&
+  (vds.extraIpv4Count ?? 0) < MAX_EXTRA_IPV4_PER_VDS &&
+  providerHas(ctx.vmmanager, "addIpv4ToHost");
 
 /** Grammy Menu may pass payload as string or number depending on plugin/version. */
 const parseMenuNumericPayload = (match: unknown): number => {
@@ -379,7 +399,8 @@ const buildVdsManageText = (
   ctx: AppContext,
   vds: VirtualDedicatedServer | null,
   info: ListItem | null,
-  showPassword: boolean
+  showPassword: boolean,
+  extraIpv4?: string | null
 ): string => {
   const header = `<strong>${ctx.t("vds-manage-title")}</strong>`;
   if (!vds || !info) {
@@ -391,7 +412,7 @@ const buildVdsManageText = (
 
   const infoBlock = buildServiceInfoBlock(ctx, {
     ip: vds.ipv4Addr,
-    login: vds.login,
+    login: resolveVdsLoginForOs({ osName, osId: vds.lastOsId, storedLogin: vds.login }),
     password: vds.password,
     showPassword,
     os: osName,
@@ -414,7 +435,14 @@ const buildVdsManageText = (
     lockLine = `\n\n${ctx.t("vds-management-locked-notice")}`;
   }
 
-  return `${header}\n\n${infoBlock}\n\n${autoLine}${lockLine}`;
+  const extraIpLine =
+    extraIpv4 && !isPlaceholderIpv4(extraIpv4)
+      ? `\n<strong>${ctx.t("service-label-extra-ipv4")}:</strong> ${escapeUserInput(extraIpv4)}`
+      : (vds.extraIpv4Count ?? 0) > 0
+        ? `\n<i>${ctx.t("vds-extra-ipv4-active")}</i>`
+        : "";
+
+  return `${header}\n\n${infoBlock}${extraIpLine}\n\n${autoLine}${lockLine}`;
 };
 
 const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
@@ -455,6 +483,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   }
 
   const info = await resolveVdsManageInfo(ctx, vds);
+  let secondaryIp: string | null = null;
   if (!isDemoVds(vds)) {
     // Refresh persisted IPv4 if it was unavailable at provisioning time.
     // Best-effort; failures here must never block opening the management card
@@ -475,10 +504,11 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
         error: e instanceof Error ? e.message : String(e),
       });
     }
+    secondaryIp = await resolveSecondaryIpv4(ctx, vds);
   }
 
   await ctx.editMessageText(
-    buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword),
+    buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword, secondaryIp),
     {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
@@ -701,6 +731,7 @@ export const vdsReinstallOs = new Menu<AppContext>("vds-select-os-reinstall")
               vds.password = rootPassword;
             }
             vds.lastOsId = os.id;
+            vds.login = resolveVdsLoginForOs({ osName: os.name, osId: os.id, storedLogin: vds.login });
 
             await vdsRepo.save(vds);
             await ctx.deleteMessage();
@@ -1369,6 +1400,25 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
             await ctx.answerCallbackQuery().catch(() => {});
             await startRenamePrompt(ctx, expandedId);
           });
+
+          if (canOfferExtraIpv4Purchase(ctx, expanded)) {
+            const price = getExtraIpv4MonthlyPriceUsd();
+            range.text(ctx.t("vds-button-extra-ipv4", { price }), async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
+              await ctx.reply(
+                ctx.t("vds-extra-ipv4-confirm-ask", {
+                  price,
+                  renewal: Math.round((expanded.renewalPrice + price) * 100) / 100,
+                }),
+                {
+                  parse_mode: "HTML",
+                  reply_markup: new InlineKeyboard()
+                    .text(ctx.t("button-confirm"), `vds-extra-ipv4-yes:${expandedId}`)
+                    .text(ctx.t("button-cancel"), `vds-extra-ipv4-no:${expandedId}`),
+                }
+              );
+            });
+          }
           range.row();
 
           range.text(ctx.t("vds-button-support-request"), async (ctx) => {

@@ -3,6 +3,7 @@
  */
 
 import type { AppContext } from "../../shared/types/context.js";
+import { isWindowsOsSlug, resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
 
 const DEFAULT_VPS_CPU_MODEL = "Xeon E5-2699v4";
 
@@ -16,12 +17,11 @@ export function escapeHtml(s: string): string {
 }
 
 export function isWindowsVpsOsKey(osKey: string): boolean {
-  return osKey.startsWith("win");
+  return isWindowsOsSlug(osKey);
 }
 
 export function inferWindowsFromOsName(osName: string): boolean {
-  const n = osName.toLowerCase();
-  return n.includes("windows") || n.includes("win ") || n.startsWith("win");
+  return isWindowsOsSlug(osName);
 }
 
 export type PremiumVpsReadyPayload = {
@@ -50,6 +50,7 @@ export function buildPremiumVpsReadyHtml(ctx: AppContext, p: PremiumVpsReadyPayl
   const e = escapeHtml;
   const ipOk = isValidPublicIpv4(p.ipv4);
   const win = isWindowsVpsOsKey(p.osKey) || inferWindowsFromOsName(p.osLabel);
+  const login = resolveVdsLoginForOs({ osKey: p.osKey, osName: p.osLabel, storedLogin: p.login });
   const sep = "\n───────────────\n";
 
   const head = ctx.t("vps-premium-headline");
@@ -73,17 +74,17 @@ export function buildPremiumVpsReadyHtml(ctx: AppContext, p: PremiumVpsReadyPayl
   let blockAccess = `${sep}<b>${ctx.t("vps-premium-sec-access")}</b>\n`;
   if (!ipOk) {
     blockAccess += `\n${ctx.t("vps-premium-ipv4-pending")}\n`;
-    blockAccess += `\n<b>${ctx.t("vps-premium-k-user")}</b> <code>${e(p.login)}</code>`;
+    blockAccess += `\n<b>${ctx.t("vps-premium-k-user")}</b> <code>${e(login)}</code>`;
     blockAccess += `\n<b>${ctx.t("vps-premium-k-password")}</b> <code>${e(p.password)}</code>`;
   } else {
     blockAccess += `\n<b>${ctx.t("vps-premium-k-ipv4")}</b>\n<code>${e(p.ipv4)}</code>`;
-    blockAccess += `\n\n<b>${ctx.t("vps-premium-k-user")}</b> <code>${e(p.login)}</code>`;
+    blockAccess += `\n\n<b>${ctx.t("vps-premium-k-user")}</b> <code>${e(login)}</code>`;
     blockAccess += `\n<b>${ctx.t("vps-premium-k-password")}</b> <code>${e(p.password)}</code>`;
     if (win) {
       blockAccess += `\n\n<b>${ctx.t("vps-premium-k-remote")}</b>\n`;
-      blockAccess += ctx.t("vps-premium-rdp-body", { ip: e(p.ipv4), login: e(p.login) });
+      blockAccess += ctx.t("vps-premium-rdp-body", { ip: e(p.ipv4), login: e(login) });
     } else {
-      const ssh = `ssh ${p.login}@${p.ipv4}`;
+      const ssh = `ssh ${login}@${p.ipv4}`;
       blockAccess += `\n\n<b>${ctx.t("vps-premium-k-ssh")}</b>\n<pre>${e(ssh)}</pre>`;
     }
   }
