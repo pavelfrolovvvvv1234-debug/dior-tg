@@ -11,7 +11,7 @@ import type { ListItem } from "./vmmanager.js";
 import type { VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
 import { retry } from "../shared/utils/retry.js";
-import { rateLimitAllow } from "../infrastructure/redis/client.js";
+import { getSharedRedis, rateLimitAllow } from "../infrastructure/redis/client.js";
 import {
   beginIdempotentRequest,
   claimNonceOnce,
@@ -34,6 +34,7 @@ import { getDefaultProxmoxTemplateVmid } from "../app/config.js";
 import {
   buildOpenApiDoc,
   getPlansMap,
+  listResellerBillingAddons,
   listResellerLocations,
   listResellerOsTemplates,
   listResellerPlans,
@@ -48,8 +49,11 @@ import {
 } from "../modules/reseller/services/reseller-wallet-ledger.js";
 import {
   deleteProvisionedVmWithRetry,
+  fetchLiveServiceIpv4,
   loadOwnedService,
+  mergeServiceIpv4Addresses,
   providerHas,
+  purchaseResellerExtraIpv4,
   respondVmNotSupported,
   scheduleBackupCompletion,
 } from "./reseller-api-vm-ops.js";
@@ -107,7 +111,8 @@ type WebhookEventType =
   | "service_status_changed"
   | "service_deleted"
   | "payment_failed"
-  | "backup_completed";
+  | "backup_completed"
+  | "service_extra_ipv4_added";
 
 type WebhookPayload = {
   event: WebhookEventType;
@@ -755,6 +760,12 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
   const runtime = getResellerAuthRuntime();
   if (!enabled || Object.keys(runtime.keysByHash).length === 0) return;
 
+  if (process.env.NODE_ENV === "production" && !process.env.REDIS_URL?.trim()) {
+    console.warn(
+      "[Reseller API] REDIS_URL is not set — idempotency and nonce replay protection use in-memory fallback (unsafe across restarts / multiple workers)"
+    );
+  }
+
   void ensureResellerWalletSchema(options.dataSource).catch((err) => {
     console.error("[Reseller API] ensureResellerWalletSchema failed", err);
   });
@@ -775,8 +786,15 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
     })
   );
 
-  app.get("/reseller/health", (_req: Request, res: Response) => {
-    res.json({ ok: true, service: "reseller-api" });
+  app.get("/reseller/health", async (_req: Request, res: Response) => {
+    const redis = await getSharedRedis();
+    res.json({
+      ok: true,
+      service: "reseller-api",
+      version: "1.2.0",
+      redis: redis ? "connected" : "memory_fallback",
+      provider: (process.env.VM_PROVIDER ?? "proxmox").trim().toLowerCase(),
+    });
   });
 
   const exposeDocs =
@@ -861,6 +879,12 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         return;
       }
       res.json({ ok: true, items: txResult.items, ...requestMeta(req) });
+    });
+  });
+
+  app.get("/reseller/v1/billing/addons", async (req: AuthRequest, res: Response) => {
+    await routeGuarded(req, res, async () => {
+      res.json({ ok: true, addons: listResellerBillingAddons(), ...requestMeta(req) });
     });
   });
 
@@ -1249,9 +1273,10 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       }
       const info = await getInfoVmResilient(options.vmProvider, vds.vdsId);
       const metrics = await options.vmProvider.getGuestMetrics?.(vds.vdsId).catch(() => undefined);
+      const ipv4Addresses = await fetchLiveServiceIpv4(options.vmProvider, vds);
       res.json({
         ok: true,
-        item: mapService(vds, { vmInfo: info, metrics }),
+        item: mapService(vds, { vmInfo: info, metrics, ipv4Addresses }),
         ...requestMeta(req),
       });
     });
@@ -1296,8 +1321,7 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       }
       const ipv4Api = await options.vmProvider.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
       const fromApi = (ipv4Api?.list ?? []).map((x) => x.ip_addr).filter(Boolean);
-      const primary = vds.ipv4Addr && vds.ipv4Addr !== "0.0.0.0" ? [vds.ipv4Addr] : [];
-      const ipv4 = [...new Set([...primary, ...fromApi])];
+      const ipv4 = mergeServiceIpv4Addresses(vds.ipv4Addr, fromApi);
       const dns = providerHas(options.vmProvider, "getGuestDns")
         ? await options.vmProvider.getGuestDns(vds.vdsId)
         : undefined;
@@ -1309,8 +1333,10 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         serviceId,
         ipv4,
         ipv6: [],
+        ipv6Supported: false,
         dns: dns ?? { nameservers: [] },
         firewall: firewall ?? [],
+        addons: listResellerBillingAddons(),
         ...requestMeta(req),
       });
     });
@@ -1417,27 +1443,74 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
 
   app.post("/reseller/v1/services/:id/network/ipv4", async (req: AuthRequest, res: Response) => {
     await routeGuarded(req, res, async () => {
-      const resellerId = req.resellerAuth!.resellerId;
+      cleanupSecurityCaches();
+      if (await runIdempotencyPrelude(req, res)) return;
+
+      const auth = req.resellerAuth!;
+      const resellerId = auth.resellerId;
+      const meta = requestMeta(req);
       const serviceId = parsePositiveInt(req.params.id);
       if (!serviceId) {
-        res.status(400).json({ ok: false, error: "invalid_service_id", ...requestMeta(req) });
+        await idempotencyRelease(req);
+        res.status(400).json({ ok: false, error: "invalid_service_id", ...meta });
         return;
       }
       const vds = await loadOwnedService(options.dataSource, resellerId, serviceId);
       if (!vds) {
-        res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
+        await idempotencyRelease(req);
+        res.status(404).json({ ok: false, error: "service_not_found", ...meta });
         return;
       }
-      if (!providerHas(options.vmProvider, "addIpv4ToHost")) {
-        respondVmNotSupported(res, requestMeta(req));
+
+      const result = await purchaseResellerExtraIpv4(
+        options.dataSource,
+        options.vmProvider,
+        resellerId,
+        vds
+      );
+      if (!result.ok) {
+        await idempotencyRelease(req);
+        if (result.error === "insufficient_balance") {
+          await emitPaymentFailedWebhook(auth, resellerId, {
+            action: "extra_ipv4",
+            serviceId: vds.id,
+            required: result.required,
+            available: result.available,
+          });
+        }
+        res.status(result.httpStatus).json({
+          ok: false,
+          error: result.error,
+          required: result.required,
+          available: result.available,
+          ...meta,
+        });
         return;
       }
-      const ok = await options.vmProvider.addIpv4ToHost(vds.vdsId);
-      if (!ok) {
-        res.status(502).json({ ok: false, error: "ipv4_assignment_failed", ...requestMeta(req) });
-        return;
-      }
-      res.json({ ok: true, ...requestMeta(req) });
+
+      const ipv4Addresses = await fetchLiveServiceIpv4(options.vmProvider, result.vds);
+      const item = mapService(result.vds, { ipv4Addresses });
+      await emitWebhook(auth, {
+        event: "service_extra_ipv4_added",
+        resellerId,
+        timestamp: new Date().toISOString(),
+        data: {
+          ...item,
+          extraIp: result.extraIp,
+          chargedUsd: result.monthlyPrice,
+        },
+      });
+
+      const response = {
+        ok: true,
+        item,
+        extraIp: result.extraIp,
+        chargedUsd: result.monthlyPrice,
+        renewalPriceUsd: Number(result.vds.renewalPrice || 0),
+        ...meta,
+      };
+      await idempotencyComplete(req, 200, response);
+      res.json(response);
     });
   });
 
@@ -1470,7 +1543,8 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         vds.ipv4Addr = ip;
         await options.dataSource.getRepository(VirtualDedicatedServer).save(vds);
       }
-      res.json({ ok: true, item: mapService(vds), ...meta });
+      const ipv4Addresses = await fetchLiveServiceIpv4(options.vmProvider, vds);
+      res.json({ ok: true, item: mapService(vds, { ipv4Addresses }), ...meta });
     });
   });
 

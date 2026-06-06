@@ -4,7 +4,7 @@ import TopUp, { TopUpStatus } from "../../../entities/TopUp.js";
 import { getResellerBillingUser } from "./reseller-billing.js";
 
 export type ResellerLedgerWrite = {
-  type: "service_create" | "service_renew";
+  type: "service_create" | "service_renew" | "extra_ipv4";
   serviceId: number;
   vmid?: number;
   detail?: string;

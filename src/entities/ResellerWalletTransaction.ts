@@ -18,7 +18,7 @@ export default class ResellerWalletTransaction {
   balanceAfterUsd!: number;
 
   @Column({ type: "varchar", length: 32 })
-  type!: "service_create" | "service_renew" | "manual_credit" | "manual_debit";
+  type!: "service_create" | "service_renew" | "extra_ipv4" | "manual_credit" | "manual_debit";
 
   @Column({ type: "integer", nullable: true })
   serviceId!: number | null;

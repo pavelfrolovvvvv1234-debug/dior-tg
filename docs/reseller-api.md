@@ -25,7 +25,7 @@ All JSON responses include `x-request-id`. On idempotent replay: `"idempotentRep
 
 Parallel duplicate POSTs with the same idempotency key receive `409 idempotency_request_in_progress` until the first call finishes.
 
-**Production:** configure `REDIS_URL` so idempotency and nonce keys survive restarts and work with multiple API workers. Wallet ledger table `reseller_wallet_transactions` is created automatically on API startup if missing.
+**Production:** configure `REDIS_URL` so idempotency and nonce keys survive restarts and work with multiple API workers. Without Redis, `/reseller/health` reports `redis: "memory_fallback"`. Wallet ledger table `reseller_wallet_transactions` is created automatically on API startup if missing.
 
 ## Catalog
 
@@ -67,11 +67,33 @@ Wallet is the Telegram user linked to the reseller in DIOR CONTROL.
 
 ### `GET /reseller/v1/billing/transactions?limit=50`
 
-Unified history: **wallet debits** (`service_create`, `service_renew` with `amountUsd` negative) and **completed bot top-ups** (`balance_topup`, positive).
+Unified history: wallet debits (`service_create`, `service_renew`, `extra_ipv4` with negative `amountUsd`) and completed bot top-ups (`balance_topup`, positive).
 
 ### `GET /reseller/v1/billing/ledger?limit=50`
 
 Recent rows from `reseller_audit_log` (DIOR CONTROL actions only).
+
+### `GET /reseller/v1/billing/addons`
+
+Billable add-ons and platform limits:
+
+```json
+{
+  "ok": true,
+  "addons": {
+    "currency": "USD",
+    "extraIpv4": {
+      "monthlyPriceUsd": 18,
+      "maxPerService": 1,
+      "billedOnPurchase": true,
+      "includedInRenewal": true
+    },
+    "ipv6": { "supported": false, "note": "..." }
+  }
+}
+```
+
+Override extra IPv4 price via `EXTRA_IPV4_MONTHLY_USD` on the API host.
 
 Create/renew prices: see `GET /reseller/v1/plans` (`createPriceUsd`, `renewPriceUsd`). Next charge date = service `billing.nextChargeAt` / `expireAt`.
 
@@ -87,11 +109,15 @@ Create/renew prices: see `GET /reseller/v1/plans` (`createPriceUsd`, `renewPrice
 | `vmid` | Hypervisor VMID |
 | `status` | `online` \| `offline` \| `suspended` \| `installing` \| `error` |
 | `hypervisorState` | Raw state: `active`, `stopped`, `creating`, … |
-| `ip` / `ipv4[]` | Primary IPv4 |
+| `ip` | Primary IPv4 |
+| `ipv4[]` | All assigned IPv4 (primary + extra); live list on `GET .../:id` |
+| `ipv6[]` | Always `[]` (IPv6 not supported yet) |
+| `login` | `root` on Linux, `Administrator` on Windows templates |
 | `resources` | `cpu`, `ramGb`, `diskGb`, `networkMbps`, optional live `vmCpu`, `vmRamMib` |
-| `traffic.limitMbps` | Plan port cap; byte counters → `GET .../metrics` |
+| `traffic` | `limitMbps`, optional `networkInBytes` / `networkOutBytes` when metrics sampled |
 | `location` | `key`, `node` |
-| `billing.renewalPriceUsd`, `billing.nextChargeAt`, `billing.autoRenewEnabled` |
+| `billing.renewalPriceUsd`, `billing.nextChargeAt`, `billing.autoRenewEnabled`, `billing.addons.extraIpv4` |
+| `capabilities` | `ipv6`, `extraIpv4`, `liveMetrics` flags |
 | `expireAt`, `createdAt`, `updatedAt` |
 | `flags.isBlocked` | Admin or subscription lock |
 
@@ -113,7 +139,7 @@ Create/renew prices: see `GET /reseller/v1/plans` (`createPriceUsd`, `renewPrice
 {
   "ok": true,
   "item": { "...service object..." },
-  "credentials": { "login": "root", "password": "..." },
+  "credentials": { "login": "root or Administrator", "password": "..." },
   "requestId": "..."
 }
 ```
@@ -165,7 +191,7 @@ Available on **Proxmox** (`VM_PROVIDER=proxmox`). Otherwise `metrics` may be `nu
 | PUT | `/services/:id/network/dns` | Body: `{ "nameservers": ["1.1.1.1","8.8.8.8"] }` |
 | GET | `/services/:id/firewall` | List VM firewall rules |
 | PUT | `/services/:id/firewall` | Body: `{ "rules": [{ "action":"ACCEPT","type":"in","proto":"tcp","dport":"22" }] }` |
-| POST | `/services/:id/network/ipv4` | Assigns `ipconfig1` from bridge pool |
+| POST | `/services/:id/network/ipv4` | Purchases + assigns 1 extra IPv4 (`$18/mo` default), debits wallet, adds to renewal. Supports `x-idempotency-key`. |
 | POST | `/services/:id/network/reset` | Re-applies cloud-init network; refreshes IP in DB |
 
 ### Console & access
@@ -236,7 +262,8 @@ Configure URL per reseller (`RESELLER_WEBHOOKS_JSON` or DIOR CONTROL). Optional 
 | `service_renewed` | Period extended |
 | `service_reinstall_started`, `service_reinstall_completed` | Reinstall |
 | `payment_failed` | Create/renew with insufficient balance |
-| `backup_completed` | Reserved (not emitted until backup API exists) |
+| `service_extra_ipv4_added` | Extra IPv4 purchased and assigned |
+| `backup_completed` | vzdump backup task finished |
 
 Payload shape:
 

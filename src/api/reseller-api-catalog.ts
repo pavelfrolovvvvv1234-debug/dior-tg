@@ -2,9 +2,14 @@ import type { ListItem } from "./vmmanager.js";
 import type VirtualDedicatedServer from "../entities/VirtualDedicatedServer.js";
 import { DEDICATED_LOCATION_KEYS } from "../domain/dedicated/dedicated-shop-config.js";
 import { STANDARD_VPS_LOCATION_KEYS } from "../domain/vds/vds-shop-config.js";
+import {
+  getExtraIpv4MonthlyPriceUsd,
+  MAX_EXTRA_IPV4_PER_VDS,
+} from "../domain/vds/extra-ipv4.js";
 import { getBundledProxmoxTemplateCatalog } from "../app/proxmox-templates.js";
-import { normalizeVmmOsSlug } from "../shared/vmm-os-display.js";
+import { normalizeVmmOsSlug, resolveVdsLoginForOs } from "../shared/vmm-os-display.js";
 import type { GuestMetrics, VmProvider } from "../infrastructure/vmmanager/provider.js";
+import { isPlaceholderIpv4, mergeServiceIpv4Addresses } from "./reseller-api-vm-ops.js";
 
 export type ResellerServiceStatus =
   | "online"
@@ -65,6 +70,9 @@ export const RESELLER_API_ERROR_CODES = [
   "dns_update_failed",
   "firewall_update_failed",
   "network_reset_failed",
+  "ipv4_assignment_failed",
+  "extra_ipv4_limit_reached",
+  "service_suspended",
 ] as const;
 
 export const RESELLER_WEBHOOK_EVENTS = [
@@ -82,6 +90,7 @@ export const RESELLER_WEBHOOK_EVENTS = [
   "service_reinstall_completed",
   "payment_failed",
   "backup_completed",
+  "service_extra_ipv4_added",
 ] as const;
 
 export function getPlansMap(): Map<string, PricePlan> {
@@ -192,6 +201,23 @@ export function deriveServiceStatus(
   return "error";
 }
 
+export function listResellerBillingAddons() {
+  const extraIpv4Monthly = getExtraIpv4MonthlyPriceUsd();
+  return {
+    currency: "USD",
+    extraIpv4: {
+      monthlyPriceUsd: extraIpv4Monthly,
+      maxPerService: MAX_EXTRA_IPV4_PER_VDS,
+      billedOnPurchase: true,
+      includedInRenewal: true,
+    },
+    ipv6: {
+      supported: false,
+      note: "IPv6 is not available via the Reseller API at this time.",
+    },
+  };
+}
+
 export function mapGuestMetrics(metrics?: GuestMetrics | null) {
   if (!metrics) return null;
   const ramPct =
@@ -224,12 +250,21 @@ export function mapService(
     vmInfo?: ListItem | null;
     metrics?: GuestMetrics | null;
     locationKey?: string | null;
+    ipv4Addresses?: string[];
   }
 ) {
   const vmInfo = extras?.vmInfo;
   const vmState = vmInfo?.state ?? null;
   const status = deriveServiceStatus(vds, vmState);
   const nodeName = vmInfo?.node?.name ?? process.env.PROXMOX_NODE ?? null;
+  const mappedMetrics = mapGuestMetrics(extras?.metrics);
+  const ipv4 =
+    extras?.ipv4Addresses ??
+    mergeServiceIpv4Addresses(vds.ipv4Addr, isPlaceholderIpv4(vds.ipv4Addr) ? [] : []);
+  const primaryIp =
+    ipv4[0] ?? (isPlaceholderIpv4(vds.ipv4Addr) ? null : vds.ipv4Addr);
+  const extraIpv4Monthly = getExtraIpv4MonthlyPriceUsd();
+  const extraIpv4Count = vds.extraIpv4Count ?? 0;
 
   return {
     serviceId: vds.id,
@@ -240,9 +275,10 @@ export function mapService(
     rateName: vds.rateName,
     status,
     hypervisorState: vmState,
-    ip: vds.ipv4Addr,
-    ipv4: vds.ipv4Addr ? [vds.ipv4Addr] : [],
-    login: vds.login,
+    ip: primaryIp,
+    ipv4,
+    ipv6: [] as string[],
+    login: resolveVdsLoginForOs({ osId: vds.lastOsId, storedLogin: vds.login }),
     osId: vds.lastOsId,
     resources: {
       cpu: vds.cpuCount,
@@ -254,16 +290,36 @@ export function mapService(
     },
     traffic: {
       limitMbps: vds.networkSpeed,
-      note: "byte-level traffic counters are exposed in GET .../metrics when the hypervisor provides them",
+      networkInBytes: mappedMetrics?.networkInBytes ?? null,
+      networkOutBytes: mappedMetrics?.networkOutBytes ?? null,
+      countersAvailable:
+        mappedMetrics != null &&
+        (mappedMetrics.networkInBytes != null || mappedMetrics.networkOutBytes != null),
     },
     location: {
-      key: extras?.locationKey ?? "nl-amsterdam",
+      key: extras?.locationKey ?? (vds.isBulletproof ? "nl-amsterdam" : "nl-amsterdam"),
       node: nodeName,
     },
     billing: {
       renewalPriceUsd: Number(vds.renewalPrice || 0),
       nextChargeAt: vds.expireAt,
       autoRenewEnabled: vds.autoRenewEnabled !== false,
+      addons: {
+        extraIpv4: {
+          count: extraIpv4Count,
+          max: MAX_EXTRA_IPV4_PER_VDS,
+          monthlyPriceUsd: extraIpv4Monthly,
+          canPurchase: extraIpv4Count < MAX_EXTRA_IPV4_PER_VDS,
+        },
+      },
+    },
+    capabilities: {
+      ipv6: { supported: false },
+      extraIpv4: {
+        supported: extraIpv4Count < MAX_EXTRA_IPV4_PER_VDS,
+        monthlyPriceUsd: extraIpv4Monthly,
+      },
+      liveMetrics: mappedMetrics != null,
     },
     flags: {
       isBlocked: vds.adminBlocked || vds.managementLocked,
@@ -274,7 +330,7 @@ export function mapService(
     expireAt: vds.expireAt,
     createdAt: vds.createdAt,
     updatedAt: vds.lastUpdateAt,
-    metrics: mapGuestMetrics(extras?.metrics),
+    metrics: mappedMetrics,
   };
 }
 
@@ -330,9 +386,9 @@ export function buildOpenApiDoc(baseUrl: string) {
     openapi: "3.0.3",
     info: {
       title: "DiorHost Reseller API",
-      version: "1.1.0",
+      version: "1.2.0",
       description:
-        "Provision and manage reseller VPS on DiorHost. Auth: x-api-key + HMAC (x-timestamp, x-signature, x-nonce). POST create/import/reinstall support x-idempotency-key.",
+        "Provision and manage reseller VPS on DiorHost. Auth: x-api-key + HMAC (x-timestamp, x-signature, x-nonce). POST create/import/reinstall/extra-ipv4 support x-idempotency-key. Set REDIS_URL in production.",
     },
     servers: [{ url: baseUrl }],
     components: {
@@ -358,7 +414,7 @@ export function buildOpenApiDoc(baseUrl: string) {
           properties: {
             osId: { type: "integer" },
             password: { type: "string", minLength: 8, maxLength: 128 },
-            sshKey: { type: "string", description: "reserved; not applied on Proxmox yet" },
+            sshKey: { type: "string", description: "Optional SSH public key (cloud-init sshkeys on Proxmox)" },
           },
         },
       },
@@ -377,6 +433,9 @@ export function buildOpenApiDoc(baseUrl: string) {
       },
       "/reseller/v1/billing/balance": {
         get: { summary: "Reseller wallet balance (USD)", responses: jsonOk({ type: "object" }) },
+      },
+      "/reseller/v1/billing/addons": {
+        get: { summary: "Billable add-ons (extra IPv4 pricing, IPv6 availability)", responses: jsonOk({ type: "object" }) },
       },
       "/reseller/v1/billing/ledger": {
         get: { summary: "Recent reseller API audit events", responses: jsonOk({ type: "object" }) },
@@ -432,7 +491,19 @@ export function buildOpenApiDoc(baseUrl: string) {
         get: { summary: "Live CPU/RAM/disk/network/uptime", responses: jsonOk({ type: "object" }) },
       },
       "/reseller/v1/services/{id}/network": {
-        get: { summary: "IPv4 list", responses: jsonOk({ type: "object" }) },
+        get: { summary: "IPv4 list, DNS, firewall", responses: jsonOk({ type: "object" }) },
+      },
+      "/reseller/v1/services/{id}/network/ipv4": {
+        post: {
+          summary: "Purchase and assign one extra IPv4 (debited from wallet, added to renewal)",
+          parameters: [
+            { name: "x-idempotency-key", in: "header", schema: { type: "string" }, required: false },
+          ],
+          responses: {
+            ...jsonOk({ type: "object" }),
+            "402": { description: "Insufficient balance", content: { "application/json": { schema: errorResponse } } },
+          },
+        },
       },
       "/reseller/v1/services/{id}/console": {
         get: { summary: "Temporary VNC/SPICE console ticket", responses: jsonOk({ type: "object" }) },
@@ -447,7 +518,8 @@ export function buildOpenApiDoc(baseUrl: string) {
         },
       },
       "/reseller/v1/services/{id}/snapshots": {
-        get: { summary: "List snapshots", responses: { "501": { description: "Not available on current provider" } } },
+        get: { summary: "List snapshots (Proxmox)", responses: jsonOk({ type: "object" }) },
+        post: { summary: "Create snapshot", responses: jsonOk({ type: "object" }) },
       },
       "/reseller/v1/services/import-existing": { post: { summary: "Attach existing VM", responses: jsonOk({ type: "object" }) } },
       "/reseller/v1/services/{id}/actions/{action}": {
