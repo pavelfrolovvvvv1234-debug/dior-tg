@@ -7,6 +7,7 @@
 import type { Bot } from "grammy";
 import type { AppContext } from "../types/context.js";
 import type { SessionData } from "../types/session.js";
+import { ADMIN_CREATE_SERVICE_RESUME_TOKEN } from "../auth/permissions.js";
 import { ensureFullSession } from "../session-initial.js";
 
 /** Inline button callback for wizard cancel (must match keyboards). */
@@ -34,6 +35,30 @@ export function registerAdminCreateServiceWizardEarlyHandlers(bot: Bot<AppContex
     }
     await ctx.answerCallbackQuery().catch(() => {});
     await cancelAdminCreateServiceWizard(ctx as AppContext);
+  });
+
+  // Resume when inline buttons outlive the conversation (pm2 restart, desynced replay, etc.).
+  bot.callbackQuery(/^advcs:(?!start$)/, async (ctx, next) => {
+    const data = ctx.callbackQuery?.data;
+    if (!data || data === ADMIN_CREATE_SERVICE_CANCEL) {
+      return next();
+    }
+    const session = ensureFullSession(await ctx.session);
+    if (!isAdminCreateServiceWizardActive(session)) {
+      return next();
+    }
+    const appCtx = ctx as AppContext;
+    if (appCtx.conversation.active("adminCreateServiceConversation")) {
+      return next();
+    }
+    try {
+      await appCtx.conversation.enter(
+        "adminCreateServiceConversation",
+        ADMIN_CREATE_SERVICE_RESUME_TOKEN
+      );
+    } catch {
+      return next();
+    }
   });
 }
 

@@ -12,7 +12,9 @@ import type { AdminCreateServiceSessionState } from "../../modules/admin/manual-
 import { Role } from "../../entities/User.js";
 import {
   ADMIN_CREATE_SERVICE_ENTRY_TOKEN,
+  ADMIN_CREATE_SERVICE_RESUME_TOKEN,
   canAccessManualServiceWizard,
+  ensureAdminAccess,
 } from "../../shared/auth/permissions.js";
 import { getAdminTelegramIds } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
@@ -50,6 +52,27 @@ import { wizardDraftFromVpsBlock } from "../../shared/admin/create-admin-vds-row
 const CB = "advcs";
 const WIZARD_CANCELLED = "__advcs_cancelled__";
 const WIZARD_FOREIGN_CALLBACK = "__advcs_foreign__";
+
+const REVIEW_CALLBACK_RE = /^advcs:(toggle-confirm|submit|goto:(type|form|user))$/;
+
+function isReviewWizardCallback(data: string | undefined): boolean {
+  return !!data && REVIEW_CALLBACK_RE.test(data);
+}
+
+async function loadWizardStateFromSession(
+  conversation: AppConversation,
+  ctx: AppContext
+): Promise<AdminCreateServiceSessionState> {
+  return conversation.external(async () => {
+    const s = ensureFullSession(await ctx.session);
+    if (!s.other.adminCreateService) {
+      s.other.adminCreateService = defaultCreateServiceState();
+    }
+    return JSON.parse(
+      JSON.stringify(s.other.adminCreateService)
+    ) as AdminCreateServiceSessionState;
+  });
+}
 
 async function leaveWizardForForeignCallback(
   conversation: AppConversation,
@@ -288,6 +311,210 @@ async function waitCallback(
   }
 }
 
+async function runReviewStep(
+  conversation: AppConversation,
+  ctx: AppContext,
+  st: AdminCreateServiceSessionState
+): Promise<void> {
+  st.step = "review";
+  await persistWizardState(conversation, ctx, st);
+
+  const actorId = await conversation.external(async (outsideCtx) => {
+    await ensureAdminAccess(outsideCtx as AppContext);
+    const s = ensureFullSession(await outsideCtx.session);
+    return s?.main?.user?.id ?? 0;
+  });
+
+  while (st.step === "review") {
+    const assignedUserId = st.assignedUserId;
+    const userCard = assignedUserId
+      ? await conversation.external(async (outsideCtx) =>
+          resolveUserCard(outsideCtx as AppContext, assignedUserId)
+        )
+      : "—";
+    const reviewText = [
+      stepHeader(ctx, 4, 4, ctx.t("admin-cs-step-review")),
+      buildDraftSummary(ctx, st),
+      "",
+      `<b>${escapeHtml(ctx.t("admin-cs-review-user"))}</b>`,
+      userCard,
+      "",
+      `<b>${escapeHtml(ctx.t("admin-cs-review-meta"))}</b>`,
+      `• ${escapeHtml(ctx.t("admin-cs-created-by"))}: <code>${actorId}</code>`,
+      `• ${escapeHtml(ctx.t("admin-cs-created-at"))}: <code>${new Date().toISOString().slice(0, 19)}Z</code>`,
+      "",
+      `⚠️ <i>${escapeHtml(ctx.t("admin-cs-review-warning"))}</i>`,
+    ].join("\n");
+
+    await editWizardMessage(ctx, st, reviewText, reviewKeyboard(ctx, st.confirmed));
+    await persistWizardSurface(conversation, ctx, st);
+    await persistWizardState(conversation, ctx, st);
+
+    let reviewCb: string;
+    try {
+      const update = await conversation.waitForCallbackQuery(
+        /^advcs:(toggle-confirm|submit|goto:(?:type|form|user)|cancel)$/,
+        { otherwise: () => conversation.skip() }
+      );
+      reviewCb = update.callbackQuery?.data ?? "";
+    } catch {
+      continue;
+    }
+
+    if (reviewCb === ADMIN_CREATE_SERVICE_CANCEL) {
+      await exitWizardCancelled(conversation, ctx);
+      return;
+    }
+    if (reviewCb === `${CB}:toggle-confirm`) {
+      st.confirmed = !st.confirmed;
+      await persistWizardState(conversation, ctx, st);
+      continue;
+    }
+    if (
+      reviewCb === `${CB}:goto:type` ||
+      reviewCb === `${CB}:goto:form` ||
+      reviewCb === `${CB}:goto:user`
+    ) {
+      await conversation.external(async () => {
+        const session = ensureFullSession(await ctx.session);
+        session.other.adminCreateService = null;
+      });
+      await ctx.conversation.exitAll().catch(() => {});
+      await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
+      return;
+    }
+
+    if (reviewCb !== `${CB}:submit`) {
+      continue;
+    }
+
+    if (!st.confirmed) {
+      await ctx.reply(ctx.t("admin-cs-confirm-required"));
+      continue;
+    }
+    if (!st.serviceType || !st.assignedUserId) {
+      await ctx.reply(ctx.t("bad-error"));
+      continue;
+    }
+
+    const validation = validateManualServiceDraft(
+      st.serviceType,
+      st.draft as Record<string, unknown>
+    );
+    if (!validation.ok) {
+      await ctx.reply(ctx.t("admin-cs-error", { error: validation.message }));
+      continue;
+    }
+
+    await editWizardMessage(
+      ctx,
+      st,
+      `${stepHeader(ctx, 4, 4, ctx.t("admin-cs-step-creating"))}\n\n${ctx.t("admin-cs-creating")}`,
+      new InlineKeyboard()
+    );
+    await persistWizardSurface(conversation, ctx, st);
+
+    const serviceType = st.serviceType;
+    const assignedUserIdForCreate = st.assignedUserId;
+    const draftSnapshot = JSON.parse(JSON.stringify(st.draft)) as Record<string, unknown>;
+    const createResult = await conversation.external(async (outsideCtx) => {
+      const octx = outsideCtx as AppContext;
+      try {
+        const svc = new AdminManualServiceService(octx.appDataSource);
+        const result = await svc.create(
+          serviceType,
+          assignedUserIdForCreate,
+          draftSnapshot as never
+        );
+        return { ok: true as const, result };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return { ok: false as const, error: msg };
+      }
+    });
+
+    if (!createResult.ok) {
+      await ctx.reply(ctx.t("admin-cs-error", { error: createResult.error }));
+      st.step = "review";
+      await persistWizardState(conversation, ctx, st);
+      continue;
+    }
+
+    try {
+      const result = createResult.result;
+      st.createdSummary = result.summary;
+      st.createdServiceRef =
+        st.serviceType === "vds" ? String(result.serviceId) : `${st.serviceType}:${result.serviceId}`;
+      st.step = "success";
+      await persistWizardState(conversation, ctx, st);
+
+      const successKb = successKeyboard(
+        ctx,
+        st.serviceType,
+        result.serviceId,
+        result.userId
+      );
+
+      await editWizardMessage(
+        ctx,
+        st,
+        [
+          `<b>✅ ${escapeHtml(ctx.t("admin-cs-success-title"))}</b>`,
+          "",
+          escapeHtml(result.summary),
+          "",
+          ctx.t("admin-cs-success-hint"),
+        ].join("\n"),
+        successKb
+      );
+      await persistWizardSurface(conversation, ctx, st);
+
+      const doneCb = await waitCallback(
+        conversation,
+        ctx,
+        (d) =>
+          d === `${CB}:done` ||
+          d === `${CB}:restart` ||
+          d.startsWith("adv:") ||
+          d.startsWith(`${CB}:user:`)
+      );
+      if (doneCb === WIZARD_FOREIGN_CALLBACK) {
+        return;
+      }
+      await conversation.external(async () => {
+        const session = ensureFullSession(await ctx.session);
+        session.other.adminCreateService = null;
+      });
+      if (doneCb === `${CB}:restart`) {
+        await ctx.conversation.exitAll().catch(() => {});
+        await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
+        return;
+      }
+      if (doneCb.startsWith(`${CB}:user:`)) {
+        const uid = Number.parseInt(doneCb.slice(`${CB}:user:`.length), 10);
+        if (Number.isFinite(uid)) {
+          await openAdminUserControlPanel(ctx, uid);
+        }
+        return;
+      }
+      if (doneCb.startsWith("adv:sel:")) {
+        const sid = Number.parseInt(doneCb.slice("adv:sel:".length), 10);
+        if (Number.isFinite(sid)) {
+          await openAdminVdsDetailById(ctx, sid);
+        }
+        return;
+      }
+      await openAdminVdsPanel(ctx);
+      return;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      await ctx.reply(ctx.t("admin-cs-error", { error: msg }));
+      st.step = "review";
+      await persistWizardState(conversation, ctx, st);
+    }
+  }
+}
+
 const IPV4_RE =
   /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
 
@@ -379,7 +606,10 @@ export async function adminCreateServiceConversation(
   ctx: AppContext,
   entryToken?: string
 ): Promise<void> {
-  if (entryToken !== ADMIN_CREATE_SERVICE_ENTRY_TOKEN) {
+  if (
+    entryToken !== ADMIN_CREATE_SERVICE_ENTRY_TOKEN &&
+    entryToken !== ADMIN_CREATE_SERVICE_RESUME_TOKEN
+  ) {
     await ctx.reply(ctx.t("error-access-denied"), { parse_mode: "HTML" }).catch(() => {});
     return;
   }
@@ -395,13 +625,12 @@ export async function adminCreateServiceConversation(
     return;
   }
 
-  const st = await conversation.external(async () => {
-    const s = ensureFullSession(await ctx.session);
-    const fresh = defaultCreateServiceState();
-    fresh.step = "type";
-    s.other.adminCreateService = fresh;
-    return fresh;
-  });
+  const st = await loadWizardStateFromSession(conversation, ctx);
+
+  if (entryToken === ADMIN_CREATE_SERVICE_RESUME_TOKEN && st.step === "review") {
+    await runReviewStep(conversation, ctx, st);
+    return;
+  }
 
   await editWizardMessage(
     ctx,
@@ -511,6 +740,13 @@ export async function adminCreateServiceConversation(
       continue;
     }
 
+    if (isReviewWizardCallback(formCb)) {
+      st.step = "review";
+      await persistWizardState(conversation, ctx, st);
+      await runReviewStep(conversation, ctx, st);
+      return;
+    }
+
     const text = next.message?.text?.trim() ?? "";
     if (!text) {
       continue;
@@ -577,6 +813,13 @@ export async function adminCreateServiceConversation(
       return;
     }
 
+    if (isReviewWizardCallback(userCb)) {
+      st.step = "review";
+      await persistWizardState(conversation, ctx, st);
+      await runReviewStep(conversation, ctx, st);
+      return;
+    }
+
     const q = userUpdate.message?.text?.trim();
     if (!q) continue;
 
@@ -607,192 +850,8 @@ export async function adminCreateServiceConversation(
     await ctx.reply(cardText, { parse_mode: "HTML" });
   }
 
-  st.step = "review";
   st.confirmed = false;
-  const actorId = await conversation.external(async () => {
-    const s = ensureFullSession(await ctx.session);
-    return s?.main?.user?.id ?? 0;
-  });
-
-  while (st.step === "review") {
-    const assignedUserId = st.assignedUserId;
-    const userCard = assignedUserId
-      ? await conversation.external(async (outsideCtx) =>
-          resolveUserCard(outsideCtx as AppContext, assignedUserId)
-        )
-      : "—";
-    const reviewText = [
-      stepHeader(ctx, 4, 4, ctx.t("admin-cs-step-review")),
-      buildDraftSummary(ctx, st),
-      "",
-      `<b>${escapeHtml(ctx.t("admin-cs-review-user"))}</b>`,
-      userCard,
-      "",
-      `<b>${escapeHtml(ctx.t("admin-cs-review-meta"))}</b>`,
-      `• ${escapeHtml(ctx.t("admin-cs-created-by"))}: <code>${actorId}</code>`,
-      `• ${escapeHtml(ctx.t("admin-cs-created-at"))}: <code>${new Date().toISOString().slice(0, 19)}Z</code>`,
-      "",
-      `⚠️ <i>${escapeHtml(ctx.t("admin-cs-review-warning"))}</i>`,
-    ].join("\n");
-
-    await editWizardMessage(ctx, st, reviewText, reviewKeyboard(ctx, st.confirmed));
-    await persistWizardSurface(conversation, ctx, st);
-
-    const reviewCb = await waitCallback(
-      conversation,
-      ctx,
-      (d) =>
-        d === `${CB}:toggle-confirm` ||
-        d === `${CB}:submit` ||
-        d.startsWith(`${CB}:goto:`)
-    );
-
-    if (reviewCb === WIZARD_CANCELLED || reviewCb === WIZARD_FOREIGN_CALLBACK) {
-      return;
-    }
-    if (reviewCb === `${CB}:toggle-confirm`) {
-      st.confirmed = !st.confirmed;
-      await persistWizardState(conversation, ctx, st);
-      continue;
-    }
-    if (
-      reviewCb === `${CB}:goto:type` ||
-      reviewCb === `${CB}:goto:form` ||
-      reviewCb === `${CB}:goto:user`
-    ) {
-      await conversation.external(async () => {
-        const session = ensureFullSession(await ctx.session);
-        session.other.adminCreateService = null;
-      });
-      await ctx.conversation.exitAll().catch(() => {});
-      await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
-      return;
-    }
-
-    if (reviewCb === `${CB}:submit`) {
-      if (!st.confirmed) {
-        await ctx.reply(ctx.t("admin-cs-confirm-required"));
-        continue;
-      }
-      if (!st.serviceType || !st.assignedUserId) {
-        await ctx.reply(ctx.t("bad-error"));
-        continue;
-      }
-
-      const validation = validateManualServiceDraft(
-        st.serviceType,
-        st.draft as Record<string, unknown>
-      );
-      if (!validation.ok) {
-        await ctx.reply(ctx.t("admin-cs-error", { error: validation.message }));
-        continue;
-      }
-
-      await editWizardMessage(
-        ctx,
-        st,
-        `${stepHeader(ctx, 4, 4, ctx.t("admin-cs-step-creating"))}\n\n${ctx.t("admin-cs-creating")}`,
-        new InlineKeyboard()
-      );
-      await persistWizardSurface(conversation, ctx, st);
-
-      const serviceType = st.serviceType;
-      const assignedUserId = st.assignedUserId;
-      const draftSnapshot = JSON.parse(JSON.stringify(st.draft)) as Record<string, unknown>;
-      const createResult = await conversation.external(async (outsideCtx) => {
-        const octx = outsideCtx as AppContext;
-        try {
-          const svc = new AdminManualServiceService(octx.appDataSource);
-          const result = await svc.create(
-            serviceType,
-            assignedUserId,
-            draftSnapshot as never
-          );
-          return { ok: true as const, result };
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          return { ok: false as const, error: msg };
-        }
-      });
-
-      if (!createResult.ok) {
-        await ctx.reply(ctx.t("admin-cs-error", { error: createResult.error }));
-        st.step = "review";
-        continue;
-      }
-
-      try {
-        const result = createResult.result;
-        st.createdSummary = result.summary;
-        st.createdServiceRef =
-          st.serviceType === "vds" ? String(result.serviceId) : `${st.serviceType}:${result.serviceId}`;
-        await persistWizardState(conversation, ctx, st);
-
-        const successKb = successKeyboard(
-          ctx,
-          st.serviceType,
-          result.serviceId,
-          result.userId
-        );
-
-        await editWizardMessage(
-          ctx,
-          st,
-          [
-            `<b>✅ ${escapeHtml(ctx.t("admin-cs-success-title"))}</b>`,
-            "",
-            escapeHtml(result.summary),
-            "",
-            ctx.t("admin-cs-success-hint"),
-          ].join("\n"),
-          successKb
-        );
-        await persistWizardSurface(conversation, ctx, st);
-
-        const doneCb = await waitCallback(
-          conversation,
-          ctx,
-          (d) =>
-            d === `${CB}:done` ||
-            d === `${CB}:restart` ||
-            d.startsWith("adv:") ||
-            d.startsWith(`${CB}:user:`)
-        );
-        if (doneCb === WIZARD_FOREIGN_CALLBACK) {
-          return;
-        }
-        await conversation.external(async () => {
-          const session = ensureFullSession(await ctx.session);
-          session.other.adminCreateService = null;
-        });
-        if (doneCb === `${CB}:restart`) {
-          await ctx.conversation.exitAll().catch(() => {});
-          await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
-          return;
-        }
-        if (doneCb.startsWith(`${CB}:user:`)) {
-          const uid = Number.parseInt(doneCb.slice(`${CB}:user:`.length), 10);
-          if (Number.isFinite(uid)) {
-            await openAdminUserControlPanel(ctx, uid);
-          }
-          return;
-        }
-        if (doneCb.startsWith("adv:sel:")) {
-          const sid = Number.parseInt(doneCb.slice("adv:sel:".length), 10);
-          if (Number.isFinite(sid)) {
-            await openAdminVdsDetailById(ctx, sid);
-          }
-          return;
-        }
-        await openAdminVdsPanel(ctx);
-        return;
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        await ctx.reply(ctx.t("admin-cs-error", { error: msg }));
-        st.step = "review";
-      }
-    }
-  }
+  await runReviewStep(conversation, ctx, st);
 }
 
 export async function startAdminCreateServiceWizard(ctx: AppContext): Promise<void> {

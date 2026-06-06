@@ -147,6 +147,9 @@ export async function resolveRoleByUserId(dataSource: DataSource, userId: number
 /** Entry token for adminCreateServiceConversation (passed via conversation.enter). */
 export const ADMIN_CREATE_SERVICE_ENTRY_TOKEN = "admin-cs-v1";
 
+/** Resume wizard from session.other.adminCreateService (e.g. after stale inline keyboard). */
+export const ADMIN_CREATE_SERVICE_RESUME_TOKEN = "admin-cs-resume";
+
 /**
  * Admin or moderator may run the manual «Add service» wizard (env allowlist, session, or DB by telegram id).
  */
