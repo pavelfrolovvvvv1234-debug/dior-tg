@@ -36,6 +36,7 @@ import {
   parseAdminDomainTransferInput,
   parseAdminHostTransferInput,
 } from "../shared/admin/parse-managed-service-input.js";
+import { buildAdminImportedVdsRow } from "../shared/admin/create-admin-vds-row.js";
 import {
   persistTelegramUsernameIfChanged,
   resolveUserFromAdminLookup,
@@ -1156,34 +1157,25 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
           const vmid = Number(parsed.hostId);
           const existing = await repo.findOne({ where: { vdsId: vmid } });
           if (existing) {
+            if (existing.targetUserId === draft.userId) {
+              await ctx.reply(ctx.t("admin-manual-vps-already-assigned", { vmid: String(vmid) }), {
+                parse_mode: "HTML",
+              });
+              return;
+            }
             await ctx.reply(
               ctx.t("admin-manual-vps-vmid-exists", { vmid: String(vmid) }),
               { parse_mode: "HTML" }
             );
             return;
           }
-          const row = repo.create({
+          const row = buildAdminImportedVdsRow({
             targetUserId: draft.userId,
-            vdsId: vmid,
-            login: "root",
-            password: "Not set",
-            ipv4Addr: parsed.ip,
-            cpuCount: 1,
-            networkSpeed: 100,
-            isBulletproof: false,
-            payDayAt: null,
-            ramSize: 1,
-            diskSize: 10,
-            lastOsId: 0,
-            rateName: parsed.plan,
-            expireAt: parsed.expiresAt,
-            renewalPrice: parsed.price,
-            displayName: parsed.plan.slice(0, 32),
-            bundleType: null,
-            autoRenewEnabled: true,
-            adminBlocked: false,
-            managementLocked: false,
-            extraIpv4Count: 0,
+            vmid,
+            ip: parsed.ip,
+            plan: parsed.plan,
+            price: parsed.price,
+            expiresAt: parsed.expiresAt,
           });
           await repo.save(row);
         } else {

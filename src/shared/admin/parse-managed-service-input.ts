@@ -9,6 +9,10 @@ import {
   splitDomainFqdn,
 } from "../../modules/admin/manual-services/schemas.js";
 import { normalizeAdminDomainFqdn } from "./normalize-domain-input.js";
+import {
+  defaultAdminVpsExpireDate,
+  resolveVdsPlanSpec,
+} from "./vds-plan-catalog.js";
 
 const ipv4Re =
   /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
@@ -140,18 +144,118 @@ function parsePriceToken(token: string): number {
   return n;
 }
 
-/** VPS / Dedicated transfer: IP, host id, plan, price, expiry (spaces or |). */
+export type AdminVpsServiceBlock = {
+  username?: string;
+  vmid: number;
+  plan: string;
+  ip: string;
+  price?: number;
+  expiresAt?: Date;
+};
+
+function extractVmidToken(raw: string): number | null {
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return null;
+  const n = Number.parseInt(digits, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Multi-line admin paste, e.g. @user / ID vm: 230 / Tarif: Mega 1 / Ip: ... */
+export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock | null {
+  const text = raw.trim();
+  if (!text) return null;
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const looksLikeBlock =
+    lines.length >= 2 ||
+    /(?:^|\n)\s*(?:id\s*vm|vm\s*id|vmid|tarif|tariff|тариф)\s*:/i.test(text);
+  if (!looksLikeBlock) return null;
+
+  let username: string | undefined;
+  let vmid: number | undefined;
+  let plan: string | undefined;
+  let ip: string | undefined;
+  let price: number | undefined;
+  let expiresAt: Date | undefined;
+
+  for (const line of lines) {
+    const atOnly = line.match(/^@([a-zA-Z0-9_]{5,32})$/i);
+    if (atOnly) {
+      username = atOnly[1]!.toLowerCase();
+      continue;
+    }
+
+    const kv = /^([^:]{1,40}):\s*(.+)$/.exec(line);
+    if (!kv) continue;
+
+    const key = kv[1]!.trim().toLowerCase().replace(/\s+/g, " ");
+    const val = kv[2]!.trim();
+
+    if (/^(user|username|клиент|client)$/.test(key)) {
+      username = val.replace(/^@+/, "").toLowerCase();
+      continue;
+    }
+    if (/^(id vm|vm id|vmid|vm|id)$/.test(key)) {
+      const n = extractVmidToken(val);
+      if (n) vmid = n;
+      continue;
+    }
+    if (/^(tarif|tariff|plan|тариф|rate)$/.test(key)) {
+      plan = normalizeAdminPlanName(val);
+      continue;
+    }
+    if (/^(ip|ipv4)$/.test(key)) {
+      ip = val;
+      continue;
+    }
+    if (/^(price|цена|renewal|продление|cost)$/.test(key)) {
+      try {
+        price = parsePriceToken(val);
+      } catch {
+        /* ignore invalid optional price */
+      }
+      continue;
+    }
+    if (/^(date|expires|expiry|до|срок|expire)$/.test(key)) {
+      try {
+        expiresAt = parseFlexibleDate(val);
+      } catch {
+        /* ignore invalid optional date */
+      }
+    }
+  }
+
+  if (!vmid || !plan || !ip || !ipv4Re.test(ip)) return null;
+
+  return { username, vmid, plan, ip, price, expiresAt };
+}
+
+/** VPS / Dedicated transfer: one-line, block paste, or | -separated. */
 export function parseAdminHostTransferInput(raw: string): {
   ip: string;
   hostId: string;
   plan: string;
   price: number;
   expiresAt: Date;
+  username?: string;
 } {
+  const block = tryParseAdminVpsServiceBlock(raw);
+  if (block) {
+    const planSpec = resolveVdsPlanSpec(block.plan);
+    return {
+      ip: block.ip,
+      hostId: String(block.vmid),
+      plan: planSpec?.name ?? block.plan,
+      price: block.price ?? planSpec?.priceBulletproof ?? 0,
+      expiresAt: block.expiresAt ?? defaultAdminVpsExpireDate(30),
+      username: block.username,
+    };
+  }
+
   const parts = tokenizeLine(raw);
   if (parts.length < 5) {
     throw new AdminServiceInputError(
-      "Нужно 5 полей: IP, VMID, тариф, цена, дата.\nПример: 45.74.7.154 162 Lite 1 24 22.05.26",
+      "Нужно 5 полей: IP, VMID, тариф, цена, дата — или блоком:\n@user\nID vm: 230\nTarif: Mega 1\nIp: 45.74.7.131",
       "invalid_format"
     );
   }

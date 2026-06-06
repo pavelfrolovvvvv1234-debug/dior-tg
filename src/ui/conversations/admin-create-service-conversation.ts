@@ -44,6 +44,8 @@ import {
   resetAdminCreateServiceWizardState,
 } from "../../shared/admin/admin-create-service-session.js";
 import { parseFlexibleDate } from "../../modules/admin/manual-services/schemas.js";
+import { tryParseAdminVpsServiceBlock } from "../../shared/admin/parse-managed-service-input.js";
+import { wizardDraftFromVpsBlock } from "../../shared/admin/create-admin-vds-row.js";
 
 const CB = "advcs";
 const WIZARD_CANCELLED = "__advcs_cancelled__";
@@ -409,14 +411,51 @@ export async function adminCreateServiceConversation(
   );
   await persistWizardSurface(conversation, ctx, st);
 
-  const typeCb = await waitCallback(conversation, ctx, (d) => d.startsWith(`${CB}:stype:`));
-  if (typeCb === WIZARD_CANCELLED) {
-    return;
+  let serviceType: AdminManualServiceType | null = null;
+  while (!serviceType) {
+    const typeUpdate = await conversation.wait();
+    const typeCb = typeUpdate.callbackQuery?.data;
+    if (typeCb === ADMIN_CREATE_SERVICE_CANCEL) {
+      await typeUpdate.answerCallbackQuery().catch(() => {});
+      await exitWizardCancelled(conversation, ctx);
+      return;
+    }
+    if (typeCb && !isAdminCreateServiceWizardCallback(typeCb)) {
+      await typeUpdate.answerCallbackQuery().catch(() => {});
+      await leaveWizardForForeignCallback(conversation, ctx, typeCb);
+      return;
+    }
+    const pasted = typeUpdate.message?.text?.trim() ?? "";
+    const block = pasted ? tryParseAdminVpsServiceBlock(pasted) : null;
+    if (block) {
+      serviceType = "vds";
+      st.serviceType = "vds";
+      st.draft = wizardDraftFromVpsBlock(block);
+      if (block.username) {
+        const lookup = await conversation.external(async (outsideCtx) => {
+          const user = await resolveUserFromAdminLookup(outsideCtx as AppContext, `@${block.username}`, {
+            maxUsernameScan: 500,
+          });
+          return user ? { id: user.id, telegramId: Number(user.telegramId) } : null;
+        });
+        if (lookup) {
+          st.assignedUserId = lookup.id;
+          st.assignedUserTelegramId = lookup.telegramId;
+        }
+      }
+      await persistWizardState(conversation, ctx, st);
+      await ctx.reply(ctx.t("admin-cs-vds-block-applied"), { parse_mode: "HTML" });
+      break;
+    }
+    if (typeCb?.startsWith(`${CB}:stype:`)) {
+      await typeUpdate.answerCallbackQuery().catch(() => {});
+      serviceType = typeCb.slice(`${CB}:stype:`.length) as AdminManualServiceType;
+      break;
+    }
+    if (typeCb?.startsWith(`${CB}:`)) {
+      await typeUpdate.answerCallbackQuery().catch(() => {});
+    }
   }
-  if (typeCb === WIZARD_FOREIGN_CALLBACK) {
-    return;
-  }
-  const serviceType = typeCb.slice(`${CB}:stype:`.length) as AdminManualServiceType;
   if (!["domain", "vds", "dedicated"].includes(serviceType)) {
     await ctx.reply(ctx.t("bad-error"));
     await exitWizardCancelled(conversation, ctx);
@@ -424,10 +463,13 @@ export async function adminCreateServiceConversation(
   }
   st.serviceType = serviceType;
   st.step = "form";
-  st.formFieldIndex = 0;
-  await persistWizardState(conversation, ctx, st);
-
   const fields = getWizardFields(serviceType);
+  const formPrefilled = Object.keys(st.draft).length > 0;
+  st.formFieldIndex = formPrefilled ? fields.length : 0;
+  await persistWizardState(conversation, ctx, st);
+  if (serviceType === "vds" && !formPrefilled) {
+    await ctx.reply(ctx.t("admin-cs-vds-block-hint"), { parse_mode: "HTML" });
+  }
   while (st.formFieldIndex < fields.length) {
     const field = fields[st.formFieldIndex];
     const canSkip = Boolean(field.optional);
@@ -474,6 +516,29 @@ export async function adminCreateServiceConversation(
       continue;
     }
 
+    if (serviceType === "vds") {
+      const block = tryParseAdminVpsServiceBlock(text);
+      if (block) {
+        st.draft = wizardDraftFromVpsBlock(block);
+        if (block.username) {
+          const lookup = await conversation.external(async (outsideCtx) => {
+            const user = await resolveUserFromAdminLookup(outsideCtx as AppContext, `@${block.username}`, {
+              maxUsernameScan: 500,
+            });
+            return user ? { id: user.id, telegramId: Number(user.telegramId) } : null;
+          });
+          if (lookup) {
+            st.assignedUserId = lookup.id;
+            st.assignedUserTelegramId = lookup.telegramId;
+          }
+        }
+        st.formFieldIndex = fields.length;
+        await persistWizardState(conversation, ctx, st);
+        await ctx.reply(ctx.t("admin-cs-vds-block-applied"), { parse_mode: "HTML" });
+        break;
+      }
+    }
+
     const errKey = validateField(serviceType, field.key, text, Boolean(field.optional));
     if (errKey) {
       await ctx.reply(`⚠️ ${ctx.t(errKey)}`, { parse_mode: "HTML" });
@@ -485,17 +550,19 @@ export async function adminCreateServiceConversation(
     await persistWizardState(conversation, ctx, st);
   }
 
-  st.step = "user";
-  await persistWizardState(conversation, ctx, st);
-  await editWizardMessage(
-    ctx,
-    st,
-    `${stepHeader(ctx, 3, 4, ctx.t("admin-cs-step-user"))}${ctx.t("admin-cs-user-prompt")}`,
-    new InlineKeyboard().text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL)
-  );
-  await persistWizardSurface(conversation, ctx, st);
+  if (!st.assignedUserId) {
+    st.step = "user";
+    await persistWizardState(conversation, ctx, st);
+    await editWizardMessage(
+      ctx,
+      st,
+      `${stepHeader(ctx, 3, 4, ctx.t("admin-cs-step-user"))}${ctx.t("admin-cs-user-prompt")}`,
+      new InlineKeyboard().text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL)
+    );
+    await persistWizardSurface(conversation, ctx, st);
+  }
 
-  let userAssigned = false;
+  let userAssigned = Boolean(st.assignedUserId);
   while (!userAssigned) {
     const userUpdate = await conversation.wait();
     const userCb = userUpdate.callbackQuery?.data;

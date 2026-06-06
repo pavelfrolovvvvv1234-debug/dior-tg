@@ -1227,7 +1227,24 @@ admin-cs-step-form = Service details
 admin-cs-step-user = Assignment
 admin-cs-step-review = Review
 admin-cs-step-creating = Creating
-admin-cs-type-prompt = Choose a service type:
+admin-cs-type-prompt =
+    Choose a service type.
+
+    For VPS you can paste a block:
+    <code>@username
+    ID vm: 230
+    Tarif: Mega 1
+    Ip: 45.74.7.131</code>
+admin-cs-vds-block-hint =
+    You can paste a <b>single block</b>:
+
+    <code>@username
+    ID vm: 230
+    Tarif: Mega 1
+    Ip: 45.74.7.131</code>
+
+    Price and expiry default from the plan (30 days) when omitted.
+admin-cs-vds-block-applied = ✅ Block parsed. Review on the confirmation step.
 admin-cs-type-domain = 🌐 Domains
 admin-cs-type-vds = ☁ VPS / VDS
 admin-cs-type-dedicated = 🖥 Dedicated
@@ -1292,14 +1309,15 @@ admin-manual-domain-exists = Domain <code>{$domain}</code> already exists for th
 admin-manual-vps-prompt =
     <b>VPS/VDS (transfer)</b>
 
-    One line (spaces): <b>IP</b> · <b>VMID</b> · <b>plan</b> · <b>price $</b> · <b>date</b>
+    <b>Block</b> (recommended):
+    <code>@username
+    ID vm: 230
+    Tarif: Mega 1
+    Ip: 45.74.7.131</code>
 
-    <b>Plan</b> — as in the shop: <code>Lite 1</code>, <code>Elite 1</code> (<code>Lite1</code> is OK).
-
-    <b>Date</b> — <code>DD.MM.YY</code>, e.g. <code>22.05.26</code>
-
-    Example:
-    <code>45.74.7.154 162 Lite 1 24 22.05.26</code>
+    Or one line: <b>IP</b> · <b>VMID</b> · <b>plan</b> · <b>price $</b> · <b>date</b>
+    Example: <code>45.74.7.154 162 Lite 1 24 22.05.26</code>
+admin-manual-vps-already-assigned = VMID <code>{$vmid}</code> is already linked to this user.
 admin-manual-dedicated-prompt =
     <b>Dedicated (transfer)</b>
 
