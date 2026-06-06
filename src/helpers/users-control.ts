@@ -37,6 +37,8 @@ import {
   parseAdminHostTransferInput,
 } from "../shared/admin/parse-managed-service-input.js";
 import { buildAdminImportedVdsRow } from "../shared/admin/create-admin-vds-row.js";
+import { parseFlexibleDate } from "../modules/admin/manual-services/schemas.js";
+import { resolveVdsPlanSpec } from "../shared/admin/vds-plan-catalog.js";
 import {
   persistTelegramUsernameIfChanged,
   resolveUserFromAdminLookup,
@@ -364,7 +366,7 @@ async function getManagedServiceData(
     ...vpsList.map((v) => ({
       type: "vps" as const,
       id: v.id,
-      title: `VDS #${v.id} • ${v.ipv4Addr || "-"}`,
+      title: `VM${v.vdsId} • ${v.ipv4Addr || "—"} • ${v.rateName || "VPS"}`,
       expiresAt: v.expireAt ?? null,
       status: v.managementLocked ? "locked" : v.adminBlocked ? "blocked" : "active",
     })),
@@ -413,6 +415,177 @@ function buildManagedServiceCard(item: ManagedServiceItem): string {
     `Тип: ${item.type}`,
     `Статус: ${item.status}`,
     `Истекает: ${formatIsoDate(item.expiresAt)}`,
+  ].join("\n");
+}
+
+function managedServiceButtonLabel(item: ManagedServiceItem): string {
+  const prefix =
+    item.type === "vps"
+      ? "☁"
+      : item.type === "dedicated"
+        ? "🖥"
+        : item.type === "domain"
+          ? "🌐"
+          : "⚡";
+  const short = item.title.length > 42 ? `${item.title.slice(0, 39)}…` : item.title;
+  return `${prefix} ${short}`;
+}
+
+function panelModeTitle(mode: "list" | "extend" | "lock" | "tariff"): string {
+  switch (mode) {
+    case "list":
+      return "📋 <b>Список услуг</b>";
+    case "extend":
+      return "⏳ <b>Продление услуги</b>";
+    case "lock":
+      return "⛔/🟢 <b>Блок / разблок</b>";
+    case "tariff":
+      return "✏️ <b>Изменение тарифа</b>";
+  }
+}
+
+async function buildServicePanelListText(
+  ctx: AppContext,
+  userId: number,
+  mode: "list" | "extend" | "lock" | "tariff",
+  items: ManagedServiceItem[]
+): Promise<string> {
+  const lines = [
+    panelModeTitle(mode),
+    "",
+    `Пользователь #${userId}`,
+    `Всего услуг: ${items.length}`,
+  ];
+  if (items.length === 0) {
+    lines.push("", "Список пуст.");
+  } else if (mode === "list") {
+    lines.push("", "Нажмите на услугу ниже, чтобы открыть карточку с ID, IP и сроком.");
+  } else if (mode === "extend") {
+    lines.push("", "Выберите услугу — затем отправьте новую дату (DD.MM.YY).");
+  } else if (mode === "lock") {
+    lines.push("", "Выберите VPS/VDS для блокировки или разблокировки.");
+  } else {
+    lines.push("", "Выберите VPS/VDS и отправьте новое название тарифа.");
+  }
+  return lines.join("\n");
+}
+
+async function openAdminServicePanelMode(
+  ctx: AppContext,
+  userId: number,
+  mode: "list" | "extend" | "lock" | "tariff"
+): Promise<void> {
+  const session = await ctx.session;
+  session.other.adminServicePanelMode = mode;
+  const { items } = await getManagedServiceData(ctx.appDataSource, userId);
+  const text = await buildServicePanelListText(ctx, userId, mode, items);
+  try {
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: controlUserServices,
+    });
+  } catch {
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: controlUserServices,
+    });
+  }
+  await ctx.menu.update({ immediate: true });
+}
+
+async function returnToAdminServiceSummary(ctx: AppContext, userId: number): Promise<void> {
+  const session = await ctx.session;
+  session.other.adminServicePanelMode = "summary";
+  const text = await buildManagedServicesSummaryText(ctx, userId);
+  try {
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: controlUserServices,
+    });
+  } catch {
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: controlUserServices,
+    });
+  }
+  await ctx.menu.update({ immediate: true });
+}
+
+async function buildManagedServiceDetailText(
+  ctx: AppContext,
+  userId: number,
+  type: ManagedServiceType,
+  id: string
+): Promise<string | null> {
+  const n = Number(id);
+  if (!Number.isFinite(n)) return null;
+
+  if (type === "vps") {
+    const v = await ctx.appDataSource.getRepository(VirtualDedicatedServer).findOneBy({
+      id: n,
+      targetUserId: userId,
+    });
+    if (!v) return null;
+    const status = v.managementLocked ? "locked" : v.adminBlocked ? "blocked" : "active";
+    return [
+      "☁ <b>VPS / VDS</b>",
+      `DB id: <code>${v.id}</code>`,
+      `VMID: <code>${v.vdsId}</code>`,
+      `IP: <code>${v.ipv4Addr || "—"}</code>`,
+      `Тариф: <b>${v.rateName}</b>`,
+      `CPU/RAM/Disk: ${v.cpuCount} / ${v.ramSize} GB / ${v.diskSize} GB`,
+      `Продление: $${v.renewalPrice}/мес`,
+      `Истекает: ${formatIsoDate(v.expireAt)}`,
+      `Статус: ${status}`,
+      `Логин: <code>${v.login}</code>`,
+      v.extraIpv4Count > 0 ? `Доп. IPv4: ${v.extraIpv4Count}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (type === "dedicated") {
+    const d = await ctx.appDataSource.getRepository(DedicatedServer).findOneBy({
+      id: n,
+      userId,
+    });
+    if (!d) return null;
+    return [
+      "🖥 <b>Dedicated</b>",
+      `ID: <code>${d.id}</code>`,
+      `Метка: <b>${d.label || "—"}</b>`,
+      `Статус: ${d.status}`,
+      `Оплачен до: ${formatIsoDate(d.paidUntil ?? null)}`,
+      d.monthlyPrice != null ? `Цена: $${d.monthlyPrice}/мес` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (type === "domain") {
+    const d = await ctx.appDataSource.getRepository(Domain).findOneBy({ id: n, userId });
+    if (!d) return null;
+    return [
+      "🌐 <b>Domain</b>",
+      `ID: <code>${d.id}</code>`,
+      `Домен: <b>${d.domain}</b>`,
+      `Статус: ${d.status}`,
+      `NS: ${d.ns1 || "—"}, ${d.ns2 || "—"}`,
+    ].join("\n");
+  }
+
+  const c = await ctx.appDataSource.getRepository(CdnProxyService).findOneBy({
+    id: n,
+    targetUserId: userId,
+    isDeleted: false,
+  });
+  if (!c) return null;
+  return [
+    "⚡ <b>CDN</b>",
+    `ID: <code>${c.id}</code>`,
+    `Домен: <b>${c.domainName}</b>`,
+    `Статус: ${c.lifecycleStatus || c.status || "active"}`,
+    `Истекает: ${formatIsoDate(c.expiresAt ?? null)}`,
   ].join("\n");
 }
 
@@ -716,6 +889,9 @@ export const controlUser = new Menu<AppContext>("control-user", {})
         await ctx.answerCallbackQuery(ctx.t("error-access-denied").substring(0, 200)).catch(() => {});
         return;
       }
+      session.other.adminServicePanelMode = "summary";
+      session.other.adminServiceExtend = null;
+      session.other.adminServiceTariff = null;
       try {
         const text = await buildManagedServicesSummaryText(ctx, picked);
         await ctx.editMessageText(text, {
@@ -1017,6 +1193,74 @@ export const controlUserStatus = new Menu<AppContext>("control-user-status", {})
     range.back((ctx) => ctx.t("button-back"));
   });
 
+async function renderAdminServicePanelItems(
+  ctx: AppContext,
+  range: { text: (label: string | ((ctx: AppContext) => string), handler: (ctx: AppContext) => void | Promise<void>) => void; row: () => void },
+  userId: number,
+  mode: "list" | "extend" | "lock" | "tariff"
+): Promise<void> {
+  const { items } = await getManagedServiceData(ctx.appDataSource, userId);
+  if (items.length === 0) {
+    range.text("Список пуст", async () => {});
+    range.row();
+  } else {
+    for (const item of items.slice(0, 25)) {
+      range.text(managedServiceButtonLabel(item), async (btnCtx) => {
+        await btnCtx.answerCallbackQuery().catch(() => {});
+        if (mode === "list") {
+          const detail = await buildManagedServiceDetailText(btnCtx, userId, item.type, String(item.id));
+          if (!detail) {
+            await btnCtx.reply("❌ Услуга не найдена");
+            return;
+          }
+          await btnCtx.reply(detail, { parse_mode: "HTML" });
+          return;
+        }
+        if (mode === "lock" && item.type === "vps") {
+          const v = await btnCtx.appDataSource
+            .getRepository(VirtualDedicatedServer)
+            .findOneBy({ id: Number(item.id), targetUserId: userId });
+          if (!v) {
+            await btnCtx.reply("❌ VPS не найден");
+            return;
+          }
+          v.adminBlocked = !v.adminBlocked;
+          await btnCtx.appDataSource.getRepository(VirtualDedicatedServer).save(v);
+          const state = v.adminBlocked ? "заблокирован" : "разблокирован";
+          await btnCtx.reply(`✅ VPS VM${v.vdsId} (${v.ipv4Addr || "—"}) ${state}`, {
+            parse_mode: "HTML",
+          });
+          return;
+        }
+        if (mode === "extend") {
+          const session = await btnCtx.session;
+          session.other.adminServiceExtend = { userId, type: item.type, serviceId: String(item.id) };
+          await btnCtx.reply(
+            `Отправьте новую дату окончания для <b>${item.title}</b> (DD.MM.YY).`,
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+        if (mode === "tariff" && item.type === "vps") {
+          const session = await btnCtx.session;
+          session.other.adminServiceTariff = { userId, vdsRowId: Number(item.id) };
+          await btnCtx.reply(
+            `Отправьте новый тариф для <b>${item.title}</b> (например: Mega 1).`,
+            { parse_mode: "HTML" }
+          );
+          return;
+        }
+        await btnCtx.reply("Для этой услуги действие пока недоступно в этом режиме.");
+      });
+      range.row();
+    }
+  }
+  range.text("⬅️ К меню услуг", async (btnCtx) => {
+    await btnCtx.answerCallbackQuery().catch(() => {});
+    await returnToAdminServiceSummary(btnCtx, userId);
+  });
+}
+
 export const controlUserServices = new Menu<AppContext>("control-user-services", {})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
@@ -1025,32 +1269,35 @@ export const controlUserServices = new Menu<AppContext>("control-user-services",
       range.text((ctx) => ctx.t("button-back"), (ctx) => ctx.menu.back());
       return;
     }
+
+    const mode = session.other.adminServicePanelMode ?? "summary";
+    if (mode === "list" || mode === "extend" || mode === "lock" || mode === "tariff") {
+      await renderAdminServicePanelItems(ctx, range, picked, mode);
+      return;
+    }
+
     range.text("➕ Добавить услугу", (ctx) => ctx.menu.nav("control-user-services-add"));
     range.text("➖ Удалить услугу", (ctx) => ctx.menu.nav("control-user-services-delete"));
     range.row();
-    range.text("📋 Список услуг", async (ctx) => {
-      const session = await ctx.session;
-      (session.other as any).adminServicePanelMode = "list";
-      await ctx.menu.update({ immediate: true });
+    range.text("📋 Список услуг", async (btnCtx) => {
+      await btnCtx.answerCallbackQuery().catch(() => {});
+      await openAdminServicePanelMode(btnCtx, picked, "list");
     });
     range.row();
     range.text("💰 Баланс операции", (ctx) => ctx.menu.nav("control-user-balance"));
     range.row();
-    range.text("⏳ Продлить услугу", async (ctx) => {
-      const session = await ctx.session;
-      (session.other as any).adminServicePanelMode = "extend";
-      await ctx.menu.update({ immediate: true });
+    range.text("⏳ Продлить услугу", async (btnCtx) => {
+      await btnCtx.answerCallbackQuery().catch(() => {});
+      await openAdminServicePanelMode(btnCtx, picked, "extend");
     });
-    range.text("⛔/🟢 Блок/Разблок", async (ctx) => {
-      const session = await ctx.session;
-      (session.other as any).adminServicePanelMode = "lock";
-      await ctx.menu.update({ immediate: true });
+    range.text("⛔/🟢 Блок/Разблок", async (btnCtx) => {
+      await btnCtx.answerCallbackQuery().catch(() => {});
+      await openAdminServicePanelMode(btnCtx, picked, "lock");
     });
     range.row();
-    range.text("✏️ Изменить тариф", async (ctx) => {
-      const session = await ctx.session;
-      (session.other as any).adminServicePanelMode = "tariff";
-      await ctx.menu.update({ immediate: true });
+    range.text("✏️ Изменить тариф", async (btnCtx) => {
+      await btnCtx.answerCallbackQuery().catch(() => {});
+      await openAdminServicePanelMode(btnCtx, picked, "tariff");
     });
     range.row();
     range.back((ctx) => ctx.t("button-back"));
@@ -1072,21 +1319,21 @@ export const controlUserServicesAdd = new Menu<AppContext>("control-user-service
     };
     range.text("🖥 VPS/VDS", async (ctx) => {
       clearVdsPendingPrompts();
-      (session.other as any).adminServiceDraft = { type: "vps", userId } as ManagedServiceDraft;
+      session.other.adminServiceDraft = { type: "vps", userId };
       await ctx.reply(ctx.t("admin-manual-vps-prompt"), { parse_mode: "HTML" });
     });
     range.text("🧱 Dedicated", async (ctx) => {
       clearVdsPendingPrompts();
-      (session.other as any).adminServiceDraft = { type: "dedicated", userId } as ManagedServiceDraft;
+      session.other.adminServiceDraft = { type: "dedicated", userId };
       await ctx.reply(ctx.t("admin-manual-dedicated-prompt"), { parse_mode: "HTML" });
     });
     range.row();
     range.text("🌐 Domain", async (ctx) => {
-      (session.other as any).adminServiceDraft = { type: "domain", userId } as ManagedServiceDraft;
+      session.other.adminServiceDraft = { type: "domain", userId };
       await ctx.reply(ctx.t("admin-manual-domain-prompt"), { parse_mode: "HTML" });
     });
     range.text("⚡ CDN", async (ctx) => {
-      (session.other as any).adminServiceDraft = { type: "cdn", userId } as ManagedServiceDraft;
+      session.other.adminServiceDraft = { type: "cdn", userId };
       await ctx.reply(ctx.t("admin-manual-cdn-prompt"), { parse_mode: "HTML" });
     });
     range.row();
@@ -1141,10 +1388,88 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
 
   bot.on("message:text", async (ctx, next) => {
     const session = await ctx.session;
-    const draft = (session.other as any).adminServiceDraft as ManagedServiceDraft | undefined;
+    if (!canManageServices(session.main.user.role)) return next();
+
+    const extend = session.other.adminServiceExtend;
+    if (extend) {
+      const raw = (ctx.message?.text || "").trim();
+      if (!raw || raw.startsWith("/")) return next();
+      try {
+        const newDate = parseFlexibleDate(raw);
+        const n = Number(extend.serviceId);
+        if (!Number.isFinite(n)) throw new Error("Invalid service id");
+        if (extend.type === "vps") {
+          const repo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+          const row = await repo.findOneBy({ id: n, targetUserId: extend.userId });
+          if (!row) throw new Error("VPS not found");
+          row.expireAt = newDate;
+          await repo.save(row);
+          await ctx.reply(`✅ VPS VM${row.vdsId} продлён до ${formatIsoDate(newDate)}`);
+        } else if (extend.type === "dedicated") {
+          const repo = ctx.appDataSource.getRepository(DedicatedServer);
+          const row = await repo.findOneBy({ id: n, userId: extend.userId });
+          if (!row) throw new Error("Dedicated not found");
+          row.paidUntil = newDate;
+          await repo.save(row);
+          await ctx.reply(`✅ Dedicated #${row.id} продлён до ${formatIsoDate(newDate)}`);
+        } else if (extend.type === "domain") {
+          const repo = ctx.appDataSource.getRepository(Domain);
+          const row = await repo.findOneBy({ id: n, userId: extend.userId });
+          if (!row) throw new Error("Domain not found");
+          row.lastSyncAt = newDate;
+          await repo.save(row);
+          await ctx.reply(`✅ Domain ${row.domain} — срок ${formatIsoDate(newDate)}`);
+        } else {
+          const repo = ctx.appDataSource.getRepository(CdnProxyService);
+          const row = await repo.findOneBy({ id: n, targetUserId: extend.userId, isDeleted: false });
+          if (!row) throw new Error("CDN not found");
+          row.expiresAt = newDate;
+          await repo.save(row);
+          await ctx.reply(`✅ CDN ${row.domainName} — срок ${formatIsoDate(newDate)}`);
+        }
+      } catch (e) {
+        await ctx.reply(`❌ ${e instanceof Error ? e.message : "Ошибка даты (DD.MM.YY)"}`);
+      } finally {
+        session.other.adminServiceExtend = null;
+      }
+      return;
+    }
+
+    const tariff = session.other.adminServiceTariff;
+    if (tariff) {
+      const raw = (ctx.message?.text || "").trim();
+      if (!raw || raw.startsWith("/")) return next();
+      try {
+        const planSpec = resolveVdsPlanSpec(raw);
+        const repo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+        const row = await repo.findOneBy({ id: tariff.vdsRowId, targetUserId: tariff.userId });
+        if (!row) throw new Error("VPS not found");
+        row.rateName = planSpec?.name ?? raw;
+        if (planSpec) {
+          row.cpuCount = planSpec.cpu;
+          row.ramSize = planSpec.ram;
+          row.diskSize = planSpec.ssd;
+          row.renewalPrice = planSpec.priceBulletproof;
+        }
+        await repo.save(row);
+        await ctx.reply(`✅ Тариф VPS VM${row.vdsId} → <b>${row.rateName}</b>`, { parse_mode: "HTML" });
+      } catch (e) {
+        await ctx.reply(`❌ ${e instanceof Error ? e.message : "Не удалось обновить тариф"}`);
+      } finally {
+        session.other.adminServiceTariff = null;
+      }
+      return;
+    }
+
+    return next();
+  });
+
+  bot.on("message:text", async (ctx, next) => {
+    const session = await ctx.session;
+    const draft = session.other.adminServiceDraft as ManagedServiceDraft | undefined;
     if (!draft) return next();
     if (!canManageServices(session.main.user.role)) {
-      delete (session.other as any).adminServiceDraft;
+      delete session.other.adminServiceDraft;
       return next();
     }
     const raw = (ctx.message?.text || "").trim();
@@ -1245,7 +1570,7 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
         await ctx.reply(ctx.t("admin-manual-service-invalid-format"));
       }
     } finally {
-      delete (session.other as any).adminServiceDraft;
+      delete session.other.adminServiceDraft;
     }
   });
 }

@@ -27,7 +27,9 @@ export function hasPendingAdminTextInput(session: SessionData): boolean {
     !!other.adminDomainSetAmperId ||
     !!other.adminRegisterDomain ||
     !!other.ticketsView?.pendingAction ||
-    !!(other as { adminServiceDraft?: unknown }).adminServiceDraft ||
+    !!other.adminServiceDraft ||
+    !!other.adminServiceExtend ||
+    !!other.adminServiceTariff ||
     !!other.promoAdmin?.createStep ||
     !!other.promoAdmin?.editStep
   );
@@ -70,7 +72,9 @@ export function clearAdminTextCaptureModes(session: SessionData): void {
     other.promoAdmin.createStep = null;
     other.promoAdmin.editStep = null;
   }
-  (other as { adminServiceDraft?: unknown }).adminServiceDraft = undefined;
+  other.adminServiceDraft = undefined;
+  other.adminServiceExtend = null;
+  other.adminServiceTariff = null;
 }
 
 export function beginAdminVdsSearch(session: SessionData): void {

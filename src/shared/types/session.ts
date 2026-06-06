@@ -229,6 +229,24 @@ export interface OtherSessionData {
   };
   /** Admin «Add service» wizard (null when idle). */
   adminCreateService?: AdminCreateServiceSessionState | null;
+  /** Admin user services panel sub-view (summary / list / extend / lock / tariff). */
+  adminServicePanelMode?: "summary" | "list" | "extend" | "lock" | "tariff";
+  /** Pending admin manual service import (legacy user-services flow). */
+  adminServiceDraft?: {
+    type: "vps" | "dedicated" | "domain" | "cdn";
+    userId: number;
+  };
+  /** Admin: extend service expiry from user-services panel. */
+  adminServiceExtend?: {
+    userId: number;
+    type: "vps" | "dedicated" | "domain" | "cdn";
+    serviceId: string;
+  } | null;
+  /** Admin: change VPS plan name from user-services panel. */
+  adminServiceTariff?: {
+    userId: number;
+    vdsRowId: number;
+  } | null;
   /** Affiliate center: list filters, pagination, search. */
   referralCenter?: import("../../modules/referrals/types.js").ReferralCenterSession | null;
 }
