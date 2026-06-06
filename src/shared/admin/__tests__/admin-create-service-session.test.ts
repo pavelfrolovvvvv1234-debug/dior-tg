@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   ADMIN_CREATE_SERVICE_CANCEL,
+  isAdminCreateServiceReviewCallback,
   isAdminCreateServiceWizardActive,
   isAdminCreateServiceWizardCallback,
   resetAdminCreateServiceWizardState,
@@ -18,6 +19,14 @@ describe("admin create service session", () => {
     assert.equal(isAdminCreateServiceWizardCallback("advcs:cancel"), true);
     assert.equal(isAdminCreateServiceWizardCallback("admin-menu-back"), false);
     assert.equal(isAdminCreateServiceWizardCallback("adv:pg:1"), false);
+  });
+
+  it("matches only review-step resume callbacks", () => {
+    assert.equal(isAdminCreateServiceReviewCallback("advcs:submit"), true);
+    assert.equal(isAdminCreateServiceReviewCallback("advcs:toggle-confirm"), true);
+    assert.equal(isAdminCreateServiceReviewCallback("advcs:goto:form"), true);
+    assert.equal(isAdminCreateServiceReviewCallback("advcs:skip"), false);
+    assert.equal(isAdminCreateServiceReviewCallback("advcs:stype:vds"), false);
   });
 
   it("detects active wizard by step", () => {

@@ -15,8 +15,16 @@ export const ADMIN_CREATE_SERVICE_CANCEL = "advcs:cancel";
 
 const WIZARD_CB_PREFIX = "advcs:";
 
+/** Review-step callbacks safe to resume after conversation desync (pm2 restart, etc.). */
+export const ADMIN_CREATE_SERVICE_REVIEW_CALLBACK_RE =
+  /^advcs:(?:toggle-confirm|submit|goto:(?:type|form|user))$/;
+
 export function isAdminCreateServiceWizardCallback(data: string | undefined): boolean {
   return !!data && data.startsWith(WIZARD_CB_PREFIX);
+}
+
+export function isAdminCreateServiceReviewCallback(data: string | undefined): boolean {
+  return !!data && ADMIN_CREATE_SERVICE_REVIEW_CALLBACK_RE.test(data);
 }
 
 const earlyHandlersRegistered = new WeakSet<Bot<AppContext>>();
@@ -37,10 +45,10 @@ export function registerAdminCreateServiceWizardEarlyHandlers(bot: Bot<AppContex
     await cancelAdminCreateServiceWizard(ctx as AppContext);
   });
 
-  // Resume when inline buttons outlive the conversation (pm2 restart, desynced replay, etc.).
-  bot.callbackQuery(/^advcs:(?!start$)/, async (ctx, next) => {
+  // Resume when review-step buttons outlive the conversation (pm2 restart, desynced replay, etc.).
+  bot.callbackQuery(ADMIN_CREATE_SERVICE_REVIEW_CALLBACK_RE, async (ctx, next) => {
     const data = ctx.callbackQuery?.data;
-    if (!data || data === ADMIN_CREATE_SERVICE_CANCEL) {
+    if (!data) {
       return next();
     }
     const session = ensureFullSession(await ctx.session);
@@ -73,7 +81,10 @@ export function resetAdminCreateServiceWizardState(session: SessionData): void {
   if (session.other.controlUsersPage) {
     session.other.controlUsersPage.awaitingUserLookup = false;
   }
-  (session.other as { adminServiceDraft?: unknown }).adminServiceDraft = undefined;
+  session.other.adminServiceDraft = undefined;
+  session.other.adminServicePanelMode = "summary";
+  session.other.adminServiceExtend = null;
+  session.other.adminServiceTariff = null;
 }
 
 /** Admin panel «Back» from inline keyboards (VDS list, etc.). */

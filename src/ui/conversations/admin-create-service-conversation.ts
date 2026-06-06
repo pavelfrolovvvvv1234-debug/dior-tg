@@ -350,19 +350,21 @@ async function runReviewStep(
     await persistWizardSurface(conversation, ctx, st);
     await persistWizardState(conversation, ctx, st);
 
-    let reviewCb: string;
-    try {
-      const update = await conversation.waitForCallbackQuery(
-        /^advcs:(toggle-confirm|submit|goto:(?:type|form|user)|cancel)$/,
-        { otherwise: () => conversation.skip() }
-      );
-      reviewCb = update.callbackQuery?.data ?? "";
-    } catch {
-      continue;
-    }
-
-    if (reviewCb === ADMIN_CREATE_SERVICE_CANCEL) {
+    const reviewCb = await waitCallback(
+      conversation,
+      ctx,
+      (d) =>
+        d === `${CB}:toggle-confirm` ||
+        d === `${CB}:submit` ||
+        d === `${CB}:goto:type` ||
+        d === `${CB}:goto:form` ||
+        d === `${CB}:goto:user`
+    );
+    if (reviewCb === WIZARD_CANCELLED) {
       await exitWizardCancelled(conversation, ctx);
+      return;
+    }
+    if (reviewCb === WIZARD_FOREIGN_CALLBACK) {
       return;
     }
     if (reviewCb === `${CB}:toggle-confirm`) {
@@ -370,17 +372,47 @@ async function runReviewStep(
       await persistWizardState(conversation, ctx, st);
       continue;
     }
-    if (
-      reviewCb === `${CB}:goto:type` ||
-      reviewCb === `${CB}:goto:form` ||
-      reviewCb === `${CB}:goto:user`
-    ) {
-      await conversation.external(async () => {
-        const session = ensureFullSession(await ctx.session);
-        session.other.adminCreateService = null;
-      });
+    if (reviewCb === `${CB}:goto:type`) {
+      st.step = "type";
+      st.serviceType = null;
+      st.formFieldIndex = 0;
+      st.draft = {};
+      st.confirmed = false;
+      await persistWizardState(conversation, ctx, st);
       await ctx.conversation.exitAll().catch(() => {});
-      await ctx.conversation.enter("adminCreateServiceConversation", ADMIN_CREATE_SERVICE_ENTRY_TOKEN);
+      await ctx.conversation.enter(
+        "adminCreateServiceConversation",
+        ADMIN_CREATE_SERVICE_RESUME_TOKEN
+      );
+      return;
+    }
+    if (reviewCb === `${CB}:goto:form`) {
+      if (!st.serviceType) {
+        await ctx.reply(ctx.t("bad-error"));
+        continue;
+      }
+      st.step = "form";
+      st.formFieldIndex = 0;
+      st.confirmed = false;
+      await persistWizardState(conversation, ctx, st);
+      await ctx.conversation.exitAll().catch(() => {});
+      await ctx.conversation.enter(
+        "adminCreateServiceConversation",
+        ADMIN_CREATE_SERVICE_RESUME_TOKEN
+      );
+      return;
+    }
+    if (reviewCb === `${CB}:goto:user`) {
+      st.step = "user";
+      st.assignedUserId = null;
+      st.assignedUserTelegramId = null;
+      st.confirmed = false;
+      await persistWizardState(conversation, ctx, st);
+      await ctx.conversation.exitAll().catch(() => {});
+      await ctx.conversation.enter(
+        "adminCreateServiceConversation",
+        ADMIN_CREATE_SERVICE_RESUME_TOKEN
+      );
       return;
     }
 
@@ -626,12 +658,16 @@ export async function adminCreateServiceConversation(
   }
 
   const st = await loadWizardStateFromSession(conversation, ctx);
+  const isResume = entryToken === ADMIN_CREATE_SERVICE_RESUME_TOKEN;
 
-  if (entryToken === ADMIN_CREATE_SERVICE_RESUME_TOKEN && st.step === "review") {
+  if (isResume && st.step === "review") {
     await runReviewStep(conversation, ctx, st);
     return;
   }
 
+  let serviceType: AdminManualServiceType | null = st.serviceType;
+
+  if (!isResume || st.step === "type" || !serviceType) {
   await editWizardMessage(
     ctx,
     st,
@@ -640,7 +676,7 @@ export async function adminCreateServiceConversation(
   );
   await persistWizardSurface(conversation, ctx, st);
 
-  let serviceType: AdminManualServiceType | null = null;
+  serviceType = null;
   while (!serviceType) {
     const typeUpdate = await conversation.wait();
     const typeCb = typeUpdate.callbackQuery?.data;
@@ -685,20 +721,33 @@ export async function adminCreateServiceConversation(
       await typeUpdate.answerCallbackQuery().catch(() => {});
     }
   }
-  if (!["domain", "vds", "dedicated"].includes(serviceType)) {
+  if (!serviceType || !["domain", "vds", "dedicated"].includes(serviceType)) {
     await ctx.reply(ctx.t("bad-error"));
     await exitWizardCancelled(conversation, ctx);
     return;
   }
-  st.serviceType = serviceType;
-  st.step = "form";
-  const fields = getWizardFields(serviceType);
-  const formPrefilled = Object.keys(st.draft).length > 0;
-  st.formFieldIndex = formPrefilled ? fields.length : 0;
-  await persistWizardState(conversation, ctx, st);
-  if (serviceType === "vds" && !formPrefilled) {
-    await ctx.reply(ctx.t("admin-cs-vds-block-hint"), { parse_mode: "HTML" });
   }
+
+  st.serviceType = serviceType;
+
+  if (!isResume || st.step === "type" || st.step === "form") {
+  if (st.step === "type") {
+    st.step = "form";
+    const fields = getWizardFields(serviceType);
+    const formPrefilled = Object.keys(st.draft).length > 0;
+    if (!formPrefilled) {
+      st.formFieldIndex = 0;
+    } else if (!isResume) {
+      st.formFieldIndex = fields.length;
+    }
+    await persistWizardState(conversation, ctx, st);
+    if (serviceType === "vds" && !formPrefilled && !isResume) {
+      await ctx.reply(ctx.t("admin-cs-vds-block-hint"), { parse_mode: "HTML" });
+    }
+  }
+
+  if (st.step === "form") {
+  const fields = getWizardFields(serviceType);
   while (st.formFieldIndex < fields.length) {
     const field = fields[st.formFieldIndex];
     const canSkip = Boolean(field.optional);
@@ -785,8 +834,10 @@ export async function adminCreateServiceConversation(
     st.formFieldIndex += 1;
     await persistWizardState(conversation, ctx, st);
   }
+  }
+  }
 
-  if (!st.assignedUserId) {
+  if (!st.assignedUserId && (!isResume || st.step === "user" || st.step === "form")) {
     st.step = "user";
     await persistWizardState(conversation, ctx, st);
     await editWizardMessage(
