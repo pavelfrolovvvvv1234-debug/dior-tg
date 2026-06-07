@@ -797,28 +797,53 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
     });
   });
 
-  const exposeDocs =
-    process.env.RESELLER_API_EXPOSE_DOCS?.trim() === "1" ||
-    process.env.RESELLER_API_EXPOSE_DOCS?.trim() === "true";
-
-  if (exposeDocs) {
-    app.get("/reseller/openapi.json", (req: Request, res: Response) => {
-      const host = req.header("host") || `localhost:${process.env.RESELLER_API_PORT ?? "3003"}`;
-      const proto = (req.header("x-forwarded-proto") || req.protocol || "https").toString();
-      res.json(buildOpenApiDoc(`${proto}://${host}`));
+  app.get("/reseller", (_req: Request, res: Response) => {
+    res.json({
+      ok: true,
+      service: "reseller-api",
+      health: "/reseller/health",
+      docs: "/reseller/docs",
+      openapi: "/reseller/openapi.json",
+      reference: {
+        errors: "/reseller/v1/errors",
+        webhookEvents: "/reseller/v1/webhooks/events",
+      },
+      authenticatedBase: "/reseller/v1",
+      authHeaders: ["x-api-key", "x-timestamp", "x-nonce", "x-signature"],
+      note: "All /reseller/v1/* business endpoints require HMAC auth. Docs and reference routes are public.",
     });
+  });
 
-    app.get("/reseller/docs", (_req: Request, res: Response) => {
-      res.type("text/plain").send(
-        [
-          "DiorHost Reseller API docs:",
-          "1) OpenAPI JSON: /reseller/openapi.json",
-          "2) Endpoints base: /reseller/v1/*",
-          "3) Auth: x-api-key + HMAC (x-timestamp, x-signature, x-nonce)",
-        ].join("\n")
-      );
+  app.get("/reseller/openapi.json", (req: Request, res: Response) => {
+    const host = req.header("host") || `localhost:${process.env.RESELLER_API_PORT ?? "3003"}`;
+    const proto = (req.header("x-forwarded-proto") || req.protocol || "https").toString();
+    res.json(buildOpenApiDoc(`${proto}://${host}`));
+  });
+
+  app.get("/reseller/docs", (_req: Request, res: Response) => {
+    res.type("text/plain").send(
+      [
+        "DiorHost Reseller API docs:",
+        "1) OpenAPI JSON: /reseller/openapi.json",
+        "2) GitHub guide: https://github.com/pavelfrolovvvvv1234-debug/dior-tg/blob/main/docs/reseller-api.md",
+        "3) Endpoints base: /reseller/v1/* (requires auth)",
+        "4) Auth headers: x-api-key, x-timestamp, x-nonce, x-signature (HMAC-SHA256)",
+        "5) Public reference: /reseller/v1/errors, /reseller/v1/webhooks/events",
+      ].join("\n")
+    );
+  });
+
+  app.get("/reseller/v1/errors", (_req: Request, res: Response) => {
+    res.json({ ok: true, codes: [...RESELLER_API_ERROR_CODES] });
+  });
+
+  app.get("/reseller/v1/webhooks/events", (_req: Request, res: Response) => {
+    res.json({
+      ok: true,
+      events: [...RESELLER_WEBHOOK_EVENTS],
+      signing: "Optional HMAC on webhook POST: x-timestamp + x-signature over raw JSON body",
     });
-  }
+  });
 
   app.use(
     "/reseller/v1",
@@ -911,23 +936,6 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         note: "Control-plane audit only. Use GET /billing/transactions for wallet debits and bot top-ups.",
         ...requestMeta(req),
       });
-    });
-  });
-
-  app.get("/reseller/v1/webhooks/events", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(req, res, async () => {
-      res.json({
-        ok: true,
-        events: [...RESELLER_WEBHOOK_EVENTS],
-        signing: "Optional HMAC on webhook POST: x-timestamp + x-signature over raw JSON body",
-        ...requestMeta(req),
-      });
-    });
-  });
-
-  app.get("/reseller/v1/errors", async (req: AuthRequest, res: Response) => {
-    await routeGuarded(req, res, async () => {
-      res.json({ ok: true, codes: [...RESELLER_API_ERROR_CODES], ...requestMeta(req) });
     });
   });
 
