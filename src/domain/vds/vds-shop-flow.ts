@@ -33,6 +33,7 @@ import {
   type PremiumVpsReadyPayload,
 } from "./vps-onboarding-messages.js";
 import { resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
+import { canAutoProvisionVpsAtLocation } from "../../shared/proxmox/location-targets.js";
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
@@ -773,7 +774,11 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       return;
     }
     await deleteVpsOsPickerMessage(ctx as AppContext);
-    if (session.other.vdsRate.bulletproof && isProxmoxEnabled()) {
+    if (
+      session.other.vdsRate.bulletproof &&
+      isProxmoxEnabled() &&
+      canAutoProvisionVpsAtLocation(locationKey)
+    ) {
       await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
       return;
     }

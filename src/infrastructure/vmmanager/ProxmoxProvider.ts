@@ -24,6 +24,10 @@ import type {
   VmProvider,
   VncConsoleInfo,
 } from "./provider.js";
+import {
+  parseLocationKeyFromProvisionerComment,
+  resolveProxmoxLocationTarget,
+} from "../../shared/proxmox/location-targets.js";
 
 type ProxmoxTemplate = {
   vmid: number;
@@ -563,8 +567,8 @@ export class ProxmoxProvider implements VmProvider {
    * Virtio NIC bandwidth cap (mbps = megabit/s). Mirrors ISP VMManager net_in/out intent for egress-heavy defaults.
    * Proxmox applies `rate` to virtio egress per upstream docs.
    */
-  private buildVirtioNet0(networkIn: number, networkOut: number): string {
-    const base = `virtio,bridge=${this.bridge}`;
+  private buildVirtioNet0(networkIn: number, networkOut: number, bridge = this.bridge): string {
+    const base = `virtio,bridge=${bridge}`;
     const mbps = Math.max(
       Number.isFinite(networkIn) ? Math.trunc(networkIn) : 0,
       Number.isFinite(networkOut) ? Math.trunc(networkOut) : 0
@@ -593,10 +597,13 @@ export class ProxmoxProvider implements VmProvider {
     return match?.[1];
   }
 
-  private async getBridgeNetworkConfig(): Promise<{ cidr: string; gateway: string } | undefined> {
+  private async getBridgeNetworkConfig(
+    node = this.node,
+    bridgeName = this.bridge
+  ): Promise<{ cidr: string; gateway: string } | undefined> {
     try {
-      const interfaces = await this.apiGet<ProxmoxNetworkIface[]>(`/nodes/${this.node}/network`);
-      const bridge = interfaces.find((iface) => iface.iface === this.bridge);
+      const interfaces = await this.apiGet<ProxmoxNetworkIface[]>(`/nodes/${node}/network`);
+      const bridge = interfaces.find((iface) => iface.iface === bridgeName);
       const cidr = bridge?.cidr ?? (bridge?.address?.includes("/") ? bridge.address : undefined);
       const gateway = bridge?.gateway;
       if (!cidr || !gateway) return undefined;
@@ -607,8 +614,11 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
-  private async collectUsedIpv4OnBridge(): Promise<Set<string>> {
-    const bridgeConfig = await this.getBridgeNetworkConfig();
+  private async collectUsedIpv4OnBridge(
+    node = this.node,
+    bridgeName = this.bridge
+  ): Promise<Set<string>> {
+    const bridgeConfig = await this.getBridgeNetworkConfig(node, bridgeName);
     const usedIps = new Set<string>();
     if (bridgeConfig) {
       const [networkIp] = bridgeConfig.cidr.split("/");
@@ -635,8 +645,11 @@ export class ProxmoxProvider implements VmProvider {
     return usedIps;
   }
 
-  private async pickFreeIpv4FromBridge(): Promise<{ ipconfig0: string; nameserver: string } | undefined> {
-    const bridgeConfig = await this.getBridgeNetworkConfig();
+  private async pickFreeIpv4FromBridge(
+    node = this.node,
+    bridgeName = this.bridge
+  ): Promise<{ ipconfig0: string; nameserver: string } | undefined> {
+    const bridgeConfig = await this.getBridgeNetworkConfig(node, bridgeName);
     if (!bridgeConfig) return undefined;
 
     const [networkIp, prefixStr] = bridgeConfig.cidr.split("/");
@@ -647,7 +660,7 @@ export class ProxmoxProvider implements VmProvider {
     const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
     const subnetBase = networkInt & mask;
 
-    const usedIps = await this.collectUsedIpv4OnBridge();
+    const usedIps = await this.collectUsedIpv4OnBridge(node, bridgeName);
 
     // Keep a safe allocation range in the same /24-like segment.
     const startHost = 100;
@@ -732,20 +745,27 @@ export class ProxmoxProvider implements VmProvider {
         Logger.warn(`Proxmox template not found for osId=${osId}`);
         return false;
       }
+      const locationKey = parseLocationKeyFromProvisionerComment(comment);
+      const target = resolveProxmoxLocationTarget(locationKey, {
+        node: this.node,
+        bridge: this.bridge,
+        storage: this.storage,
+      });
+
       const nextIdRaw = await this.apiGet<string | number>(`/cluster/nextid`);
       const parsedVmId = Number(typeof nextIdRaw === "number" ? nextIdRaw : String(nextIdRaw).trim());
       if (!Number.isFinite(parsedVmId)) return false;
       newId = parsedVmId;
-      const autoIpConfig = await this.pickFreeIpv4FromBridge();
+      const autoIpConfig = await this.pickFreeIpv4FromBridge(target.node, target.bridge);
 
       const templateHostNode = await this.findNodeHostingQemuGuest(templateId);
-      const destNode = this.node.trim() || templateHostNode;
+      const destNode = target.node.trim() || templateHostNode;
       Logger.info(
-        `Proxmox createVM: clone template vmid=${templateId} from node=${templateHostNode} -> new vmid=${newId} target=${destNode}`
+        `Proxmox createVM: loc=${locationKey ?? "default"} template=${templateId} from=${templateHostNode} -> vmid=${newId} target=${destNode} bridge=${target.bridge}`
       );
 
       type CloneStrat = { full: 0 | 1; useStorage: boolean };
-      const storageTrim = this.storage.trim();
+      const storageTrim = target.storage.trim();
       const cloneStrategies: CloneStrat[] = [];
       if (storageTrim) {
         cloneStrategies.push({ full: 1, useStorage: true });
@@ -853,13 +873,13 @@ export class ProxmoxProvider implements VmProvider {
       try {
         await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
           ...baseConfig,
-          net0: this.buildVirtioNet0(networkIn, networkOut),
+          net0: this.buildVirtioNet0(networkIn, networkOut, target.bridge),
         });
       } catch (netErr) {
         Logger.warn(`Proxmox createVM: config with net rate failed vmid=${newId}, retry plain virtio`, netErr);
         await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
           ...baseConfig,
-          net0: `virtio,bridge=${this.bridge}`,
+          net0: `virtio,bridge=${target.bridge}`,
         });
       }
 

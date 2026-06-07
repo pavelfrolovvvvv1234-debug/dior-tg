@@ -17,7 +17,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/modules/automations/__tests__/evaluator.test.ts src/modules/automations/__tests__/nps-callback.test.ts src/modules/automations/__tests__/role-migration-safety.test.ts src/shared/auth/__tests__/admin-notify-recipients.test.ts src/shared/users/__tests__/admin-user-lookup.test.ts src/shared/__tests__/vmm-os-display.test.ts src/shared/admin/__tests__/admin-create-service-session.test.ts src/shared/admin/__tests__/parse-managed-service-input.test.ts src/api/__tests__/reseller-api-catalog.test.ts",
+    "test": "node --import tsx --test src/modules/automations/__tests__/evaluator.test.ts src/modules/automations/__tests__/nps-callback.test.ts src/modules/automations/__tests__/role-migration-safety.test.ts src/shared/auth/__tests__/admin-notify-recipients.test.ts src/shared/users/__tests__/admin-user-lookup.test.ts src/shared/__tests__/vmm-os-display.test.ts src/shared/admin/__tests__/admin-create-service-session.test.ts src/shared/admin/__tests__/parse-managed-service-input.test.ts src/shared/proxmox/__tests__/location-targets.test.ts src/api/__tests__/reseller-api-catalog.test.ts",
     "check-payments": "ts-node scripts/check-payments.ts",
     "test-amper-api": "tsx scripts/test-amper-api.ts",
     "test-amper-register": "tsx scripts/test-amper-register.ts",

@@ -2,6 +2,7 @@ import type { ListItem } from "./vmmanager.js";
 import type VirtualDedicatedServer from "../entities/VirtualDedicatedServer.js";
 import { DEDICATED_LOCATION_KEYS } from "../domain/dedicated/dedicated-shop-config.js";
 import { STANDARD_VPS_LOCATION_KEYS } from "../domain/vds/vds-shop-config.js";
+import { canAutoProvisionVpsAtLocation } from "../shared/proxmox/location-targets.js";
 import {
   getExtraIpv4MonthlyPriceUsd,
   MAX_EXTRA_IPV4_PER_VDS,
@@ -133,18 +134,17 @@ export function listResellerLocations(): Array<{
   tier: "standard" | "bulletproof";
   automatedProvisioning: boolean;
 }> {
-  const autoKey = "nl-amsterdam";
   const standard = STANDARD_VPS_LOCATION_KEYS.map((key) => ({
     key,
     labelKey: `vps-location-${key}`,
     tier: "standard" as const,
-    automatedProvisioning: false,
+    automatedProvisioning: canAutoProvisionVpsAtLocation(key),
   }));
   const bulletproof = DEDICATED_LOCATION_KEYS.map((key) => ({
     key,
     labelKey: `dedicated-location-${key}`,
     tier: "bulletproof" as const,
-    automatedProvisioning: key === autoKey,
+    automatedProvisioning: canAutoProvisionVpsAtLocation(key),
   }));
   return [...standard, ...bulletproof];
 }
