@@ -824,8 +824,8 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
     res.type("text/plain").send(
       [
         "DiorHost Reseller API docs:",
-        "1) OpenAPI JSON: /reseller/openapi.json",
-        "2) GitHub guide: https://github.com/pavelfrolovvvvv1234-debug/dior-tg/blob/main/docs/reseller-api.md",
+        "1) OpenAPI JSON (full spec): /reseller/openapi.json",
+        "2) API index: /reseller",
         "3) Endpoints base: /reseller/v1/* (requires auth)",
         "4) Auth headers: x-api-key, x-timestamp, x-nonce, x-signature (HMAC-SHA256)",
         "5) Public reference: /reseller/v1/errors, /reseller/v1/webhooks/events",
