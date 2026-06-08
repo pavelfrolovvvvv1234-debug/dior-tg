@@ -18,9 +18,18 @@ import ReferralReward from "../entities/ReferralReward.js";
 import { UserRepository } from "../infrastructure/db/repositories/UserRepository";
 import { ReferralService } from "../domain/referral/ReferralService";
 import { ensureSessionUser } from "../shared/utils/session-user.js";
-import { canChangeRoles, canEditBalance, canManageServices } from "../shared/auth/permissions.js";
+import {
+  canChangeRoles,
+  canEditBalance,
+  canManageServices,
+  ensureAdminAccess,
+} from "../shared/auth/permissions.js";
 import { writeAdminAuditLog } from "../shared/audit/admin-audit.js";
-import { getWritableSession, beginAdminVdsSearch } from "../shared/admin/admin-pending-input.js";
+import {
+  getWritableSession,
+  beginAdminVdsSearch,
+  clearBroadcastDraft,
+} from "../shared/admin/admin-pending-input.js";
 import {
   ADMIN_USER_LIST_PAGE_SIZE,
   findUsersForAdminList,
@@ -1025,7 +1034,7 @@ export async function handleAdminUserLookupText(ctx: AppContext, raw: string): P
 export const controlUserBalance = new Menu<AppContext>("control-user-balance", {})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
-    if (!canEditBalance(session.main.user.role)) {
+    if (!(await ensureAdminAccess(ctx)) || !canEditBalance(session.main.user.role)) {
       range.text((ctx) => ctx.t("button-back"), (ctx) => ctx.menu.back());
       return;
     }
@@ -1039,14 +1048,18 @@ export const controlUserBalance = new Menu<AppContext>("control-user-balance", {
     }
     range.text((ctx) => ctx.t("button-add-balance"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
-      session.other.balanceEdit = { userId: targetUser.id, action: "add" };
+      const liveSession = await getWritableSession(ctx);
+      clearBroadcastDraft(liveSession);
+      liveSession.other.balanceEdit = { userId: targetUser.id, action: "add" };
       await ctx.reply(ctx.t("admin-balance-enter-amount", { action: ctx.t("admin-balance-action-add") }), {
         parse_mode: "HTML",
       });
     });
     range.text((ctx) => ctx.t("button-deduct-balance"), async (ctx) => {
       await ctx.answerCallbackQuery().catch(() => {});
-      session.other.balanceEdit = { userId: targetUser.id, action: "deduct" };
+      const liveSession = await getWritableSession(ctx);
+      clearBroadcastDraft(liveSession);
+      liveSession.other.balanceEdit = { userId: targetUser.id, action: "deduct" };
       await ctx.reply(ctx.t("admin-balance-enter-amount", { action: ctx.t("admin-balance-action-deduct") }), {
         parse_mode: "HTML",
       });

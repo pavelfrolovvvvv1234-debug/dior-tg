@@ -121,7 +121,7 @@ import {
   staffSensitiveInputMiddleware,
 } from "./app/middlewares/staff-guards.js";
 import { requireStaffAccess } from "./shared/auth/staff-access.js";
-import { requireAdmin } from "./shared/auth/permissions.js";
+import { ensureAdminAccess, requireAdmin } from "./shared/auth/permissions.js";
 import { ServicePaymentStatusChecker } from "./domain/billing/ServicePaymentStatusChecker.js";
 import { InlineKeyboard } from "grammy";
 import {
@@ -2176,9 +2176,9 @@ async function index() {
       if (!ctx.hasChatType("private")) {
         return next();
       }
-      if (session.main.user.role !== Role.Admin && session.main.user.role !== Role.Moderator) {
+      if (!(await ensureAdminAccess(ctx as AppContext))) {
         delete session.other.balanceEdit;
-        return next();
+        return;
       }
       const input = ctx.message.text.trim();
       if (input.startsWith("/")) {
