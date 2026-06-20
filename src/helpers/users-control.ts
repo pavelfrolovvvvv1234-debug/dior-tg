@@ -479,6 +479,26 @@ async function buildServicePanelListText(
   return lines.join("\n");
 }
 
+function buildAdminUserServicesActionKeyboard(
+  userId: number,
+  mode: "list" | "extend" | "lock" | "tariff",
+  items: ManagedServiceItem[]
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  if (items.length === 0) {
+    kb.text("Список пуст", "admin:usvc:noop").row();
+  } else {
+    for (const item of items.slice(0, 25)) {
+      kb.text(
+        managedServiceButtonLabel(item),
+        `admin:usvc:${mode}:${userId}:${item.type}:${item.id}`
+      ).row();
+    }
+  }
+  kb.text("⬅️ К меню услуг", `admin:usvc:back:${userId}`);
+  return kb;
+}
+
 async function openAdminServicePanelMode(
   ctx: AppContext,
   userId: number,
@@ -488,36 +508,91 @@ async function openAdminServicePanelMode(
   session.other.adminServicePanelMode = mode;
   const { items } = await getManagedServiceData(ctx.appDataSource, userId);
   const text = await buildServicePanelListText(ctx, userId, mode, items);
+  const reply_markup = buildAdminUserServicesActionKeyboard(userId, mode, items);
   try {
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: controlUserServices,
-    });
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup });
   } catch {
-    await ctx.reply(text, {
-      parse_mode: "HTML",
-      reply_markup: controlUserServices,
-    });
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup });
   }
-  await ctx.menu.update({ immediate: true });
 }
 
 async function returnToAdminServiceSummary(ctx: AppContext, userId: number): Promise<void> {
   const session = await ctx.session;
   session.other.adminServicePanelMode = "summary";
+  session.other.adminServiceExtend = null;
+  session.other.adminServiceTariff = null;
   const text = await buildManagedServicesSummaryText(ctx, userId);
   try {
-    await ctx.editMessageText(text, {
-      parse_mode: "HTML",
-      reply_markup: controlUserServices,
-    });
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: controlUserServices });
   } catch {
-    await ctx.reply(text, {
-      parse_mode: "HTML",
-      reply_markup: controlUserServices,
-    });
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: controlUserServices });
   }
-  await ctx.menu.update({ immediate: true });
+}
+
+async function handleAdminUserServiceItemAction(
+  ctx: AppContext,
+  userId: number,
+  mode: "list" | "extend" | "lock" | "tariff",
+  type: ManagedServiceType,
+  serviceId: string
+): Promise<void> {
+  const { items } = await getManagedServiceData(ctx.appDataSource, userId);
+  const item = items.find((entry) => entry.type === type && String(entry.id) === serviceId);
+  if (!item) {
+    await ctx.reply("❌ Услуга не найдена");
+    return;
+  }
+
+  if (mode === "list") {
+    const detail = await buildManagedServiceDetailText(ctx, userId, type, serviceId);
+    if (!detail) {
+      await ctx.reply("❌ Услуга не найдена");
+      return;
+    }
+    const kb = new InlineKeyboard();
+    if (type === "vps") {
+      kb.text("🖥 Открыть в админ-VDS", `adv:sel:${serviceId}`).row();
+    }
+    await ctx.reply(detail, { parse_mode: "HTML", reply_markup: kb });
+    return;
+  }
+
+  if (mode === "lock" && type === "vps") {
+    const v = await ctx.appDataSource
+      .getRepository(VirtualDedicatedServer)
+      .findOneBy({ id: Number(serviceId), targetUserId: userId });
+    if (!v) {
+      await ctx.reply("❌ VPS не найден");
+      return;
+    }
+    v.adminBlocked = !v.adminBlocked;
+    await ctx.appDataSource.getRepository(VirtualDedicatedServer).save(v);
+    const state = v.adminBlocked ? "заблокирован" : "разблокирован";
+    await ctx.reply(`✅ VPS VM${v.vdsId} (${v.ipv4Addr || "—"}) ${state}`, { parse_mode: "HTML" });
+    return;
+  }
+
+  if (mode === "extend") {
+    const session = await ctx.session;
+    session.other.adminServiceExtend = { userId, type, serviceId };
+    await ctx.reply(
+      `Отправьте новую дату окончания для <b>${item.title}</b> (DD.MM.YY).`,
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+
+  if (mode === "tariff" && type === "vps") {
+    const session = await ctx.session;
+    session.other.adminServiceTariff = { userId, vdsRowId: Number(serviceId) };
+    await ctx.reply(
+      `Отправьте новый тариф для <b>${item.title}</b> (например: Mega 1).`,
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+
+  await ctx.reply("Для этой услуги действие пока недоступно в этом режиме.");
 }
 
 async function buildManagedServiceDetailText(
@@ -901,20 +976,13 @@ export const controlUser = new Menu<AppContext>("control-user", {})
       session.other.adminServicePanelMode = "summary";
       session.other.adminServiceExtend = null;
       session.other.adminServiceTariff = null;
+      const text = await buildManagedServicesSummaryText(ctx, picked);
       try {
-        const text = await buildManagedServicesSummaryText(ctx, picked);
-        await ctx.editMessageText(text, {
-          parse_mode: "HTML",
-          reply_markup: controlUserServices,
-        });
+        await ctx.editMessageText(text, { parse_mode: "HTML" });
       } catch {
-        // Fallback for stale/non-editable messages: still open services panel.
-        const text = await buildManagedServicesSummaryText(ctx, picked);
-        await ctx.reply(text, {
-          parse_mode: "HTML",
-          reply_markup: controlUserServices,
-        });
+        await ctx.reply(text, { parse_mode: "HTML" });
       }
+      await ctx.menu.nav("control-user-services");
     });
     range.row();
 
@@ -1206,86 +1274,12 @@ export const controlUserStatus = new Menu<AppContext>("control-user-status", {})
     range.back((ctx) => ctx.t("button-back"));
   });
 
-async function renderAdminServicePanelItems(
-  ctx: AppContext,
-  range: { text: (label: string | ((ctx: AppContext) => string), handler: (ctx: AppContext) => void | Promise<void>) => void; row: () => void },
-  userId: number,
-  mode: "list" | "extend" | "lock" | "tariff"
-): Promise<void> {
-  const { items } = await getManagedServiceData(ctx.appDataSource, userId);
-  if (items.length === 0) {
-    range.text("Список пуст", async () => {});
-    range.row();
-  } else {
-    for (const item of items.slice(0, 25)) {
-      range.text(managedServiceButtonLabel(item), async (btnCtx) => {
-        await btnCtx.answerCallbackQuery().catch(() => {});
-        if (mode === "list") {
-          const detail = await buildManagedServiceDetailText(btnCtx, userId, item.type, String(item.id));
-          if (!detail) {
-            await btnCtx.reply("❌ Услуга не найдена");
-            return;
-          }
-          await btnCtx.reply(detail, { parse_mode: "HTML" });
-          return;
-        }
-        if (mode === "lock" && item.type === "vps") {
-          const v = await btnCtx.appDataSource
-            .getRepository(VirtualDedicatedServer)
-            .findOneBy({ id: Number(item.id), targetUserId: userId });
-          if (!v) {
-            await btnCtx.reply("❌ VPS не найден");
-            return;
-          }
-          v.adminBlocked = !v.adminBlocked;
-          await btnCtx.appDataSource.getRepository(VirtualDedicatedServer).save(v);
-          const state = v.adminBlocked ? "заблокирован" : "разблокирован";
-          await btnCtx.reply(`✅ VPS VM${v.vdsId} (${v.ipv4Addr || "—"}) ${state}`, {
-            parse_mode: "HTML",
-          });
-          return;
-        }
-        if (mode === "extend") {
-          const session = await btnCtx.session;
-          session.other.adminServiceExtend = { userId, type: item.type, serviceId: String(item.id) };
-          await btnCtx.reply(
-            `Отправьте новую дату окончания для <b>${item.title}</b> (DD.MM.YY).`,
-            { parse_mode: "HTML" }
-          );
-          return;
-        }
-        if (mode === "tariff" && item.type === "vps") {
-          const session = await btnCtx.session;
-          session.other.adminServiceTariff = { userId, vdsRowId: Number(item.id) };
-          await btnCtx.reply(
-            `Отправьте новый тариф для <b>${item.title}</b> (например: Mega 1).`,
-            { parse_mode: "HTML" }
-          );
-          return;
-        }
-        await btnCtx.reply("Для этой услуги действие пока недоступно в этом режиме.");
-      });
-      range.row();
-    }
-  }
-  range.text("⬅️ К меню услуг", async (btnCtx) => {
-    await btnCtx.answerCallbackQuery().catch(() => {});
-    await returnToAdminServiceSummary(btnCtx, userId);
-  });
-}
-
 export const controlUserServices = new Menu<AppContext>("control-user-services", {})
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
     const picked = session.other.controlUsersPage?.pickedUserData?.id;
     if (!picked || !canManageServices(session.main.user.role)) {
       range.text((ctx) => ctx.t("button-back"), (ctx) => ctx.menu.back());
-      return;
-    }
-
-    const mode = session.other.adminServicePanelMode ?? "summary";
-    if (mode === "list" || mode === "extend" || mode === "lock" || mode === "tariff") {
-      await renderAdminServicePanelItems(ctx, range, picked, mode);
       return;
     }
 
@@ -1398,6 +1392,36 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
   bot.callbackQuery("admin:service:noop", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
   });
+
+  bot.callbackQuery("admin:usvc:noop", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+  });
+
+  bot.callbackQuery(/^admin:usvc:back:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = await ctx.session;
+    if (!canManageServices(session.main.user.role)) return;
+    const userId = Number(ctx.match?.[1]);
+    if (!Number.isFinite(userId)) return;
+    if (session.other.controlUsersPage?.pickedUserData?.id !== userId) return;
+    await returnToAdminServiceSummary(ctx, userId);
+  });
+
+  bot.callbackQuery(
+    /^admin:usvc:(list|extend|lock|tariff):(\d+):(vps|dedicated|domain|cdn):(\d+)$/,
+    async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      if (!canManageServices(session.main.user.role)) return;
+      const mode = ctx.match?.[1] as "list" | "extend" | "lock" | "tariff";
+      const userId = Number(ctx.match?.[2]);
+      const type = ctx.match?.[3] as ManagedServiceType;
+      const serviceId = ctx.match?.[4] as string;
+      if (!Number.isFinite(userId) || !mode || !type || !serviceId) return;
+      if (session.other.controlUsersPage?.pickedUserData?.id !== userId) return;
+      await handleAdminUserServiceItemAction(ctx, userId, mode, type, serviceId);
+    }
+  );
 
   bot.on("message:text", async (ctx, next) => {
     const session = await ctx.session;
