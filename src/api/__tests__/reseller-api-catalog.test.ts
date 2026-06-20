@@ -75,7 +75,7 @@ describe("mapService", () => {
       vmInfo: { state: "running" } as never,
     });
     assert.deepEqual(item.ipv4, ["203.0.113.10", "203.0.113.44"]);
-    assert.equal(item.login, "Administrator");
+    assert.equal(item.login, "Admin");
     assert.equal(item.billing.addons.extraIpv4.count, 1);
     assert.equal(item.billing.addons.extraIpv4.canPurchase, false);
     assert.equal(item.capabilities.ipv6.supported, false);

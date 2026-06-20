@@ -53,7 +53,7 @@ const CB = "advcs";
 const WIZARD_CANCELLED = "__advcs_cancelled__";
 const WIZARD_FOREIGN_CALLBACK = "__advcs_foreign__";
 
-const REVIEW_CALLBACK_RE = /^advcs:(toggle-confirm|submit|goto:(type|form|user))$/;
+const REVIEW_CALLBACK_RE = /^advcs:(submit|goto:(type|form|user))$/;
 
 function isReviewWizardCallback(data: string | undefined): boolean {
   return !!data && REVIEW_CALLBACK_RE.test(data);
@@ -105,7 +105,6 @@ function defaultCreateServiceState(): AdminCreateServiceSessionState {
     formFieldIndex: 0,
     assignedUserId: null,
     assignedUserTelegramId: null,
-    confirmed: false,
     createdSummary: null,
     createdServiceRef: null,
     messageId: null,
@@ -191,18 +190,14 @@ function formNavKeyboard(ctx: AppContext, canSkip: boolean): InlineKeyboard {
   return kb;
 }
 
-function reviewKeyboard(ctx: AppContext, confirmed: boolean): InlineKeyboard {
-  const check = confirmed ? "☑" : "☐";
+function reviewKeyboard(ctx: AppContext): InlineKeyboard {
   return new InlineKeyboard()
-    .text(`${check} ${ctx.t("admin-cs-confirm-checkbox")}`, `${CB}:toggle-confirm`)
+    .text(`✅ ${ctx.t("admin-cs-submit")}`, `${CB}:submit`)
+    .text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL)
     .row()
-    .text(ctx.t("admin-cs-edit-type"), `${CB}:goto:type`)
-    .text(ctx.t("admin-cs-edit-form"), `${CB}:goto:form`)
-    .row()
-    .text(ctx.t("admin-cs-edit-user"), `${CB}:goto:user`)
-    .row()
-    .text(ctx.t("admin-cs-submit"), `${CB}:submit`)
-    .text(ctx.t("admin-cs-cancel"), ADMIN_CREATE_SERVICE_CANCEL);
+    .text(ctx.t("admin-cs-edit-type-short"), `${CB}:goto:type`)
+    .text(ctx.t("admin-cs-edit-form-short"), `${CB}:goto:form`)
+    .text(ctx.t("admin-cs-edit-user-short"), `${CB}:goto:user`);
 }
 
 function successKeyboard(
@@ -346,7 +341,7 @@ async function runReviewStep(
       `⚠️ <i>${escapeHtml(ctx.t("admin-cs-review-warning"))}</i>`,
     ].join("\n");
 
-    await editWizardMessage(ctx, st, reviewText, reviewKeyboard(ctx, st.confirmed));
+    await editWizardMessage(ctx, st, reviewText, reviewKeyboard(ctx));
     await persistWizardSurface(conversation, ctx, st);
     await persistWizardState(conversation, ctx, st);
 
@@ -354,7 +349,6 @@ async function runReviewStep(
       conversation,
       ctx,
       (d) =>
-        d === `${CB}:toggle-confirm` ||
         d === `${CB}:submit` ||
         d === `${CB}:goto:type` ||
         d === `${CB}:goto:form` ||
@@ -367,17 +361,11 @@ async function runReviewStep(
     if (reviewCb === WIZARD_FOREIGN_CALLBACK) {
       return;
     }
-    if (reviewCb === `${CB}:toggle-confirm`) {
-      st.confirmed = !st.confirmed;
-      await persistWizardState(conversation, ctx, st);
-      continue;
-    }
     if (reviewCb === `${CB}:goto:type`) {
       st.step = "type";
       st.serviceType = null;
       st.formFieldIndex = 0;
       st.draft = {};
-      st.confirmed = false;
       await persistWizardState(conversation, ctx, st);
       await ctx.conversation.exitAll().catch(() => {});
       await ctx.conversation.enter(
@@ -393,7 +381,6 @@ async function runReviewStep(
       }
       st.step = "form";
       st.formFieldIndex = 0;
-      st.confirmed = false;
       await persistWizardState(conversation, ctx, st);
       await ctx.conversation.exitAll().catch(() => {});
       await ctx.conversation.enter(
@@ -406,7 +393,6 @@ async function runReviewStep(
       st.step = "user";
       st.assignedUserId = null;
       st.assignedUserTelegramId = null;
-      st.confirmed = false;
       await persistWizardState(conversation, ctx, st);
       await ctx.conversation.exitAll().catch(() => {});
       await ctx.conversation.enter(
@@ -420,10 +406,6 @@ async function runReviewStep(
       continue;
     }
 
-    if (!st.confirmed) {
-      await ctx.reply(ctx.t("admin-cs-confirm-required"));
-      continue;
-    }
     if (!st.serviceType || !st.assignedUserId) {
       await ctx.reply(ctx.t("bad-error"));
       continue;
@@ -901,7 +883,6 @@ export async function adminCreateServiceConversation(
     await ctx.reply(cardText, { parse_mode: "HTML" });
   }
 
-  st.confirmed = false;
   await runReviewStep(conversation, ctx, st);
 }
 

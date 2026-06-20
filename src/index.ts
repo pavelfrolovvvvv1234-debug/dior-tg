@@ -868,6 +868,7 @@ async function index() {
               newUser.status = UserStatus.User;
               newUser.referrerId = null;
               user = await appDataSource.manager.save(newUser);
+              ctx.referralAccountJustCreated = true;
               void import("./modules/automations/engine/event-bus.js").then(({ emit }) => {
                 emit({
                   event: "user.login",
@@ -1049,7 +1050,9 @@ async function index() {
           const referralService = new ReferralService(ctx.appDataSource, userRepo);
           const user = await userRepo.findById(session.main.user.id);
           if (user && user.referrerId == null) {
-            const bound = await referralService.bindReferrer(user.id, payload);
+            const bound = await referralService.bindReferrer(user.id, payload, {
+              accountJustCreated: ctx.referralAccountJustCreated === true,
+            });
             if (bound) {
               Logger.info(`[Referral] Bound referrer for user ${user.id} with refCode ${payload}`);
               const referrerTelegramId = Number.parseInt(payload, 10);

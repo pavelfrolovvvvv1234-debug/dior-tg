@@ -1165,6 +1165,14 @@ vds-password-manual = ✏️ Set password manually
 vds-password-manual-prompt = Send the new root password (8+ chars).
 vds-password-manual-invalid = Password must be 8–128 characters.
 vds-password-manual-success = Password updated.
+vds-password-change-failed =
+    ❌ Could not apply the password on the server. The password in the bot was not changed — try again or contact support.
+vds-password-change-applied =
+    ✅ Password updated and being applied on the server. Wait 1–2 minutes after reboot, then sign in with the new password.
+vds-password-change-applied-with-password =
+    ✅ Password updated and being applied on the server. Wait 1–2 minutes after reboot.
+
+    New password: <tg-spoiler>{ $password }</tg-spoiler>
 
 vds-button-rename = ✏️ Rename
 vds-button-plan-change = 📈 Change plan / upgrade
@@ -1274,6 +1282,9 @@ admin-cs-confirm-required = Check the confirmation box before creating.
 admin-cs-edit-type = Edit type
 admin-cs-edit-form = Edit details
 admin-cs-edit-user = Edit customer
+admin-cs-edit-type-short = Type
+admin-cs-edit-form-short = Details
+admin-cs-edit-user-short = Client
 admin-cs-submit = Create service
 admin-cs-review-type = Type
 admin-cs-review-data = Details

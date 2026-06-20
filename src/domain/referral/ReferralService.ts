@@ -33,16 +33,22 @@ export class ReferralService {
   /**
    * Bind referrer to referee (atomic transaction).
    * Validates:
+   * - Referee account was just created (existing users ignore referral links)
    * - refCode exists and is valid user ID
    * - Not self-referral
    * - Referee doesn't already have a referrer
    *
    * @param refereeUserId - User ID of the referee (new user)
    * @param refCode - Referral code (telegram user ID as string)
+   * @param options.accountJustCreated - Must be true (set by middleware on first DB insert)
    * @returns True if bound successfully, false if ignored
    * @throws {BusinessError} If invalid refCode or self-referral
    */
-  async bindReferrer(refereeUserId: number, refCode: string): Promise<boolean> {
+  async bindReferrer(
+    refereeUserId: number,
+    refCode: string,
+    options?: { accountJustCreated?: boolean }
+  ): Promise<boolean> {
     return await this.dataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(User);
 
@@ -53,6 +59,13 @@ export class ReferralService {
 
       if (!referee) {
         throw new NotFoundError("User", refereeUserId);
+      }
+
+      if (options?.accountJustCreated !== true) {
+        Logger.info(
+          `User ${refereeUserId} already existed before referral link, skipping bind`
+        );
+        return false;
       }
 
       // If referee already has a referrer, don't change it

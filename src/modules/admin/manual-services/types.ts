@@ -65,7 +65,6 @@ export interface AdminCreateServiceSessionState {
   formFieldIndex: number;
   assignedUserId: number | null;
   assignedUserTelegramId: number | null;
-  confirmed: boolean;
   createdSummary: string | null;
   createdServiceRef: string | null;
   messageId: number | null;

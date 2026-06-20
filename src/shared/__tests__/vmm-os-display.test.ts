@@ -47,11 +47,36 @@ describe("filterAndSortOsTemplatesForVpsPicker", () => {
 });
 
 describe("resolveVdsLoginForOs", () => {
-  it("uses Administrator for Windows templates and root for Linux", () => {
-    assert.equal(resolveVdsLoginForOs({ osKey: "win10en" }), "Administrator");
-    assert.equal(resolveVdsLoginForOs({ osKey: "windows10" }), "Administrator");
+  it("uses root for Linux, Administrator for Windows Server, Admin for Windows desktop", () => {
     assert.equal(resolveVdsLoginForOs({ osKey: "ubuntu2404" }), "root");
+    assert.equal(resolveVdsLoginForOs({ osKey: "debian12" }), "root");
+    assert.equal(resolveVdsLoginForOs({ osKey: "winserver2019" }), "Administrator");
     assert.equal(resolveVdsLoginForOs({ osName: "winserver2019" }), "Administrator");
+    assert.equal(resolveVdsLoginForOs({ osName: "Windows Server 2019 EN" }), "Administrator");
+    assert.equal(resolveVdsLoginForOs({ osKey: "windows10" }), "Admin");
+    assert.equal(resolveVdsLoginForOs({ osKey: "win10en" }), "Admin");
+    assert.equal(resolveVdsLoginForOs({ osKey: "windows11" }), "Admin");
+    assert.equal(resolveVdsLoginForOs({ osName: "Windows 11 Pro" }), "Admin");
+  });
+
+  it("prefers OS detection over a stale stored login", () => {
+    assert.equal(
+      resolveVdsLoginForOs({ osKey: "windows10", storedLogin: "root" }),
+      "Admin"
+    );
+    assert.equal(
+      resolveVdsLoginForOs({ osKey: "winserver2022", storedLogin: "Admin" }),
+      "Administrator"
+    );
+    assert.equal(
+      resolveVdsLoginForOs({ osKey: "ubuntu2404", storedLogin: "Administrator" }),
+      "root"
+    );
+  });
+
+  it("resolves Windows desktop by Proxmox template id", () => {
+    assert.equal(resolveVdsLoginForOs({ osId: 904 }), "Admin");
+    assert.equal(resolveVdsLoginForOs({ osId: 106 }), "Administrator");
   });
 });
 

@@ -113,10 +113,12 @@ export function registerCommands(bot: Bot<AppContext>): void {
           const userRepo = new UserRepository(ctx.appDataSource);
           const referralService = new ReferralService(ctx.appDataSource, userRepo);
           
-          // Only bind if user is new (doesn't have referrer yet)
+          // Only bind on first registration (existing users ignore referral links)
           const user = await userRepo.findById(session.main.user.id);
           if (user && !user.referrerId) {
-            const bound = await referralService.bindReferrer(user.id, ctx.match);
+            const bound = await referralService.bindReferrer(user.id, ctx.match, {
+              accountJustCreated: ctx.referralAccountJustCreated === true,
+            });
             if (bound) {
               console.log(`[Referral] Bound referrer for user ${user.id} with refCode ${ctx.match}`);
               const referrerTelegramId = parseInt(ctx.match, 10);

@@ -28,7 +28,13 @@ export async function databaseMiddleware(ctx: AppContext, next: () => Promise<vo
     const tid = Number(ctx.chatId);
     let user = getCachedUser(tid);
     if (!user) {
-      user = await userRepo.findOrCreateByTelegramId(ctx.chatId);
+      const existing = await userRepo.findByTelegramId(ctx.chatId);
+      if (existing) {
+        user = existing;
+      } else {
+        user = await userRepo.findOrCreateByTelegramId(ctx.chatId);
+        ctx.referralAccountJustCreated = true;
+      }
       setCachedUser(tid, user);
     }
     ctx.loadedUser = user;

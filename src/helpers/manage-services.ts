@@ -18,7 +18,7 @@ import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepositor
 import { buildServiceInfoBlock } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
 import { createInitialOtherSession } from "@/shared/session-initial.js";
-import { showVpsVdsInServiceMenus } from "../app/config.js";
+import { showVpsVdsInServiceMenus, isProxmoxEnabled } from "../app/config.js";
 import { getVmManagerAllowedOsIds } from "../app/config.js";
 import { escapeUserInput } from "./formatting.js";
 import {
@@ -294,6 +294,48 @@ const startManualPasswordPrompt = async (ctx: AppContext, vdsId: number): Promis
   await ctx.reply(ctx.t("vds-password-manual-prompt"), { parse_mode: "HTML" });
 };
 
+async function persistVdsPasswordAfterProviderChange(
+  ctx: AppContext,
+  vds: VirtualDedicatedServer,
+  password: string
+): Promise<boolean> {
+  const ok = await ctx.vmmanager.changePasswordVMCustom(vds.vdsId, password).catch((error: unknown) => {
+    Logger.error("changePasswordVMCustom failed", {
+      vmid: vds.vdsId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  });
+  if (!ok) {
+    await ctx.reply(ctx.t("vds-password-change-failed"), { parse_mode: "HTML" });
+    return false;
+  }
+  vds.password = password;
+  await ctx.appDataSource.getRepository(VirtualDedicatedServer).save(vds);
+  await ctx.reply(ctx.t("vds-password-change-applied"), { parse_mode: "HTML" });
+  return true;
+}
+
+async function regenerateVdsPassword(ctx: AppContext, vds: VirtualDedicatedServer): Promise<string | null> {
+  try {
+    return await ctx.vmmanager.changePasswordVM(vds.vdsId);
+  } catch (error: unknown) {
+    if (isProxmoxEnabled()) {
+      Logger.error("changePasswordVM failed", {
+        vmid: vds.vdsId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await ctx.reply(ctx.t("vds-password-change-failed"), { parse_mode: "HTML" });
+      return null;
+    }
+    Logger.warn("changePasswordVM failed; generating locally for manual VPS", {
+      vmid: vds.vdsId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return generatePassword(16);
+  }
+}
+
 
 export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<boolean> => {
   if (!ctx.message?.text || !ctx.hasChatType("private")) return false;
@@ -360,28 +402,11 @@ export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<bool
       await ctx.reply(ctx.t("error-access-denied"));
       return true;
     }
-    // Best-effort provider sync; manual admin-issued VPS will fail here
-    // but the user still gets the new password stored in our DB so they
-    // can use it (and the admin will reconcile the OS password offline).
     try {
-      const ok = await ctx.vmmanager
-        .changePasswordVMCustom(vds.vdsId, text)
-        .catch((e) => {
-          Logger.warn("changePasswordVMCustom failed; saving DB only", {
-            vmid: vds.vdsId,
-            error: e instanceof Error ? e.message : String(e),
-          });
-          return false;
-        });
-      if (!ok) {
-        Logger.warn(
-          "VM provider did not apply manual password; persisting to DB only",
-          { vmid: vds.vdsId }
-        );
+      const applied = await persistVdsPasswordAfterProviderChange(ctx, vds, text);
+      if (!applied) {
+        return true;
       }
-      vds.password = text;
-      await vdsRepo.save(vds);
-      await ctx.reply(ctx.t("vds-password-manual-success"), { parse_mode: "HTML" });
       const returnPanel =
         (session.other.manageVds as { panelMode?: string }).panelMode === "more" ? "more" : "main";
       await replyVdsManagePanel(ctx, manualPassId, returnPanel);
@@ -950,20 +975,15 @@ export const vdsManageSpecific = new Menu<AppContext>(
         });
 
         if (vds) {
-          const result = await ctx.vmmanager.changePasswordVM(vds.vdsId);
+          const result = await regenerateVdsPassword(ctx, vds);
 
           if (result) {
             vds.password = result;
             await vdsRepo.save(vds);
 
-            await ctx.reply(
-              ctx.t("vds-new-password", {
-                password: vds.password,
-              }),
-              {
-                parse_mode: "HTML",
-              }
-            );
+            await ctx.reply(ctx.t("vds-password-change-applied-with-password", { password: vds.password }), {
+              parse_mode: "HTML",
+            });
 
             let info;
 
@@ -1165,24 +1185,10 @@ export async function vdsPasswordManualConversation(
     return;
   }
 
-  const ok = await ctx.vmmanager
-    .changePasswordVMCustom(vds.vdsId, text)
-    .catch((e) => {
-      Logger.warn("changePasswordVMCustom failed; saving DB only", {
-        vmid: vds.vdsId,
-        error: e instanceof Error ? e.message : String(e),
-      });
-      return false;
-    });
-  if (!ok) {
-    Logger.warn(
-      "VM provider did not apply manual password; persisting to DB only",
-      { vmid: vds.vdsId }
-    );
+  const applied = await persistVdsPasswordAfterProviderChange(ctx, vds, text);
+  if (!applied) {
+    return;
   }
-  vds.password = text;
-  await vdsRepo.save(vds);
-  await ctx.reply(ctx.t("vds-password-manual-success"), { parse_mode: "HTML" });
 }
 
 const status = (state: ListItem["state"], ctx: AppContext) => {
@@ -1369,22 +1375,14 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
               await replyDemoOperation(ctx);
               return;
             }
-            let newPassword: string;
-            try {
-              newPassword = await ctx.vmmanager.changePasswordVM(vds.vdsId);
-            } catch (e) {
-              // Manual admin-issued VPS: provider rejects the call.
-              // Generate locally and update DB only — admin will sync the OS
-              // password manually if needed.
-              Logger.warn("changePasswordVM failed; generating locally", {
-                vmid: vds.vdsId,
-                error: e instanceof Error ? e.message : String(e),
-              });
-              newPassword = generatePassword(16);
+            let newPassword: string | null;
+            newPassword = await regenerateVdsPassword(ctx, vds);
+            if (!newPassword) {
+              return;
             }
             vds.password = newPassword;
             await vdsRepo.save(vds);
-            await ctx.reply(ctx.t("vds-new-password", { password: newPassword }), {
+            await ctx.reply(ctx.t("vds-password-change-applied-with-password", { password: newPassword }), {
               parse_mode: "HTML",
             });
             await updateVdsManageView(ctx);

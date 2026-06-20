@@ -17,7 +17,7 @@ const WIZARD_CB_PREFIX = "advcs:";
 
 /** Review-step callbacks safe to resume after conversation desync (pm2 restart, etc.). */
 export const ADMIN_CREATE_SERVICE_REVIEW_CALLBACK_RE =
-  /^advcs:(?:toggle-confirm|submit|goto:(?:type|form|user))$/;
+  /^advcs:(?:submit|goto:(?:type|form|user))$/;
 
 export function isAdminCreateServiceWizardCallback(data: string | undefined): boolean {
   return !!data && data.startsWith(WIZARD_CB_PREFIX);

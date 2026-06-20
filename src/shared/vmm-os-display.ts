@@ -233,7 +233,32 @@ export function humanizeVmmOsName(raw: string): string {
 }
 
 export const LINUX_VDS_DEFAULT_LOGIN = "root";
-export const WINDOWS_VDS_DEFAULT_LOGIN = "Administrator";
+/** Windows Server templates (2012 R2 … 2022). */
+export const WINDOWS_SERVER_DEFAULT_LOGIN = "Administrator";
+/** Windows 10 / 11 desktop templates. */
+export const WINDOWS_DESKTOP_DEFAULT_LOGIN = "Admin";
+/** @deprecated Use {@link WINDOWS_SERVER_DEFAULT_LOGIN} or {@link WINDOWS_DESKTOP_DEFAULT_LOGIN}. */
+export const WINDOWS_VDS_DEFAULT_LOGIN = WINDOWS_SERVER_DEFAULT_LOGIN;
+
+/** True for Windows Server template slugs (e.g. winserver2019, windows-server-2022). */
+export function isWindowsServerOsSlug(raw: string): boolean {
+  const slug = normalizeVmmOsSlug(raw);
+  if (!slug) return false;
+  if (/^winserver\d/.test(slug)) return true;
+  if (/^windowsserver\d/.test(slug)) return true;
+  if (/^windows(?:server)?\d{4}/.test(slug)) return true;
+  return slug.includes("windowsserver");
+}
+
+/** True for Windows 10/11 desktop templates (not Server). */
+export function isWindowsDesktopOsSlug(raw: string): boolean {
+  if (isWindowsServerOsSlug(raw)) return false;
+  const slug = normalizeVmmOsSlug(raw);
+  if (!slug) return false;
+  if (/^win(?:dows)?(10|11)(?:pro|en|ru)?/.test(slug)) return true;
+  if (/^win(10|11)(?:pro|en|ru)?/.test(slug)) return true;
+  return isWindowsOsSlug(raw) && !isWindowsServerOsSlug(raw);
+}
 
 /** True for Windows Server / desktop template slugs (e.g. win10en, windows10, winserver2019). */
 export function isWindowsOsSlug(raw: string): boolean {
@@ -243,16 +268,11 @@ export function isWindowsOsSlug(raw: string): boolean {
   return slug.includes("windows");
 }
 
-/**
- * Login shown to the user and stored on VDS after provision / reinstall.
- * Windows templates use the built-in Administrator account, not root.
- */
-export function resolveVdsLoginForOs(input?: {
+function collectOsLoginCandidates(input?: {
   osKey?: string | null;
   osName?: string | null;
   osId?: number | null;
-  storedLogin?: string | null;
-}): string {
+}): string[] {
   const candidates: string[] = [];
   if (input?.osKey?.trim()) candidates.push(input.osKey.trim());
   if (input?.osName?.trim()) candidates.push(input.osName.trim());
@@ -266,15 +286,44 @@ export function resolveVdsLoginForOs(input?: {
       }
     }
   }
+  return candidates;
+}
 
+function resolveLoginFromOsCandidates(candidates: string[]): string | null {
   for (const candidate of candidates) {
-    if (isWindowsOsSlug(candidate)) {
-      return WINDOWS_VDS_DEFAULT_LOGIN;
+    if (isWindowsServerOsSlug(candidate)) {
+      return WINDOWS_SERVER_DEFAULT_LOGIN;
     }
+  }
+  for (const candidate of candidates) {
+    if (isWindowsDesktopOsSlug(candidate)) {
+      return WINDOWS_DESKTOP_DEFAULT_LOGIN;
+    }
+  }
+  if (candidates.some((candidate) => candidate.trim() && !isWindowsOsSlug(candidate))) {
+    return LINUX_VDS_DEFAULT_LOGIN;
+  }
+  return null;
+}
+
+/**
+ * Login shown to the user and stored on VDS after provision / reinstall.
+ * Linux → root; Windows Server → Administrator; Windows 10/11 → Admin.
+ */
+export function resolveVdsLoginForOs(input?: {
+  osKey?: string | null;
+  osName?: string | null;
+  osId?: number | null;
+  storedLogin?: string | null;
+}): string {
+  const candidates = collectOsLoginCandidates(input);
+  const fromOs = resolveLoginFromOsCandidates(candidates);
+  if (fromOs) {
+    return fromOs;
   }
 
   const stored = input?.storedLogin?.trim();
-  if (stored && stored.toLowerCase() !== LINUX_VDS_DEFAULT_LOGIN) {
+  if (stored) {
     return stored;
   }
   return LINUX_VDS_DEFAULT_LOGIN;

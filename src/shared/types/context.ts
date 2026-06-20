@@ -27,6 +27,8 @@ export type AppContext = ConversationFlavor<
       osList: GetOsListResponse | null;
       /** User loaded in session middleware; use to avoid duplicate DB fetch (e.g. locale). */
       loadedUser?: User | null;
+      /** True when this update created a new User row (referral bind allowed once). */
+      referralAccountJustCreated?: boolean;
     }
 >;
 

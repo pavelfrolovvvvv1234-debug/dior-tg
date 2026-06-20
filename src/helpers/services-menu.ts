@@ -365,7 +365,8 @@ async function createAndBuyVDS(
   newVds.lastOsId = osId;
   newVds.password = generatedPassword;
   const osEntryForLogin = ctx.osList?.list.find((o) => o.id === osId);
-  newVds.login = resolveVdsLoginForOs({ osId, osName: osEntryForLogin?.name });
+  const osLoginKey = osEntryForLogin?.name ?? "";
+  newVds.login = resolveVdsLoginForOs({ osId, osName: osLoginKey, osKey: osLoginKey });
   newVds.networkSpeed = rate.network;
   newVds.targetUserId = userId;
   newVds.isBulletproof = bulletproof;
@@ -407,7 +408,7 @@ async function createAndBuyVDS(
     networkMbps: rate.network,
     cpuModel: getVpsCpuModelForRate(rate as { cpuModel?: string }),
     osLabel,
-    osKey: "",
+    osKey: osLoginKey,
     ipv4: newVds.ipv4Addr,
     login: newVds.login,
     password: newVds.password,

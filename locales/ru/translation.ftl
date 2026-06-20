@@ -1179,6 +1179,14 @@ vds-password-manual = ✏️ Задать пароль вручную
 vds-password-manual-prompt = Отправьте новый пароль root (от 8 символов) или отмените действие.
 vds-password-manual-invalid = Пароль должен быть от 8 до 128 символов.
 vds-password-manual-success = Пароль обновлён.
+vds-password-change-failed =
+    ❌ Не удалось применить пароль на сервере. Пароль в боте не изменён — попробуйте снова или напишите в поддержку.
+vds-password-change-applied =
+    ✅ Пароль обновлён и применяется на сервере. Подождите 1–2 минуты после перезагрузки, затем войдите с новым паролем.
+vds-password-change-applied-with-password =
+    ✅ Пароль обновлён и применяется на сервере. Подождите 1–2 минуты после перезагрузки.
+
+    Новый пароль: <tg-spoiler>{ $password }</tg-spoiler>
 
 vds-button-rename = ✏️ Переименовать
 vds-button-plan-change = 📈 Смена конфигурации
@@ -1288,6 +1296,9 @@ admin-cs-confirm-required = Отметьте подтверждение пере
 admin-cs-edit-type = Изменить тип
 admin-cs-edit-form = Изменить данные
 admin-cs-edit-user = Изменить клиента
+admin-cs-edit-type-short = Тип
+admin-cs-edit-form-short = Данные
+admin-cs-edit-user-short = Клиент
 admin-cs-submit = Создать услугу
 admin-cs-review-type = Тип
 admin-cs-review-data = Данные

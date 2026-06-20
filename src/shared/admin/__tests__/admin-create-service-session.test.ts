@@ -23,8 +23,8 @@ describe("admin create service session", () => {
 
   it("matches only review-step resume callbacks", () => {
     assert.equal(isAdminCreateServiceReviewCallback("advcs:submit"), true);
-    assert.equal(isAdminCreateServiceReviewCallback("advcs:toggle-confirm"), true);
     assert.equal(isAdminCreateServiceReviewCallback("advcs:goto:form"), true);
+    assert.equal(isAdminCreateServiceReviewCallback("advcs:toggle-confirm"), false);
     assert.equal(isAdminCreateServiceReviewCallback("advcs:skip"), false);
     assert.equal(isAdminCreateServiceReviewCallback("advcs:stype:vds"), false);
   });
@@ -42,7 +42,6 @@ describe("admin create service session", () => {
       formFieldIndex: 0,
       assignedUserId: null,
       assignedUserTelegramId: null,
-      confirmed: false,
       createdSummary: null,
       createdServiceRef: null,
       messageId: null,
