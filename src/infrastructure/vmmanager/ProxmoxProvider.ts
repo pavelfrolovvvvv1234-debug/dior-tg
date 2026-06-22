@@ -6,7 +6,7 @@ import {
   isProxmoxInsecureTls,
 } from "../../app/config.js";
 import { Logger } from "../../app/logger.js";
-import { isWindowsDesktopOsSlug, isWindowsServerOsSlug } from "../../shared/vmm-os-display.js";
+import { isWindowsDesktopOsSlug, isWindowsServerOsSlug, resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
 import { generatePassword } from "../../entities/VirtualDedicatedServer.js";
 import { retry } from "../../shared/utils/retry.js";
 import type {
@@ -21,6 +21,7 @@ import type {
   GuestFirewallRule,
   GuestMetrics,
   GuestSnapshotInfo,
+  VmPasswordChangeOptions,
   VmProvider,
   VncConsoleInfo,
 } from "./provider.js";
@@ -1448,59 +1449,165 @@ export class ProxmoxProvider implements VmProvider {
   }
 
   /** Apply root/Administrator password via cloud-init and reboot so the guest OS picks it up. */
+  private resolveGuestLoginForPassword(
+    osId?: number,
+    osName?: string,
+    configCiUser?: string
+  ): string {
+    if (osId != null && Number.isFinite(osId)) {
+      const key = this.reverseTemplateMap[osId];
+      if (key) {
+        return this.cloudInitUserForOsId(osId);
+      }
+    }
+    const fromOs = resolveVdsLoginForOs({ osId, osName, storedLogin: configCiUser });
+    if (fromOs) {
+      return fromOs;
+    }
+    return configCiUser?.trim() || "root";
+  }
+
+  private async readGuestCiUser(node: string, id: number): Promise<string | undefined> {
+    const cfg = await this.apiGet<{ ciuser?: string }>(`/nodes/${node}/qemu/${id}/config`).catch(() => undefined);
+    const user = cfg?.ciuser?.trim();
+    return user || undefined;
+  }
+
+  private async resolveGuestLoginOnNode(
+    node: string,
+    id: number,
+    options?: { osId?: number; osName?: string }
+  ): Promise<string> {
+    const fromConfig = await this.readGuestCiUser(node, id);
+    return this.resolveGuestLoginForPassword(options?.osId, options?.osName, fromConfig);
+  }
+
+  private async isGuestAgentResponding(node: string, id: number): Promise<boolean> {
+    try {
+      await this.apiGet<Record<string, unknown>>(`/nodes/${node}/qemu/${id}/agent/ping`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Live password change when qemu-guest-agent is running (Windows + Linux). */
+  private async setGuestPasswordViaAgent(
+    node: string,
+    id: number,
+    username: string,
+    password: string
+  ): Promise<boolean> {
+    try {
+      await this.apiPost(`/nodes/${node}/qemu/${id}/agent/set-user-password`, {
+        username,
+        password,
+        crypted: 0,
+      });
+      return true;
+    } catch (error) {
+      Logger.warn(`Proxmox set-user-password failed guest=${id} user=${username}`, error);
+      return false;
+    }
+  }
+
+  private async coldBootGuest(node: string, id: number): Promise<void> {
+    const status = await this.apiGet<{ status?: string }>(
+      `/nodes/${node}/qemu/${id}/status/current`
+    ).catch(() => undefined);
+    if (status?.status === "running") {
+      await this.qemuStopAndWaitOnNode(id, node);
+    }
+    const startUpid = await this.apiPost<string | number | null>(
+      `/nodes/${node}/qemu/${id}/status/start`
+    ).catch((error) => {
+      Logger.error(`Proxmox coldBootGuest: start failed guest=${id}`, error);
+      throw error;
+    });
+    const startTask = this.normalizeTaskUpid(startUpid);
+    if (startTask) {
+      await this.waitForNodeTask(startTask, 180_000).catch((error) => {
+        Logger.warn(`Proxmox coldBootGuest: start task wait failed guest=${id}`, error);
+      });
+    }
+  }
+
+  /**
+   * Apply guest OS password: guest-agent first (instant), then cloud-init + cold boot.
+   */
+  private async applyGuestPassword(
+    id: number,
+    password: string,
+    options?: VmPasswordChangeOptions
+  ): Promise<void> {
+    const node = await this.resolveQemuNodeForGuest(id);
+    const username = await this.resolveGuestLoginOnNode(node, id, options);
+
+    if (await this.isGuestAgentResponding(node, id)) {
+      const agentOk = await this.setGuestPasswordViaAgent(node, id, username, password);
+      if (agentOk) {
+        await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+          ciuser: username,
+          cipassword: password,
+        }).catch((error) => {
+          Logger.warn(`Proxmox applyGuestPassword: config sync after agent failed guest=${id}`, error);
+        });
+        Logger.info(`Proxmox applyGuestPassword: guest-agent set password guest=${id} user=${username}`);
+        return;
+      }
+    }
+
+    await this.applyGuestPasswordViaCloudInit(id, password, {
+      osId: options?.osId,
+      osName: options?.osName,
+      username,
+      node,
+    });
+  }
+
   private async applyGuestPasswordViaCloudInit(
     id: number,
     password: string,
-    options?: { osId?: number; reboot?: boolean }
+    options?: { osId?: number; osName?: string; username?: string; node?: string; reboot?: boolean }
   ): Promise<void> {
-    const node = await this.resolveQemuNodeForGuest(id);
-    const configPatch: Record<string, string> = { cipassword: password };
-    if (options?.osId != null && Number.isFinite(options.osId)) {
-      configPatch.ciuser = this.cloudInitUserForOsId(options.osId);
-    }
+    const node = options?.node ?? (await this.resolveQemuNodeForGuest(id));
+    const username =
+      options?.username ??
+      (await this.resolveGuestLoginOnNode(node, id, { osId: options?.osId, osName: options?.osName }));
+    const configPatch: Record<string, string> = {
+      cipassword: password,
+      ciuser: username,
+    };
     await this.apiPost(`/nodes/${node}/qemu/${id}/config`, configPatch);
-    await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {});
+    await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch((error) => {
+      Logger.warn(`Proxmox applyGuestPasswordViaCloudInit: cloudinit regenerate failed guest=${id}`, error);
+    });
 
     if (options?.reboot === false) {
       return;
     }
 
-    const status = await this.apiGet<{ status?: string }>(
-      `/nodes/${node}/qemu/${id}/status/current`
-    ).catch(() => undefined);
-    if (status?.status === "running") {
-      const rebootUpid = await this.apiPost<string | number | null>(
-        `/nodes/${node}/qemu/${id}/status/reboot`
-      ).catch(() => null);
-      const rebootTask = this.normalizeTaskUpid(rebootUpid);
-      if (rebootTask) {
-        await this.waitForNodeTask(rebootTask, 180_000).catch(() => {});
-        return;
-      }
-      await this.qemuStopAndWaitOnNode(id, node);
-    }
-    const startUpid = await this.apiPost<string | number | null>(
-      `/nodes/${node}/qemu/${id}/status/start`
-    );
-    const startTask = this.normalizeTaskUpid(startUpid);
-    if (startTask) {
-      await this.waitForNodeTask(startTask, 180_000).catch(() => {});
-    }
+    await this.coldBootGuest(node, id);
+    Logger.info(`Proxmox applyGuestPasswordViaCloudInit: cold boot after password guest=${id} user=${username}`);
   }
 
-  async changePasswordVM(id: number): Promise<string> {
+  async changePasswordVM(id: number, options?: VmPasswordChangeOptions): Promise<string> {
     const password = generatePassword(12);
-    await this.applyGuestPasswordViaCloudInit(id, password);
+    await this.applyGuestPassword(id, password, options);
     return password;
   }
 
-  async changePasswordVMCustom(id: number, password: string): Promise<boolean> {
+  async changePasswordVMCustom(
+    id: number,
+    password: string,
+    options?: VmPasswordChangeOptions
+  ): Promise<boolean> {
     const trimmed = password.trim();
     if (trimmed.length < 8 || trimmed.length > 128) {
       return false;
     }
     try {
-      await this.applyGuestPasswordViaCloudInit(id, trimmed);
+      await this.applyGuestPassword(id, trimmed, options);
       return true;
     } catch (error) {
       Logger.error(`Proxmox changePasswordVMCustom failed guest=${id}`, error);

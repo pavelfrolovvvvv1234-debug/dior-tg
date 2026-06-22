@@ -1162,13 +1162,13 @@ vds-button-support-request = 🛠 Contact support
 
 vds-password-generate = 🔁 Generate password
 vds-password-manual = ✏️ Set password manually
-vds-password-manual-prompt = Send the new root password (8+ chars).
+vds-password-manual-prompt = Send the new password for <code>{ $login }</code> (8+ chars).
 vds-password-manual-invalid = Password must be 8–128 characters.
 vds-password-manual-success = Password updated.
 vds-password-change-failed =
     ❌ Could not apply the password on the server. The password in the bot was not changed — try again or contact support.
 vds-password-change-applied =
-    ✅ Password updated and being applied on the server. Wait 1–2 minutes after reboot, then sign in with the new password.
+    ✅ Password updated and applied on the server. If changed via cloud-init, wait 1–2 minutes after reboot before logging in.
 vds-password-change-applied-with-password =
     ✅ Password updated and being applied on the server. Wait 1–2 minutes after reboot.
 

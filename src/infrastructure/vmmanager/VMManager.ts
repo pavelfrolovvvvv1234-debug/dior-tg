@@ -447,7 +447,7 @@ export class VMManager {
   /**
    * Change VM password.
    */
-  async changePasswordVM(id: number): Promise<string> {
+  async changePasswordVM(id: number, _options?: import("./provider.js").VmPasswordChangeOptions): Promise<string> {
     const newPassword = generatePassword(12);
     await this.handleApiCall(async () => {
       const { status } = await axios.post(
@@ -471,7 +471,11 @@ export class VMManager {
   /**
    * Set VM password to a user-provided value (min length enforced by API).
    */
-  async changePasswordVMCustom(id: number, password: string): Promise<boolean> {
+  async changePasswordVMCustom(
+    id: number,
+    password: string,
+    _options?: import("./provider.js").VmPasswordChangeOptions
+  ): Promise<boolean> {
     return this.handleApiCall(async () => {
       const { status } = await axios.post(
         `${this.baseUrl}vm/v3/host/${id}/password`,

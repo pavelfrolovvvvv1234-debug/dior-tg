@@ -996,11 +996,19 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
       const vdsRepo = options.dataSource.getRepository(VirtualDedicatedServer);
       const existing = await vdsRepo.findOneBy({ vdsId: vmid });
       const password = generatePassword(12);
-      await options.vmProvider.changePasswordVMCustom(vmid, password).catch(() => {});
+      const osIdForPassword = body.osId ?? getDefaultProxmoxTemplateVmid();
+      const passwordApplied = await options.vmProvider
+        .changePasswordVMCustom(vmid, password, { osId: osIdForPassword })
+        .catch(() => false);
+      if (!passwordApplied) {
+        await idempotencyRelease(req);
+        res.status(502).json({ ok: false, error: "password_set_failed", ...requestMeta(req) });
+        return;
+      }
 
       const entity = existing ?? vdsRepo.create();
       entity.vdsId = vmid;
-      entity.login = resolveVdsLoginForOs({ osId: entity.lastOsId });
+      entity.login = resolveVdsLoginForOs({ osId: osIdForPassword });
       entity.password = password;
       entity.ipv4Addr = String(body.ip ?? "0.0.0.0");
       entity.cpuCount = plan.cpu;
@@ -1592,7 +1600,9 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         res.status(404).json({ ok: false, error: "service_not_found", ...requestMeta(req) });
         return;
       }
-      const password = await options.vmProvider.changePasswordVM(vds.vdsId);
+      const password = await options.vmProvider.changePasswordVM(vds.vdsId, {
+        osId: vds.lastOsId ?? undefined,
+      });
       vds.password = password;
       await options.dataSource.getRepository(VirtualDedicatedServer).save(vds);
       await emitWebhook(auth, {
@@ -1893,7 +1903,9 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         return;
       }
       if (action === "reset-password") {
-        const password = await options.vmProvider.changePasswordVM(vds.vdsId);
+        const password = await options.vmProvider.changePasswordVM(vds.vdsId, {
+          osId: vds.lastOsId ?? undefined,
+        });
         vds.password = password;
         await vdsRepo.save(vds);
         await emit("service_password_reset");
@@ -1913,7 +1925,9 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
           return;
         }
         const password = bodyParsed.data.password;
-        const ok = await options.vmProvider.changePasswordVMCustom(vds.vdsId, password);
+        const ok = await options.vmProvider.changePasswordVMCustom(vds.vdsId, password, {
+          osId: vds.lastOsId ?? undefined,
+        });
         if (!ok) {
           res.status(502).json({ ok: false, error: "password_set_failed" });
           return;

@@ -291,17 +291,36 @@ const startManualPasswordPrompt = async (ctx: AppContext, vdsId: number): Promis
   ensureManageVdsSession(session);
   session.other.manageVds.pendingRenameVdsId = null;
   session.other.manageVds.pendingManualPasswordVdsId = vds.id;
-  await ctx.reply(ctx.t("vds-password-manual-prompt"), { parse_mode: "HTML" });
+  const os = ctx.osList?.list.find((entry) => entry.id == vds.lastOsId);
+  const login = resolveVdsLoginForOs({
+    osName: os?.name,
+    osId: vds.lastOsId,
+    storedLogin: vds.login,
+  });
+  await ctx.reply(ctx.t("vds-password-manual-prompt", { login }), { parse_mode: "HTML" });
 };
+
+async function buildVdsPasswordChangeOptions(
+  ctx: AppContext,
+  vds: VirtualDedicatedServer
+): Promise<{ osId?: number; osName?: string }> {
+  const os = ctx.osList?.list.find((entry) => entry.id == vds.lastOsId);
+  return {
+    osId: vds.lastOsId ?? undefined,
+    osName: os?.name,
+  };
+}
 
 async function persistVdsPasswordAfterProviderChange(
   ctx: AppContext,
   vds: VirtualDedicatedServer,
   password: string
 ): Promise<boolean> {
-  const ok = await ctx.vmmanager.changePasswordVMCustom(vds.vdsId, password).catch((error: unknown) => {
+  const passwordOptions = await buildVdsPasswordChangeOptions(ctx, vds);
+  const ok = await ctx.vmmanager.changePasswordVMCustom(vds.vdsId, password, passwordOptions).catch((error: unknown) => {
     Logger.error("changePasswordVMCustom failed", {
       vmid: vds.vdsId,
+      osId: vds.lastOsId,
       error: error instanceof Error ? error.message : String(error),
     });
     return false;
@@ -311,14 +330,21 @@ async function persistVdsPasswordAfterProviderChange(
     return false;
   }
   vds.password = password;
+  const os = ctx.osList?.list.find((entry) => entry.id == vds.lastOsId);
+  vds.login = resolveVdsLoginForOs({
+    osName: os?.name,
+    osId: vds.lastOsId,
+    storedLogin: vds.login,
+  });
   await ctx.appDataSource.getRepository(VirtualDedicatedServer).save(vds);
   await ctx.reply(ctx.t("vds-password-change-applied"), { parse_mode: "HTML" });
   return true;
 }
 
 async function regenerateVdsPassword(ctx: AppContext, vds: VirtualDedicatedServer): Promise<string | null> {
+  const passwordOptions = await buildVdsPasswordChangeOptions(ctx, vds);
   try {
-    return await ctx.vmmanager.changePasswordVM(vds.vdsId);
+    return await ctx.vmmanager.changePasswordVM(vds.vdsId, passwordOptions);
   } catch (error: unknown) {
     if (isProxmoxEnabled()) {
       Logger.error("changePasswordVM failed", {
@@ -979,6 +1005,12 @@ export const vdsManageSpecific = new Menu<AppContext>(
 
           if (result) {
             vds.password = result;
+            const os = ctx.osList?.list.find((entry) => entry.id == vds.lastOsId);
+            vds.login = resolveVdsLoginForOs({
+              osName: os?.name,
+              osId: vds.lastOsId,
+              storedLogin: vds.login,
+            });
             await vdsRepo.save(vds);
 
             await ctx.reply(ctx.t("vds-password-change-applied-with-password", { password: vds.password }), {
@@ -1177,7 +1209,16 @@ export async function vdsPasswordManualConversation(
     return;
   }
 
-  await ctx.reply(ctx.t("vds-password-manual-prompt"), { parse_mode: "HTML" });
+  await ctx.reply(
+    ctx.t("vds-password-manual-prompt", {
+      login: resolveVdsLoginForOs({
+        osName: ctx.osList?.list.find((entry) => entry.id == vds.lastOsId)?.name,
+        osId: vds.lastOsId,
+        storedLogin: vds.login,
+      }),
+    }),
+    { parse_mode: "HTML" }
+  );
   const nextCtx = await conversation.waitFor("message:text");
   const text = nextCtx.message?.text?.trim() ?? "";
   if (text.length < 8 || text.length > 128) {
@@ -1381,6 +1422,12 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
               return;
             }
             vds.password = newPassword;
+            const os = ctx.osList?.list.find((entry) => entry.id == vds.lastOsId);
+            vds.login = resolveVdsLoginForOs({
+              osName: os?.name,
+              osId: vds.lastOsId,
+              storedLogin: vds.login,
+            });
             await vdsRepo.save(vds);
             await ctx.reply(ctx.t("vds-password-change-applied-with-password", { password: newPassword }), {
               parse_mode: "HTML",

@@ -60,6 +60,12 @@ export type GuestBackupTask = {
   storage: string;
 };
 
+/** Optional context for hypervisor password reset (OS template id → login user). */
+export type VmPasswordChangeOptions = {
+  osId?: number;
+  osName?: string;
+};
+
 export interface VmProvider {
   getOsList(): Promise<GetOsListResponse | undefined>;
   getGuestMetrics?(id: number): Promise<GuestMetrics | undefined>;
@@ -96,8 +102,8 @@ export interface VmProvider {
   deleteVM(id: number): Promise<unknown>;
   /** Proxmox: optional line set on guest description so staff can find VM (search «DiorHost» / vmid). */
   reinstallOS(id: number, osId: number, password?: string, managementDescription?: string): Promise<unknown>;
-  changePasswordVM(id: number): Promise<string>;
-  changePasswordVMCustom(id: number, password: string): Promise<boolean>;
+  changePasswordVM(id: number, options?: VmPasswordChangeOptions): Promise<string>;
+  changePasswordVMCustom(id: number, password: string, options?: VmPasswordChangeOptions): Promise<boolean>;
   destroy?(): void;
 }
 
