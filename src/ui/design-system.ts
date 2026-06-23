@@ -21,36 +21,41 @@ function trimBlockquoteContent(text: string): string {
   });
 }
 
-function tightenWelcomeLines(text: string): string {
-  const lines = text.split("\n").map((line) => line.trim());
-  const out: string[] = [];
-  let prevEmpty = false;
-  for (const line of lines) {
-    const empty = line.length === 0;
-    if (empty) {
-      if (!prevEmpty && out.length > 0) out.push("");
-      prevEmpty = true;
-      continue;
-    }
-    out.push(line);
-    prevEmpty = false;
-  }
-  while (out.length > 0 && out[out.length - 1] === "") out.pop();
-  return out.join("\n");
+function trimLineEnds(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n+$/, "");
 }
 
-function tightenWelcomeLayout(text: string): string {
-  let next = text.trim();
-  next = next.replace(
-    new RegExp(`\\n{2,}${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n{2,}`, "g"),
-    `\n${SCREEN_DIVIDER}\n`
+function stripWelcomeMarkup(text: string): string {
+  return text
+    .replace(/<\/?blockquote[^>]*>/gi, "")
+    .replace(new RegExp(`\\n*${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n*`, "g"), "\n");
+}
+
+/**
+ * Welcome: compact layout like native Fluent — divider + account tree, no blockquote padding.
+ */
+export function wrapWelcomeWithAccountCard(html: string): string {
+  const raw = stripWelcomeMarkup(html.trim());
+  if (!raw) return "";
+
+  const marker = "👤";
+  const idx = raw.indexOf(marker);
+  if (idx === -1) return trimLineEnds(raw);
+
+  const head = trimLineEnds(raw.slice(0, idx)).replace(/\n+$/, "");
+  const account = trimLineEnds(raw.slice(idx));
+
+  const headWithoutDivider = head.replace(
+    new RegExp(`\\n*${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n*$`),
+    ""
   );
-  next = next.replace(
-    new RegExp(`${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n{2,}<blockquote>`, "g"),
-    `${SCREEN_DIVIDER}\n<blockquote>`
-  );
-  next = trimBlockquoteContent(next);
-  return next.replace(/\n{3,}/g, "\n\n").trimEnd();
+
+  return trimLineEnds(`${headWithoutDivider}\n${SCREEN_DIVIDER}\n${account}`);
 }
 
 /**
@@ -104,26 +109,6 @@ export function premiumScreen(content: string): string {
   return polishMessageText(`${trimmed}\n\n${SCREEN_DIVIDER}`);
 }
 
-/**
- * Welcome: brand block + divider + account blockquote (tight spacing, idempotent).
- */
-export function wrapWelcomeWithAccountCard(html: string): string {
-  const raw = html.trim();
-  if (!raw) return "";
-
-  if (/<blockquote[\s>]/i.test(raw)) {
-    return polishMessageText(tightenWelcomeLayout(raw));
-  }
-
-  const marker = "👤";
-  const idx = raw.indexOf(marker);
-  if (idx === -1) return polishMessageText(tightenWelcomeLines(raw));
-
-  const head = tightenWelcomeLines(raw.slice(0, idx));
-  const account = tightenWelcomeLines(raw.slice(idx));
-  const body = head.length > 0 ? `${head}\n${SCREEN_DIVIDER}\n` : "";
-  return polishMessageText(tightenWelcomeLayout(`${body}<blockquote>${account}</blockquote>`));
-}
 
 /**
  * Optional footer line (e.g. profile links) — appended without altering body copy.
