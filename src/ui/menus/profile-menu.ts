@@ -56,12 +56,8 @@ export async function getProfileText(
   const session = await ctx.session;
   const userRepo = new UserRepository(ctx.appDataSource);
   const user = await userRepo.findById(session.main.user.id);
-  const primeActiveUntil = user?.primeActiveUntil ?? null;
-  const now = new Date();
-  const hasActivePrime = Boolean(primeActiveUntil && new Date(primeActiveUntil) > now);
 
   const locale = options?.locale ?? (user?.lang === "en" ? "en" : "ru");
-  const dateLocale = locale === "en" ? "en-US" : "ru-RU";
   ctx.fluent.useLocale(locale);
 
   const telegramId = user?.telegramId ?? ctx.from?.id ?? session.main.user.id;
@@ -86,19 +82,6 @@ export async function getProfileText(
   const activeServices =
     user != null ? await countActiveServicesForUser(ctx, user.id) : 0;
 
-  const subscriptionValue =
-    hasActivePrime && primeActiveUntil
-      ? new Date(primeActiveUntil).toLocaleDateString(dateLocale, {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })
-      : ctx.t("profile-subscription-none");
-
-  const statusLabel = user?.isBanned
-    ? ctx.t("profile-status-banned-label")
-    : ctx.t("profile-status-active-label");
-
   const links = locale === "ru" ? PROFILE_LINKS_RU : PROFILE_LINKS_EN;
 
   return joinScreenSections(
@@ -108,10 +91,6 @@ export async function getProfileText(
     [
       ctx.t("profile-screen-balance", { amount: balanceAmount }),
       ctx.t("profile-screen-active-services", { count: activeServices }),
-    ].join("\n"),
-    [
-      ctx.t("profile-screen-subscription", { value: subscriptionValue }),
-      ctx.t("profile-screen-status", { status: statusLabel }),
     ].join("\n"),
     links
   );
