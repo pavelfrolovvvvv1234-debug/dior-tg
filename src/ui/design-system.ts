@@ -63,11 +63,10 @@ function polishWelcomeLayout(text: string): string {
   const divider = escapeDividerForRegExp();
   return trimBlockquoteContent(text)
     .replace(/[ \t]+$/gm, "")
-    .replace(new RegExp(`\\n{2,}${divider}\\n{2,}`, "g"), `\n${SCREEN_DIVIDER}\n`)
-    .replace(new RegExp(`${divider}\\n{2,}<blockquote>`, "g"), `${SCREEN_DIVIDER}\n<blockquote>`)
+    .replace(new RegExp(`\\n*${divider}\\n*`, "g"), `\n\n${SCREEN_DIVIDER}\n\n`)
     .replace(/<blockquote>\s+/g, "<blockquote>")
     .replace(/\s+<\/blockquote>/g, "</blockquote>")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n{4,}/g, "\n\n\n")
     .trimEnd();
 }
 
@@ -87,7 +86,7 @@ export function wrapWelcomeWithAccountCard(html: string): string {
 
   head = head.replace(new RegExp(`\\n*${escapeDividerForRegExp()}\\n*$`), "").trimEnd();
 
-  const body = `${head}\n${SCREEN_DIVIDER}\n<blockquote>${account}</blockquote>`;
+  const body = `${head}\n\n${SCREEN_DIVIDER}\n\n<blockquote>${account}</blockquote>`;
   return polishWelcomeLayout(body);
 }
 
