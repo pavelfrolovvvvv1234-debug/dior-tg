@@ -20,6 +20,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 
 import { config, isWebhookMode, getWebhookPort } from "./config.js";
 import { Logger } from "./logger.js";
+import { setupPremiumUiLayer } from "./middlewares/premium-ui-middleware.js";
 import { setupErrorHandler } from "./error-handler.js";
 import {
   databaseMiddleware,
@@ -95,6 +96,7 @@ export async function createBot(): Promise<{
 
   // Create bot instance first
   const bot = new Bot<AppContext>(config.BOT_TOKEN, {});
+  setupPremiumUiLayer(bot);
 
   // Inline mode: pop-up card above input (title + description), like Market & Tochka. Placeholder "Search..." = BotFather.
   bot.use(async (ctx, next) => {

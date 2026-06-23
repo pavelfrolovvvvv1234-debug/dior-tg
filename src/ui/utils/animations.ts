@@ -7,6 +7,7 @@
 
 import type { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
+import { polishMessageText, withPremiumOptions } from "../design-system.js";
 
 /**
  * Show typing indicator.
@@ -53,9 +54,12 @@ export async function showProgress(
   const progressBar = "█".repeat(filled) + "░".repeat(empty);
   const percentage = Math.round(progress * 100);
 
-  await ctx.api.editMessageText(ctx.chat.id, messageId, `${text}\n\n${progressBar} ${percentage}%`, {
-    parse_mode: "HTML",
-  });
+  await ctx.api.editMessageText(
+    ctx.chat.id,
+    messageId,
+    polishMessageText(`${text}\n\n${progressBar} ${percentage}%`),
+    withPremiumOptions({ parse_mode: "HTML" }) as Parameters<typeof ctx.api.editMessageText>[3]
+  );
 }
 
 /**
@@ -79,16 +83,21 @@ export async function editOrSend(
     throw new Error("No chat in context");
   }
 
-  const apiOptions: { parse_mode?: "HTML" | "Markdown" | "MarkdownV2"; reply_markup?: InlineKeyboard } | undefined = options
-    ? { parse_mode: options.parse_mode, reply_markup: options.reply_markup }
-    : undefined;
+  const apiOptions = withPremiumOptions(
+    options
+      ? { parse_mode: options.parse_mode, reply_markup: options.reply_markup }
+      : { parse_mode: "HTML" }
+  ) as { parse_mode?: "HTML" | "Markdown" | "MarkdownV2"; reply_markup?: InlineKeyboard };
+
+  const messageText = polishMessageText(text);
+
   try {
     // Try to edit if message exists
     if (ctx.callbackQuery?.message && "message_id" in ctx.callbackQuery.message) {
       await ctx.api.editMessageText(
         ctx.chat.id,
         ctx.callbackQuery.message.message_id,
-        text,
+        messageText,
         apiOptions as Parameters<typeof ctx.api.editMessageText>[3]
       );
       return ctx.callbackQuery.message.message_id;
@@ -99,6 +108,10 @@ export async function editOrSend(
   }
 
   // Send new message
-  const message = await ctx.api.sendMessage(ctx.chat.id, text, apiOptions as Parameters<typeof ctx.api.sendMessage>[2]);
+  const message = await ctx.api.sendMessage(
+    ctx.chat.id,
+    messageText,
+    apiOptions as Parameters<typeof ctx.api.sendMessage>[2]
+  );
   return message.message_id;
 }

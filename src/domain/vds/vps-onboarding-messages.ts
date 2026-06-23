@@ -3,6 +3,7 @@
  */
 
 import type { AppContext } from "../../shared/types/context.js";
+import { SCREEN_DIVIDER } from "../../ui/design-system.js";
 import { isWindowsOsSlug, resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
 
 const DEFAULT_VPS_CPU_MODEL = "Xeon E5-2699v4";
@@ -51,7 +52,7 @@ export function buildPremiumVpsReadyHtml(ctx: AppContext, p: PremiumVpsReadyPayl
   const ipOk = isValidPublicIpv4(p.ipv4);
   const win = isWindowsVpsOsKey(p.osKey) || inferWindowsFromOsName(p.osLabel);
   const login = resolveVdsLoginForOs({ osKey: p.osKey, osName: p.osLabel, storedLogin: p.login });
-  const sep = "\n───────────────\n";
+  const sep = `\n${SCREEN_DIVIDER}\n`;
 
   const head = ctx.t("vps-premium-headline");
   const specLine = ctx.t("vps-premium-specs-line", {

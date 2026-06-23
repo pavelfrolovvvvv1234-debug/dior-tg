@@ -13,6 +13,7 @@ import type {
 } from "../../modules/referrals/types.js";
 import { REFERRAL_LIST_PAGE_SIZE } from "../../modules/referrals/referral-list.service.js";
 import { tierBadgeEmoji } from "../../modules/referrals/referral-tier.js";
+import { joinScreenSections } from "../design-system.js";
 import { truncateTelegramMenuLabel } from "../../shared/users/user-display.js";
 import { formatRelativeTime, formatShortDate } from "./referral-time.js";
 
@@ -44,9 +45,8 @@ export function buildListSummaryHeader(
     ? formatShortDate(overview.lastReferralJoinedAt, locale)
     : "—";
 
-  return [
+  return joinScreenSections(
     ctx.t("ref-list-header-title"),
-    "",
     ctx.t("ref-list-summary-card", {
       tierEmoji,
       tier: overview.tier.toUpperCase(),
@@ -57,11 +57,9 @@ export function buildListSummaryHeader(
       conversion: overview.conversionRate.toFixed(1),
       lastJoin,
     }),
-    "",
     `<i>${esc(sortLabel)} · ${esc(filterLabel)}</i>`,
-    "",
-    "━━━━━━━━━━━━━━",
-  ].join("\n");
+    "━━━━━━━━━━━━━━"
+  );
 }
 
 export function formatRefereeRow(ctx: AppContext, item: RefereeListItem, locale: string): string {

@@ -7,6 +7,7 @@
 
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
+import { joinScreenSections, polishMessageText, withPremiumOptions } from "../design-system.js";
 import type { RenderedScreen } from "./types.js";
 
 /**
@@ -62,7 +63,7 @@ export class ScreenRenderer {
       parts.push("");
     }
 
-    const text = parts.join("\n").trim() || "";
+    const text = polishMessageText(joinScreenSections(...parts)) || "";
 
     return {
       text,
@@ -77,7 +78,7 @@ export class ScreenRenderer {
   renderWelcome(data: { balance: number; locale?: string }): RenderedScreen {
     (this.ctx as any)._requestLocale = data.locale ?? (this.ctx as any)._requestLocale ?? "ru";
     return {
-      text: this.ctx.t("welcome", { balance: data.balance }),
+      text: polishMessageText(this.ctx.t("welcome", { balance: data.balance })),
       parse_mode: "HTML",
     };
   }
@@ -168,7 +169,6 @@ export class ScreenRenderer {
     confirmText?: string,
     cancelText?: string
   ): RenderedScreen {
-    const { InlineKeyboard } = require("grammy");
     const keyboard = new InlineKeyboard()
       .text(confirmText || this.ctx.t("button-agree"), "confirm")
       .text(cancelText || this.ctx.t("button-close"), "cancel");
@@ -212,4 +212,12 @@ export async function renderScreen(
 ): Promise<RenderedScreen> {
   const renderer = ScreenRenderer.fromContext(ctx);
   return renderFn(renderer);
+}
+
+/** Premium Telegram send options for rendered HTML screens. */
+export function renderedScreenOptions(screen: RenderedScreen) {
+  return withPremiumOptions({
+    parse_mode: screen.parse_mode ?? "HTML",
+    reply_markup: screen.keyboard,
+  });
 }

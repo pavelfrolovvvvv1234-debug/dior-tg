@@ -6,10 +6,11 @@
  */
 
 import type { Bot } from "grammy";
+import { InlineKeyboard } from "grammy";
 import { Logger } from "./logger.js";
 import type { AppContext } from "../shared/types/context.js";
 import { AppError, BusinessError, ExternalApiError, PaymentError } from "../shared/errors/index.js";
-import { InlineKeyboard } from "grammy";
+import { withPremiumOptions } from "../ui/design-system.js";
 
 /**
  * Setup global error handler for bot.
@@ -83,25 +84,21 @@ async function handleAppError(ctx: AppContext, error: AppError): Promise<void> {
       ? new InlineKeyboard().text(ctx.t("button-back"), "main-menu")
       : undefined;
 
+    const deliveryOptions = withPremiumOptions({
+      reply_markup: keyboard,
+      parse_mode: "HTML",
+    });
+
     // Try to edit message if it exists, otherwise send new
     try {
       if (ctx.callbackQuery?.message && "message_id" in ctx.callbackQuery.message) {
-        await ctx.api.editMessageText(ctx.chat.id, ctx.callbackQuery.message.message_id, message, {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
+        await ctx.api.editMessageText(ctx.chat.id, ctx.callbackQuery.message.message_id, message, deliveryOptions);
       } else {
-        await ctx.reply(message, {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
+        await ctx.reply(message, deliveryOptions);
       }
     } catch (editError) {
       // If edit fails, send new message
-      await ctx.reply(message, {
-        reply_markup: keyboard,
-        parse_mode: "HTML",
-      });
+      await ctx.reply(message, deliveryOptions);
     }
   } catch (replyError) {
     Logger.error("Failed to send error message to user", replyError);
@@ -121,29 +118,24 @@ async function handleGenericError(ctx: AppContext, error: Error): Promise<void> 
       "main-menu"
     );
 
-    // Try to edit message if it exists, otherwise send new
+    const deliveryOptions = withPremiumOptions({
+      reply_markup: keyboard,
+      parse_mode: "HTML",
+    });
+
     try {
       if (ctx.callbackQuery?.message && "message_id" in ctx.callbackQuery.message) {
         await ctx.api.editMessageText(
           ctx.chat.id,
           ctx.callbackQuery.message.message_id,
           message,
-          {
-            reply_markup: keyboard,
-            parse_mode: "HTML",
-          }
+          deliveryOptions
         );
       } else {
-        await ctx.reply(message, {
-          reply_markup: keyboard,
-          parse_mode: "HTML",
-        });
+        await ctx.reply(message, deliveryOptions);
       }
     } catch (editError) {
-      await ctx.reply(message, {
-        reply_markup: keyboard,
-        parse_mode: "HTML",
-      });
+      await ctx.reply(message, deliveryOptions);
     }
   } catch (replyError) {
     Logger.error("Failed to send error message to user", replyError);
@@ -163,10 +155,13 @@ async function handleUnknownError(ctx: AppContext, error: unknown): Promise<void
       "main-menu"
     );
 
-    await ctx.reply(message, {
-      reply_markup: keyboard,
-      parse_mode: "HTML",
-    });
+    await ctx.reply(
+      message,
+      withPremiumOptions({
+        reply_markup: keyboard,
+        parse_mode: "HTML",
+      })
+    );
   } catch (replyError) {
     Logger.error("Failed to send error message to user", replyError);
   }
