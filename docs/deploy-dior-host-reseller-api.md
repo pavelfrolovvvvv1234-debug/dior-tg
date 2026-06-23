@@ -51,6 +51,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # Pass client auth headers to the reseller API (required for x-api-key)
+        proxy_pass_request_headers on;
+        proxy_set_header x-api-key $http_x_api_key;
         proxy_read_timeout 120s;
     }
 }

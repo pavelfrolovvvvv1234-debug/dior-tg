@@ -12,8 +12,9 @@ import ResellerApiKey, { ResellerApiKeyStatus } from "../src/entities/ResellerAp
 import {
   getResellerAuthRuntime,
   reloadResellerAuthRuntime,
+  resolveResellerIdByApiKey,
 } from "../src/modules/reseller/services/reseller-auth-runtime.js";
-import { resolveResellerIdByApiKey, sha256Hex } from "../src/modules/reseller/services/reseller-crypto.js";
+import { sha256Hex } from "../src/modules/reseller/services/reseller-crypto.js";
 
 const resellerId = (process.argv[2] ?? "").trim();
 const explicitKey = (process.argv[3] ?? "").trim();
