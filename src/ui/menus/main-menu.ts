@@ -35,7 +35,6 @@ export const mainMenu = new Menu<AppContext>("main-menu")
       });
     }
   )
-  .row()
   .submenu(
     (ctx) => ctx.t("button-personal-profile"),
     "profile-menu",
