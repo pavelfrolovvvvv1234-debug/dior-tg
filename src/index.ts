@@ -3183,6 +3183,21 @@ async function index() {
     }
   });
 
+  bot.command("reseller_api", async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return;
+    const { ResellerService } = await import("./modules/reseller/services/reseller.service.js");
+    const svc = new ResellerService(ctx.appDataSource);
+    const reseller = await svc.findByTelegramId(fromId);
+    if (!reseller) {
+      await ctx.reply(ctx.t("reseller-api-cmd-none"), { parse_mode: "HTML" });
+      return;
+    }
+    const keyPrefix = await svc.getActiveApiKeyPrefix(reseller.id);
+    const body = svc.formatPartnerApiHelp(reseller, keyPrefix);
+    await ctx.reply(ctx.t("reseller-api-cmd-ok", { body }), { parse_mode: "HTML" });
+  });
+
   bot.command("promote_link", async (ctx) => {
     if (!(await requireAdmin(ctx as AppContext))) return;
 

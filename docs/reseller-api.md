@@ -21,6 +21,17 @@ Reference (enable `RESELLER_API_EXPOSE_DOCS=1`):
 | `x-signature` | yes | `hex(HMAC_SHA256(secret, "<timestamp>.<raw_json_body>"))` |
 | `x-idempotency-key` | recommended | Unique key for POST retries (create, import, reinstall) |
 
+**GET / DELETE:** request body is empty — sign the string `"<timestamp>."` (note the trailing dot after unix seconds).
+
+Example for `GET /reseller/v1/services`:
+
+```js
+const ts = String(Math.floor(Date.now() / 1000));
+const signature = crypto.createHmac("sha256", signSecret).update(`${ts}.`).digest("hex");
+```
+
+If you see `missing_signature_headers`, you sent `x-api-key` only — add `x-timestamp`, `x-nonce`, and `x-signature`. Partners can also run `/reseller_api` in @diorhost_bot to retrieve the signing secret.
+
 All JSON responses include `x-request-id`. On idempotent replay: `"idempotentReplay": true`.
 
 Parallel duplicate POSTs with the same idempotency key receive `409 idempotency_request_in_progress` until the first call finishes.

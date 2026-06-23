@@ -106,40 +106,53 @@ export async function openResellerHub(ctx: AppContext): Promise<void> {
 async function buildResellerList(ctx: AppContext, page: number): Promise<{ text: string; keyboard: InlineKeyboard }> {
   const repo = ctx.appDataSource.getRepository(Reseller);
   const all = await repo.find({ order: { createdAt: "DESC" } });
-  const slice = all.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const dbIds = new Set(all.map((r) => r.id));
+  const vdsRows = await ctx.appDataSource.getRepository(VirtualDedicatedServer).find({
+    where: { resellerId: Not(IsNull()) },
+    select: ["resellerId"],
+    take: 5000,
+  });
+  const legacyOnly = [...new Set(vdsRows.map((r) => String(r.resellerId)).filter((id) => id && !dbIds.has(id)))].sort();
+  const mergedIds = [...all.map((r) => r.id), ...legacyOnly];
+  const sliceIds = mergedIds.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(mergedIds.length / PAGE_SIZE));
   const lines = [
     ctx.t("ars-list-title"),
     ctx.t("ars-list-page", { page: page + 1, total: totalPages }),
     "",
   ];
 
-  if (slice.length === 0) {
+  if (sliceIds.length === 0) {
     lines.push(ctx.t("ars-list-empty"));
   } else {
-    for (const r of slice) {
-      const badge =
-        r.status === ResellerStatus.Active
-          ? "🟢"
-          : r.status === ResellerStatus.Suspended
-            ? "🔴"
-            : "🟡";
-      lines.push(
-        `${badge} <code>${escapeUserInput(r.id)}</code> • ${escapeUserInput(r.plan)} • @${escapeUserInput(r.telegramUsername || "—")}`
-      );
+    for (const id of sliceIds) {
+      const r = all.find((x) => x.id === id);
+      if (r) {
+        const badge =
+          r.status === ResellerStatus.Active
+            ? "🟢"
+            : r.status === ResellerStatus.Suspended
+              ? "🔴"
+              : "🟡";
+        lines.push(
+          `${badge} <code>${escapeUserInput(r.id)}</code> • ${escapeUserInput(r.plan)} • @${escapeUserInput(r.telegramUsername || "—")}`
+        );
+      } else {
+        lines.push(`⚪ <code>${escapeUserInput(id)}</code> • ${ctx.t("ars-list-legacy-badge")}`);
+      }
     }
   }
 
   const kb = new InlineKeyboard();
-  slice.forEach((r, idx) => {
-    kb.text(r.id.slice(0, 18), `ars:d:${r.id}`);
+  sliceIds.forEach((id, idx) => {
+    kb.text(id.slice(0, 18), `ars:d:${id}`);
     if (idx % 2 === 1) kb.row();
   });
-  if (slice.length % 2 === 1) kb.row();
+  if (sliceIds.length % 2 === 1) kb.row();
 
   if (page > 0) kb.text("◀️", `ars:l:${page - 1}`);
-  if ((page + 1) * PAGE_SIZE < all.length) kb.text("▶️", `ars:l:${page + 1}`);
+  if ((page + 1) * PAGE_SIZE < mergedIds.length) kb.text("▶️", `ars:l:${page + 1}`);
   kb.row().text(ctx.t("ars-btn-add"), "ars:add").text(ctx.t("button-back"), "ars:hub");
 
   return { text: lines.join("\n"), keyboard: kb };
@@ -210,6 +223,9 @@ async function buildResellerDetail(
   }
 
   const kb = new InlineKeyboard();
+  if (!reseller && canResellerAdmin((await ctx.session).main.user.role, "reseller.create")) {
+    kb.text(ctx.t("ars-btn-ensure-profile"), `ars:ens:${resellerId}`).row();
+  }
   if (canResellerAdmin((await ctx.session).main.user.role, "api_key.rotate")) {
     kb.text(ctx.t("ars-btn-rotate-key"), `ars:kr:${resellerId}`);
     kb.text(ctx.t("ars-btn-show-signing"), `ars:sg:${resellerId}`).row();
@@ -361,6 +377,35 @@ export function registerResellerAdminHandlers(bot: Bot<AppContext>): void {
     const resellerId = ctx.match![1];
     const { text, keyboard } = await buildResellerDetail(ctx, resellerId);
     await safeEdit(ctx, text, keyboard);
+  });
+
+  bot.callbackQuery(/^ars:ens:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    if (!(await guard(ctx, "reseller.create"))) return;
+    const resellerId = ctx.match![1];
+    try {
+      const svc = new ResellerService(ctx.appDataSource);
+      const result = await svc.ensureLegacyProfile(resellerId);
+      const lines = [
+        ctx.t("ars-ensure-done-title", { id: escapeUserInput(resellerId) }),
+        "",
+        ctx.t("ars-show-signing-done", {
+          id: escapeUserInput(resellerId),
+          secret: escapeUserInput(result.signingSecret),
+        }),
+      ];
+      if (result.newApiKey) {
+        lines.push("", ctx.t("ars-ensure-new-key", { key: escapeUserInput(result.newApiKey) }));
+      }
+      await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
+      const { text, keyboard } = await buildResellerDetail(ctx, resellerId);
+      await safeEdit(ctx, text, keyboard);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await ctx.reply(ctx.t("ars-ensure-failed", { error: escapeUserInput(msg.slice(0, 200)) }), {
+        parse_mode: "HTML",
+      });
+    }
   });
 
   bot.callbackQuery(/^ars:sg:(.+)$/, async (ctx) => {

@@ -252,6 +252,14 @@ ars-btn-activate = Активировать
 ars-list-title = <b>Партнёры</b>
 ars-list-page = { $page } / { $total }
 ars-list-empty = Пусто. Создайте партнёра кнопкой ниже.
+ars-list-legacy-badge = legacy · нет профиля API
+ars-btn-ensure-profile = ⚙ Создать профиль API
+ars-ensure-done-title = Профиль API для <code>{ $id }</code> готов
+ars-ensure-new-key = Новый API key (сохраните):\n<code>{ $key }</code>
+ars-ensure-failed = Не удалось создать профиль: { $error }
+
+reseller-api-cmd-none = У вас нет партнёрского доступа к Reseller API. Напишите в поддержку.
+reseller-api-cmd-ok = { $body }
 
 ars-detail-title = <code>{ $id }</code>
 ars-detail-wallet = Баланс <b>{ $balance }</b>

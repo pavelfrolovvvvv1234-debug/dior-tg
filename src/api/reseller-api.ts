@@ -248,6 +248,50 @@ function buildSignature(secret: string, timestamp: string, rawBody: string): str
   return crypto.createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
 }
 
+const RESELLER_AUTH_HEADERS = ["x-api-key", "x-timestamp", "x-nonce", "x-signature"] as const;
+
+function buildResellerAuthHint(error: string, method: string): string | undefined {
+  const m = method.toUpperCase();
+  if (error === "missing_signature_headers") {
+    return m === "GET" || m === "DELETE"
+      ? "HMAC is required on every request. For GET/DELETE use signing string: \"<unix_timestamp>.\" (empty body). Example: x-signature = hex(HMAC_SHA256(signing_secret, \"1730000000.\"))"
+      : "HMAC is required. signing string = \"<unix_timestamp>.\" + raw JSON body bytes (exactly as sent).";
+  }
+  if (error === "missing_nonce_header") {
+    return "Send a unique x-nonce (UUID) per request. Reusing nonce returns nonce_already_used.";
+  }
+  if (error === "missing_api_key") {
+    return "Send your reseller API key in header x-api-key.";
+  }
+  if (error === "invalid_signature") {
+    return m === "GET" || m === "DELETE"
+      ? "Check signing secret and use \"<timestamp>.\" with empty body for GET."
+      : "Check signing secret and sign the exact raw JSON body (whitespace matters).";
+  }
+  if (error === "hmac_signing_required_for_reseller") {
+    return "Signing secret is not configured for this partner. Ask DiorHost support or use /reseller_api in the bot.";
+  }
+  return undefined;
+}
+
+function respondResellerAuthError(
+  res: Response,
+  req: Request,
+  status: number,
+  error: string,
+  extra?: Record<string, unknown>
+): void {
+  const hint = buildResellerAuthHint(error, req.method);
+  res.status(status).json({
+    ok: false,
+    error,
+    ...(hint ? { hint } : {}),
+    requiredHeaders: [...RESELLER_AUTH_HEADERS],
+    docs: "/reseller/docs",
+    ...extra,
+  });
+}
+
 function sha256Hex(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
 }
@@ -281,13 +325,13 @@ function requireResellerAuth(
     void (async () => {
     const apiKey = String(req.header("x-api-key") ?? "").trim();
     if (!apiKey) {
-      res.status(401).json({ ok: false, error: "missing_api_key" });
+      respondResellerAuthError(res, req, 401, "missing_api_key");
       return;
     }
     const runtime = getResellerAuthRuntime();
     const resellerId = runtime.keysByHash[sha256Hex(apiKey)] ?? null;
     if (!resellerId) {
-      res.status(403).json({ ok: false, error: "invalid_api_key" });
+      respondResellerAuthError(res, req, 403, "invalid_api_key");
       return;
     }
 
@@ -295,14 +339,19 @@ function requireResellerAuth(
     if (allowedIps.length > 0) {
       const clientIp = getClientIp(req);
       if (!allowedIps.includes(clientIp)) {
-        res.status(403).json({ ok: false, error: "ip_not_allowed" });
+        res.status(403).json({
+          ok: false,
+          error: "ip_not_allowed",
+          clientIp,
+          hint: "Your IP is not on the partner allowlist. Ask DiorHost to add it or clear RESELLER_API_ALLOWED_IPS_JSON for this partner.",
+        });
         return;
       }
     }
 
     const signingSecret = signingSecretsMap[resellerId] ?? null;
     if (!signingSecret) {
-      res.status(503).json({ ok: false, error: "hmac_signing_required_for_reseller" });
+      respondResellerAuthError(res, req, 503, "hmac_signing_required_for_reseller", { resellerId });
       return;
     }
 
@@ -310,29 +359,43 @@ function requireResellerAuth(
     const signature = String(req.header("x-signature") ?? "").trim();
     const nonce = String(req.header("x-nonce") ?? "").trim();
     if (!timestamp || !signature) {
-      res.status(401).json({ ok: false, error: "missing_signature_headers" });
+      respondResellerAuthError(res, req, 401, "missing_signature_headers");
       return;
     }
     if (!nonce) {
-      res.status(401).json({ ok: false, error: "missing_nonce_header" });
+      respondResellerAuthError(res, req, 401, "missing_nonce_header");
       return;
     }
     const ts = Number.parseInt(timestamp, 10);
     const now = Math.floor(Date.now() / 1000);
     if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkewSeconds) {
-      res.status(401).json({ ok: false, error: "signature_timestamp_out_of_range" });
+      res.status(401).json({
+        ok: false,
+        error: "signature_timestamp_out_of_range",
+        hint: `x-timestamp must be unix seconds within ±${maxSkewSeconds}s of server time.`,
+        serverTime: now,
+      });
       return;
     }
     const rawBody = req.rawBody ?? "";
     const expected = buildSignature(signingSecret, timestamp, rawBody);
     if (!secureEqual(expected, signature)) {
-      res.status(401).json({ ok: false, error: "invalid_signature" });
+      respondResellerAuthError(res, req, 401, "invalid_signature", {
+        signingStringPreview:
+          req.method.toUpperCase() === "GET" || req.method.toUpperCase() === "DELETE"
+            ? `${timestamp}.`
+            : `${timestamp}.<raw_body>`,
+      });
       return;
     }
     const nonceKey = `${resellerId}:${nonce}:${timestamp}`;
     const nonceOk = await claimNonceOnce(nonceKey, maxSkewSeconds);
     if (!nonceOk) {
-      res.status(409).json({ ok: false, error: "nonce_already_used" });
+      res.status(409).json({
+        ok: false,
+        error: "nonce_already_used",
+        hint: "Generate a new x-nonce (UUID) for each request.",
+      });
       return;
     }
 

@@ -70,6 +70,140 @@ export class ResellerService {
     return this.dataSource.getRepository(Reseller).findOne({ where: { id } });
   }
 
+  async findByTelegramId(telegramId: number): Promise<Reseller | null> {
+    return this.dataSource.getRepository(Reseller).findOne({ where: { telegramId } });
+  }
+
+  async getActiveApiKeyPrefix(resellerId: string): Promise<string | null> {
+    const row = await this.dataSource.getRepository(ResellerApiKey).findOne({
+      where: { resellerId, status: ResellerApiKeyStatus.Active },
+      order: { id: "DESC" },
+    });
+    return row?.keyPrefix ?? null;
+  }
+
+  /**
+   * Create or repair a reseller profile for a legacy partner id (VPS tagged in DB, no resellers row).
+   */
+  async ensureLegacyProfile(
+    resellerId: string,
+    telegramUsername?: string | null
+  ): Promise<{
+    reseller: Reseller;
+    created: boolean;
+    signingSecret: string;
+    newApiKey?: string;
+  }> {
+    const id = slugifyResellerId(resellerId);
+    const limits = RESELLER_PLAN_LIMITS[ResellerPlan.Starter];
+    const repo = this.dataSource.getRepository(Reseller);
+    let reseller = await repo.findOne({ where: { id } });
+    let created = false;
+
+    const username = (telegramUsername ?? id).trim().replace(/^@/, "").toLowerCase();
+    const userRepo = this.dataSource.getRepository(User);
+    let botUser = await userRepo.findOne({ where: { telegramUsername: username } });
+    if (!botUser) {
+      const rows = await userRepo
+        .createQueryBuilder("u")
+        .where("LOWER(u.telegramUsername) = LOWER(:username)", { username })
+        .getMany();
+      botUser = rows[0] ?? null;
+    }
+
+    const signing = generateSigningSecret();
+    const webhook = generateWebhookSecret();
+
+    if (reseller) {
+      if (botUser && !reseller.telegramId) reseller.telegramId = botUser.telegramId;
+      if (!reseller.telegramUsername) reseller.telegramUsername = username;
+      if (!reseller.apiSigningSecret?.trim()) {
+        reseller.apiSigningSecret = signing.raw;
+        reseller.signingSecretHash = signing.hash;
+      }
+      if (!reseller.referralCode) reseller.referralCode = generateReferralCode(id);
+      reseller.status = ResellerStatus.Active;
+      await repo.save(reseller);
+    } else {
+      created = true;
+      reseller = repo.create({
+        id,
+        displayName: `@${username}`,
+        telegramId: botUser?.telegramId ?? null,
+        telegramUsername: username,
+        email: null,
+        company: null,
+        status: ResellerStatus.Active,
+        plan: ResellerPlan.Starter,
+        profitPercent: limits.profitPercent,
+        maxVps: limits.maxVps,
+        apiRatePerMinute: limits.apiRatePerMinute,
+        referralCode: generateReferralCode(id),
+        signingSecretHash: signing.hash,
+        apiSigningSecret: signing.raw,
+        webhookSecretHash: webhook.hash,
+        webhookSigningSecret: webhook.raw,
+        ipWhitelist: [],
+        lastActivityAt: new Date(),
+      });
+      await repo.save(reseller);
+    }
+
+    let newApiKey: string | undefined;
+    const keyRepo = this.dataSource.getRepository(ResellerApiKey);
+    const activeKey = await keyRepo.findOne({
+      where: { resellerId: id, status: ResellerApiKeyStatus.Active },
+    });
+    if (!activeKey) {
+      const { publicKey, prefix, hash } = generateApiKeyPair();
+      const row = new ResellerApiKey();
+      row.resellerId = id;
+      row.keyType = ResellerApiKeyType.Production;
+      row.status = ResellerApiKeyStatus.Active;
+      row.keyPrefix = prefix;
+      row.keyHash = hash;
+      row.rateLimitPerMinute = reseller.apiRatePerMinute || limits.apiRatePerMinute;
+      row.scopes = ["services:read", "services:write"];
+      await keyRepo.save(row);
+      registerRuntimeApiKey(id, publicKey);
+      newApiKey = publicKey;
+    }
+
+    const signingSecret = reseller.apiSigningSecret?.trim() ?? signing.raw;
+    registerRuntimeSigningSecret(id, signingSecret);
+    await reloadResellerAuthRuntime(this.dataSource);
+
+    return { reseller, created, signingSecret, newApiKey };
+  }
+
+  formatPartnerApiHelp(reseller: Reseller, keyPrefix: string | null): string {
+    const signing = reseller.apiSigningSecret?.trim();
+    const keyLine = keyPrefix
+      ? `API key prefix: <code>${keyPrefix}…</code> (full key shown once at issue — use admin Rotate if lost)`
+      : "API key: not issued yet — ask support to rotate key";
+    return [
+      "<b>DiorHost Reseller API</b>",
+      "",
+      `Partner ID: <code>${reseller.id}</code>`,
+      keyLine,
+      signing
+        ? `Signing secret (HMAC): <code>${signing}</code>`
+        : "Signing secret: missing — contact @diorhost support",
+      "",
+      `<b>Auth</b> (required on every request):`,
+      "<code>x-api-key</code>, <code>x-timestamp</code> (unix sec), <code>x-nonce</code> (UUID), <code>x-signature</code>",
+      "",
+      "<b>GET signature</b> (e.g. /reseller/v1/services):",
+      "<code>x-signature = hex(HMAC_SHA256(signing_secret, \"&lt;timestamp&gt;.\"))</code>",
+      "Body is empty — note the trailing dot after timestamp.",
+      "",
+      `Base: ${RESELLER_API_BASE_URL}`,
+      `Docs: ${RESELLER_API_BASE_URL}/reseller/docs`,
+      "",
+      "Billing: top up balance in this bot (Profile → Deposit).",
+    ].join("\n");
+  }
+
   async listAll(): Promise<Reseller[]> {
     return this.dataSource.getRepository(Reseller).find({
       order: { createdAt: "DESC" },
@@ -314,7 +448,7 @@ export class ResellerService {
       "Top up balance in @diorhost_bot (Profile → Deposit) on <b>this Telegram account</b>.",
       "Each API VPS create/renew charges your bot wallet (same prices as retail).",
       "",
-      "Headers: <code>x-api-key</code>, optional HMAC <code>x-signature</code>, <code>x-timestamp</code>, <code>x-nonce</code>",
+      "Headers (all required): <code>x-api-key</code>, <code>x-timestamp</code>, <code>x-nonce</code>, <code>x-signature</code> (HMAC-SHA256 over <code>&lt;timestamp&gt;.&lt;raw_body&gt;</code>; GET uses empty body → <code>&lt;timestamp&gt;.</code>)",
       "",
       "Support: @diorhost",
     ].join("\n");
