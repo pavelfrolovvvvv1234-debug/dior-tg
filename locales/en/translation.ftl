@@ -11,7 +11,7 @@ welcome = 🔷 DiorHost — Servers, Domains, CDN
     👤 @{$username}
     ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
     ├ <b>ID:</b> <code>{$userIdText}</code>
-    └ <b>Servers purchased:</b> <code>{$servicesCount}</code> pcs ($0.00)
+    └ <b>Servers purchased:</b> <code>{$servicesCount}</code> pcs
     
 
 about-us = We provide reliable and high-performance VDS dedicated servers and hosting services.
