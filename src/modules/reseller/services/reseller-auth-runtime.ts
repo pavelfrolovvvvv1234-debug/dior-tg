@@ -17,6 +17,8 @@ export type ResellerAuthRuntimeMaps = {
   webhooks: Record<string, string>;
   webhookSecrets: Record<string, string>;
   rateLimitPerMinute: Record<string, number>;
+  /** Partners that authenticate with x-api-key only (no HMAC). */
+  apiKeyOnly: Record<string, boolean>;
 };
 
 let cache: ResellerAuthRuntimeMaps | null = null;
@@ -29,7 +31,14 @@ const pendingRuntime: ResellerAuthRuntimeMaps = {
   webhooks: {},
   webhookSecrets: {},
   rateLimitPerMinute: {},
+  apiKeyOnly: {},
 };
+
+function isTruthyFlag(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  const s = String(value ?? "").trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes" || s === "on";
+}
 
 function parseJsonRecord(raw: string | undefined): Record<string, unknown> {
   const source = (raw ?? "").trim();
@@ -51,6 +60,7 @@ function mergeEnvMaps(base: ResellerAuthRuntimeMaps): ResellerAuthRuntimeMaps {
     webhooks: { ...base.webhooks },
     webhookSecrets: { ...base.webhookSecrets },
     rateLimitPerMinute: { ...base.rateLimitPerMinute },
+    apiKeyOnly: { ...base.apiKeyOnly },
   };
 
   const keysParsed = parseJsonRecord(process.env.RESELLER_API_KEYS_JSON);
@@ -90,6 +100,11 @@ function mergeEnvMaps(base: ResellerAuthRuntimeMaps): ResellerAuthRuntimeMaps {
   for (const [resellerId, secret] of Object.entries(whSecParsed)) {
     const s = String(secret ?? "").trim();
     if (resellerId.trim() && s) out.webhookSecrets[resellerId.trim()] = s;
+  }
+
+  const keyOnlyParsed = parseJsonRecord(process.env.RESELLER_API_KEY_ONLY_JSON);
+  for (const [resellerId, flag] of Object.entries(keyOnlyParsed)) {
+    if (resellerId.trim() && isTruthyFlag(flag)) out.apiKeyOnly[resellerId.trim()] = true;
   }
 
   return out;
@@ -180,6 +195,7 @@ export async function reloadResellerAuthRuntime(dataSource: DataSource): Promise
     webhooks: { ...pendingRuntime.webhooks },
     webhookSecrets: { ...pendingRuntime.webhookSecrets },
     rateLimitPerMinute: { ...pendingRuntime.rateLimitPerMinute },
+    apiKeyOnly: { ...pendingRuntime.apiKeyOnly },
   };
 
   const apiKeys = await dataSource.getRepository(ResellerApiKey).find({
@@ -206,6 +222,9 @@ export async function reloadResellerAuthRuntime(dataSource: DataSource): Promise
 
     const webhookSecret = r.webhookSigningSecret?.trim();
     if (webhookSecret) maps.webhookSecrets[r.id] = webhookSecret;
+
+    const meta = r.metadata as Record<string, unknown> | null;
+    if (meta && isTruthyFlag(meta.apiKeyOnly)) maps.apiKeyOnly[r.id] = true;
   }
 
   cache = mergeEnvMaps(maps);
@@ -222,6 +241,7 @@ export function getResellerAuthRuntime(): ResellerAuthRuntimeMaps {
     webhooks: { ...pendingRuntime.webhooks },
     webhookSecrets: { ...pendingRuntime.webhookSecrets },
     rateLimitPerMinute: { ...pendingRuntime.rateLimitPerMinute },
+    apiKeyOnly: { ...pendingRuntime.apiKeyOnly },
   });
 }
 

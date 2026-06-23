@@ -73,6 +73,7 @@ export const RESELLER_API_ERROR_CODES = [
   "network_reset_failed",
   "ipv4_assignment_failed",
   "extra_ipv4_limit_reached",
+  "reseller_quota_exceeded",
   "service_suspended",
 ] as const;
 

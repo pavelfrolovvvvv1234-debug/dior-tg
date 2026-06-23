@@ -29,6 +29,7 @@ import {
   debitResellerBalance,
   getResellerBillingUser,
 } from "../modules/reseller/services/reseller-billing.js";
+import Reseller from "../entities/Reseller.js";
 import ResellerAuditLog from "../entities/ResellerAuditLog.js";
 import { getDefaultProxmoxTemplateVmid } from "../app/config.js";
 import {
@@ -66,6 +67,7 @@ type ResellerAuthInfo = {
   webhookUrl: string | null;
   webhookSecret: string | null;
   rateLimitPerMinute: number;
+  apiKeyOnly?: boolean;
 };
 
 type AuthRequest = Request & {
@@ -349,54 +351,58 @@ function requireResellerAuth(
       }
     }
 
-    const signingSecret = signingSecretsMap[resellerId] ?? null;
-    if (!signingSecret) {
-      respondResellerAuthError(res, req, 503, "hmac_signing_required_for_reseller", { resellerId });
-      return;
-    }
+    const signingSecret = signingSecretsMap[resellerId] ?? "";
+    const keyOnly = runtime.apiKeyOnly[resellerId] === true;
 
-    const timestamp = String(req.header("x-timestamp") ?? "").trim();
-    const signature = String(req.header("x-signature") ?? "").trim();
-    const nonce = String(req.header("x-nonce") ?? "").trim();
-    if (!timestamp || !signature) {
-      respondResellerAuthError(res, req, 401, "missing_signature_headers");
-      return;
-    }
-    if (!nonce) {
-      respondResellerAuthError(res, req, 401, "missing_nonce_header");
-      return;
-    }
-    const ts = Number.parseInt(timestamp, 10);
-    const now = Math.floor(Date.now() / 1000);
-    if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkewSeconds) {
-      res.status(401).json({
-        ok: false,
-        error: "signature_timestamp_out_of_range",
-        hint: `x-timestamp must be unix seconds within ±${maxSkewSeconds}s of server time.`,
-        serverTime: now,
-      });
-      return;
-    }
-    const rawBody = req.rawBody ?? "";
-    const expected = buildSignature(signingSecret, timestamp, rawBody);
-    if (!secureEqual(expected, signature)) {
-      respondResellerAuthError(res, req, 401, "invalid_signature", {
-        signingStringPreview:
-          req.method.toUpperCase() === "GET" || req.method.toUpperCase() === "DELETE"
-            ? `${timestamp}.`
-            : `${timestamp}.<raw_body>`,
-      });
-      return;
-    }
-    const nonceKey = `${resellerId}:${nonce}:${timestamp}`;
-    const nonceOk = await claimNonceOnce(nonceKey, maxSkewSeconds);
-    if (!nonceOk) {
-      res.status(409).json({
-        ok: false,
-        error: "nonce_already_used",
-        hint: "Generate a new x-nonce (UUID) for each request.",
-      });
-      return;
+    if (!keyOnly) {
+      if (!signingSecret) {
+        respondResellerAuthError(res, req, 503, "hmac_signing_required_for_reseller", { resellerId });
+        return;
+      }
+
+      const timestamp = String(req.header("x-timestamp") ?? "").trim();
+      const signature = String(req.header("x-signature") ?? "").trim();
+      const nonce = String(req.header("x-nonce") ?? "").trim();
+      if (!timestamp || !signature) {
+        respondResellerAuthError(res, req, 401, "missing_signature_headers");
+        return;
+      }
+      if (!nonce) {
+        respondResellerAuthError(res, req, 401, "missing_nonce_header");
+        return;
+      }
+      const ts = Number.parseInt(timestamp, 10);
+      const now = Math.floor(Date.now() / 1000);
+      if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkewSeconds) {
+        res.status(401).json({
+          ok: false,
+          error: "signature_timestamp_out_of_range",
+          hint: `x-timestamp must be unix seconds within ±${maxSkewSeconds}s of server time.`,
+          serverTime: now,
+        });
+        return;
+      }
+      const rawBody = req.rawBody ?? "";
+      const expected = buildSignature(signingSecret, timestamp, rawBody);
+      if (!secureEqual(expected, signature)) {
+        respondResellerAuthError(res, req, 401, "invalid_signature", {
+          signingStringPreview:
+            req.method.toUpperCase() === "GET" || req.method.toUpperCase() === "DELETE"
+              ? `${timestamp}.`
+              : `${timestamp}.<raw_body>`,
+        });
+        return;
+      }
+      const nonceKey = `${resellerId}:${nonce}:${timestamp}`;
+      const nonceOk = await claimNonceOnce(nonceKey, maxSkewSeconds);
+      if (!nonceOk) {
+        res.status(409).json({
+          ok: false,
+          error: "nonce_already_used",
+          hint: "Generate a new x-nonce (UUID) for each request.",
+        });
+        return;
+      }
     }
 
     const defaultMax = Number.parseInt(process.env.RESELLER_API_RATE_MAX ?? "120", 10) || 120;
@@ -405,11 +411,12 @@ function requireResellerAuth(
     req.resellerAuth = {
       resellerId,
       apiKey,
-      signingSecret,
+      signingSecret: signingSecret || "",
       allowedIps,
       webhookUrl: webhookMap[resellerId] ?? null,
       webhookSecret: webhookSecrets[resellerId] ?? null,
       rateLimitPerMinute,
+      apiKeyOnly: keyOnly,
     };
     next();
     })().catch((err) => {
@@ -1144,6 +1151,25 @@ export function startResellerApiServer(options: ResellerApiOptions): void {
         await idempotencyRelease(req);
         res.status(400).json({ ok: false, error: "unknown_rate_name", ...requestMeta(req) });
         return;
+      }
+
+      const resellerRow = await options.dataSource.getRepository(Reseller).findOneBy({ id: resellerId });
+      if (resellerRow && resellerRow.maxVps > 0) {
+        const serviceCount = await options.dataSource.getRepository(VirtualDedicatedServer).count({
+          where: { resellerId },
+        });
+        if (serviceCount >= resellerRow.maxVps) {
+          await idempotencyRelease(req);
+          res.status(403).json({
+            ok: false,
+            error: "reseller_quota_exceeded",
+            maxVps: resellerRow.maxVps,
+            current: serviceCount,
+            hint: "Partner VPS quota reached. Contact DiorHost to raise maxVps on your plan.",
+            ...requestMeta(req),
+          });
+          return;
+        }
       }
 
       const price = Number(plan.price.bulletproof || plan.price.default || 0);

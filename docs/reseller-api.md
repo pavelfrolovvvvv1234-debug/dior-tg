@@ -18,8 +18,10 @@ Reference (enable `RESELLER_API_EXPOSE_DOCS=1`):
 | `x-api-key` | yes | Reseller API key |
 | `x-timestamp` | yes | Unix seconds |
 | `x-nonce` | yes | One-time UUID |
-| `x-signature` | yes | `hex(HMAC_SHA256(secret, "<timestamp>.<raw_json_body>"))` |
+| `x-signature` | yes* | `hex(HMAC_SHA256(secret, "<timestamp>.<raw_json_body>"))` |
 | `x-idempotency-key` | recommended | Unique key for POST retries (create, import, reinstall) |
+
+\* Partners listed in `RESELLER_API_KEY_ONLY_JSON` (or `resellers.metadata.apiKeyOnly`) authenticate with **`x-api-key` only** — no HMAC. Balance debits, rate limits, and `maxVps` quota still apply.
 
 **GET / DELETE:** request body is empty — sign the string `"<timestamp>."` (note the trailing dot after unix seconds).
 

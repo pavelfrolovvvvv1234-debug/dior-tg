@@ -8,6 +8,7 @@ import ResellerApiKey, {
 } from "../../../entities/ResellerApiKey.js";
 import User, { Role, UserStatus } from "../../../entities/User.js";
 import { RESELLER_PLAN_LIMITS, RESELLER_API_BASE_URL } from "../domain/reseller-plans.js";
+import { getResellerAuthRuntime } from "./reseller-auth-runtime.js";
 import {
   generateApiKeyPair,
   generateReferralCode,
@@ -177,10 +178,29 @@ export class ResellerService {
   }
 
   formatPartnerApiHelp(reseller: Reseller, keyPrefix: string | null): string {
+    const keyOnly = getResellerAuthRuntime().apiKeyOnly[reseller.id] === true;
     const signing = reseller.apiSigningSecret?.trim();
     const keyLine = keyPrefix
       ? `API key prefix: <code>${keyPrefix}…</code> (full key shown once at issue — use admin Rotate if lost)`
       : "API key: not issued yet — ask support to rotate key";
+
+    if (keyOnly) {
+      return [
+        "<b>DiorHost Reseller API</b>",
+        "",
+        `Partner ID: <code>${reseller.id}</code>`,
+        keyLine,
+        "",
+        "<b>Auth:</b> header <code>x-api-key</code> only (HMAC not required for your account).",
+        "Balance, rate limits and VPS quota still apply.",
+        "",
+        `Base: ${RESELLER_API_BASE_URL}`,
+        `Docs: ${RESELLER_API_BASE_URL}/reseller/docs`,
+        "",
+        "Billing: top up balance in this bot (Profile → Deposit).",
+      ].join("\n");
+    }
+
     return [
       "<b>DiorHost Reseller API</b>",
       "",

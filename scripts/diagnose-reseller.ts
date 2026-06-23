@@ -89,17 +89,27 @@ async function main(): Promise<void> {
     .filter(([, rid]) => rid === resellerId)
     .map(([h]) => h.slice(0, 12));
   console.log(`\nRuntime after reload:`);
+  console.log(`  api-key-only (no HMAC): ${runtime.apiKeyOnly[resellerId] ? "YES" : "no"}`);
   console.log(`  signing loaded: ${hasSigning ? "yes" : "NO — API returns hmac_signing_required_for_reseller"}`);
   console.log(`  key hashes: ${keyHashes.length ? keyHashes.join(", ") + "…" : "none"}`);
 
   if (reseller?.telegramId) {
     const user = await ds.getRepository(User).findOneBy({ telegramId: reseller.telegramId });
     console.log(`\nBilling wallet: ${user ? `$${user.balance.toFixed(2)}` : "user row missing"}`);
+    if (reseller.maxVps > 0) {
+      const svcCount = await ds.getRepository(VirtualDedicatedServer).count({ where: { resellerId } });
+      console.log(`VPS quota: ${svcCount} / ${reseller.maxVps} (maxVps plan limit)`);
+    }
   }
 
-  console.log("\nCommon client error missing_signature_headers = only x-api-key sent.");
-  console.log("Partner fix: add x-timestamp, x-nonce, x-signature (HMAC). GET signs \"<ts>.\"");
-  console.log("Partner can run /reseller_api in bot if telegram is linked.\n");
+  if (runtime.apiKeyOnly[resellerId]) {
+    console.log("\nThis partner uses x-api-key only — HMAC headers are not required.");
+  } else {
+    console.log("\nCommon client error missing_signature_headers = only x-api-key sent.");
+    console.log("Partner fix: add x-timestamp, x-nonce, x-signature (HMAC). GET signs \"<ts>.\"");
+    console.log("Partner can run /reseller_api in bot if telegram is linked.");
+  }
+  console.log("");
 
   await closeDataSource();
 }
