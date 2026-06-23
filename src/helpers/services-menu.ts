@@ -42,6 +42,8 @@ import {
   getVpsCpuModelForRate,
 } from "../domain/vds/vps-onboarding-messages.js";
 import { getOrderPriceForUser } from "../shared/pricing/order-discount.js";
+import { joinScreenSections, premiumScreen } from "../ui/design-system.js";
+import { buildVpsReadyCopyKeyboard } from "../ui/utils/copy-keyboard.js";
 
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 
@@ -55,7 +57,10 @@ function cpuModelFromDedicatedName(name: string): string {
  * Dedicated server type selection menu (Standard/Bulletproof).
  */
 const buildServiceHeader = (ctx: AppContext, labelKey: string): string =>
-  `${ctx.t("menu-service-for-buy-choose")}\n\n${ctx.t(labelKey)}`;
+  joinScreenSections(
+    premiumScreen(ctx.t("menu-service-for-buy-choose")),
+    ctx.t(labelKey)
+  );
 
 export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { autoAnswer: false, onMenuOutdated: false })
   .text((ctx) => ctx.t("dedicated-shop-btn-standard"), async (ctx) => {
@@ -397,7 +402,7 @@ async function createAndBuyVDS(
   const osEntry = ctx.osList?.list.find((o) => o.id === osId);
   const osLabel = osEntry ? humanizeVmmOsName(osEntry.name) : `OS #${osId}`;
 
-  const readyHtml = buildPremiumVpsReadyHtml(ctx, {
+  const payload = {
     vmName: displayHost,
     vdsId: newVds.vdsId,
     regionLabel: ctx.t("vps-premium-region-auto"),
@@ -412,7 +417,8 @@ async function createAndBuyVDS(
     ipv4: newVds.ipv4Addr,
     login: newVds.login,
     password: newVds.password,
-  });
+  };
+  const readyHtml = buildPremiumVpsReadyHtml(ctx, payload);
 
   if (waitMessage && chatId) {
     await ctx.api.deleteMessage(chatId, waitMessage.message_id).catch(() => {});
@@ -420,7 +426,7 @@ async function createAndBuyVDS(
   await ctx.reply(readyHtml, {
     parse_mode: "HTML",
     link_preview_options: { is_disabled: true },
-    reply_markup: mainMenu,
+    reply_markup: buildVpsReadyCopyKeyboard(ctx, payload),
   });
 }
 

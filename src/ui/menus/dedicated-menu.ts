@@ -11,6 +11,7 @@ import { TicketType } from "../../entities/Ticket.js";
 import DedicatedServer, { DedicatedServerStatus } from "../../entities/DedicatedServer.js";
 import { Logger } from "../../app/logger.js";
 import { buildServiceInfoBlock } from "../../shared/service-panel.js";
+import { menuCopyTextButton } from "../utils/copy-keyboard.js";
 
 /**
  * Dedicated server menu.
@@ -32,9 +33,9 @@ export const dedicatedMenu = new Menu<AppContext>("dedicated-menu")
             credentials = {};
           }
 
-          range.copyText(ctx.t("button-copy-ip"), credentials.ip || "");
-          range.copyText(ctx.t("button-copy-login"), credentials.login || "");
-          range.copyText(ctx.t("button-copy-password"), credentials.password || "");
+          range.add(menuCopyTextButton(ctx.t("button-copy-ip"), credentials.ip || "") as never);
+          range.add(menuCopyTextButton(ctx.t("button-copy-login"), credentials.login || "") as never);
+          range.add(menuCopyTextButton(ctx.t("button-copy-password"), credentials.password || "") as never);
           range.row();
 
           range.text(

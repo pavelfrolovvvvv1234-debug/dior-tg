@@ -9,7 +9,7 @@ import { Menu } from "@grammyjs/menu";
 import { MoreThan } from "typeorm";
 import { topupMethodMenu } from "../../helpers/deposit-money.js";
 import type { AppContext } from "../../shared/types/context.js";
-import { joinScreenSections } from "../design-system.js";
+import { joinScreenSections, premiumScreen } from "../design-system.js";
 import { ScreenRenderer } from "../screens/renderer.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
 import { PROFILE_LINKS_RU } from "../../shared/ru-texts.js";
@@ -102,7 +102,7 @@ export async function getProfileText(
   const links = locale === "ru" ? PROFILE_LINKS_RU : PROFILE_LINKS_EN;
 
   return joinScreenSections(
-    ctx.t("profile-screen-header"),
+    premiumScreen(ctx.t("profile-screen-header")),
     ctx.t("profile-screen-user", { username: usernameLine }),
     ctx.t("profile-screen-id", { id: idSafe }),
     [

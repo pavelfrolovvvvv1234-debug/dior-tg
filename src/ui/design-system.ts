@@ -10,6 +10,8 @@ import type { InlineKeyboard } from "grammy";
 /** Unified section divider used across card-style screens. */
 export const SCREEN_DIVIDER = "───────────────";
 
+const PREMIUM_STRUCTURE_RE = /(───────────────|━━━━━━━━━━━━━━)/;
+
 const PRE_BLOCK_RE = /(<pre[\s>][\s\S]*?<\/pre>)/gi;
 
 /**
@@ -44,6 +46,45 @@ export function joinScreenSections(...sections: Array<string | null | undefined>
       .filter((section) => section.length > 0)
       .join("\n\n")
   );
+}
+
+/** Whether the message already uses premium card dividers. */
+export function hasPremiumStructure(text: string): boolean {
+  return PREMIUM_STRUCTURE_RE.test(text);
+}
+
+/**
+ * Light card framing for simple Fluent screens (headers, pickers).
+ * Does not change words — only adds a trailing divider when missing.
+ */
+export function premiumScreen(content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) return "";
+  if (hasPremiumStructure(trimmed)) return polishMessageText(trimmed);
+  return polishMessageText(`${trimmed}\n\n${SCREEN_DIVIDER}`);
+}
+
+/**
+ * Welcome: keep brand block as-is, wrap account stats in blockquote.
+ */
+export function wrapWelcomeWithAccountCard(html: string): string {
+  const marker = "👤";
+  const idx = html.indexOf(marker);
+  if (idx === -1) return polishMessageText(premiumScreen(html));
+
+  const head = html.slice(0, idx).trimEnd();
+  const account = html.slice(idx).trim();
+  return polishMessageText(
+    joinScreenSections(premiumScreen(head), `<blockquote>${account}</blockquote>`)
+  );
+}
+
+/**
+ * Optional footer line (e.g. profile links) — appended without altering body copy.
+ */
+export function appendScreenFooter(body: string, footer?: string | null): string {
+  if (!footer?.trim()) return polishMessageText(body);
+  return joinScreenSections(body, footer.trim());
 }
 
 export type PremiumParseMode = "HTML" | "Markdown" | "MarkdownV2";

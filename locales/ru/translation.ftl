@@ -105,6 +105,7 @@ button-pay-service = 💳 Оплатить
 button-copy-ip = 📋 IP
 button-copy-login = 📋 Логин
 button-copy-password = 📋 Пароль
+button-copy-link = 📋 Ссылка
 button-show-password = 👁 Показать пароль
 button-hide-password = 🙈 Скрыть пароль
 

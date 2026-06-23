@@ -13,7 +13,7 @@ import type {
 } from "../../modules/referrals/types.js";
 import { REFERRAL_LIST_PAGE_SIZE } from "../../modules/referrals/referral-list.service.js";
 import { tierBadgeEmoji } from "../../modules/referrals/referral-tier.js";
-import { joinScreenSections } from "../design-system.js";
+import { joinScreenSections, premiumScreen } from "../design-system.js";
 import { truncateTelegramMenuLabel } from "../../shared/users/user-display.js";
 import { formatRelativeTime, formatShortDate } from "./referral-time.js";
 
@@ -46,7 +46,7 @@ export function buildListSummaryHeader(
     : "—";
 
   return joinScreenSections(
-    ctx.t("ref-list-header-title"),
+    premiumScreen(ctx.t("ref-list-header-title")),
     ctx.t("ref-list-summary-card", {
       tierEmoji,
       tier: overview.tier.toUpperCase(),

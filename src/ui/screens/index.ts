@@ -10,5 +10,7 @@ export {
   SCREEN_DIVIDER,
   joinScreenSections,
   polishMessageText,
+  premiumScreen,
+  wrapWelcomeWithAccountCard,
   withPremiumOptions,
 } from "../design-system.js";

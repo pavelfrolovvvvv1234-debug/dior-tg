@@ -9,6 +9,7 @@ import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
 import { ReferralService } from "../../domain/referral/ReferralService.js";
 import { UserRepository } from "../../infrastructure/db/repositories/UserRepository.js";
+import { menuCopyTextButton } from "../utils/copy-keyboard.js";
 import { MIN_WITHDRAW_AMOUNT } from "../conversations/withdraw-conversation.js";
 import User from "../../entities/User.js";
 import ReferralReward from "../../entities/ReferralReward.js";
@@ -132,6 +133,16 @@ async function getReferralStats(
 export const referralsMenu = new Menu<AppContext>("referrals-menu", {
   autoAnswer: false,
 })
+  .dynamic(async (ctx, range) => {
+    const session = await ctx.session;
+    const referralService = new ReferralService(
+      ctx.appDataSource,
+      new UserRepository(ctx.appDataSource)
+    );
+    const link = await referralService.getReferralLink(session.main.user.id);
+    range.add(menuCopyTextButton(ctx.t("button-copy-link"), link) as never);
+    range.row();
+  })
   .url(
     (ctx) => ctx.t("button-share-link"),
     async (ctx) => {

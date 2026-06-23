@@ -10,6 +10,7 @@ import {
   webhookCallback,
 } from "grammy";
 import { setupPremiumUiLayer } from "./app/middlewares/premium-ui-middleware.js";
+import { premiumScreen, wrapWelcomeWithAccountCard } from "./ui/design-system.js";
 import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
@@ -232,7 +233,7 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
     (ctx) => ctx.t("button-purchase"),
     "services-menu",
     async (ctx) => {
-      await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
+      await ctx.editMessageText(premiumScreen(ctx.t("menu-service-for-buy-choose")), {
         parse_mode: "HTML",
       });
     }
@@ -245,11 +246,12 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
       const session = (await ctx.session) as SessionData;
       const { resetVdsManageListView } = await import("./helpers/manage-services.js");
       resetVdsManageListView(session);
-      await ctx.editMessageText(ctx.t("manage-services-header"), {
+      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
         parse_mode: "HTML",
       });
     }
   )
+  .row()
   .submenu(
     (ctx) => ctx.t("button-personal-profile"),
     "profile-menu",
@@ -296,6 +298,7 @@ export const mainMenu = new Menu<AppContext>("main-menu", { autoAnswer: false, o
       }
     }
   )
+  .row()
   .text(
     (ctx) => ctx.t("button-crypto-exchange"),
     async (ctx) => {
@@ -998,14 +1001,16 @@ async function index() {
           typeof vars?.servicesCount === "number"
             ? vars.servicesCount
             : Number((ctx as any)._activeServicesCount ?? 0);
-        return String(
-          fluent.translate(locale, "welcome", {
-            balance: baseBalance,
-            username,
-            userId,
-            userIdText,
-            servicesCount,
-          })
+        return wrapWelcomeWithAccountCard(
+          String(
+            fluent.translate(locale, "welcome", {
+              balance: baseBalance,
+              username,
+              userId,
+              userIdText,
+              servicesCount,
+            })
+          )
         );
       }
       fluentObj.useLocale?.(locale);

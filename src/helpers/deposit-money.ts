@@ -1,4 +1,5 @@
 import { Menu } from "@grammyjs/menu";
+import { premiumScreen } from "../ui/design-system.js";
 import { Context, InlineKeyboard } from "grammy";
 import type { AppContext, AppConversation } from "../shared/types/context";
 import { PaymentBuilder } from "@/api/payment";
@@ -14,7 +15,7 @@ function shouldAutoProceedWithPrefilledAmount(session: any): boolean {
 }
 
 function renderTopupMethodText(ctx: AppContext): string {
-  return ctx.t("topup-select-method");
+  return premiumScreen(ctx.t("topup-select-method"));
 }
 
 function normalizeTopupAmount(raw: number): number {
@@ -36,7 +37,7 @@ function getSelectedTopupAmount(session: any): number {
 export function renderTopupAmountsText(ctx: AppContext): string {
   const session = ctx.session as any;
   getSelectedTopupAmount(session);
-  return ctx.t("topup-amounts-title");
+  return premiumScreen(ctx.t("topup-amounts-title"));
 }
 
 async function showTopupMethodMenu(ctx: AppContext): Promise<void> {

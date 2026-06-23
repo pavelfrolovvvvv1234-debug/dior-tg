@@ -103,6 +103,7 @@ button-pay-service = 💳 Pay
 button-copy-ip = 📋 IP
 button-copy-login = 📋 Login
 button-copy-password = 📋 Password
+button-copy-link = 📋 Link
 button-show-password = 👁 Show password
 button-hide-password = 🙈 Hide password
 

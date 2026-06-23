@@ -18,6 +18,8 @@ import {
   type VpsShopTier,
 } from "./vds-shop-config.js";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
+import { showProgress } from "../../ui/utils/animations.js";
+import { buildVpsReadyCopyKeyboard } from "../../ui/utils/copy-keyboard.js";
 import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
@@ -277,14 +279,21 @@ async function createVpsOrderDirect(
 
   let deducted = false;
   const chatId = ctx.chat?.id;
+  const waitText = ctx.t("vds-provisioning-wait");
   const waitMessage = chatId
-    ? await ctx.reply(ctx.t("vds-provisioning-wait"), {
+    ? await ctx.reply(waitText, {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
       }).catch(() => undefined)
     : undefined;
 
+  const touchProgress = async (progress: number): Promise<void> => {
+    if (!waitMessage || !chatId) return;
+    await showProgress(ctx, waitMessage.message_id, waitText, progress).catch(() => {});
+  };
+
   try {
+    await touchProgress(0.06);
     user.balance -= price;
     await usersRepo.save(user);
     deducted = true;
@@ -298,6 +307,7 @@ async function createVpsOrderDirect(
     let lastVmDisplayName = "";
 
     for (let attempt = 1; attempt <= maxProvisionAttempts; attempt++) {
+      await touchProgress(0.12 + (attempt - 1) * 0.08);
       const generatedPassword = generatePassword(12);
       const vmName = generateRandomName(13);
       const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey},try:${attempt}`;
@@ -326,6 +336,8 @@ async function createVpsOrderDirect(
         continue;
       }
 
+      await touchProgress(0.52);
+
       let vmInfo: any | undefined;
       for (let i = 0; i < 6; i++) {
         vmInfo = await ctx.vmmanager.getInfoVM(vmResult.id);
@@ -341,6 +353,8 @@ async function createVpsOrderDirect(
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
       const ip = ipv4Addrs?.list?.[0]?.ip_addr ?? "0.0.0.0";
+
+      await touchProgress(0.78);
 
       const vds = new VirtualDedicatedServer();
       vds.vdsId = vmResult.id;
@@ -416,6 +430,7 @@ async function createVpsOrderDirect(
     await ctx.reply(readyHtml, {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
+      reply_markup: buildVpsReadyCopyKeyboard(ctx, payload),
     }).catch(() => {});
 
     void import("../../modules/automations/engine/event-bus.js").then(({ emit }) => {

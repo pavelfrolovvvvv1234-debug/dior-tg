@@ -7,7 +7,7 @@
 
 import { InlineKeyboard } from "grammy";
 import type { AppContext } from "../../shared/types/context.js";
-import { joinScreenSections, polishMessageText, withPremiumOptions } from "../design-system.js";
+import { joinScreenSections, polishMessageText, premiumScreen, withPremiumOptions, wrapWelcomeWithAccountCard } from "../design-system.js";
 import type { RenderedScreen } from "./types.js";
 
 /**
@@ -78,7 +78,7 @@ export class ScreenRenderer {
   renderWelcome(data: { balance: number; locale?: string }): RenderedScreen {
     (this.ctx as any)._requestLocale = data.locale ?? (this.ctx as any)._requestLocale ?? "ru";
     return {
-      text: polishMessageText(this.ctx.t("welcome", { balance: data.balance })),
+      text: wrapWelcomeWithAccountCard(this.ctx.t("welcome", { balance: data.balance })),
       parse_mode: "HTML",
     };
   }
@@ -177,6 +177,26 @@ export class ScreenRenderer {
       description: message,
       actions: keyboard,
     });
+  }
+
+  /**
+   * Premium card layout for composed Fluent / HTML blocks.
+   */
+  renderCard(...sections: Array<string | null | undefined>): RenderedScreen {
+    return {
+      text: joinScreenSections(...sections),
+      parse_mode: "HTML",
+    };
+  }
+
+  /**
+   * Simple screen with automatic card divider.
+   */
+  renderMenuScreen(fluentKey: string, vars?: Record<string, string | number>): RenderedScreen {
+    return {
+      text: premiumScreen(this.ctx.t(fluentKey, vars)),
+      parse_mode: "HTML",
+    };
   }
 
   /**

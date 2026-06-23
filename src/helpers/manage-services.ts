@@ -28,6 +28,8 @@ import {
 } from "../shared/vmm-os-display.js";
 import { clearedInlineKeyboard } from "../shared/cleared-inline-keyboard.js";
 import { buildVdsProxmoxDescriptionLine } from "@/shared/vds-proxmox-label.js";
+import { premiumScreen } from "../ui/design-system.js";
+import { menuCopyTextButton } from "../ui/utils/copy-keyboard.js";
 import { Logger } from "../app/logger.js";
 import { getExtraIpv4MonthlyPriceUsd, MAX_EXTRA_IPV4_PER_VDS } from "../domain/vds/extra-ipv4.js";
 import { providerHas } from "../api/reseller-api-vm-ops.js";
@@ -866,7 +868,13 @@ export const vdsManageSpecific = new Menu<AppContext>(
     return;
   }
 
-  range.copyText(ctx.t("vds-button-copy-password"), vds.password);
+  const ip = vds.ipv4Addr?.trim() ?? "";
+  if (ip && ip !== "0.0.0.0" && ip !== "127.0.0.1") {
+    range.add(menuCopyTextButton(ctx.t("button-copy-ip"), ip) as never);
+  }
+  range.add(menuCopyTextButton(ctx.t("button-copy-login"), vds.login) as never);
+  range.add(menuCopyTextButton(ctx.t("vds-button-copy-password"), vds.password) as never);
+  range.row();
 
   if (!demoMode && info.state == "creating") {
     range.text(ctx.t("update-button"), async (ctx) => {
@@ -1714,7 +1722,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
         return;
       }
 
-      await ctx.editMessageText(ctx.t("manage-services-header"), {
+      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
         parse_mode: "HTML",
         reply_markup: manageServicesMenu,
       });
@@ -1913,7 +1921,7 @@ export const domainManageServicesMenu = new Menu<AppContext>(
     async (ctx) => {
       const session = await ctx.session;
       await ctx.editMessageText(
-        ctx.t("manage-services-header"),
+        premiumScreen(ctx.t("manage-services-header")),
         {
           parse_mode: "HTML",
         }
@@ -2015,7 +2023,7 @@ export const bundleManageServicesMenu = new Menu<AppContext>(
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      await ctx.editMessageText(ctx.t("manage-services-header"), {
+      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
         parse_mode: "HTML",
         reply_markup: manageServicesMenu,
       });
