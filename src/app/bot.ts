@@ -21,6 +21,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { config, isWebhookMode, getWebhookPort } from "./config.js";
 import { Logger } from "./logger.js";
 import { setupPremiumUiLayer } from "./middlewares/premium-ui-middleware.js";
+import { wrapWelcomeWithAccountCard } from "../ui/design-system.js";
 import { setupErrorHandler } from "./error-handler.js";
 import {
   databaseMiddleware,
@@ -264,7 +265,9 @@ export async function createBot(): Promise<{
       const locale = (ctx as any)._requestLocale ?? "ru";
       const safeVars = patchTranslateVars(vars);
       if (key === "welcome") {
-        return String(fluent.translate(locale, "welcome", safeVars ?? {}));
+        return wrapWelcomeWithAccountCard(
+          String(fluent.translate(locale, "welcome", safeVars ?? {}))
+        );
       }
       return typeof origT === "function" ? origT(key, safeVars) : key;
     };

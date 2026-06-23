@@ -13,6 +13,45 @@ export const SCREEN_DIVIDER = "───────────────";
 const PREMIUM_STRUCTURE_RE = /(───────────────|━━━━━━━━━━━━━━)/;
 
 const PRE_BLOCK_RE = /(<pre[\s>][\s\S]*?<\/pre>)/gi;
+const BLOCKQUOTE_RE = /(<blockquote>)([\s\S]*?)(<\/blockquote>)/gi;
+
+function trimBlockquoteContent(text: string): string {
+  return text.replace(BLOCKQUOTE_RE, (_match, open: string, content: string, close: string) => {
+    return `${open}${content.replace(/[ \t]+$/gm, "").trim()}${close}`;
+  });
+}
+
+function tightenWelcomeLines(text: string): string {
+  const lines = text.split("\n").map((line) => line.trim());
+  const out: string[] = [];
+  let prevEmpty = false;
+  for (const line of lines) {
+    const empty = line.length === 0;
+    if (empty) {
+      if (!prevEmpty && out.length > 0) out.push("");
+      prevEmpty = true;
+      continue;
+    }
+    out.push(line);
+    prevEmpty = false;
+  }
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  return out.join("\n");
+}
+
+function tightenWelcomeLayout(text: string): string {
+  let next = text.trim();
+  next = next.replace(
+    new RegExp(`\\n{2,}${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n{2,}`, "g"),
+    `\n${SCREEN_DIVIDER}\n`
+  );
+  next = next.replace(
+    new RegExp(`${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n{2,}<blockquote>`, "g"),
+    `${SCREEN_DIVIDER}\n<blockquote>`
+  );
+  next = trimBlockquoteContent(next);
+  return next.replace(/\n{3,}/g, "\n\n").trimEnd();
+}
 
 /**
  * Normalize vertical rhythm without altering words, emojis, or markup semantics.
@@ -21,7 +60,8 @@ const PRE_BLOCK_RE = /(<pre[\s>][\s\S]*?<\/pre>)/gi;
 export function polishMessageText(text: string): string {
   if (!text) return text;
 
-  const parts = text.split(PRE_BLOCK_RE);
+  const withQuotes = trimBlockquoteContent(text);
+  const parts = withQuotes.split(PRE_BLOCK_RE);
 
   return parts
     .map((part, index) => {
@@ -65,18 +105,24 @@ export function premiumScreen(content: string): string {
 }
 
 /**
- * Welcome: keep brand block as-is, wrap account stats in blockquote.
+ * Welcome: brand block + divider + account blockquote (tight spacing, idempotent).
  */
 export function wrapWelcomeWithAccountCard(html: string): string {
-  const marker = "👤";
-  const idx = html.indexOf(marker);
-  if (idx === -1) return polishMessageText(premiumScreen(html));
+  const raw = html.trim();
+  if (!raw) return "";
 
-  const head = html.slice(0, idx).trimEnd();
-  const account = html.slice(idx).trim();
-  return polishMessageText(
-    joinScreenSections(premiumScreen(head), `<blockquote>${account}</blockquote>`)
-  );
+  if (/<blockquote[\s>]/i.test(raw)) {
+    return polishMessageText(tightenWelcomeLayout(raw));
+  }
+
+  const marker = "👤";
+  const idx = raw.indexOf(marker);
+  if (idx === -1) return polishMessageText(tightenWelcomeLines(raw));
+
+  const head = tightenWelcomeLines(raw.slice(0, idx));
+  const account = tightenWelcomeLines(raw.slice(idx));
+  const body = head.length > 0 ? `${head}\n${SCREEN_DIVIDER}\n` : "";
+  return polishMessageText(tightenWelcomeLayout(`${body}<blockquote>${account}</blockquote>`));
 }
 
 /**
