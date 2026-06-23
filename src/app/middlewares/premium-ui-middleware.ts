@@ -1,5 +1,5 @@
 /**
- * Global premium UI layer: typing feedback + unified Telegram message polish.
+ * Global premium UI layer: unified Telegram message polish.
  *
  * @module app/middlewares/premium-ui-middleware
  */
@@ -30,17 +30,9 @@ function patchContextMessageMethods(ctx: AppContext): void {
     )) as typeof ctx.editMessageText;
 }
 
-/**
- * Subtle typing indicator on inline navigation (private chats).
- */
 export function premiumUiMiddleware(): MiddlewareFn<AppContext> {
   return async (ctx, next) => {
     patchContextMessageMethods(ctx);
-
-    if (ctx.callbackQuery && ctx.chat?.type === "private") {
-      void ctx.api.sendChatAction(ctx.chat.id, "typing").catch(() => {});
-    }
-
     await next();
   };
 }

@@ -12,12 +12,9 @@ import {
   withPremiumOptions,
   type PremiumMessageExtra,
 } from "../design-system.js";
-import { editOrSend, showTyping } from "./animations.js";
+import { editOrSend } from "./animations.js";
 
-export type PremiumDeliveryOptions = PremiumMessageExtra & {
-  typingMs?: number;
-  skipTyping?: boolean;
-};
+export type PremiumDeliveryOptions = PremiumMessageExtra;
 
 function prepareText(text: string): string {
   return polishMessageText(text);
@@ -25,18 +22,7 @@ function prepareText(text: string): string {
 
 function prepareOptions(options?: PremiumDeliveryOptions): PremiumMessageExtra | undefined {
   if (!options) return withPremiumOptions();
-  const { typingMs: _typingMs, skipTyping: _skipTyping, ...rest } = options;
-  return withPremiumOptions(rest);
-}
-
-/**
- * Brief typing indicator before screen transitions (premium SaaS feel).
- */
-export async function showPremiumTransition(
-  ctx: AppContext,
-  durationMs: number = 320
-): Promise<void> {
-  await showTyping(ctx, durationMs);
+  return withPremiumOptions(options);
 }
 
 /**
@@ -47,10 +33,6 @@ export async function replyPremiumMessage(
   text: string,
   options?: PremiumDeliveryOptions
 ) {
-  if (!options?.skipTyping) {
-    void showTyping(ctx, options?.typingMs ?? 0);
-  }
-
   return ctx.reply(prepareText(text), prepareOptions(options) as Parameters<typeof ctx.reply>[1]);
 }
 
@@ -62,10 +44,6 @@ export async function editPremiumMessage(
   text: string,
   options?: PremiumDeliveryOptions
 ) {
-  if (!options?.skipTyping) {
-    void showTyping(ctx, options?.typingMs ?? 0);
-  }
-
   return ctx.editMessageText(
     prepareText(text),
     prepareOptions(options) as Parameters<typeof ctx.editMessageText>[1]
@@ -80,10 +58,6 @@ export async function deliverPremiumScreen(
   screen: RenderedScreen,
   options?: PremiumDeliveryOptions
 ): Promise<number> {
-  if (!options?.skipTyping) {
-    void showTyping(ctx, options?.typingMs ?? 0);
-  }
-
   const parseMode = screen.parse_mode ?? "HTML";
   const extra = withPremiumOptions({
     parse_mode: parseMode,

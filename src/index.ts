@@ -10,7 +10,6 @@ import {
   webhookCallback,
 } from "grammy";
 import { setupPremiumUiLayer } from "./app/middlewares/premium-ui-middleware.js";
-import { showPremiumTransition } from "./ui/utils/premium-message.js";
 import { FluentContextFlavor, useFluent } from "@grammyjs/fluent";
 import { initFluent } from "./fluent";
 import { FileAdapter } from "@grammyjs/storage-file";
@@ -1081,7 +1080,6 @@ async function index() {
       const hasLocale = session.main.locale && session.main.locale !== "0" && (session.main.locale === "ru" || session.main.locale === "en");
       if (hasLocale) {
         const welcomeText = ctx.t("welcome", { balance: session.main.user.balance });
-        await showPremiumTransition(ctx as AppContext, 420);
         await ctx.reply(welcomeText, {
           reply_markup: mainMenu,
           parse_mode: "HTML",

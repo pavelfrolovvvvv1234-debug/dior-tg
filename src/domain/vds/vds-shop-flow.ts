@@ -18,7 +18,6 @@ import {
   type VpsShopTier,
 } from "./vds-shop-config.js";
 import { showTopupForMissingAmount } from "../../helpers/deposit-money.js";
-import { showTyping } from "../../ui/utils/animations.js";
 import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
 import { getModeratorChatId } from "../../shared/moderator-chat.js";
@@ -278,9 +277,6 @@ async function createVpsOrderDirect(
 
   let deducted = false;
   const chatId = ctx.chat?.id;
-  if (chatId) {
-    await showTyping(ctx, 480);
-  }
   const waitMessage = chatId
     ? await ctx.reply(ctx.t("vds-provisioning-wait"), {
         parse_mode: "HTML",
