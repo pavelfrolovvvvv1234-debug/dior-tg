@@ -21,41 +21,74 @@ function trimBlockquoteContent(text: string): string {
   });
 }
 
-function trimLineEnds(text: string): string {
-  return text
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/\n+$/, "");
+function escapeDividerForRegExp(): string {
+  return SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function stripWelcomeMarkup(text: string): string {
+function normalizeWelcomeHead(text: string): string {
+  const lines = text.split("\n").map((line) => line.trim());
+  const out: string[] = [];
+  let prevEmpty = false;
+  for (const line of lines) {
+    if (line.length === 0) {
+      if (!prevEmpty && out.length > 0) {
+        out.push("");
+        prevEmpty = true;
+      }
+      continue;
+    }
+    out.push(line);
+    prevEmpty = false;
+  }
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  return out.join("\n");
+}
+
+function normalizeWelcomeAccount(text: string): string {
   return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+}
+
+function stripWelcomeProcessing(html: string): string {
+  return html
     .replace(/<\/?blockquote[^>]*>/gi, "")
-    .replace(new RegExp(`\\n*${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n*`, "g"), "\n");
+    .replace(new RegExp(`\\n*${escapeDividerForRegExp()}\\n*`, "g"), "\n")
+    .trim();
+}
+
+function polishWelcomeLayout(text: string): string {
+  const divider = escapeDividerForRegExp();
+  return trimBlockquoteContent(text)
+    .replace(/[ \t]+$/gm, "")
+    .replace(new RegExp(`\\n{2,}${divider}\\n{2,}`, "g"), `\n${SCREEN_DIVIDER}\n`)
+    .replace(new RegExp(`${divider}\\n{2,}<blockquote>`, "g"), `${SCREEN_DIVIDER}\n<blockquote>`)
+    .replace(/<blockquote>\s+/g, "<blockquote>")
+    .replace(/\s+<\/blockquote>/g, "</blockquote>")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
 }
 
 /**
- * Welcome: compact layout like native Fluent — divider + account tree, no blockquote padding.
+ * Welcome: screenshot-2 layout — divider + compact blockquote account card.
  */
 export function wrapWelcomeWithAccountCard(html: string): string {
-  const raw = stripWelcomeMarkup(html.trim());
+  const raw = stripWelcomeProcessing(html);
   if (!raw) return "";
 
   const marker = "👤";
   const idx = raw.indexOf(marker);
-  if (idx === -1) return trimLineEnds(raw);
+  if (idx === -1) return polishWelcomeLayout(normalizeWelcomeHead(raw));
 
-  const head = trimLineEnds(raw.slice(0, idx)).replace(/\n+$/, "");
-  const account = trimLineEnds(raw.slice(idx));
+  let head = normalizeWelcomeHead(raw.slice(0, idx));
+  const account = normalizeWelcomeAccount(raw.slice(idx));
 
-  const headWithoutDivider = head.replace(
-    new RegExp(`\\n*${SCREEN_DIVIDER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n*$`),
-    ""
-  );
+  head = head.replace(new RegExp(`\\n*${escapeDividerForRegExp()}\\n*$`), "").trimEnd();
 
-  return trimLineEnds(`${headWithoutDivider}\n${SCREEN_DIVIDER}\n${account}`);
+  const body = `${head}\n${SCREEN_DIVIDER}\n<blockquote>${account}</blockquote>`;
+  return polishWelcomeLayout(body);
 }
 
 /**
@@ -163,7 +196,9 @@ export function enhanceTelegramTextPayload(
 
   const text = payload.text;
   if (typeof text === "string") {
-    payload.text = polishMessageText(text);
+    payload.text = text.includes("<blockquote>")
+      ? polishWelcomeLayout(text)
+      : polishMessageText(text);
   }
 
   if (payload.parse_mode === "HTML" && payload.link_preview_options == null) {
