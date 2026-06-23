@@ -6,7 +6,7 @@ strong-balance = <strong>{NUMBER($balance, style: "currency", currency: "USD", m
 
 welcome = 🔷 DiorHost — Servers, Domains, CDN
     Bulletproof Infrastructure
-    High availability • Stable routing • 99.9% uptime
+    High availability • No logs, No KYC • 99.9% uptime
     
     👤 @{$username}
     ├ <b>Balance:</b> <code>${NUMBER($balance, minimumFractionDigits: 2, maximumFractionDigits: 2)}</code>
