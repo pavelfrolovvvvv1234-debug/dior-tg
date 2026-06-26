@@ -1406,7 +1406,9 @@ admin-cdn-search-prompt = Send search query (proxyId, domain, origin) or “clea
 admin-cdn-sync-success = ✅ CDN records synchronized.
 
 vds-autorenew-notify =
-    ✅ <strong>VDS #{$vdsId} — subscription renewed</strong>
+    ✅ <strong>Subscription renewed</strong>
+
+    <b>{$titleLine}</b>
 
     🔄 Auto-renewed for 1 month
     💳 Charged from balance: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
@@ -1450,14 +1452,18 @@ vds-reinstall-failed = ❌ OS reinstall failed (hypervisor error or clone timeou
 dedicated-servers = This section will be available soon. In the meantime, you can get information about dedicated servers via DM in tech support.
 
 vds-expiration =
-    ⏰ <strong>VDS #{$vdsId} subscription expired</strong>
+    ⏰ <strong>Subscription expired</strong>
+
+    <b>{$titleLine}</b>
 
     💰 Top up {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ or renew manually.
 
     ⏳ You have <strong>3 days</strong> before the service is removed.
 
 vds-grace-insufficient =
-    ⚠️ <strong>VDS #{$vdsId} subscription expired</strong>
+    ⚠️ <strong>Subscription expired</strong>
+
+    <b>{$titleLine}</b>
 
     ├ 🖥 <b>Status:</b> VM stopped
     ├ 🔄 <b>Auto-renew:</b> failed — insufficient balance
@@ -1467,7 +1473,9 @@ vds-grace-insufficient =
     ⏳ <strong>3 days</strong> left — top up or renew manually, or the service will be deleted.
 
 vds-grace-autorenew-off =
-    ⚠️ <strong>VDS #{$vdsId} subscription expired</strong>
+    ⚠️ <strong>Subscription expired</strong>
+
+    <b>{$titleLine}</b>
 
     ├ 🖥 <b>Status:</b> VM stopped
     ├ 🔄 <b>Auto-renew:</b> off
@@ -1476,7 +1484,9 @@ vds-grace-autorenew-off =
     ⏳ Renew manually within <strong>3 days</strong>, or the service will be deleted.
 
 vds-deleted-after-grace =
-    ❌ <strong>VDS #{$vdsId} removed</strong>
+    ❌ <strong>Service removed</strong>
+
+    <b>{$titleLine}</b>
 
     The 3-day grace period ended without payment — service and data deleted.
 
@@ -2169,7 +2179,8 @@ bot-cmd-balance = Check balance
 bot-cmd-services = Services
 
 vds-expiration-btn-topup = 💳 Top up balance
-vds-expiration-btn-manage = 🖥 My services
+vds-expiration-btn-renew = ✅ Renew
+vds-expiration-btn-manage = 🖥 Open VPS
 
 nps-promoter =
     🎉 <strong>Thanks for the rating!</strong>

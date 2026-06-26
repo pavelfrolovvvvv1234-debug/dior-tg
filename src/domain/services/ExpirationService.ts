@@ -18,6 +18,10 @@ import DomainRequest, { DomainRequestStatus } from "../../entities/DomainRequest
 import User from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
 import { retry } from "../../shared/utils/retry.js";
+import {
+  buildVdsExpirationFluentArgs,
+  buildVdsExpirationKeyboard,
+} from "../../shared/vds-expiration-ui.js";
 
 /** Callback when grace period starts (3 days left). Used for growth trigger discount. */
 export type OnGracePeriodStarted = (
@@ -162,10 +166,10 @@ export class ExpirationService {
             Logger.warn(`Could not start VM ${vds.vdsId} after auto-renew`);
           }
 
-          await this.notifyUser(user.telegramId, user.lang || "ru", "vds-autorenew-notify", {
-            vdsId: vds.id,
+          await this.notifyUser(user, vds, "vds-autorenew-notify", {
+            ...buildVdsExpirationFluentArgs(vds),
             amount: vds.renewalPrice,
-          });
+          }, { withActions: false });
 
           Logger.info(`VDS ${vds.id} auto-renewed for user ${user.id}`);
           continue;
@@ -192,19 +196,17 @@ export class ExpirationService {
           let graceKey: "vds-grace-insufficient" | "vds-grace-autorenew-off" | "vds-expiration" =
             "vds-expiration";
           const graceArgs: Record<string, string | number> = {
+            ...buildVdsExpirationFluentArgs(vds),
             amount: vds.renewalPrice,
-            vdsId: vds.id,
+            missing,
           };
           if (autoRenewOn && user.balance < vds.renewalPrice) {
             graceKey = "vds-grace-insufficient";
-            graceArgs.missing = missing;
           } else if (!autoRenewOn) {
             graceKey = "vds-grace-autorenew-off";
           }
 
-          await this.notifyUser(user.telegramId, user.lang || "ru", graceKey, graceArgs, {
-            vdsId: vds.id,
-          });
+          await this.notifyUser(user, vds, graceKey, graceArgs);
           if (this.onGracePeriodStarted) {
             this.onGracePeriodStarted(user.id, vds.id, "vds").catch((e) =>
               Logger.error(`[Expiration] onGracePeriodStarted failed`, e)
@@ -241,7 +243,6 @@ export class ExpirationService {
         await vdsRepo.save(vds);
 
         if (vds.payDayAt && new Date(vds.payDayAt).getTime() <= Date.now()) {
-          const deletedId = vds.id;
           await retry(
             () => this.vmManager.deleteVM(vds.vdsId),
             {
@@ -253,9 +254,9 @@ export class ExpirationService {
             Logger.error(`Failed to delete VM ${vds.vdsId} for VDS ${vds.id}`, error);
           });
 
-          await this.notifyUser(user.telegramId, user.lang || "ru", "vds-deleted-after-grace", {
-            vdsId: deletedId,
-          }, { withActions: false });
+          await this.notifyUser(user, vds, "vds-deleted-after-grace", buildVdsExpirationFluentArgs(vds), {
+            withActions: false,
+          });
 
           await vdsRepo.deleteById(vds.id);
           Logger.info(`VDS ${vds.id} deleted (grace period expired)`);
@@ -338,26 +339,33 @@ export class ExpirationService {
    * Notify user about expiration.
    */
   private async notifyUser(
-    telegramId: number,
-    locale: string,
+    user: User,
+    vds: VirtualDedicatedServer,
     key: string,
     args?: Record<string, string | number>,
-    options?: { vdsId?: number; withActions?: boolean }
+    options?: { withActions?: boolean }
   ): Promise<void> {
     try {
+      const locale = user.lang || "ru";
       const message = this.fluent.translate(locale, key, (args || {}) as Record<string, string | number>);
       const extra: { parse_mode: "HTML"; reply_markup?: import("grammy").InlineKeyboard } = {
         parse_mode: "HTML",
       };
-      if (options?.withActions !== false && options?.vdsId != null) {
-        const { InlineKeyboard } = await import("grammy");
-        extra.reply_markup = new InlineKeyboard()
-          .text(this.fluent.translate(locale, "vds-expiration-btn-topup"), "exp:topup")
-          .text(this.fluent.translate(locale, "vds-expiration-btn-manage"), `exp:vds:${options.vdsId}`);
+      if (options?.withActions !== false) {
+        extra.reply_markup = buildVdsExpirationKeyboard(
+          (loc, k) => this.fluent.translate(loc, k),
+          locale,
+          {
+            vdsId: vds.id,
+            userBalance: user.balance,
+            renewalPrice: vds.renewalPrice,
+            autoRenewOn: vds.autoRenewEnabled !== false,
+          }
+        );
       }
-      await this.bot.api.sendMessage(telegramId, message, extra);
+      await this.bot.api.sendMessage(user.telegramId, message, extra);
     } catch (error) {
-      Logger.error(`Failed to notify user ${telegramId}`, error);
+      Logger.error(`Failed to notify user ${user.telegramId}`, error);
     }
   }
 }

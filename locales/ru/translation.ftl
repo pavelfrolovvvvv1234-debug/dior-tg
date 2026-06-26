@@ -1421,7 +1421,9 @@ admin-cdn-search-prompt = Отправьте строку поиска (proxyId,
 admin-cdn-sync-success = ✅ CDN записи синхронизированы.
 
 vds-autorenew-notify =
-    ✅ <strong>VDS #{$vdsId} — подписка продлена</strong>
+    ✅ <strong>Подписка продлена</strong>
+
+    <b>{$titleLine}</b>
 
     🔄 Автопродление на 1 месяц
     💳 Списано с баланса: {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $
@@ -1465,14 +1467,18 @@ vds-reinstall-failed = ❌ Не удалось переустановить ОС
 dedicated-servers = Этот раздел скоро будет доступен, а пока вы можете ознакомится с выделенными машинами через ЛС в ТП.
 
 vds-expiration =
-    ⏰ <strong>Срок VDS #{$vdsId} истёк</strong>
+    ⏰ <strong>Срок оплаты истёк</strong>
+
+    <b>{$titleLine}</b>
 
     💰 Пополните баланс на {NUMBER($amount, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ или продлите вручную.
 
     ⏳ У вас <strong>3 дня</strong>, затем услуга будет удалена.
 
 vds-grace-insufficient =
-    ⚠️ <strong>Срок VDS #{$vdsId} истёк</strong>
+    ⚠️ <strong>Срок оплаты истёк</strong>
+
+    <b>{$titleLine}</b>
 
     ├ 🖥 <b>Статус:</b> ВМ остановлена
     ├ 🔄 <b>Автопродление:</b> не выполнено — не хватает средств
@@ -1482,7 +1488,9 @@ vds-grace-insufficient =
     ⏳ Осталось <strong>3 дня</strong> — пополните баланс или продлите вручную, иначе услуга будет удалена.
 
 vds-grace-autorenew-off =
-    ⚠️ <strong>Срок VDS #{$vdsId} истёк</strong>
+    ⚠️ <strong>Срок оплаты истёк</strong>
+
+    <b>{$titleLine}</b>
 
     ├ 🖥 <b>Статус:</b> ВМ остановлена
     ├ 🔄 <b>Автопродление:</b> выключено
@@ -1491,7 +1499,9 @@ vds-grace-autorenew-off =
     ⏳ Продлите вручную в течение <strong>3 дней</strong>, иначе услуга будет удалена.
 
 vds-deleted-after-grace =
-    ❌ <strong>VDS #{$vdsId} удалена</strong>
+    ❌ <strong>Услуга удалена</strong>
+
+    <b>{$titleLine}</b>
 
     Срок ожидания оплаты (3 дня) истёк — услуга и данные удалены.
 
@@ -2187,7 +2197,8 @@ bot-cmd-balance = Проверить баланс
 bot-cmd-services = Услуги
 
 vds-expiration-btn-topup = 💳 Пополнить баланс
-vds-expiration-btn-manage = 🖥 Мои услуги
+vds-expiration-btn-renew = ✅ Продлить
+vds-expiration-btn-manage = 🖥 Открыть VPS
 
 nps-promoter =
     🎉 <strong>Спасибо за оценку!</strong>

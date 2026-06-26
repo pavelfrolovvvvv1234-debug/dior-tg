@@ -9,7 +9,10 @@ import { getOffer, setOffer } from "../storage.js";
 import { canSendCommercialPush, markCommercialPushSent } from "./commercial-limiter.js";
 import { Logger } from "../../../app/logger.js";
 import type { GrowthSendMessageFn } from "./send-message.js";
-import { InlineKeyboard } from "grammy";
+import { getAppDataSource } from "../../../infrastructure/db/datasource.js";
+import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
+import User from "../../../entities/User.js";
+import { buildVdsExpirationKeyboard } from "../../../shared/vds-expiration-ui.js";
 
 const GRACE_DAY2_KEY = "growth_grace_day2:";
 const GRACE_DAY3_KEY = "growth_grace_day3:";
@@ -26,6 +29,33 @@ function hoursUntilPayDay(payDayAt: Date): number {
   return (new Date(payDayAt).getTime() - Date.now()) / (60 * 60 * 1000);
 }
 
+async function loadGraceKeyboard(
+  vdsId: number,
+  userId: number,
+  locale: string,
+  translate: (locale: string, key: string) => string
+) {
+  const dataSource = await getAppDataSource();
+  const [vds, user] = await Promise.all([
+    dataSource.getRepository(VirtualDedicatedServer).findOneBy({ id: vdsId }),
+    dataSource.getRepository(User).findOneBy({ id: userId }),
+  ]);
+  if (!vds || !user) {
+    return buildVdsExpirationKeyboard(translate, locale, {
+      vdsId,
+      userBalance: 0,
+      renewalPrice: vds?.renewalPrice ?? 0,
+      autoRenewOn: true,
+    });
+  }
+  return buildVdsExpirationKeyboard(translate, locale, {
+    vdsId: vds.id,
+    userBalance: user.balance,
+    renewalPrice: vds.renewalPrice,
+    autoRenewOn: vds.autoRenewEnabled !== false,
+  });
+}
+
 /**
  * Send Day 2 or Day 3 reminder if applicable. Returns true if a message was sent.
  */
@@ -38,9 +68,7 @@ export async function maybeSendGraceDay2OrDay3(
   sendMessage: GrowthSendMessageFn,
   translate: (locale: string, key: string) => string
 ): Promise<boolean> {
-  const graceButtons = new InlineKeyboard()
-    .text(translate(locale, "vds-expiration-btn-topup"), "exp:topup")
-    .text(translate(locale, "vds-expiration-btn-manage"), `exp:vds:${vdsId}`);
+  const graceButtons = await loadGraceKeyboard(vdsId, userId, locale, translate);
   const hoursLeft = hoursUntilPayDay(payDayAt);
   if (hoursLeft > 48) return false; // Day 2 not yet
   if (hoursLeft <= 0) return false;

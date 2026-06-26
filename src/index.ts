@@ -2971,24 +2971,45 @@ async function index() {
 
   bot.callbackQuery(/^exp:vds:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const match = ctx.callbackQuery?.data?.match(/^exp:vds:(\d+)$/);
-    const vdsId = match ? Number.parseInt(match[1], 10) : NaN;
+    const vdsId = Number.parseInt(ctx.match![1], 10);
     if (!Number.isFinite(vdsId)) return;
     const session = (await ctx.session) as SessionData;
-    session.other.manageVds = session.other.manageVds ?? {
-      expandedId: null,
-      lastPickedId: null,
-      showPassword: false,
-      pendingRenewMonths: null,
-    };
-    session.other.manageVds.expandedId = vdsId;
-    session.other.manageVds.lastPickedId = vdsId;
-    (session.other.manageVds as { panelMode?: string }).panelMode = "main";
-    const { vdsManageServiceMenu } = await import("./helpers/manage-services.js");
-    await ctx.reply(ctx.t("vds-manage-title"), {
-      reply_markup: vdsManageServiceMenu,
-      parse_mode: "HTML",
-    });
+    const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+    const vds = await vdsRepo.findOneBy({ id: vdsId, targetUserId: session.main.user.id });
+    if (!vds) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" });
+      return;
+    }
+    const { replyVdsManagePanel } = await import("./helpers/manage-services.js");
+    await replyVdsManagePanel(ctx, vdsId, "main");
+  });
+
+  bot.callbackQuery(/^exp:renew:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const vdsId = Number.parseInt(ctx.match![1], 10);
+    if (!Number.isFinite(vdsId)) return;
+    const session = (await ctx.session) as SessionData;
+    const { VdsService } = await import("./domain/services/VdsService.js");
+    const { VdsRepository } = await import("./infrastructure/db/repositories/VdsRepository.js");
+    const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+    const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+    const { BillingService } = await import("./domain/billing/BillingService.js");
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    const userRepo = new UserRepository(ctx.appDataSource);
+    const topUpRepo = new TopUpRepository(ctx.appDataSource);
+    const billing = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+    const vdsService = new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
+    try {
+      await vdsService.renewVdsWithMonths(vdsId, session.main.user.id, 1);
+      const u = await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id });
+      if (u) session.main.user.balance = u.balance;
+      await ctx.reply(ctx.t("vds-renew-success", { months: 1 }), { parse_mode: "HTML" });
+      const { replyVdsManagePanel } = await import("./helpers/manage-services.js");
+      await replyVdsManagePanel(ctx, vdsId, "main");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await ctx.reply(ctx.t("error-unknown", { error: msg }), { parse_mode: "HTML" });
+    }
   });
 
   mainMenu.register(supportMenu, "main-menu");

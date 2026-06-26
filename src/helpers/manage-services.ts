@@ -240,7 +240,7 @@ const prepareVdsRename = async (
   return vds;
 };
 
-async function replyVdsManagePanel(
+export async function replyVdsManagePanel(
   ctx: AppContext,
   vdsId: number,
   panelMode: "main" | "more" | "renew" = "main"
