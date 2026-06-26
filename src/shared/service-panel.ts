@@ -185,19 +185,6 @@ export function domainStatusEmoji(status: string): string {
 
 /** Premium domain management card for «Мои услуги». */
 export const buildDomainManageCard = (ctx: AppContext, data: DomainManageCardData): string => {
-  const metaParts = [
-    `${data.statusEmoji} ${data.statusLabel}`,
-    data.tld ? `.${escapeUserInput(data.tld.replace(/^\./, ""))}` : null,
-    data.period != null && data.period > 0
-      ? ctx.t("domain-period-short", { period: data.period })
-      : null,
-    data.price != null && Number.isFinite(data.price)
-      ? ctx.t("domain-price-short", { price: data.price })
-      : null,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join("\n");
-
   const ns1 = data.ns1?.trim();
   const ns2 = data.ns2?.trim();
   const nsLines = [
@@ -213,9 +200,7 @@ export const buildDomainManageCard = (ctx: AppContext, data: DomainManageCardDat
       : `<blockquote><i>${ctx.t("domain-ns-not-set")}</i></blockquote>`;
 
   return joinScreenSections(
-    `${ctx.t("domain-manage-title")}\n${code(data.domain)}`,
-    SCREEN_DIVIDER,
-    `<blockquote>${metaParts}</blockquote>`,
+    `${ctx.t("domain-manage-title")}\n${data.statusEmoji} ${code(data.domain)}`,
     SCREEN_DIVIDER,
     nsBlock
   );
