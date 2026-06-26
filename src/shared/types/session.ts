@@ -87,6 +87,7 @@ export interface OtherSessionData {
   domains: {
     lastPickDomain: string;
     page: number;
+    expandedId?: number | null;
     pendingZone?: string;
     /** Domain purchase shop: category list or "all" for paginated catalog. */
     shopCategory?: "popular" | "business" | "tech" | "geo" | "all";

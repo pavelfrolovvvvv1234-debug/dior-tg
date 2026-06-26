@@ -399,7 +399,7 @@ export class AmperDomainsProvider implements DomainProvider {
       
       // 402 / INSUFFICIENT_BALANCE — на счёте Amper нет средств
       if (statusCode === 402 || apiError?.code === "INSUFFICIENT_BALANCE") {
-        return { success: false, error: "Insufficient balance on registrar (Amper). Top up Amper account." };
+        return { success: false, error: "Insufficient balance on registrar account." };
       }
       const errMsg =
         (typeof apiError === "object" && apiError?.message ? apiError.message : null) ||

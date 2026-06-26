@@ -781,6 +781,8 @@ service-label-status = Status
 service-label-created-at = Created
 service-label-paid-until = Paid until
 service-label-vm-host-id = VM ID (hypervisor)
+service-section-access = Access
+service-section-dns = Nameservers
 service-date = {DATETIME($date, dateStyle: "medium", timeStyle: "short")}
 status-active = Active
 status-suspended = Suspended
@@ -809,7 +811,18 @@ domain-registration-complete-fail-message-length =
 
     Shorten the text and send again.
 
-domains-manage = <strong>Manage domains</strong>
+domains-manage = <strong>🌐 Domains</strong>
+domain-manage-title = <strong>🌐 Domain</strong>
+domain-manage-list-prompt = Select a domain below
+domain-manage-list-item = 🌐 {$domain} · {$status}
+domain-period-short = { $period } { $period ->
+  [one] year
+ *[other] years
+}
+domain-price-short = {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)}
+domain-ns-not-set = No nameservers set — tap «Update NS»
+button-copy-ns1 = 📋 NS1
+button-copy-ns2 = 📋 NS2
 domain-already-pending-registration = Domain already in pending await
 domain-request-notification = New request /domainrequests (In progress: {$count})
 
@@ -1123,8 +1136,11 @@ vds-created =
 
     Server is ready. Manage — «Main menu → My services».
 
-vds-manage-title = Manage VDS
-vds-manage-list-item = {$label} - {$ip}
+vds-manage-title = <strong>🖥 VPS</strong>
+vds-manage-list-prompt = Select a server below
+vds-manage-list-item = 🖥 {$label} · {$ip}
+vds-specs-line = {$cpu} vCPU · {$ram} GB · {$disk} GB
+vps-billing-footer = Paid until {$paidUntil} · auto-renew {$autoRenew}
 button-my-vds = 🖥 VPS/VDS
 
 vds-autorenew-line = <strong>Auto-renew:</strong> {$state}
@@ -1873,7 +1889,7 @@ domains-none = You have no registered domains
 domains-list = <strong>My Domains ({$count})</strong>
 domain-register-enter-name = Enter domain (with or without zone): example or example.com
 domain-register-enter-tld = Enter domain zone (e.g.: com, org, net):
-domain-api-not-configured = Error: domain API is not configured. Check AMPER_API_BASE_URL and AMPER_API_TOKEN.
+domain-api-not-configured = Error: domain registration service is not configured. Please contact support.
 domain-invalid-format = Invalid domain format: {$domain}
 
 Domain must be in format example.com
@@ -1894,7 +1910,7 @@ Please try again later or contact support.
 domain-not-available = Domain {$domain} is not available for registration
 domain-not-available-with-reason = Domain {$domain} is not available for registration.
     Reason: {$reason}
-domain-check-unrelated-to-balance = ℹ️ Availability check is not related to balance. Amper balance is charged only when the domain is actually registered.
+domain-check-unrelated-to-balance = ℹ️ Availability check is not related to balance. Your bot balance is charged only when the domain is actually registered.
 
 Registrar reason: {$reason}
 domain-register-enter-period = Enter registration period in years (1-10):
@@ -1924,19 +1940,19 @@ Domain: {$domain}
 ID: {$domainId}
 Status: {$status}
 domain-register-failed = <strong>Domain Registration Failed</strong>\n\nReason: { $error }
-domain-register-failed-registrar-balance = Registrar (Amper) account has insufficient funds. Top up your balance in the Amper dashboard — then domain registration in the bot will work. Your bot balance was not charged (refunded).
+domain-register-failed-registrar-balance = Domain registration service is temporarily unavailable. Please contact support. Your bot balance was not charged (refunded).
 domain-register-failed-domain-taken = Domain <b>{$domain}</b> is already taken and unavailable for registration. Your balance was not charged (refunded).
 domain-register-failed-already-owned = Domain <b>{$domain}</b> is already registered to you. Add it to Services to change nameservers.
 domain-import-success = Domain <b>{$domain}</b> added to Services. Go to Services → domains to change nameservers.
-domain-import-not-found = Domain not found in Amper account. If you just registered it, wait a minute and try again.
+domain-import-not-found = Domain not found. If you just registered it, wait a minute and try again.
 button-domain-add-to-services = Add to Services
 domain-service-temporarily-unavailable = ⚠️ Domain registration service is temporarily unavailable (error { $statusCode }). Please try again later.
-domain-register-failed-network = ⚠️ Domain registration service is temporarily unavailable (network issue). Check Amper API availability or try again later. Your balance was not charged.
-domain-check-service-unavailable = ⚠️ Domain availability check is temporarily unavailable (error { $statusCode }). Amper service is overloaded or unavailable. Please try again later.
+domain-register-failed-network = ⚠️ Domain registration service is temporarily unavailable (network issue). Please try again later. Your balance was not charged.
+domain-check-service-unavailable = ⚠️ Domain availability check is temporarily unavailable (error { $statusCode }). The service is overloaded or unavailable. Please try again later.
 
 Domain: {$domain}
 Error: {$error}
-domain-information-amper = <strong>Domain Information</strong>
+domain-information-detail = <strong>Domain Information</strong>
 
 Domain: {$domain}
 Status: {$status}
@@ -2376,5 +2392,5 @@ VPS ID: { $vdsId }
 IP: { $ip }
 bundle-purchase-domain-only = Domain <b>{ $domain }</b> registered successfully.
 VPS is temporarily unavailable (VMManager not connected). When you connect it, bundles with VPS will work.
-bundle-unavailable-no-vm-no-amper = Bundle unavailable: VPS (VMManager) and domains (Amper) are not configured. Set up .env and try again later.
+bundle-unavailable-no-vm-no-amper = Bundle unavailable: VPS and domain registration are not configured. Please try again later or contact support.
 bundle-select-period = Select payment period:

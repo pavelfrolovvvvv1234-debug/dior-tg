@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   } else {
     row = repo.create({
       resellerId,
-      keyType: "production",
+      keyType: ResellerApiKeyType.Production,
       status: ResellerApiKeyStatus.Active,
       keyPrefix: prefix,
       keyHash: hash,

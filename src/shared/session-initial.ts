@@ -61,6 +61,7 @@ export function createInitialOtherSession(): SessionData["other"] {
     domains: {
       lastPickDomain: "",
       page: 0,
+      expandedId: null,
       pendingZone: undefined,
       shopCategory: undefined,
       shopAllPage: undefined,

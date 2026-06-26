@@ -177,6 +177,7 @@ export async function createBot(): Promise<{
           domains: {
             lastPickDomain: "",
             page: 0,
+            expandedId: null,
             pendingZone: undefined,
           },
           dedicatedOrder: {

@@ -191,8 +191,7 @@ export async function handleBundleConfirmPurchase(ctx: AppContext): Promise<void
     }
     if (!vmmanager && !registerDomainFn) {
       await ctx.reply(
-        ctx.t("bundle-unavailable-no-vm-no-amper") ||
-          "Сейчас пакет недоступен: не настроены VPS (VMManager) и домены (Amper). Настройте .env и попробуйте позже.",
+        ctx.t("bundle-unavailable-no-vm-no-amper"),
         { parse_mode: "HTML" }
       );
       if (session.other.bundle) delete session.other.bundle;

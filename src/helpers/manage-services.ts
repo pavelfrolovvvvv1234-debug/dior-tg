@@ -15,7 +15,7 @@ import { VdsRepository } from "@/infrastructure/db/repositories/VdsRepository";
 import { BillingService } from "@/domain/billing/BillingService";
 import { UserRepository } from "@/infrastructure/db/repositories/UserRepository";
 import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepository";
-import { buildServiceInfoBlock } from "@/shared/service-panel";
+import { buildVpsManageCard, buildDomainManageCard, buildVpsListScreen, buildDomainListScreen, domainStatusEmoji } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
 import { createInitialOtherSession } from "@/shared/session-initial.js";
 import { showVpsVdsInServiceMenus, isProxmoxEnabled } from "../app/config.js";
@@ -262,7 +262,7 @@ async function replyVdsManagePanel(
   const info = await resolveVdsManageInfo(ctx, vds);
 
   await ctx.reply(
-    buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword),
+    buildVdsManageText(ctx, vds, info),
     { parse_mode: "HTML", reply_markup: vdsManageServiceMenu }
   );
 }
@@ -452,50 +452,40 @@ const buildVdsManageText = (
   ctx: AppContext,
   vds: VirtualDedicatedServer | null,
   info: ListItem | null,
-  showPassword: boolean,
   extraIpv4?: string | null
 ): string => {
-  const header = `<strong>${ctx.t("vds-manage-title")}</strong>`;
   if (!vds || !info) {
-    return header;
+    return buildVpsListScreen(ctx);
   }
 
   const os = ctx.osList?.list.find((os) => os.id == vds.lastOsId);
   const osName = os?.name || "N/A";
 
-  const infoBlock = buildServiceInfoBlock(ctx, {
+  let lockNotice: string | null = null;
+  if (vds.adminBlocked) {
+    lockNotice = ctx.t("vds-admin-blocked-notice");
+  } else if (vds.managementLocked) {
+    lockNotice = ctx.t("vds-management-locked-notice");
+  }
+
+  return buildVpsManageCard(ctx, {
+    displayName: vds.displayName,
+    rateName: (vds.rateName || "").trim() || `VDS #${vds.id}`,
     ip: vds.ipv4Addr,
     login: resolveVdsLoginForOs({ osName, osId: vds.lastOsId, storedLogin: vds.login }),
     password: vds.password,
-    showPassword,
     os: osName,
     statusLabel: getStatusLabel(ctx, info.state),
-    createdAt: vds.createdAt,
+    cpu: vds.cpuCount,
+    ram: vds.ramSize,
+    disk: vds.diskSize,
     paidUntil: vds.expireAt,
-    vmHostId: vds.vdsId,
+    autoRenewOn: vds.autoRenewEnabled !== false,
+    extraIpv4: extraIpv4 && !isPlaceholderIpv4(extraIpv4) ? extraIpv4 : null,
+    extraIpv4ActiveNote:
+      !extraIpv4 && (vds.extraIpv4Count ?? 0) > 0 ? ctx.t("vds-extra-ipv4-active") : null,
+    lockNotice,
   });
-
-  const autoLine = ctx.t("vds-autorenew-line", {
-    state:
-      vds.autoRenewEnabled !== false
-        ? ctx.t("vds-autorenew-on")
-        : ctx.t("vds-autorenew-off"),
-  });
-  let lockLine = "";
-  if (vds.adminBlocked) {
-    lockLine = `\n\n${ctx.t("vds-admin-blocked-notice")}`;
-  } else if (vds.managementLocked) {
-    lockLine = `\n\n${ctx.t("vds-management-locked-notice")}`;
-  }
-
-  const extraIpLine =
-    extraIpv4 && !isPlaceholderIpv4(extraIpv4)
-      ? `\n<strong>${ctx.t("service-label-extra-ipv4")}:</strong> ${escapeUserInput(extraIpv4)}`
-      : (vds.extraIpv4Count ?? 0) > 0
-        ? `\n<i>${ctx.t("vds-extra-ipv4-active")}</i>`
-        : "";
-
-  return `${header}\n\n${infoBlock}${extraIpLine}\n\n${autoLine}${lockLine}`;
 };
 
 const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
@@ -508,7 +498,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     if (panelMode !== "main") {
       (session.other.manageVds as { panelMode?: string }).panelMode = "main";
     }
-    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null), {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
     });
@@ -517,7 +507,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const vds = await vdsRepo.findOneBy({ id: expandedId });
   if (!vds) {
     session.other.manageVds.expandedId = null;
-    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null), {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
     });
@@ -528,7 +518,7 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
     session.other.manageVds.expandedId = null;
     (session.other.manageVds as any).panelMode = "main";
     session.other.manageVds.showPassword = false;
-    await ctx.editMessageText(buildVdsManageText(ctx, null, null, false), {
+    await ctx.editMessageText(buildVdsManageText(ctx, null, null), {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
     });
@@ -561,12 +551,64 @@ const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   }
 
   await ctx.editMessageText(
-    buildVdsManageText(ctx, vds, info, session.other.manageVds.showPassword, secondaryIp),
+    buildVdsManageText(ctx, vds, info, secondaryIp),
     {
       parse_mode: "HTML",
       reply_markup: vdsManageServiceMenu,
     }
   );
+};
+
+const resolveDomainStatusLabel = (ctx: AppContext, status: string): string => {
+  const labels: Record<string, string> = {
+    draft: ctx.t("domain-status-draft"),
+    wait_payment: ctx.t("domain-status-wait-payment"),
+    registering: ctx.t("domain-status-registering"),
+    registered: ctx.t("domain-status-registered"),
+    failed: ctx.t("domain-status-failed"),
+    expired: ctx.t("domain-status-expired"),
+  };
+  return labels[status] || status;
+};
+
+const buildDomainManageTextFromEntity = (ctx: AppContext, domain: Domain): string =>
+  buildDomainManageCard(ctx, {
+    domain: domain.domain,
+    statusLabel: resolveDomainStatusLabel(ctx, domain.status),
+    statusEmoji: domainStatusEmoji(domain.status),
+    tld: domain.tld,
+    period: domain.period,
+    price: domain.price,
+    ns1: domain.ns1,
+    ns2: domain.ns2,
+  });
+
+const updateDomainManageView = async (ctx: AppContext): Promise<void> => {
+  const session = await ctx.session;
+  if (!session.other.domains) {
+    session.other.domains = { lastPickDomain: "", page: 0, expandedId: null };
+  }
+  const expandedId = session.other.domains.expandedId ?? null;
+  if (!expandedId) {
+    await ctx.editMessageText(buildDomainListScreen(ctx), {
+      parse_mode: "HTML",
+      reply_markup: domainManageServicesMenu,
+    });
+    return;
+  }
+
+  const domainRepo = ctx.appDataSource.getRepository(Domain);
+  const domain = await domainRepo.findOneBy({ id: expandedId, userId: session.main.user.id });
+  if (!domain) {
+    session.other.domains.expandedId = null;
+    await updateDomainManageView(ctx);
+    return;
+  }
+
+  await ctx.editMessageText(buildDomainManageTextFromEntity(ctx, domain), {
+    parse_mode: "HTML",
+    reply_markup: domainManageServicesMenu,
+  });
 };
 
 /** Open «Мои VDS» list (manage services) without Grammy submenu navigation glitches. */
@@ -616,9 +658,12 @@ function buildManageServicesMenu(): Menu<AppContext> {
       (ctx) => ctx.t("button-manage-domains"),
       "domain-manage-services-menu",
       async (ctx) => {
-        await ctx.editMessageText(ctx.t("domains-manage"), {
-          parse_mode: "HTML",
-        });
+        const session = await ctx.session;
+        if (!session.other.domains) {
+          session.other.domains = { lastPickDomain: "", page: 0, expandedId: null };
+        }
+        session.other.domains.expandedId = null;
+        await updateDomainManageView(ctx);
       }
     )
     .row()
@@ -685,7 +730,7 @@ export const manageSerivcesMenu = manageServicesMenu;
 
 const LIMIT_ON_PAGE = 10;
 
-const emojiByStatus = (domainRequestStatus: DomainRequestStatus) => {
+const emojiByStatus = (domainRequestStatus: DomainRequestStatus): string => {
   switch (domainRequestStatus) {
     case DomainRequestStatus.InProgress:
       return "🔄";
@@ -693,6 +738,8 @@ const emojiByStatus = (domainRequestStatus: DomainRequestStatus) => {
       return "✅";
     case DomainRequestStatus.Failed:
       return "❌";
+    default:
+      return "⏳";
   }
 };
 
@@ -1173,7 +1220,7 @@ export async function renameVdsConversation(
       }
       const fallback = { state: "active" } as ListItem;
       await replyCtx.reply(
-        buildVdsManageText(replyCtx, updatedVds, info ?? fallback, sessAfter.other.manageVds.showPassword),
+        buildVdsManageText(replyCtx, updatedVds, info ?? fallback),
         {
           parse_mode: "HTML",
           reply_markup: vdsManageServiceMenu,
@@ -1297,7 +1344,6 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
         (session.other.manageVds as any).panelMode = "main";
         session.other.manageVds.showPassword = false;
       } else {
-        const showPassword = session.other.manageVds.showPassword;
         const blocked = isVdsManagementBlocked(expanded);
         const panelMode = (session.other.manageVds as any).panelMode || "main";
         const demoMode = isDemoVds(expanded);
@@ -1318,15 +1364,18 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
           if (liveInfo?.state) powerState = liveInfo.state;
         }
 
-        range.text(
-          showPassword ? ctx.t("button-hide-password") : ctx.t("button-show-password"),
-          async (ctx) => {
-            await ctx.answerCallbackQuery().catch(() => {});
-            const session = await ctx.session;
-            session.other.manageVds.showPassword = !session.other.manageVds.showPassword;
-            await updateVdsManageView(ctx);
-          }
-        );
+        const ip = expanded.ipv4Addr?.trim() ?? "";
+        if (ip && ip !== "0.0.0.0" && ip !== "127.0.0.1") {
+          range.add(menuCopyTextButton(ctx.t("button-copy-ip"), ip) as never);
+        }
+        const os = ctx.osList?.list.find((entry) => entry.id == expanded.lastOsId);
+        const login = resolveVdsLoginForOs({
+          osName: os?.name,
+          osId: expanded.lastOsId,
+          storedLogin: expanded.login,
+        });
+        range.add(menuCopyTextButton(ctx.t("button-copy-login"), login) as never);
+        range.add(menuCopyTextButton(ctx.t("button-copy-password"), expanded.password) as never);
         range.row();
 
         if (panelMode === "renew") {
@@ -1735,9 +1784,50 @@ export const domainManageServicesMenu = new Menu<AppContext>(
   .dynamic(async (ctx, range) => {
     const session = await ctx.session;
     const userId = session.main.user.id;
+    if (!session.other.domains) {
+      session.other.domains = { lastPickDomain: "", page: 0, expandedId: null };
+    }
 
     const domainRepo = ctx.appDataSource.getRepository(Domain);
     const domainRequestRepo = ctx.appDataSource.getRepository(DomainRequest);
+    const expandedId = session.other.domains.expandedId ?? null;
+
+    if (expandedId) {
+      const expanded = await domainRepo.findOneBy({ id: expandedId, userId });
+      if (!expanded) {
+        session.other.domains.expandedId = null;
+      } else {
+        const ns1 = expanded.ns1?.trim() ?? "";
+        const ns2 = expanded.ns2?.trim() ?? "";
+        if (ns1) {
+          range.add(menuCopyTextButton(ctx.t("button-copy-ns1"), ns1) as never);
+        }
+        if (ns2) {
+          range.add(menuCopyTextButton(ctx.t("button-copy-ns2"), ns2) as never);
+        }
+        if (ns1 || ns2) {
+          range.row();
+        }
+        range.text(ctx.t("button-domain-update-ns"), async (ctx) => {
+          await ctx.answerCallbackQuery().catch(() => {});
+          const { setPendingDomainNsUpdate } = await import(
+            "../ui/conversations/domain-update-ns-conversation.js"
+          );
+          const sess = await ctx.session;
+          if (!sess.other) {
+            (sess as any).other = createInitialOtherSession();
+          }
+          (sess.other as any).currentDomainId = expandedId;
+          const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+          if (telegramId > 0) {
+            setPendingDomainNsUpdate(telegramId, expandedId);
+          }
+          await ctx.conversation.enter("domainUpdateNsConversation");
+        });
+        range.row();
+        return;
+      }
+    }
 
     const amperCount = await domainRepo.count({ where: { userId } });
     const requestCount = await domainRequestRepo.count({
@@ -1782,50 +1872,26 @@ export const domainManageServicesMenu = new Menu<AppContext>(
       skip: session.other.domains.page * LIMIT_ON_PAGE,
     });
 
-    // Add Amper domains to menu
     for (const domain of amperDomains) {
-      const statusEmoji = domain.status === "registered" ? "✅" :
-                         domain.status === "registering" ? "🔄" :
-                         domain.status === "failed" ? "❌" : "⏳";
+      const statusEmoji = domainStatusEmoji(domain.status);
       range.text(
-        `${statusEmoji} ${domain.domain} (Amper)`,
+        ctx.t("domain-manage-list-item", {
+          domain: domain.domain,
+          status: statusEmoji,
+        }),
         async (ctx) => {
-          const { DomainRepository } = await import("@/infrastructure/db/repositories/DomainRepository");
-          const domainRepo = new DomainRepository(ctx.appDataSource);
-          const domainEntity = await domainRepo.findById(domain.id);
-          
-          if (!domainEntity) {
-            await ctx.answerCallbackQuery(ctx.t("domain-was-not-found"));
-            return;
+          await ctx.answerCallbackQuery().catch(() => {});
+          const sess = await ctx.session;
+          if (!sess.other.domains) {
+            sess.other.domains = { lastPickDomain: "", page: 0, expandedId: null };
           }
-
-          const statusText = {
-            draft: ctx.t("domain-status-draft"),
-            wait_payment: ctx.t("domain-status-wait-payment"),
-            registering: ctx.t("domain-status-registering"),
-            registered: ctx.t("domain-status-registered"),
-            failed: ctx.t("domain-status-failed"),
-            expired: ctx.t("domain-status-expired"),
-          }[domainEntity.status] || domainEntity.status;
-
-          await ctx.reply(
-            ctx.t("domain-information-amper", {
-              domain: domainEntity.domain,
-              status: statusText,
-              tld: domainEntity.tld,
-              period: domainEntity.period,
-              price: domainEntity.price,
-              ns1: domainEntity.ns1 || ctx.t("not-specified"),
-              ns2: domainEntity.ns2 || ctx.t("not-specified"),
-            }),
-            {
-              parse_mode: "HTML",
-              reply_markup: new InlineKeyboard()
-                .text(ctx.t("button-domain-update-ns"), `domain_update_ns_${domainEntity.id}`)
-                .row()
-                .text(ctx.t("button-back"), "manage-services-menu-back"),
-            }
-          );
+          const current = sess.other.domains.expandedId;
+          if (current === domain.id) {
+            sess.other.domains.expandedId = null;
+          } else {
+            sess.other.domains.expandedId = domain.id;
+          }
+          await updateDomainManageView(ctx);
         }
       ).row();
     }
@@ -1835,9 +1901,10 @@ export const domainManageServicesMenu = new Menu<AppContext>(
     for (const domainRequest of domainRequests) {
       range
         .text(
-          `${domainRequest.domainName}${domainRequest.zone} ${emojiByStatus(
-            domainRequest.status
-          )}`,
+          ctx.t("domain-manage-list-item", {
+            domain: `${domainRequest.domainName}${domainRequest.zone}`,
+            status: emojiByStatus(domainRequest.status),
+          }),
           async (ctx) => {
             if (domainRequest.status == DomainRequestStatus.InProgress) {
               await ctx.answerCallbackQuery(
@@ -1920,12 +1987,14 @@ export const domainManageServicesMenu = new Menu<AppContext>(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
       const session = await ctx.session;
-      await ctx.editMessageText(
-        premiumScreen(ctx.t("manage-services-header")),
-        {
-          parse_mode: "HTML",
-        }
-      );
+      if (session.other.domains?.expandedId) {
+        session.other.domains.expandedId = null;
+        await updateDomainManageView(ctx);
+        return;
+      }
+      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
+        parse_mode: "HTML",
+      });
     }
   );
 
@@ -1949,43 +2018,23 @@ export const bundleManageServicesMenu = new Menu<AppContext>(
     });
 
     for (const domain of bundleDomains) {
-      const statusEmoji =
-        domain.status === "registered"
-          ? "✅"
-          : domain.status === "registering"
-            ? "🔄"
-            : domain.status === "failed"
-              ? "❌"
-              : "⏳";
       range
-        .text(`${statusEmoji} 🌐 ${domain.domain}`, async (ctx) => {
-          const statusText = {
-            draft: ctx.t("domain-status-draft"),
-            wait_payment: ctx.t("domain-status-wait-payment"),
-            registering: ctx.t("domain-status-registering"),
-            registered: ctx.t("domain-status-registered"),
-            failed: ctx.t("domain-status-failed"),
-            expired: ctx.t("domain-status-expired"),
-          }[domain.status] || domain.status;
-          await ctx.reply(
-            ctx.t("domain-information-amper", {
-              domain: domain.domain,
-              status: statusText,
-              tld: domain.tld,
-              period: domain.period,
-              price: domain.price,
-              ns1: domain.ns1 || ctx.t("not-specified"),
-              ns2: domain.ns2 || ctx.t("not-specified"),
-            }),
-            {
+        .text(
+          ctx.t("domain-manage-list-item", {
+            domain: domain.domain,
+            status: domainStatusEmoji(domain.status),
+          }),
+          async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
+            await ctx.reply(buildDomainManageTextFromEntity(ctx, domain), {
               parse_mode: "HTML",
               reply_markup: new InlineKeyboard()
                 .text(ctx.t("button-domain-update-ns"), `domain_update_ns_${domain.id}`)
                 .row()
                 .text(ctx.t("button-back"), "manage-services-menu-back"),
-            }
-          );
-        })
+            });
+          }
+        )
         .row();
     }
 
@@ -2004,7 +2053,7 @@ export const bundleManageServicesMenu = new Menu<AppContext>(
             // VM might be off or API error
           }
           await ctx.editMessageText(
-            buildVdsManageText(ctx, vds, info, false),
+            buildVdsManageText(ctx, vds, info),
             {
               parse_mode: "HTML",
               reply_markup: vdsManageServiceMenu,
