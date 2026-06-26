@@ -18,7 +18,7 @@ import { TopUpRepository } from "@/infrastructure/db/repositories/TopUpRepositor
 import { buildVpsManageCard, buildDomainManageCard, buildVpsListScreen, buildDomainListScreen, domainStatusEmoji } from "@/shared/service-panel";
 import { ServicePaymentService } from "@/domain/billing/ServicePaymentService";
 import { createInitialOtherSession } from "@/shared/session-initial.js";
-import { showVpsVdsInServiceMenus, isProxmoxEnabled } from "../app/config.js";
+import { showVpsVdsInServiceMenus, isProxmoxEnabled, showCdnInUserMenus } from "../app/config.js";
 import { getVmManagerAllowedOsIds } from "../app/config.js";
 import { escapeUserInput } from "./formatting.js";
 import {
@@ -666,25 +666,31 @@ function buildManageServicesMenu(): Menu<AppContext> {
         await updateDomainManageView(ctx);
       }
     )
-    .row()
-    .text(
-      (ctx) => ctx.t("button-manage-cdn"),
-      async (ctx) => {
-        const session = await ctx.session;
-        if (!session.other) (session as any).other = createInitialOtherSession();
-        if (!session.other.cdn) session.other.cdn = { step: "idle" };
-        session.other.cdn.fromManage = true;
-        try {
-          const { openCdnManageList } = await import("../ui/menus/cdn-menu.js");
-          await openCdnManageList(ctx);
-        } catch {
-          await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN list" }), {
-            parse_mode: "HTML",
-          });
+    .row();
+
+  if (showCdnInUserMenus()) {
+    m = m
+      .text(
+        (ctx) => ctx.t("button-manage-cdn"),
+        async (ctx) => {
+          const session = await ctx.session;
+          if (!session.other) (session as any).other = createInitialOtherSession();
+          if (!session.other.cdn) session.other.cdn = { step: "idle" };
+          session.other.cdn.fromManage = true;
+          try {
+            const { openCdnManageList } = await import("../ui/menus/cdn-menu.js");
+            await openCdnManageList(ctx);
+          } catch {
+            await ctx.reply(ctx.t("cdn-error", { error: "Failed to open CDN list" }), {
+              parse_mode: "HTML",
+            });
+          }
         }
-      }
-    )
-    .row()
+      )
+      .row();
+  }
+
+  m = m
     .submenu(
       (ctx) => ctx.t("button-manage-dedicated"),
       "dedicated-menu",

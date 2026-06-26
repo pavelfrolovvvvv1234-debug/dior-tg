@@ -1110,6 +1110,8 @@ async function index() {
   }
 
   bot.callbackQuery(/^services-menu\/1\/0($|\/)/, async (ctx) => {
+    const { showCdnInUserMenus } = await import("./app/config.js");
+    if (!showCdnInUserMenus()) return;
     await openCdnPurchaseFromServicesMenu(ctx as any);
   });
 

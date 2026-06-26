@@ -20,7 +20,7 @@ import {
   buildDomainsPurchaseIntroHtml,
   showDomainCategoryTlds,
 } from "../domain/domains/domain-purchase-flow.js";
-import { showVpsVdsInServiceMenus } from "../app/config.js";
+import { showVpsVdsInServiceMenus, showCdnInUserMenus } from "../app/config.js";
 import { getVmManagerAllowedOsIds } from "../app/config.js";
 import {
   filterAndSortOsTemplatesForVpsPicker,
@@ -229,9 +229,15 @@ export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<
 function buildServicesMenu(): Menu<AppContext> {
   let m = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
     .submenu((ctx) => ctx.t("button-service-buy-domains"), "domains-menu", openDomainsPurchaseScreen)
-    .row()
-    .text((ctx) => ctx.t("button-service-buy-cdn"), openCdnPurchaseFromServicesMenu)
-    .row()
+    .row();
+
+  if (showCdnInUserMenus()) {
+    m = m
+      .text((ctx) => ctx.t("button-service-buy-cdn"), openCdnPurchaseFromServicesMenu)
+      .row();
+  }
+
+  m = m
     .submenu(
       (ctx) => ctx.t("button-service-buy-dedicated"),
       "dedicated-type-menu",

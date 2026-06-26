@@ -244,9 +244,14 @@ export const getPrimeChannelForCheck = (): number | string | null => {
   return null;
 };
 
+/** Whether CDN appears in user «Services» / «My services» menus. Off by default — set SHOW_CDN_IN_USER_MENUS=1 to enable. */
+export const showCdnInUserMenus = (): boolean => {
+  const v = (process.env.SHOW_CDN_IN_USER_MENUS ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on" || v === "yes";
+};
+
 /**
- * VPS/VDS в меню «Услуги» и «Управление услугами». По умолчанию скрыто.
- * Показать: SHOW_VPS_VDS_IN_MENUS=1 (или true/on/yes).
+ * VPS/VDS в меню «Услуги» и «Управление услугами». Скрыть: SHOW_VPS_VDS_IN_MENUS=0 (или false/off/no).
  */
 export const showVpsVdsInServiceMenus = (): boolean => {
   const v = (process.env.SHOW_VPS_VDS_IN_MENUS ?? "").trim().toLowerCase();
