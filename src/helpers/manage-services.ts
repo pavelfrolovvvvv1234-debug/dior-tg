@@ -734,6 +734,21 @@ export const manageServicesMenu = buildManageServicesMenu();
 /** @deprecated Typo alias — use manageServicesMenu */
 export const manageSerivcesMenu = manageServicesMenu;
 
+/** Restore «💼 Услуги» hub with correct inline keyboard (fixes scrambled rows after submenu back). */
+export async function openManageServicesHub(ctx: AppContext): Promise<void> {
+  const session = await ctx.session;
+  resetVdsManageListView(session);
+  session.other.manageDedicated.expandedId = null;
+  session.other.manageDedicated.showPassword = false;
+  if (session.other.domains) {
+    session.other.domains.expandedId = null;
+  }
+  await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
+    parse_mode: "HTML",
+    reply_markup: manageServicesMenu,
+  });
+}
+
 const LIMIT_ON_PAGE = 10;
 
 const emojiByStatus = (domainRequestStatus: DomainRequestStatus): string => {
@@ -1777,10 +1792,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
         return;
       }
 
-      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
-        parse_mode: "HTML",
-        reply_markup: manageServicesMenu,
-      });
+      await openManageServicesHub(ctx);
     }
   );
 
@@ -1998,9 +2010,7 @@ export const domainManageServicesMenu = new Menu<AppContext>(
         await updateDomainManageView(ctx);
         return;
       }
-      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
-        parse_mode: "HTML",
-      });
+      await openManageServicesHub(ctx);
     }
   );
 
@@ -2078,9 +2088,6 @@ export const bundleManageServicesMenu = new Menu<AppContext>(
   .back(
     (ctx) => ctx.t("button-back"),
     async (ctx) => {
-      await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
-        parse_mode: "HTML",
-        reply_markup: manageServicesMenu,
-      });
+      await openManageServicesHub(ctx);
     }
   );

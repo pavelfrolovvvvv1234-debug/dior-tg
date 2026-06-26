@@ -142,9 +142,8 @@ export const dedicatedMenu = new Menu<AppContext>("dedicated-menu")
         await updateDedicatedManageView(ctx);
         return;
       }
-      await ctx.editMessageText(ctx.t("manage-services-header"), {
-        parse_mode: "HTML",
-      });
+      const { openManageServicesHub } = await import("../../helpers/manage-services.js");
+      await openManageServicesHub(ctx);
     }
   );
 
