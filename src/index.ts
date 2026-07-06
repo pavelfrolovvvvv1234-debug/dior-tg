@@ -146,7 +146,7 @@ import { registerVpsShopHandlers } from "./domain/vds/vds-shop-flow.js";
 import { registerDomainRegistrationMiddleware } from "./helpers/domain-registraton";
 import ms from "./lib/multims";
 import type { GetOsListResponse } from "./infrastructure/vmmanager/provider.js";
-import { createVmProvider } from "./infrastructure/vmmanager/factory.js";
+import { createVmProviderAsync } from "./infrastructure/vmmanager/factory.js";
 import { startResellerApiServer } from "./api/reseller-api.js";
 import VirtualDedicatedServer from "./entities/VirtualDedicatedServer";
 import DomainChecker from "./api/domain-checker";
@@ -669,7 +669,7 @@ async function index() {
     registerAdminCreateServiceWizardEarlyHandlers(bot);
   }
 
-  const vmmanager = createVmProvider();
+  const vmmanager = await createVmProviderAsync();
   startResellerApiServer({ dataSource: appDataSource, vmProvider: vmmanager, botApi: bot.api });
 
   const { createTelegramGrowthSender } = await import(

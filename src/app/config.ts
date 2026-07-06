@@ -7,6 +7,10 @@
 
 import path from "path";
 import { z } from "zod";
+import {
+  readProxmoxNetworkEnv,
+  type ProxmoxNetworkEnv,
+} from "../shared/proxmox/ip-allocation.js";
 import { getDefaultProxmoxTemplateVmid as resolveDefaultProxmoxVmid, resolveProxmoxTemplateMap } from "./proxmox-templates.js";
 import { loadEnvFile } from "./load-env.js";
 
@@ -44,8 +48,18 @@ const envSchema = z.object({
   PROXMOX_TOKEN_SECRET: z.string().optional().or(z.literal("")),
   PROXMOX_STORAGE: z.string().optional().or(z.literal("")),
   PROXMOX_BRIDGE: z.string().optional().or(z.literal("")),
+  PROXMOX_NETWORK: z.string().optional().or(z.literal("")),
+  PROXMOX_GATEWAY: z.string().optional().or(z.literal("")),
+  PROXMOX_IP_START: z.string().optional().or(z.literal("")),
+  PROXMOX_IP_END: z.string().optional().or(z.literal("")),
+  PROXMOX_NAMESERVER: z.string().optional().or(z.literal("")),
+  PROXMOX_RESERVED_IPS: z.string().optional().or(z.literal("")),
   PROXMOX_TEMPLATE_MAP: z.string().optional().or(z.literal("")),
   PROXMOX_INSECURE_TLS: z.string().optional().or(z.literal("")),
+
+  SHARED_IP_DATABASE_URL: z.string().optional().or(z.literal("")),
+  BILLING_DATABASE_URL: z.string().optional().or(z.literal("")),
+  PROXMOX_REQUIRE_SHARED_IP_REGISTRY: z.string().optional().or(z.literal("")),
 
   // Webhook Configuration (optional)
   IS_WEBHOOK: z.string().url().optional().or(z.literal("")),
@@ -226,6 +240,9 @@ export const isProxmoxInsecureTls = (): boolean => {
   const value = (config.PROXMOX_INSECURE_TLS ?? process.env.PROXMOX_INSECURE_TLS ?? "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes" || value === "on";
 };
+
+/** IPv4 pool for TG-bot Proxmox provisioning (see PROXMOX_* network env vars). */
+export const getProxmoxNetworkEnv = (): ProxmoxNetworkEnv => readProxmoxNetworkEnv(process.env);
 
 export const getPrimeChannelForCheck = (): number | string | null => {
   const idRaw = trimQuotes(config.PRIME_CHANNEL_ID ?? process.env.PRIME_CHANNEL_ID ?? "");

@@ -2,6 +2,7 @@ import axios, { type AxiosInstance } from "axios";
 import https from "https";
 import {
   config,
+  getProxmoxNetworkEnv,
   getProxmoxTemplateMap,
   isProxmoxInsecureTls,
 } from "../../app/config.js";
@@ -25,6 +26,16 @@ import type {
   VmProvider,
   VncConsoleInfo,
 } from "./provider.js";
+import type { NetworkIpRegistry } from "../../domain/network/NetworkIpRegistry.js";
+import {
+  isSharedIpRegistryRequired,
+} from "../../infrastructure/db/network-ip-registry.js";
+import {
+  buildIpConfig0,
+  isUsablePublicIpv4,
+  parseIpFromIpConfig,
+  pickFreeIpv4Candidate,
+} from "../../shared/proxmox/ip-allocation.js";
 import {
   parseLocationKeyFromProvisionerComment,
   resolveProxmoxLocationTarget,
@@ -81,7 +92,7 @@ export class ProxmoxProvider implements VmProvider {
   private clusterNodeNamesCache: { names: string[]; at: number } | null = null;
   private readonly clusterNodeNamesTtlMs = 60_000;
 
-  constructor() {
+  constructor(private readonly ipRegistry: NetworkIpRegistry | null = null) {
     this.baseUrl = (config.PROXMOX_BASE_URL ?? process.env.PROXMOX_BASE_URL ?? "").trim().replace(/\/+$/, "");
     this.node = (config.PROXMOX_NODE ?? process.env.PROXMOX_NODE ?? "").trim();
     this.storage = (config.PROXMOX_STORAGE ?? process.env.PROXMOX_STORAGE ?? "").trim();
@@ -107,7 +118,9 @@ export class ProxmoxProvider implements VmProvider {
       httpsAgent: insecureTls ? new https.Agent({ rejectUnauthorized: false }) : undefined,
     });
 
-    Logger.info("Proxmox provider initialized");
+    Logger.info("Proxmox provider initialized", {
+      sharedIpRegistry: Boolean(this.ipRegistry),
+    });
   }
 
   private isRetryableTransportError(error: unknown): boolean {
@@ -582,41 +595,59 @@ export class ProxmoxProvider implements VmProvider {
     return mbps > 0 ? `${base},rate=${mbps}` : base;
   }
 
-  private ipToInt(ip: string): number {
-    const parts = ip.split(".").map((p) => Number(p));
-    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return 0;
-    return (((parts[0] ?? 0) << 24) >>> 0) + ((parts[1] ?? 0) << 16) + ((parts[2] ?? 0) << 8) + (parts[3] ?? 0);
-  }
-
-  private intToIp(ipInt: number): string {
-    return [
-      (ipInt >>> 24) & 255,
-      (ipInt >>> 16) & 255,
-      (ipInt >>> 8) & 255,
-      ipInt & 255,
-    ].join(".");
-  }
-
-  private parseIpFromIpConfig(ipConfig?: string): string | undefined {
-    if (!ipConfig) return undefined;
-    const match = ipConfig.match(/(?:^|,)ip=([0-9.]+)\/\d+/);
-    return match?.[1];
-  }
-
-  private async getBridgeNetworkConfig(
+  private async resolveBridgeNetworkConfig(
     node = this.node,
     bridgeName = this.bridge
   ): Promise<{ cidr: string; gateway: string } | undefined> {
+    const envNetwork = getProxmoxNetworkEnv();
+    if (envNetwork.cidr && envNetwork.gateway) {
+      return { cidr: envNetwork.cidr, gateway: envNetwork.gateway };
+    }
+
     try {
       const interfaces = await this.apiGet<ProxmoxNetworkIface[]>(`/nodes/${node}/network`);
       const bridge = interfaces.find((iface) => iface.iface === bridgeName);
       const cidr = bridge?.cidr ?? (bridge?.address?.includes("/") ? bridge.address : undefined);
       const gateway = bridge?.gateway;
-      if (!cidr || !gateway) return undefined;
+      if (!cidr || !gateway) {
+        if (envNetwork.cidr && envNetwork.gateway) {
+          return { cidr: envNetwork.cidr, gateway: envNetwork.gateway };
+        }
+        return undefined;
+      }
       return { cidr, gateway };
     } catch (error) {
       Logger.warn("Failed to read Proxmox bridge network config", error);
+      if (envNetwork.cidr && envNetwork.gateway) {
+        return { cidr: envNetwork.cidr, gateway: envNetwork.gateway };
+      }
       return undefined;
+    }
+  }
+
+  private parseGuestAgentIpv4List(
+    agent: { result?: Array<{ "ip-addresses"?: Array<{ "ip-address"?: string }> }> } | null | undefined
+  ): string[] {
+    const ips =
+      agent?.result
+        ?.flatMap((i) => i["ip-addresses"] ?? [])
+        .map((ip) => ip["ip-address"] ?? "")
+        .filter(isUsablePublicIpv4) ?? [];
+    return [...new Set(ips)];
+  }
+
+  private async collectGuestAgentIpv4OnNode(node: string, vmid: number): Promise<string[]> {
+    try {
+      const status = await this.apiGet<{ status?: string }>(
+        `/nodes/${node}/qemu/${vmid}/status/current`
+      ).catch(() => undefined);
+      if (status?.status !== "running") return [];
+      const agent = await this.apiGet<{ result?: Array<{ "ip-addresses"?: Array<{ "ip-address"?: string }> }> }>(
+        `/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`
+      ).catch(() => null);
+      return this.parseGuestAgentIpv4List(agent);
+    } catch {
+      return [];
     }
   }
 
@@ -624,8 +655,9 @@ export class ProxmoxProvider implements VmProvider {
     node = this.node,
     bridgeName = this.bridge
   ): Promise<Set<string>> {
-    const bridgeConfig = await this.getBridgeNetworkConfig(node, bridgeName);
-    const usedIps = new Set<string>();
+    const bridgeConfig = await this.resolveBridgeNetworkConfig(node, bridgeName);
+    const envNetwork = getProxmoxNetworkEnv();
+    const usedIps = new Set<string>(envNetwork.reservedIps);
     if (bridgeConfig) {
       const [networkIp] = bridgeConfig.cidr.split("/");
       usedIps.add(bridgeConfig.gateway);
@@ -633,54 +665,148 @@ export class ProxmoxProvider implements VmProvider {
     }
     try {
       const nodes = [...new Set([this.node, ...(await this.listClusterNodeNames())])];
-      for (const node of nodes) {
-        const vms = await this.apiGet<Array<{ vmid: number }>>(`/nodes/${node}/qemu`).catch(() => []);
+      for (const scanNode of nodes) {
+        const vms = await this.apiGet<Array<{ vmid: number }>>(`/nodes/${scanNode}/qemu`).catch(() => []);
         for (const vm of vms) {
-          const config = await this.apiGet<{ ipconfig0?: string; ipconfig1?: string }>(
-            `/nodes/${node}/qemu/${vm.vmid}/config`
+          const configData = await this.apiGet<{ ipconfig0?: string; ipconfig1?: string }>(
+            `/nodes/${scanNode}/qemu/${vm.vmid}/config`
           ).catch(() => undefined);
           for (const key of ["ipconfig0", "ipconfig1"] as const) {
-            const ip = this.parseIpFromIpConfig(config?.[key]);
+            const ip = parseIpFromIpConfig(configData?.[key]);
             if (ip) usedIps.add(ip);
           }
+          const agentIps = await this.collectGuestAgentIpv4OnNode(scanNode, vm.vmid);
+          for (const ip of agentIps) usedIps.add(ip);
         }
       }
     } catch (error) {
-      Logger.warn("Failed to build used IPv4 set from Proxmox config", error);
+      Logger.warn("Failed to build used IPv4 set from Proxmox", error);
     }
     return usedIps;
   }
 
   private async pickFreeIpv4FromBridge(
     node = this.node,
-    bridgeName = this.bridge
-  ): Promise<{ ipconfig0: string; nameserver: string } | undefined> {
-    const bridgeConfig = await this.getBridgeNetworkConfig(node, bridgeName);
+    bridgeName = this.bridge,
+    options?: { vmid?: number }
+  ): Promise<{ ipconfig0: string; nameserver: string; ip: string } | undefined> {
+    const bridgeConfig = await this.resolveBridgeNetworkConfig(node, bridgeName);
     if (!bridgeConfig) return undefined;
 
-    const [networkIp, prefixStr] = bridgeConfig.cidr.split("/");
-    const prefix = Number(prefixStr);
-    if (!networkIp || !Number.isInteger(prefix) || prefix < 16 || prefix > 30) return undefined;
+    const proxmoxUsed = await this.collectUsedIpv4OnBridge(node, bridgeName);
 
-    const networkInt = this.ipToInt(networkIp);
-    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
-    const subnetBase = networkInt & mask;
-
-    const usedIps = await this.collectUsedIpv4OnBridge(node, bridgeName);
-
-    // Keep a safe allocation range in the same /24-like segment.
-    const startHost = 100;
-    const endHost = 250;
-    for (let host = startHost; host <= endHost; host++) {
-      const candidate = this.intToIp((subnetBase + host) >>> 0);
-      if (usedIps.has(candidate)) continue;
-      return {
-        ipconfig0: `ip=${candidate}/${prefix},gw=${bridgeConfig.gateway}`,
-        nameserver: "1.1.1.1",
-      };
+    if (this.ipRegistry) {
+      const reserved = await this.ipRegistry.reserve({
+        network: bridgeConfig.cidr,
+        gateway: bridgeConfig.gateway,
+        externalUsedIps: proxmoxUsed,
+        owner: "telegram_bot",
+        vmid: options?.vmid,
+      });
+      if (reserved) {
+        return {
+          ip: reserved.ip,
+          ipconfig0: reserved.ipconfig0,
+          nameserver: reserved.nameserver,
+        };
+      }
+      if (isSharedIpRegistryRequired()) {
+        Logger.error(
+          "Shared IP registry has no free IPv4 (check network_ip_allocations / billing reservations)"
+        );
+        return undefined;
+      }
+    } else if (isSharedIpRegistryRequired()) {
+      Logger.error(
+        "PROXMOX_REQUIRE_SHARED_IP_REGISTRY=1 but SHARED_IP_DATABASE_URL is not configured"
+      );
+      return undefined;
     }
 
-    return undefined;
+    const envNetwork = getProxmoxNetworkEnv();
+    const dbUsed = this.ipRegistry ? await this.ipRegistry.listUsedIps(bridgeConfig.cidr) : new Set<string>();
+    const usedIps = new Set<string>([...proxmoxUsed, ...dbUsed]);
+    const candidate = pickFreeIpv4Candidate({
+      cidr: bridgeConfig.cidr,
+      gateway: bridgeConfig.gateway,
+      usedIps,
+      ipStart: envNetwork.ipStart,
+      ipEnd: envNetwork.ipEnd,
+    });
+    if (!candidate) return undefined;
+
+    return {
+      ip: candidate,
+      ipconfig0: buildIpConfig0(candidate, bridgeConfig.cidr, bridgeConfig.gateway),
+      nameserver: envNetwork.nameserver,
+    };
+  }
+
+  private async ensureGuestIpconfig0OnNode(
+    node: string,
+    vmid: number,
+    bridgeName = this.bridge,
+    options?: { allowNewAllocation?: boolean }
+  ): Promise<string | undefined> {
+    const existing = await this.apiGet<{ ipconfig0?: string }>(
+      `/nodes/${node}/qemu/${vmid}/config`
+    ).catch(() => undefined);
+    const existingIp = parseIpFromIpConfig(existing?.ipconfig0);
+    if (existingIp) return existingIp;
+
+    const bridgeConfig = await this.resolveBridgeNetworkConfig(node, bridgeName);
+    if (!bridgeConfig) return undefined;
+
+    const agentIp = (await this.collectGuestAgentIpv4OnNode(node, vmid))[0];
+    const allowNewAllocation = options?.allowNewAllocation !== false;
+    const picked = !agentIp && allowNewAllocation
+      ? await this.pickFreeIpv4FromBridge(node, bridgeName)
+      : undefined;
+    const ipToRegister = agentIp ?? picked?.ip;
+    if (!ipToRegister) {
+      if (!agentIp && !allowNewAllocation) {
+        Logger.warn(
+          `Proxmox ensureGuestIpconfig0: vmid=${vmid} skipped (no ipconfig0, guest-agent unavailable)`
+        );
+      }
+      return undefined;
+    }
+
+    const envNetwork = getProxmoxNetworkEnv();
+    const ipconfig0 = buildIpConfig0(ipToRegister, bridgeConfig.cidr, bridgeConfig.gateway);
+
+    await this.apiPost(`/nodes/${node}/qemu/${vmid}/config`, {
+      agent: 1,
+      ipconfig0,
+      nameserver: envNetwork.nameserver,
+    });
+    await this.apiPost(`/nodes/${node}/qemu/${vmid}/cloudinit`, {}).catch((err) => {
+      Logger.warn(`Proxmox ensureGuestIpconfig0: cloudinit regenerate failed vmid=${vmid}`, err);
+    });
+
+    const verified = await this.apiGet<{ ipconfig0?: string }>(
+      `/nodes/${node}/qemu/${vmid}/config`
+    ).catch(() => undefined);
+    const verifiedIp = parseIpFromIpConfig(verified?.ipconfig0) ?? ipToRegister;
+    if (this.ipRegistry) {
+      if (picked?.ip) {
+        await this.ipRegistry.activate(verifiedIp, vmid).catch((err) => {
+          Logger.warn(`Proxmox ensureGuestIpconfig0: activate failed vmid=${vmid} ip=${verifiedIp}`, err);
+        });
+      } else if (agentIp) {
+        await this.ipRegistry
+          .upsertActive({
+            ip: verifiedIp,
+            network: bridgeConfig.cidr,
+            owner: "telegram_bot",
+            vmid,
+          })
+          .catch((err) => {
+            Logger.warn(`Proxmox ensureGuestIpconfig0: upsert failed vmid=${vmid} ip=${verifiedIp}`, err);
+          });
+      }
+    }
+    return verifiedIp;
   }
 
   private buildOsItem(id: number, key: string): Os {
@@ -736,7 +862,14 @@ export class ProxmoxProvider implements VmProvider {
   ): Promise<CreateVMSuccesffulyResponse | false> {
     let newId: number | undefined;
     let guestNode: string | undefined;
+    let reservedIp: string | undefined;
     const rollbackGuest = async (reason: string): Promise<void> => {
+      if (reservedIp && this.ipRegistry) {
+        await this.ipRegistry.releaseByIp(reservedIp).catch((releaseErr) => {
+          Logger.warn(`Proxmox createVM: release shared IP failed ip=${reservedIp}`, releaseErr);
+        });
+        reservedIp = undefined;
+      }
       if (newId == null) return;
       try {
         await this.purgeQemuGuest(newId, guestNode);
@@ -762,7 +895,6 @@ export class ProxmoxProvider implements VmProvider {
       const parsedVmId = Number(typeof nextIdRaw === "number" ? nextIdRaw : String(nextIdRaw).trim());
       if (!Number.isFinite(parsedVmId)) return false;
       newId = parsedVmId;
-      const autoIpConfig = await this.pickFreeIpv4FromBridge(target.node, target.bridge);
 
       const templateHostNode = await this.findNodeHostingQemuGuest(templateId);
       const destNode = target.node.trim() || templateHostNode;
@@ -867,14 +999,26 @@ export class ProxmoxProvider implements VmProvider {
         return false;
       }
 
+      const autoIpConfig = await this.pickFreeIpv4FromBridge(runNode, target.bridge, { vmid: newId });
+      if (!autoIpConfig?.ipconfig0) {
+        Logger.error(
+          `Proxmox createVM: no free IPv4 on bridge=${target.bridge} (shared registry + Proxmox scan)`
+        );
+        await rollbackGuest("no free ipv4");
+        return false;
+      }
+      reservedIp = autoIpConfig.ip;
+      Logger.info(`Proxmox createVM: assigned IPv4 ${autoIpConfig.ip} vmid=${newId}`);
+
       const baseConfig: Record<string, unknown> = {
+        agent: 1,
         cores: cpuNumber,
         memory: ramSize * 1024,
         ciuser: this.cloudInitUserForOsId(osId),
         cipassword: password,
         description: comment,
-        ipconfig0: autoIpConfig?.ipconfig0,
-        nameserver: autoIpConfig?.nameserver,
+        ipconfig0: autoIpConfig.ipconfig0,
+        nameserver: autoIpConfig.nameserver,
       };
       try {
         await this.apiPost(`/nodes/${runNode}/qemu/${newId}/config`, {
@@ -888,6 +1032,22 @@ export class ProxmoxProvider implements VmProvider {
           net0: `virtio,bridge=${target.bridge}`,
         });
       }
+
+      const verifiedIp = parseIpFromIpConfig(
+        (
+          await this.apiGet<{ ipconfig0?: string }>(`/nodes/${runNode}/qemu/${newId}/config`).catch(
+            () => undefined
+          )
+        )?.ipconfig0
+      );
+      if (!verifiedIp) {
+        Logger.error(`Proxmox createVM: ipconfig0 not persisted in Proxmox vmid=${newId}`);
+        await rollbackGuest("ipconfig0 verify failed");
+        return false;
+      }
+      await this.ipRegistry?.activate(verifiedIp, newId).catch((activateErr) => {
+        Logger.warn(`Proxmox createVM: shared IP activate failed ip=${verifiedIp} vmid=${newId}`, activateErr);
+      });
 
       // PVE often holds a short config lock after POST /config; immediate resize fails with "locked".
       await this.sleep(3500);
@@ -1212,25 +1372,15 @@ export class ProxmoxProvider implements VmProvider {
       ).catch(() => undefined);
       const configuredIps: string[] = [];
       for (const key of ["ipconfig0", "ipconfig1"] as const) {
-        const ip = this.parseIpFromIpConfig(configData?.[key]);
-        if (ip && ip !== "0.0.0.0" && ip !== "127.0.0.1" && !configuredIps.includes(ip)) {
+        const ip = parseIpFromIpConfig(configData?.[key]);
+        if (ip && isUsablePublicIpv4(ip) && !configuredIps.includes(ip)) {
           configuredIps.push(ip);
         }
       }
       const agent = await this.apiGet<{ result?: Array<{ "ip-addresses"?: Array<{ "ip-address"?: string }> }> }>(
         `/nodes/${node}/qemu/${id}/agent/network-get-interfaces`
       ).catch(() => null);
-      const ips =
-        agent?.result
-          ?.flatMap((i) => i["ip-addresses"] ?? [])
-          .map((ip) => ip["ip-address"] ?? "")
-          .filter(
-            (ip) =>
-              /^\d+\.\d+\.\d+\.\d+$/.test(ip) &&
-              ip !== "0.0.0.0" &&
-              ip !== "127.0.0.1" &&
-              !ip.startsWith("169.254.")
-          ) ?? [];
+      const ips = this.parseGuestAgentIpv4List(agent);
       if (ips.length > 0) {
         const merged = [...new Set([...configuredIps, ...ips])];
         return { list: merged.map((ip_addr) => ({ ip_addr })) };
@@ -1238,7 +1388,7 @@ export class ProxmoxProvider implements VmProvider {
       if (configuredIps.length > 0) {
         return { list: configuredIps.map((ip_addr) => ({ ip_addr })) };
       }
-      const configuredIp = this.parseIpFromIpConfig(configData?.ipconfig0);
+      const configuredIp = parseIpFromIpConfig(configData?.ipconfig0);
       if (configuredIp && configuredIp !== "0.0.0.0" && configuredIp !== "127.0.0.1") {
         return { list: [{ ip_addr: configuredIp }] };
       }
@@ -1259,11 +1409,18 @@ export class ProxmoxProvider implements VmProvider {
       }
       const picked = await this.pickFreeIpv4FromBridge();
       if (!picked) return false;
-      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
-        ipconfig1: picked.ipconfig0,
-      });
-      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
-      return true;
+      try {
+        await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+          agent: 1,
+          ipconfig1: picked.ipconfig0,
+        });
+        await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
+        await this.ipRegistry?.activate(picked.ip, id).catch(() => {});
+        return true;
+      } catch (error) {
+        await this.ipRegistry?.releaseByIp(picked.ip).catch(() => {});
+        throw error;
+      }
     } catch (error) {
       Logger.warn(`Proxmox addIpv4ToHost failed guest=${id}`, error);
       return false;
@@ -1288,6 +1445,14 @@ export class ProxmoxProvider implements VmProvider {
 
   async deleteVM(id: number): Promise<unknown> {
     const node = await this.resolveQemuNodeForGuest(id);
+    const result = await this.tryDeleteVmOnNode(id, node);
+    await this.ipRegistry?.releaseByVmid(id).catch((releaseErr) => {
+      Logger.warn(`Proxmox deleteVM: release shared IP failed vmid=${id}`, releaseErr);
+    });
+    return result;
+  }
+
+  private async tryDeleteVmOnNode(id: number, node: string): Promise<unknown> {
     try {
       return await this.apiDelete(`/nodes/${node}/qemu/${id}?purge=1`);
     } catch (firstError: unknown) {
@@ -1396,15 +1561,24 @@ export class ProxmoxProvider implements VmProvider {
           ? existingConfig.net0
           : `virtio,bridge=${this.bridge}`;
 
+      const preservedIpconfig0 =
+        typeof existingConfig.ipconfig0 === "string" && existingConfig.ipconfig0.trim()
+          ? existingConfig.ipconfig0
+          : (await this.pickFreeIpv4FromBridge())?.ipconfig0;
+
       await this.apiPost(`/nodes/${runNode}/qemu/${id}/config`, {
+        agent: 1,
         cores: Number(existingConfig.cores ?? 1),
         memory: Number(existingConfig.memory ?? 1024),
         ciuser: this.cloudInitUserForOsId(osId),
         cipassword: rootPassword,
         description: descriptionMerged || "DiorHost reinstall",
         net0: net0Restored,
-        ipconfig0: typeof existingConfig.ipconfig0 === "string" ? existingConfig.ipconfig0 : undefined,
-        nameserver: typeof existingConfig.nameserver === "string" ? existingConfig.nameserver : undefined,
+        ipconfig0: preservedIpconfig0,
+        nameserver:
+          typeof existingConfig.nameserver === "string"
+            ? existingConfig.nameserver
+            : getProxmoxNetworkEnv().nameserver,
       });
       await this.apiPost(`/nodes/${runNode}/qemu/${id}/cloudinit`, {}).catch((err) => {
         Logger.warn(`Proxmox reinstallOS: cloudinit regenerate failed guest=${id}`, err);
@@ -1911,27 +2085,85 @@ export class ProxmoxProvider implements VmProvider {
   async resetNetworkConfig(id: number): Promise<boolean> {
     try {
       const node = await this.resolveQemuNodeForGuest(id);
-      const cfg = await this.apiGet<{ ipconfig0?: string; nameserver?: string }>(
-        `/nodes/${node}/qemu/${id}/config`
-      );
-      let ipconfig0 = typeof cfg.ipconfig0 === "string" ? cfg.ipconfig0 : undefined;
-      let nameserver = typeof cfg.nameserver === "string" ? cfg.nameserver : undefined;
-      if (!ipconfig0) {
-        const picked = await this.pickFreeIpv4FromBridge();
-        if (!picked) return false;
-        ipconfig0 = picked.ipconfig0;
-        nameserver = nameserver ?? picked.nameserver;
-      }
-      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
-        ipconfig0,
-        nameserver: nameserver ?? "1.1.1.1",
-      });
-      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
-      return true;
+      const assigned = await this.ensureGuestIpconfig0OnNode(node, id);
+      return Boolean(assigned);
     } catch (error) {
       Logger.warn(`Proxmox resetNetworkConfig failed guest=${id}`, error);
       return false;
     }
+  }
+
+  /** Writes missing ipconfig0/agent to existing QEMU guests so billing can see all IPs. */
+  /** Used by sync-shared-ip-registry script. */
+  async enumerateQemuGuests(): Promise<Array<{ node: string; vmid: number; ipconfig0?: string }>> {
+    const nodes = await this.listClusterNodeNames();
+    const guests: Array<{ node: string; vmid: number; ipconfig0?: string }> = [];
+    for (const node of nodes) {
+      const vms = await this.apiGet<Array<{ vmid: number; template?: 0 | 1 }>>(
+        `/nodes/${node}/qemu`
+      ).catch(() => []);
+      for (const vm of vms) {
+        if (vm.template === 1) continue;
+        const cfg = await this.apiGet<{ ipconfig0?: string }>(
+          `/nodes/${node}/qemu/${vm.vmid}/config`
+        ).catch(() => ({ ipconfig0: undefined }));
+        guests.push({ node, vmid: vm.vmid, ipconfig0: cfg.ipconfig0 });
+      }
+    }
+    return guests;
+  }
+
+  async backfillMissingIpconfig0(options?: { dryRun?: boolean }): Promise<{
+    scanned: number;
+    updated: number;
+    skipped: number;
+    failed: number;
+  }> {
+    const dryRun = options?.dryRun === true;
+    let scanned = 0;
+    let updated = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    const nodes = [...new Set([this.node, ...(await this.listClusterNodeNames())])];
+    for (const scanNode of nodes) {
+      const vms = await this.apiGet<Array<{ vmid: number; template?: 0 | 1 }>>(
+        `/nodes/${scanNode}/qemu`
+      ).catch(() => []);
+      for (const vm of vms) {
+        if (vm.template === 1) continue;
+        scanned += 1;
+        const cfg = await this.apiGet<{ ipconfig0?: string }>(
+          `/nodes/${scanNode}/qemu/${vm.vmid}/config`
+        ).catch(() => undefined);
+        if (parseIpFromIpConfig(cfg?.ipconfig0)) {
+          skipped += 1;
+          continue;
+        }
+        if (dryRun) {
+          const agentIp = (await this.collectGuestAgentIpv4OnNode(scanNode, vm.vmid))[0];
+          if (agentIp) {
+            Logger.info(`[dry-run] vmid=${vm.vmid} would register ${agentIp} (guest-agent)`);
+            updated += 1;
+          } else {
+            Logger.warn(`[dry-run] vmid=${vm.vmid} skipped (no guest-agent IP)`);
+            failed += 1;
+          }
+          continue;
+        }
+        const ip = await this.ensureGuestIpconfig0OnNode(scanNode, vm.vmid, this.bridge, {
+          allowNewAllocation: false,
+        });
+        if (ip) {
+          Logger.info(`Proxmox backfill: vmid=${vm.vmid} ipconfig0=${ip}`);
+          updated += 1;
+        } else {
+          failed += 1;
+        }
+      }
+    }
+
+    return { scanned, updated, skipped, failed };
   }
 
 }

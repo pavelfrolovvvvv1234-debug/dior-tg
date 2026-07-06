@@ -33,7 +33,7 @@ import {
 import { startOsListBackgroundRefresh } from "../shared/vmmanager-os-cache.js";
 import { initFluent } from "../fluent.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
-import { createVmProvider } from "../infrastructure/vmmanager/factory.js";
+import { createVmProviderAsync } from "../infrastructure/vmmanager/factory.js";
 import { Role, UserStatus } from "../entities/User.js";
 import type { AppContext } from "../shared/types/context.js";
 import type { MainSessionData, OtherSessionData } from "../shared/types/session.js";
@@ -85,7 +85,7 @@ export async function createBot(): Promise<{
   Logger.info("Database initialized");
 
   // Initialize VM provider (VMManager/Proxmox)
-  const vmManager = createVmProvider();
+  const vmManager = await createVmProviderAsync();
   startOsListBackgroundRefresh(vmManager);
   Logger.info("VM provider initialized");
 
