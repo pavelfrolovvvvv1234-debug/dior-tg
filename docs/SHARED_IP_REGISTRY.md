@@ -33,7 +33,8 @@ On delete / release: `UPDATE ... SET status = 'released', releasedAt = NOW() WHE
 
 ## Table schema (MySQL)
 
-See `migrations/20260627_network_ip_allocations.mysql.sql`.
+**Use the billing Prisma table** (`network_ip_allocations` with snake_case columns: `external_service_id`, `created_at`, etc.).  
+Do not create a second table. Bot entity maps to billing columns.
 
 ## One-time sync (existing VMs)
 

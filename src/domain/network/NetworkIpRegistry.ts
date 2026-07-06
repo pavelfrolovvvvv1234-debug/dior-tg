@@ -20,7 +20,7 @@ export type ReservedNetworkIp = {
   ip: string;
   ipconfig0: string;
   nameserver: string;
-  allocationId: number;
+  allocationId: string;
 };
 
 function pessimisticWriteLockForDataSource(
