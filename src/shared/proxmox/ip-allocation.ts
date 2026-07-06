@@ -39,6 +39,15 @@ export function isUsablePublicIpv4(ip: string): boolean {
   return true;
 }
 
+export function isIpv4InCidr(ip: string, cidr: string): boolean {
+  const [networkIp, prefixStr] = cidr.split("/");
+  const prefix = Number(prefixStr);
+  if (!networkIp || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) return false;
+  if (!isUsablePublicIpv4(ip)) return false;
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return (ipToInt(ip) & mask) === (ipToInt(networkIp) & mask);
+}
+
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(String(raw ?? "").trim(), 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;

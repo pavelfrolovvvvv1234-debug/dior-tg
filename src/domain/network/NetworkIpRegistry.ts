@@ -36,6 +36,34 @@ function pessimisticWriteLockForDataSource(
 export class NetworkIpRegistry {
   constructor(private readonly dataSource: DataSource) {}
 
+  /** Drop bot reservations left behind by crashed/failed creates. */
+  private async releaseStaleReservations(
+    manager: EntityManager,
+    owner: NetworkIpOwner
+  ): Promise<void> {
+    if (this.dataSource.options.type === "mysql") {
+      await manager.query(
+        `UPDATE network_ip_allocations
+         SET status = 'released', released_at = NOW(3), updated_at = NOW(3)
+         WHERE status = 'reserved'
+           AND owner = ?
+           AND updated_at < DATE_SUB(NOW(3), INTERVAL 20 MINUTE)`,
+        [owner]
+      );
+      return;
+    }
+    if (this.dataSource.options.type === "postgres") {
+      await manager.query(
+        `UPDATE network_ip_allocations
+         SET status = 'released', "releasedAt" = NOW(), "updatedAt" = NOW()
+         WHERE status = 'reserved'
+           AND owner = $1
+           AND "updatedAt" < NOW() - INTERVAL '20 minutes'`,
+        [owner]
+      );
+    }
+  }
+
   async listUsedIps(network: string): Promise<Set<string>> {
     const rows = await this.dataSource.getRepository(NetworkIpAllocation).find({
       where: { network, status: In(["reserved", "active"] satisfies NetworkIpStatus[]) },
@@ -62,6 +90,7 @@ export class NetworkIpRegistry {
     for (let attempt = 0; attempt < 8; attempt++) {
       try {
         return await this.dataSource.transaction(async (manager) => {
+          await this.releaseStaleReservations(manager, args.owner);
           const dbUsed = await this.loadUsedIpsLocked(manager, args.network);
           const mergedUsed = new Set<string>([...dbUsed, ...args.externalUsedIps]);
           const candidate = pickFreeIpv4Candidate({
@@ -100,6 +129,7 @@ export class NetworkIpRegistry {
             vmid: args.vmid ?? null,
             externalServiceId: args.externalServiceId ?? null,
             releasedAt: null,
+            updatedAt: new Date(),
           });
           const saved = await manager.save(row);
           return {
@@ -164,7 +194,7 @@ export class NetworkIpRegistry {
       }
       return;
     }
-    await repo.save(
+        await repo.save(
       repo.create({
         ip: args.ip,
         network: args.network,
@@ -172,6 +202,7 @@ export class NetworkIpRegistry {
         status: "active",
         vmid: args.vmid ?? null,
         releasedAt: null,
+        updatedAt: new Date(),
       })
     );
   }

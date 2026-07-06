@@ -91,6 +91,17 @@ export class ProxmoxProvider implements VmProvider {
   private readonly httpTimeoutMs: number;
   private clusterNodeNamesCache: { names: string[]; at: number } | null = null;
   private readonly clusterNodeNamesTtlMs = 60_000;
+  private lastCreateVmFailure: string | null = null;
+
+  getLastCreateVmFailure(): string | null {
+    return this.lastCreateVmFailure;
+  }
+
+  private noteCreateVmFailure(reason: string): false {
+    this.lastCreateVmFailure = reason;
+    Logger.error(`Proxmox createVM: ${reason}`);
+    return false;
+  }
 
   constructor(private readonly ipRegistry: NetworkIpRegistry | null = null) {
     this.baseUrl = (config.PROXMOX_BASE_URL ?? process.env.PROXMOX_BASE_URL ?? "").trim().replace(/\/+$/, "");
@@ -710,10 +721,12 @@ export class ProxmoxProvider implements VmProvider {
           nameserver: reserved.nameserver,
         };
       }
+      const envNetwork = getProxmoxNetworkEnv();
+      const dbUsed = await this.ipRegistry.listUsedIps(bridgeConfig.cidr);
+      Logger.error(
+        `Shared IP registry reserve failed network=${bridgeConfig.cidr} dbUsed=${dbUsed.size} proxmoxUsed=${proxmoxUsed.size} range=${envNetwork.ipStart}-${envNetwork.ipEnd}`
+      );
       if (isSharedIpRegistryRequired()) {
-        Logger.error(
-          "Shared IP registry has no free IPv4 (check network_ip_allocations / billing reservations)"
-        );
         return undefined;
       }
     } else if (isSharedIpRegistryRequired()) {
@@ -879,10 +892,10 @@ export class ProxmoxProvider implements VmProvider {
     };
 
     try {
+      this.lastCreateVmFailure = null;
       const templateId = this.resolveTemplateSourceVmid(osId);
       if (!templateId) {
-        Logger.warn(`Proxmox template not found for osId=${osId}`);
-        return false;
+        return this.noteCreateVmFailure(`template not found for osId=${osId}`);
       }
       const locationKey = parseLocationKeyFromProvisionerComment(comment);
       const target = resolveProxmoxLocationTarget(locationKey, {
@@ -893,7 +906,7 @@ export class ProxmoxProvider implements VmProvider {
 
       const nextIdRaw = await this.apiGet<string | number>(`/cluster/nextid`);
       const parsedVmId = Number(typeof nextIdRaw === "number" ? nextIdRaw : String(nextIdRaw).trim());
-      if (!Number.isFinite(parsedVmId)) return false;
+      if (!Number.isFinite(parsedVmId)) return this.noteCreateVmFailure("cluster/nextid invalid");
       newId = parsedVmId;
 
       const templateHostNode = await this.findNodeHostingQemuGuest(templateId);
@@ -930,7 +943,7 @@ export class ProxmoxProvider implements VmProvider {
           await rollbackGuest(`clone retry strategy ${si}`);
           const nextAgain = await this.apiGet<string | number>(`/cluster/nextid`);
           const parsedAgain = Number(typeof nextAgain === "number" ? nextAgain : String(nextAgain).trim());
-          if (!Number.isFinite(parsedAgain)) return false;
+          if (!Number.isFinite(parsedAgain)) return this.noteCreateVmFailure("cluster/nextid invalid on clone retry");
           newId = parsedAgain;
         }
         const cloneBody: Record<string, unknown> = {
@@ -977,9 +990,8 @@ export class ProxmoxProvider implements VmProvider {
       }
 
       if (!guest) {
-        Logger.error(`Proxmox createVM: all clone strategies failed template=${templateId}`);
         await rollbackGuest("clone failed all strategies");
-        return false;
+        return this.noteCreateVmFailure(`clone failed for template=${templateId}`);
       }
       guestNode = guest.node;
       const runNode = guest.node;
@@ -987,25 +999,20 @@ export class ProxmoxProvider implements VmProvider {
 
       const diskKey = this.findPrimaryQemuDiskKey(baselineCfg);
       if (!diskKey) {
-        Logger.error(
-          `Proxmox createVM: could not detect disk slot (expected virtio0/scsi0/...) vmid=${newId} keys=${Object.keys(baselineCfg).join(",")}`
-        );
         await rollbackGuest("no disk slot");
-        return false;
+        return this.noteCreateVmFailure(`no disk slot vmid=${newId}`);
       }
       if (!Number.isFinite(diskSize) || diskSize < 1) {
-        Logger.error(`Proxmox createVM: invalid diskSizeGb=${diskSize} vmid=${newId}`);
         await rollbackGuest("invalid disk size");
-        return false;
+        return this.noteCreateVmFailure(`invalid diskSizeGb=${diskSize}`);
       }
 
       const autoIpConfig = await this.pickFreeIpv4FromBridge(runNode, target.bridge, { vmid: newId });
       if (!autoIpConfig?.ipconfig0) {
-        Logger.error(
-          `Proxmox createVM: no free IPv4 on bridge=${target.bridge} (shared registry + Proxmox scan)`
-        );
         await rollbackGuest("no free ipv4");
-        return false;
+        return this.noteCreateVmFailure(
+          `no free IPv4 on ${target.bridge} (shared registry + Proxmox scan; check network_ip_allocations)`
+        );
       }
       reservedIp = autoIpConfig.ip;
       Logger.info(`Proxmox createVM: assigned IPv4 ${autoIpConfig.ip} vmid=${newId}`);
@@ -1041,9 +1048,8 @@ export class ProxmoxProvider implements VmProvider {
         )?.ipconfig0
       );
       if (!verifiedIp) {
-        Logger.error(`Proxmox createVM: ipconfig0 not persisted in Proxmox vmid=${newId}`);
         await rollbackGuest("ipconfig0 verify failed");
-        return false;
+        return this.noteCreateVmFailure(`ipconfig0 not persisted vmid=${newId}`);
       }
       await this.ipRegistry?.activate(verifiedIp, newId).catch((activateErr) => {
         Logger.warn(`Proxmox createVM: shared IP activate failed ip=${verifiedIp} vmid=${newId}`, activateErr);
@@ -1100,9 +1106,8 @@ export class ProxmoxProvider implements VmProvider {
           await this.sleep(2000);
         }
         if (!resizeOk) {
-          Logger.error(`Proxmox createVM: disk resize exhausted retries vmid=${newId} disk=${diskKey} targetGb=${diskSize}`);
           await rollbackGuest("resize failed");
-          return false;
+          return this.noteCreateVmFailure(`disk resize failed vmid=${newId} targetGb=${diskSize}`);
         }
       } else {
         Logger.warn(
@@ -1121,9 +1126,8 @@ export class ProxmoxProvider implements VmProvider {
       if (startUpidStr) {
         const startOk = await this.waitForNodeTask(startUpidStr, 180_000);
         if (!startOk) {
-          Logger.error(`Proxmox createVM: start task failed vmid=${newId}`);
           await rollbackGuest("start task failed");
-          return false;
+          return this.noteCreateVmFailure(`start task failed vmid=${newId}`);
         }
       }
 
@@ -1143,6 +1147,10 @@ export class ProxmoxProvider implements VmProvider {
       }
       Logger.error("Proxmox createVM failed", error);
       await rollbackGuest("exception");
+      this.lastCreateVmFailure =
+        ax?.response?.data != null
+          ? `Proxmox API error: ${JSON.stringify(ax.response.data).slice(0, 500)}`
+          : String((error as Error)?.message ?? error);
       return false;
     }
   }

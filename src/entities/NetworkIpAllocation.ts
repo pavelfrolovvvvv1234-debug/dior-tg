@@ -60,7 +60,10 @@ export default class NetworkIpAllocation {
   releasedAt!: Date | null;
 
   @BeforeInsert()
-  ensureId(): void {
+  ensureDefaults(): void {
+    const now = new Date();
     if (!this.id) this.id = randomUUID();
+    if (!this.createdAt) this.createdAt = now;
+    if (!this.updatedAt) this.updatedAt = now;
   }
 }

@@ -8,7 +8,7 @@
 import { isProxmoxEnabled } from "../src/app/config.js";
 import { getNetworkIpRegistry, getSharedIpDataSource } from "../src/infrastructure/db/network-ip-registry.js";
 import { ProxmoxProvider } from "../src/infrastructure/vmmanager/ProxmoxProvider.js";
-import { parseIpFromIpConfig, readProxmoxNetworkEnv } from "../src/shared/proxmox/ip-allocation.js";
+import { parseIpFromIpConfig, readProxmoxNetworkEnv, isIpv4InCidr } from "../src/shared/proxmox/ip-allocation.js";
 import NetworkIpAllocation from "../src/entities/NetworkIpAllocation.js";
 
 async function main(): Promise<void> {
@@ -40,6 +40,10 @@ async function main(): Promise<void> {
     const live = await provider.getIpv4AddrVM(guest.vmid);
     const ip = fromConfig ?? live?.list?.find((row) => row.ip_addr && row.ip_addr !== "0.0.0.0")?.ip_addr;
     if (!ip) {
+      skipped += 1;
+      continue;
+    }
+    if (!isIpv4InCidr(ip, network)) {
       skipped += 1;
       continue;
     }

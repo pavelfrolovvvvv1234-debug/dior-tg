@@ -27,6 +27,7 @@ import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-re
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
 import { getOrderPriceForUser } from "../../shared/pricing/order-discount.js";
 import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
+import { ProxmoxProvider } from "../../infrastructure/vmmanager/ProxmoxProvider.js";
 import ms from "../../lib/multims.js";
 import {
   buildPremiumVpsReadyHtml,
@@ -332,7 +333,11 @@ async function createVpsOrderDirect(
             ])
           : await createPromise;
       if (!vmResult) {
-        lastProvisionError = new Error("createVM returned false");
+        const proxmoxDetail =
+          ctx.vmmanager instanceof ProxmoxProvider
+            ? ctx.vmmanager.getLastCreateVmFailure()
+            : null;
+        lastProvisionError = new Error(proxmoxDetail ?? "createVM returned false");
         continue;
       }
 
@@ -394,9 +399,16 @@ async function createVpsOrderDirect(
 
     if (!savedVds) {
       const reason = String((lastProvisionError as { message?: string })?.message ?? "").trim();
-      if (reason.includes("createVM returned false")) {
+      if (
+        reason.includes("createVM returned false") ||
+        reason.includes("Proxmox createVM") ||
+        reason.includes("no free IPv4") ||
+        reason.includes("clone failed")
+      ) {
         throw new Error(
-          "Не удалось создать VPS на стороне Proxmox (clone/resize/задача). Проверь логи бота и задачи в Proxmox."
+          reason && !reason.includes("createVM returned false")
+            ? `Не удалось создать VPS: ${reason}`
+            : "Не удалось создать VPS на стороне Proxmox (clone/resize/задача). Проверь логи бота и задачи в Proxmox."
         );
       }
       const baseMessage = "Failed to save VPS after retrying VMID conflicts";
