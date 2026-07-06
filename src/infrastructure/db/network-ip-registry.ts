@@ -27,47 +27,34 @@ function detectDriver(url: string): "postgres" | "mysql" | null {
   return null;
 }
 
-async function ensureSharedIpTable(dataSource: DataSource): Promise<void> {
+async function sharedIpTableExists(dataSource: DataSource): Promise<boolean> {
   const driver = dataSource.options.type;
   if (driver === "postgres") {
-    await dataSource.query(`
-      CREATE TABLE IF NOT EXISTS network_ip_allocations (
-        id SERIAL PRIMARY KEY,
-        ip VARCHAR(15) NOT NULL UNIQUE,
-        network VARCHAR(43) NOT NULL,
-        owner VARCHAR(32) NOT NULL,
-        status VARCHAR(16) NOT NULL DEFAULT 'reserved',
-        vmid INTEGER NULL,
-        "externalServiceId" VARCHAR(64) NULL,
-        "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-        "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-        "releasedAt" TIMESTAMP NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_network_ip_allocations_network ON network_ip_allocations (network);
-      CREATE INDEX IF NOT EXISTS idx_network_ip_allocations_vmid ON network_ip_allocations (vmid);
-    `);
-    return;
+    const rows: Array<{ exists: boolean }> = await dataSource.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema = current_schema() AND table_name = 'network_ip_allocations'
+       ) AS "exists"`
+    );
+    return Boolean(rows[0]?.exists);
   }
-
   if (driver === "mysql") {
-    await dataSource.query(`
-      CREATE TABLE IF NOT EXISTS network_ip_allocations (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        ip VARCHAR(15) NOT NULL,
-        network VARCHAR(43) NOT NULL,
-        owner VARCHAR(32) NOT NULL,
-        status VARCHAR(16) NOT NULL DEFAULT 'reserved',
-        vmid INT NULL,
-        externalServiceId VARCHAR(64) NULL,
-        createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        releasedAt DATETIME NULL,
-        UNIQUE KEY uq_network_ip_allocations_ip (ip),
-        KEY idx_network_ip_allocations_network (network),
-        KEY idx_network_ip_allocations_vmid (vmid)
-      ) ENGINE=InnoDB;
-    `);
+    const rows: Array<{ cnt: number }> = await dataSource.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.tables
+       WHERE table_schema = DATABASE() AND table_name = 'network_ip_allocations'`
+    );
+    return Number(rows[0]?.cnt ?? 0) > 0;
   }
+  return false;
+}
+
+async function ensureSharedIpTable(dataSource: DataSource): Promise<void> {
+  if (await sharedIpTableExists(dataSource)) return;
+
+  throw new Error(
+    "network_ip_allocations table is missing in the shared database. " +
+      "Create it on the billing MySQL (Docker) as root — see migrations/20260627_network_ip_allocations.mysql.sql"
+  );
 }
 
 export async function getSharedIpDataSource(): Promise<DataSource | null> {
