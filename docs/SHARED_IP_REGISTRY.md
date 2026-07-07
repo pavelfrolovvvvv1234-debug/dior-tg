@@ -1,12 +1,23 @@
 # Shared IPv4 registry (bot + billing)
 
-Both **TG-bot** and **dior-billing** must use the same table `network_ip_allocations` in the **same database**.  
+**TG-bot:** shared registry is **off by default**. Bot assigns IPs via Proxmox scan only (`PROXMOX_USE_SHARED_IP_REGISTRY=0`).
+
+Enable later when billing also writes to the same table:
+
+```env
+PROXMOX_USE_SHARED_IP_REGISTRY=1
+PROXMOX_REQUIRE_SHARED_IP_REGISTRY=1
+SHARED_IP_DATABASE_URL=mysql://USER:PASS@HOST:3306/dior_billing
+```
+
+Both **TG-bot** and **dior-billing** must use the same table `network_ip_allocations` in the **same database** when shared mode is on.
 That is the only source of truth for “this IP is taken” — no separate IP zones.
 
-## Bot `.env`
+## Bot `.env` (shared mode)
 
 ```env
 VM_PROVIDER=proxmox
+PROXMOX_USE_SHARED_IP_REGISTRY=1
 SHARED_IP_DATABASE_URL=mysql://USER:PASS@HOST:3306/dior_billing
 PROXMOX_REQUIRE_SHARED_IP_REGISTRY=1
 PROXMOX_NETWORK=45.74.7.0/24

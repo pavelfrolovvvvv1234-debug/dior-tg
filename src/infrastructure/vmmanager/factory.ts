@@ -3,6 +3,7 @@ import { Logger } from "../../app/logger.js";
 import type { NetworkIpRegistry } from "../../domain/network/NetworkIpRegistry.js";
 import {
   getNetworkIpRegistry,
+  isSharedIpRegistryEnabled,
   isSharedIpRegistryRequired,
 } from "../db/network-ip-registry.js";
 import { VMManager } from "./VMManager.js";
@@ -20,10 +21,10 @@ export function createVmProvider(options?: { ipRegistry?: NetworkIpRegistry | nu
 }
 
 export async function createVmProviderAsync(): Promise<VmProvider> {
-  const ipRegistry = await getNetworkIpRegistry();
+  const ipRegistry = isSharedIpRegistryEnabled() ? await getNetworkIpRegistry() : null;
   if (!ipRegistry && isSharedIpRegistryRequired() && isProxmoxEnabled()) {
     Logger.error(
-      "Shared IP registry is required (PROXMOX_REQUIRE_SHARED_IP_REGISTRY=1) but SHARED_IP_DATABASE_URL / BILLING_DATABASE_URL is missing"
+      "Shared IP registry is required (PROXMOX_USE_SHARED_IP_REGISTRY=1 and PROXMOX_REQUIRE_SHARED_IP_REGISTRY=1) but SHARED_IP_DATABASE_URL / BILLING_DATABASE_URL is missing or unreachable"
     );
   }
   return createVmProvider({ ipRegistry });

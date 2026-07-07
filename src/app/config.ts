@@ -59,6 +59,7 @@ const envSchema = z.object({
 
   SHARED_IP_DATABASE_URL: z.string().optional().or(z.literal("")),
   BILLING_DATABASE_URL: z.string().optional().or(z.literal("")),
+  PROXMOX_USE_SHARED_IP_REGISTRY: z.string().optional().or(z.literal("")),
   PROXMOX_REQUIRE_SHARED_IP_REGISTRY: z.string().optional().or(z.literal("")),
 
   // Webhook Configuration (optional)

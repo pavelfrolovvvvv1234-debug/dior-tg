@@ -1011,7 +1011,7 @@ export class ProxmoxProvider implements VmProvider {
       if (!autoIpConfig?.ipconfig0) {
         await rollbackGuest("no free ipv4");
         return this.noteCreateVmFailure(
-          `no free IPv4 on ${target.bridge} (shared registry + Proxmox scan; check network_ip_allocations)`
+          `no free IPv4 on ${target.bridge} (Proxmox scan; range ${getProxmoxNetworkEnv().ipStart}-${getProxmoxNetworkEnv().ipEnd})`
         );
       }
       reservedIp = autoIpConfig.ip;

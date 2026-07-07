@@ -88,7 +88,18 @@ export async function getSharedIpDataSource(): Promise<DataSource | null> {
   return sharedIpDataSource;
 }
 
+function parseEnvFlag(raw: string | undefined): boolean {
+  const normalized = (raw ?? "0").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes";
+}
+
+/** Opt-in: shared IP table in billing MySQL. Off by default — TG bot uses Proxmox scan only. */
+export function isSharedIpRegistryEnabled(): boolean {
+  return parseEnvFlag(process.env.PROXMOX_USE_SHARED_IP_REGISTRY);
+}
+
 export async function getNetworkIpRegistry(): Promise<NetworkIpRegistry | null> {
+  if (!isSharedIpRegistryEnabled()) return null;
   if (sharedIpRegistry) return sharedIpRegistry;
   const ds = await getSharedIpDataSource();
   if (!ds) return null;
@@ -96,7 +107,8 @@ export async function getNetworkIpRegistry(): Promise<NetworkIpRegistry | null> 
   return sharedIpRegistry;
 }
 
+/** When enabled, provisioning fails instead of falling back to Proxmox-only IP pick. */
 export function isSharedIpRegistryRequired(): boolean {
-  const raw = (process.env.PROXMOX_REQUIRE_SHARED_IP_REGISTRY ?? "0").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "on" || raw === "yes";
+  if (!isSharedIpRegistryEnabled()) return false;
+  return parseEnvFlag(process.env.PROXMOX_REQUIRE_SHARED_IP_REGISTRY);
 }

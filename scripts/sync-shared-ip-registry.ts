@@ -6,7 +6,8 @@
  *   tsx scripts/sync-shared-ip-registry.ts
  */
 import { isProxmoxEnabled } from "../src/app/config.js";
-import { getNetworkIpRegistry, getSharedIpDataSource } from "../src/infrastructure/db/network-ip-registry.js";
+import { NetworkIpRegistry } from "../src/domain/network/NetworkIpRegistry.js";
+import { getSharedIpDataSource } from "../src/infrastructure/db/network-ip-registry.js";
 import { ProxmoxProvider } from "../src/infrastructure/vmmanager/ProxmoxProvider.js";
 import { parseIpFromIpConfig, readProxmoxNetworkEnv, isIpv4InCidr } from "../src/shared/proxmox/ip-allocation.js";
 import NetworkIpAllocation from "../src/entities/NetworkIpAllocation.js";
@@ -17,12 +18,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const ipRegistry = await getNetworkIpRegistry();
   const sharedDs = await getSharedIpDataSource();
-  if (!ipRegistry || !sharedDs) {
+  if (!sharedDs) {
     console.error("SHARED_IP_DATABASE_URL / BILLING_DATABASE_URL is not configured.");
     process.exit(1);
   }
+  const ipRegistry = new NetworkIpRegistry(sharedDs);
 
   const dryRun = process.argv.includes("--dry-run");
   const network =
