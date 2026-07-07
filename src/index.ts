@@ -110,6 +110,9 @@ import {
   floodProtectionMiddleware,
   checkStartCooldown,
 } from "./app/flood-protection.js";
+import { registerUserRecoveryHandlers } from "./app/user-recovery.js";
+import { clearStuckUserSessionFlags } from "./shared/session-reset.js";
+import { isBotBlockedError } from "./shared/telegram/is-bot-blocked-error.js";
 import {
   acquireSingleInstanceLock,
   logDatabaseMode,
@@ -153,7 +156,7 @@ import DomainChecker from "./api/domain-checker";
 import { escapeUserInput } from "./helpers/formatting";
 import type { SessionData } from "./shared/types/session";
 import type { AppContext, AppConversation } from "./shared/types/context";
-import { createInitialMainSession, createInitialOtherSession } from "./shared/session-initial.js";
+import { createInitialMainSession, createInitialOtherSession, ensureFullSession } from "./shared/session-initial.js";
 import { ensureSessionUser } from "./shared/utils/session-user.js";
 import { getCachedOsList, startOsListBackgroundRefresh } from "./shared/vmmanager-os-cache.js";
 import { getCachedUser, setCachedUser, invalidateUser } from "./shared/user-cache.js";
@@ -662,6 +665,7 @@ async function index() {
   // Must run right after session: otherwise long middleware chains can reach Menu handlers
   // without ConversationFlavor and ctx.conversation.enter() throws (reading 'enter').
   bot.use(conversations());
+  registerUserRecoveryHandlers(bot);
   {
     const { registerAdminCreateServiceWizardEarlyHandlers } = await import(
       "./shared/admin/admin-create-service-session.js"
@@ -1038,11 +1042,13 @@ async function index() {
       if (tid > 0 && !checkStartCooldown(tid)) {
         return;
       }
+      await ctx.conversation.exitAll().catch(() => {});
+      const session = ensureFullSession((await ctx.session) as SessionData);
+      clearStuckUserSessionFlags(session);
       if (ctx.message) {
         await ctx.deleteMessage().catch(() => {});
       }
-      const session = (await ctx.session) as SessionData;
-      if (session?.main?.user?.id) {
+      if (session.main.user.id) {
         await ensurePrimePaidAfterTrial(ctx as AppContext, session);
       }
       const payload = ctx.match && typeof ctx.match === "string" ? ctx.match.trim() : "";
@@ -1098,7 +1104,17 @@ async function index() {
       });
     } catch (error: unknown) {
       Logger.error("[Start] Error in /start command", error);
-      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      try {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" });
+      } catch (replyErr) {
+        if (isBotBlockedError(replyErr)) {
+          Logger.warn("[Start] User blocked the bot — cannot reply", {
+            telegramId: ctx.from?.id ?? ctx.chatId,
+          });
+        } else {
+          Logger.error("[Start] Failed to send error reply", replyErr);
+        }
+      }
     }
   });
 

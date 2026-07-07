@@ -119,6 +119,7 @@ function clearSensitiveAdminSession(other: OtherSessionData): void {
   }
   if (other.adminCdn) other.adminCdn.awaitingSearch = false;
   if (other.ticketsView) {
+    other.ticketsView.currentTicketId = null;
     other.ticketsView.pendingAction = null;
     other.ticketsView.pendingTicketId = null;
   }
