@@ -39,6 +39,7 @@ export const DISABLED_BULK_CAMPAIGN_KEYS: readonly CampaignKey[] = [
   "weekly_digest",
   "market_intel",
   "tech_tip",
+  "post_purchase",
   "expansion",
   "vip_alert",
   "reactivation",

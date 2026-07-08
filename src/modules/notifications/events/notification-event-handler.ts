@@ -12,7 +12,6 @@ import User from "../../../entities/User.js";
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
 import { NotificationQueueService } from "../queue/notification-queue.service.js";
 import { scheduleOnboarding } from "../campaigns/onboarding.campaign.js";
-import { schedulePostPurchase } from "../campaigns/post-purchase.campaign.js";
 import { FunnelTrackerService } from "../funnel/funnel-tracker.service.js";
 import { Logger } from "../../../app/logger.js";
 
@@ -45,14 +44,7 @@ export function setupNotificationEventHandler(
         if (!user) return;
         await funnel.completeFunnel(user.id, "vps_checkout");
         await queue.cancelCampaignForUser(user.id, "onboarding");
-        const locale = user.lang === "en" ? "en" : "ru";
-        const label =
-          payload.serviceType === "vds"
-            ? "VPS/VDS"
-            : payload.serviceType === "dedicated"
-              ? "Dedicated"
-              : "Domain";
-        await schedulePostPurchase(queue, user.id, label, locale);
+        await queue.cancelCampaignForUser(user.id, "post_purchase");
         return;
       }
 
