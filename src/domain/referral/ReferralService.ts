@@ -12,6 +12,7 @@ import ReferralReward from "../../entities/ReferralReward.js";
 import { NotFoundError, BusinessError } from "../../shared/errors/index.js";
 import { Logger } from "../../app/logger.js";
 import { config } from "../../app/config.js";
+import { isStatsExcludedTopupUsername } from "../../shared/billing/stats-excluded-topup-users.js";
 
 /** Result when referral reward was applied (for notifying referrer). */
 export type ReferralRewardApplied = {
@@ -211,6 +212,11 @@ export class ReferralService {
 
       if (!referee) {
         throw new NotFoundError("User", refereeId);
+      }
+
+      if (isStatsExcludedTopupUsername(referee.telegramUsername)) {
+        Logger.debug(`User ${refereeId} (@${referee.telegramUsername}) excluded from referral stats, skipping reward`);
+        return 0;
       }
 
       // Check if referee has referrer

@@ -4,6 +4,10 @@ import User from "../../entities/User.js";
 import type { ReferralAnalytics, TopAffiliateRow } from "./types.js";
 import { ReferralListService } from "./referral-list.service.js";
 import { resolveReferralTier } from "./referral-tier.js";
+import {
+  applyReferralRewardStatsExclusion,
+  getStatsExcludedTopupUserIds,
+} from "../../shared/billing/stats-excluded-topup-users.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -20,18 +24,20 @@ export class ReferralAnalyticsService {
     const overview = await this.list.getOverview(referrerId);
     const rewardRepo = this.dataSource.getRepository(ReferralReward);
 
+    const excludedRefereeIds = await getStatsExcludedTopupUserIds(this.dataSource);
     const weeklyBuckets: ReferralAnalytics["weeklyBuckets"] = [];
     for (let i = 3; i >= 0; i--) {
       const end = new Date();
       end.setDate(end.getDate() - i * 7);
       const start = new Date(end);
       start.setDate(start.getDate() - 7);
-      const raw = await rewardRepo
+      const rawQb = rewardRepo
         .createQueryBuilder("r")
         .select("COALESCE(SUM(r.rewardAmount), 0)", "t")
         .where("r.referrerId = :rid", { rid: referrerId })
-        .andWhere("r.createdAt >= :start AND r.createdAt < :end", { start, end })
-        .getRawOne<{ t: string }>();
+        .andWhere("r.createdAt >= :start AND r.createdAt < :end", { start, end });
+      applyReferralRewardStatsExclusion(rawQb, excludedRefereeIds);
+      const raw = await rawQb.getRawOne<{ t: string }>();
       weeklyBuckets.push({
         label: `W${4 - i}`,
         amount: round2(Number(raw?.t ?? 0)),

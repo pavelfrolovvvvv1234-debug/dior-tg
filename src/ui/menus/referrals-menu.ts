@@ -15,6 +15,11 @@ import User from "../../entities/User.js";
 import ReferralReward from "../../entities/ReferralReward.js";
 import ServiceInvoice, { ServiceInvoiceStatus } from "../../entities/ServiceInvoice.js";
 import TopUp, { TopUpStatus } from "../../entities/TopUp.js";
+import {
+  applyReferralRewardStatsExclusion,
+  applyTopUpStatsExclusion,
+  getStatsExcludedTopupUserIds,
+} from "../../shared/billing/stats-excluded-topup-users.js";
 
 /** Default referral commission % when user has no custom value. */
 const DEFAULT_REFERRAL_PERCENT = 5;
@@ -47,26 +52,31 @@ async function getReferralSummary(
   let activeReferees30d = 0;
 
   if (refereeIds.length > 0) {
+    const excludedIds = new Set(await getStatsExcludedTopupUserIds(dataSource));
+    const statsRefereeIds = refereeIds.filter((id) => !excludedIds.has(id));
     const topUpRepo = dataSource.getRepository(TopUp);
     const depositQb = topUpRepo
       .createQueryBuilder("t")
       .select("t.target_user_id", "uid")
       .addSelect("SUM(t.amount)", "sum")
-      .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
+      .where("t.target_user_id IN (:...ids)", { ids: statsRefereeIds.length ? statsRefereeIds : [-1] })
       .andWhere("t.status = :status", { status: TopUpStatus.Completed })
       .groupBy("t.target_user_id");
+    applyTopUpStatsExclusion(depositQb, [...excludedIds]);
     const depositRows = await depositQb.getRawMany<{ uid: number; sum: string }>();
     refereesWithDeposit = depositRows.length;
     totalDepositSum = depositRows.reduce((acc, r) => acc + Number(r.sum ?? 0), 0);
 
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const activeFromTopUp = await topUpRepo
-      .createQueryBuilder("t")
-      .select("DISTINCT t.target_user_id", "uid")
-      .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
-      .andWhere("t.status = :status", { status: TopUpStatus.Completed })
-      .andWhere("t.createdAt >= :since", { since: since30d })
-      .getRawMany<{ uid: number }>();
+    const activeFromTopUp = await applyTopUpStatsExclusion(
+      topUpRepo
+        .createQueryBuilder("t")
+        .select("DISTINCT t.target_user_id", "uid")
+        .where("t.target_user_id IN (:...ids)", { ids: statsRefereeIds.length ? statsRefereeIds : [-1] })
+        .andWhere("t.status = :status", { status: TopUpStatus.Completed })
+        .andWhere("t.createdAt >= :since", { since: since30d }),
+      [...excludedIds]
+    ).getRawMany<{ uid: number }>();
     const activeFromInvoices = await dataSource
       .getRepository(ServiceInvoice)
       .createQueryBuilder("i")
@@ -99,6 +109,7 @@ async function getReferralStats(
   referrerId: number,
   since?: Date
 ): Promise<{ topupsCount: number; newClientsCount: number; profit: number }> {
+  const excludedRefereeIds = await getStatsExcludedTopupUserIds(dataSource);
   const rewardRepo = dataSource.getRepository(ReferralReward);
   const countQb = rewardRepo
     .createQueryBuilder("r")
@@ -106,13 +117,15 @@ async function getReferralStats(
   if (since) {
     countQb.andWhere("r.createdAt >= :since", { since });
   }
+  applyReferralRewardStatsExclusion(countQb, excludedRefereeIds);
   const topupsCount = await countQb.getCount();
-  const sumResult = await rewardRepo
+  const sumQb = rewardRepo
     .createQueryBuilder("r")
     .select("COALESCE(SUM(r.rewardAmount), 0)", "total")
     .where("r.referrerId = :rid", { rid: referrerId })
-    .andWhere(since ? "r.createdAt >= :since" : "1=1", since ? { since } : {})
-    .getRawOne<{ total: string }>();
+    .andWhere(since ? "r.createdAt >= :since" : "1=1", since ? { since } : {});
+  applyReferralRewardStatsExclusion(sumQb, excludedRefereeIds);
+  const sumResult = await sumQb.getRawOne<{ total: string }>();
   const profit = Math.round(Number(sumResult?.total ?? 0) * 100) / 100;
 
   const userQb = dataSource

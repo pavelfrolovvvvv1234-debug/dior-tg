@@ -3,7 +3,7 @@
  *
  * Usage:
  *   npx tsx scripts/purge-user-topups.ts --username diorhost
- *   npx tsx scripts/purge-user-topups.ts --username diorhost --payment-system heleket --apply
+ *   npx tsx scripts/purge-user-topups.ts --username diorhost --payment-system heleket --amounts 249,639,50 --apply
  */
 import "dotenv/config";
 import { In } from "typeorm";
@@ -29,6 +29,13 @@ async function main(): Promise<void> {
   const username = argValue("--username");
   const userIdRaw = argValue("--user-id");
   const paymentSystem = argValue("--payment-system")?.toLowerCase();
+  const amountsRaw = argValue("--amounts");
+  const amountFilter = amountsRaw
+    ? amountsRaw
+        .split(",")
+        .map((s) => Number.parseFloat(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    : null;
   const stripGrowth = process.argv.includes("--strip-growth-bonuses");
 
   if (!username && !userIdRaw) {
@@ -65,6 +72,10 @@ async function main(): Promise<void> {
 
   if (paymentSystem) {
     qb.andWhere("t.paymentSystem = :ps", { ps: paymentSystem });
+  }
+
+  if (amountFilter && amountFilter.length > 0) {
+    qb.andWhere("t.amount IN (:...amounts)", { amounts: amountFilter });
   }
 
   const topUps = await qb.getMany();

@@ -21,23 +21,33 @@ import { DedicatedProvisioningService } from "../../domain/dedicated/DedicatedPr
 import { ProvisioningTicketStatus } from "../../entities/ProvisioningTicket.js";
 import { openAdminVdsPanel } from "./admin-vds-menu.js";
 import { escapeUserInput } from "../../helpers/formatting.js";
+import {
+  applyTopUpStatsExclusion,
+  getStatsExcludedTopupUserIds,
+} from "../../shared/billing/stats-excluded-topup-users.js";
 
 async function getPurchaseStats(
   dataSource: DataSource,
   since?: Date
 ): Promise<{ count: number; totalAmount: number }> {
+  const excludedUserIds = await getStatsExcludedTopupUserIds(dataSource);
   const repo = dataSource.getRepository(TopUp);
-  const where = { status: TopUpStatus.Completed as TopUpStatus };
+  const countQb = repo
+    .createQueryBuilder("t")
+    .where("t.status = :status", { status: TopUpStatus.Completed });
   if (since) {
-    (where as Record<string, unknown>).createdAt = MoreThanOrEqual(since);
+    countQb.andWhere("t.createdAt >= :since", { since });
   }
-  const count = await repo.count({ where });
-  const result = await repo
+  applyTopUpStatsExclusion(countQb, excludedUserIds);
+  const count = await countQb.getCount();
+
+  const sumQb = repo
     .createQueryBuilder("t")
     .select("COALESCE(SUM(t.amount), 0)", "total")
     .where("t.status = :status", { status: TopUpStatus.Completed })
-    .andWhere(since ? "t.createdAt >= :since" : "1=1", since ? { since } : {})
-    .getRawOne<{ total: string }>();
+    .andWhere(since ? "t.createdAt >= :since" : "1=1", since ? { since } : {});
+  applyTopUpStatsExclusion(sumQb, excludedUserIds);
+  const result = await sumQb.getRawOne<{ total: string }>();
   const totalAmount = Math.round(Number(result?.total ?? 0) * 100) / 100;
   return { count, totalAmount };
 }

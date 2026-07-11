@@ -15,6 +15,11 @@ import type {
 } from "./types.js";
 import { resolveReferralTier } from "./referral-tier.js";
 import { ReferralActivityService } from "./referral-activity.service.js";
+import {
+  applyReferralRewardStatsExclusion,
+  applyTopUpStatsExclusion,
+  getStatsExcludedTopupUserIds,
+} from "../../shared/billing/stats-excluded-topup-users.js";
 
 const DEFAULT_PERCENT = 5;
 const ACTIVE_DAYS = 30;
@@ -54,11 +59,13 @@ export class ReferralListService {
     });
 
     const rewardRepo = this.dataSource.getRepository(ReferralReward);
-    const totalEarnedRaw = await rewardRepo
+    const excludedRefereeIds = await getStatsExcludedTopupUserIds(this.dataSource);
+    const totalEarnedQb = rewardRepo
       .createQueryBuilder("r")
       .select("COALESCE(SUM(r.rewardAmount), 0)", "t")
-      .where("r.referrerId = :rid", { rid: referrerId })
-      .getRawOne<{ t: string }>();
+      .where("r.referrerId = :rid", { rid: referrerId });
+    applyReferralRewardStatsExclusion(totalEarnedQb, excludedRefereeIds);
+    const totalEarnedRaw = await totalEarnedQb.getRawOne<{ t: string }>();
     const totalEarned = round2(Number(totalEarnedRaw?.t ?? 0));
 
     const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -292,42 +299,53 @@ export class ReferralListService {
   }
 
   private async sumRewardsSince(referrerId: number, since: Date): Promise<number> {
-    const raw = await this.dataSource
+    const excludedRefereeIds = await getStatsExcludedTopupUserIds(this.dataSource);
+    const rawQb = this.dataSource
       .getRepository(ReferralReward)
       .createQueryBuilder("r")
       .select("COALESCE(SUM(r.rewardAmount), 0)", "t")
       .where("r.referrerId = :rid", { rid: referrerId })
-      .andWhere("r.createdAt >= :since", { since })
-      .getRawOne<{ t: string }>();
+      .andWhere("r.createdAt >= :since", { since });
+    applyReferralRewardStatsExclusion(rawQb, excludedRefereeIds);
+    const raw = await rawQb.getRawOne<{ t: string }>();
     return round2(Number(raw?.t ?? 0));
   }
 
   private async countRefereesWithDeposit(referrerId: number): Promise<number> {
-    const raw = await this.dataSource
+    const excludedRefereeIds = await getStatsExcludedTopupUserIds(this.dataSource);
+    const qb = this.dataSource
       .getRepository(User)
       .createQueryBuilder("u")
       .where("u.referrerId = :rid", { rid: referrerId })
       .andWhere(
         `EXISTS (SELECT 1 FROM ${sqlTable(this.dataSource, TopUp)} t WHERE t.target_user_id = u.id AND t.status = :st)`,
         { st: TopUpStatus.Completed }
-      )
-      .getCount();
-    return raw;
+      );
+    if (excludedRefereeIds.length > 0) {
+      qb.andWhere("u.id NOT IN (:...statsExcludedRefereeIds)", {
+        statsExcludedRefereeIds: excludedRefereeIds,
+      });
+    }
+    return qb.getCount();
   }
 
   private async earningsByReferee(
     referrerId: number,
     refereeIds: number[]
   ): Promise<Map<number, number>> {
-    const rows = await this.dataSource
+    const excludedRefereeIds = await getStatsExcludedTopupUserIds(this.dataSource);
+    const statsRefereeIds = refereeIds.filter((id) => !excludedRefereeIds.includes(id));
+    if (statsRefereeIds.length === 0) return new Map();
+    const rowsQb = this.dataSource
       .getRepository(ReferralReward)
       .createQueryBuilder("r")
       .select("r.refereeId", "refereeId")
       .addSelect("COALESCE(SUM(r.rewardAmount), 0)", "total")
       .where("r.referrerId = :rid", { rid: referrerId })
-      .andWhere("r.refereeId IN (:...ids)", { ids: refereeIds })
-      .groupBy("r.refereeId")
-      .getRawMany<{ refereeId: number; total: string }>();
+      .andWhere("r.refereeId IN (:...ids)", { ids: statsRefereeIds })
+      .groupBy("r.refereeId");
+    applyReferralRewardStatsExclusion(rowsQb, excludedRefereeIds);
+    const rows = await rowsQb.getRawMany<{ refereeId: number; total: string }>();
     const map = new Map<number, number>();
     for (const row of rows) {
       map.set(Number(row.refereeId), round2(Number(row.total ?? 0)));
@@ -336,16 +354,23 @@ export class ReferralListService {
   }
 
   private async spentByReferee(refereeIds: number[]): Promise<Map<number, number>> {
-    const rows = await this.dataSource
+    const excludedRefereeIds = await getStatsExcludedTopupUserIds(this.dataSource);
+    const statsRefereeIds = refereeIds.filter((id) => !excludedRefereeIds.includes(id));
+    const map = new Map<number, number>();
+    for (const id of refereeIds) {
+      map.set(id, 0);
+    }
+    if (statsRefereeIds.length === 0) return map;
+    const rowsQb = this.dataSource
       .getRepository(TopUp)
       .createQueryBuilder("t")
       .select("t.target_user_id", "uid")
       .addSelect("COALESCE(SUM(t.amount), 0)", "total")
-      .where("t.target_user_id IN (:...ids)", { ids: refereeIds })
+      .where("t.target_user_id IN (:...ids)", { ids: statsRefereeIds })
       .andWhere("t.status = :st", { st: TopUpStatus.Completed })
-      .groupBy("t.target_user_id")
-      .getRawMany<{ uid: number; total: string }>();
-    const map = new Map<number, number>();
+      .groupBy("t.target_user_id");
+    applyTopUpStatsExclusion(rowsQb, excludedRefereeIds);
+    const rows = await rowsQb.getRawMany<{ uid: number; total: string }>();
     for (const row of rows) {
       map.set(Number(row.uid), round2(Number(row.total ?? 0)));
     }
