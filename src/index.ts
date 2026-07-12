@@ -2136,14 +2136,10 @@ async function index() {
         return next();
       }
       adminVds.awaitingSearch = false;
-      const low = input.toLowerCase();
-      if (low === "очистить" || low === "clear") {
-        adminVds.searchQuery = "";
-      } else {
-        adminVds.searchQuery = input;
-      }
-      adminVds.page = 0;
-      const { replyAdminVdsList } = await import("./ui/menus/admin-vds-menu.js");
+      const { applyAdminVdsSearchFromInput, replyAdminVdsList } = await import(
+        "./ui/menus/admin-vds-menu.js"
+      );
+      await applyAdminVdsSearchFromInput(ctx as AppContext, input);
       await replyAdminVdsList(ctx as AppContext);
       return;
     }

@@ -76,6 +76,8 @@ export interface OtherSessionData {
   adminVds: {
     page: number;
     searchQuery: string;
+  /** When set, list shows all VPS for these owners (no pagination). */
+  searchOwnerUserIds: number[] | null;
     selectedVdsId: number | null;
     awaitingSearch: boolean;
     awaitingTransferUserId: boolean;

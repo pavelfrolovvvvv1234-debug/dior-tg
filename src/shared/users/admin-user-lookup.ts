@@ -189,3 +189,32 @@ export async function resolveUserFromAdminLookup(
 
   return findUserByUsernameScan(ds, ctx.api, normalizedUsername, maxUsernameScan);
 }
+
+/** Resolve DB user ids for admin VDS search by @username / Telegram id (all VPS for owner). */
+export async function resolveOwnerUserIdsForAdminVdsSearch(
+  ctx: AppContext,
+  raw: string
+): Promise<number[]> {
+  const input = normalizeAdminUserLookupQuery(raw);
+  if (!input) return [];
+
+  if (isNumericAdminLookupQuery(input)) {
+    const user = await findUserByInternalOrTelegramId(ctx.appDataSource, input);
+    return user ? [user.id] : [];
+  }
+
+  const normalizedUsername = normalizeTelegramUsername(input);
+  if (!normalizedUsername) return [];
+
+  const user = await resolveUserFromAdminLookup(ctx, raw, { maxUsernameScan: 8000 });
+  if (user) return [user.id];
+
+  const fromDb = await ctx.appDataSource
+    .getRepository(User)
+    .createQueryBuilder("u")
+    .where("LOWER(COALESCE(u.telegramUsername, '')) = :exact", { exact: normalizedUsername })
+    .orWhere("LOWER(COALESCE(u.telegramUsername, '')) LIKE :like", { like: `%${normalizedUsername}%` })
+    .getMany();
+
+  return [...new Set(fromDb.map((u) => u.id).filter((id) => id > 0))];
+}

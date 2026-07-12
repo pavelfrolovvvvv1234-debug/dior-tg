@@ -1231,7 +1231,7 @@ vds-plan-change-support-body =
 button-admin-vds = 🖥 Услуги
 button-admin-cdn = 🌍 CDN (админ)
 admin-vds-title = <strong>VDS — админ</strong>
-Поиск: ID услуги, ID ВМ, IP, имя. Страница {$page} / {$totalPages}
+Поиск: ID услуги, ID ВМ, IP, @username, Telegram ID, имя. Страница {$page} / {$totalPages}
 admin-vds-empty = Список пуст.
 admin-vds-row = <b>{$n}.</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
   [running] 🟢 Running
@@ -1254,7 +1254,9 @@ Telegram: <code>{$ownerTelegramId}</code>
 admin-vds-flag-blocked = 🔒 Заблокирован админом
 admin-vds-flag-locked = ⛔ Управление отключено (просрочка)
 admin-vds-search-button = 🔍 Поиск
-admin-vds-search-prompt = Отправьте строку поиска (ID услуги, ID ВМ, IP, имя тарифа или отображаемое имя) или «очистить» для сброса.
+admin-vds-search-prompt = Отправьте строку поиска (ID услуги, ID ВМ, IP, <b>@username</b>, Telegram ID, внутренний user id, имя тарифа или отображаемое имя) или «очистить» для сброса.
+admin-vds-user-filter-line = 👤 Все VPS клиента: {$user} · <b>{$count}</b> шт.
+admin-vds-user-not-found = ⚠️ Пользователь «{$query}» не найден в боте (нет в БД / не писал боту).
 admin-vds-search-done = Фильтр: «{$query}»
 admin-vds-extended = Срок продлён на {$days} дн.
 admin-vds-transferred = Владелец изменён на user id {$userId}

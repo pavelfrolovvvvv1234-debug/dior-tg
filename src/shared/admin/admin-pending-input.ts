@@ -84,6 +84,7 @@ export function beginAdminVdsSearch(session: SessionData): void {
     session.other.adminVds = {
       page: 0,
       searchQuery: "",
+      searchOwnerUserIds: null,
       selectedVdsId: null,
       awaitingSearch: false,
       awaitingTransferUserId: false,

@@ -1216,7 +1216,7 @@ vds-plan-change-support-body =
 button-admin-vds = 🖥 Services
 button-admin-cdn = 🌍 CDN (admin)
 admin-vds-title = <strong>VDS — admin</strong>
-Search: service id, VM id, IP, name. Page {$page} / {$totalPages}
+Search: service id, VM id, IP, @username, Telegram ID, name. Page {$page} / {$totalPages}
 admin-vds-empty = No records.
 admin-vds-row = <b>{$n}.</b>   <code>{$ip}</code>   <code>[{$rate}]</code>   { $status ->
   [running] 🟢 Running
@@ -1239,7 +1239,9 @@ Expires: {DATETIME($expireAt, dateStyle: "long", timeStyle: "short")}
 admin-vds-flag-blocked = 🔒 Blocked by admin
 admin-vds-flag-locked = ⛔ Management locked (overdue)
 admin-vds-search-button = 🔍 Search
-admin-vds-search-prompt = Send a search string (service id, VM id, IP, plan or display name) or «clear» to reset.
+admin-vds-search-prompt = Send a search string (service id, VM id, IP, <b>@username</b>, Telegram ID, internal user id, plan or display name) or «clear» to reset.
+admin-vds-user-filter-line = 👤 All VPS for {$user} · <b>{$count}</b> total
+admin-vds-user-not-found = ⚠️ User «{$query}» not found in the bot (not in DB / never started the bot).
 admin-vds-search-done = Filter: «{$query}»
 admin-vds-extended = Extended by {$days} days.
 admin-vds-transferred = Owner changed to user id {$userId}

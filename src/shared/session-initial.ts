@@ -53,6 +53,7 @@ export function createInitialOtherSession(): SessionData["other"] {
     adminVds: {
       page: 0,
       searchQuery: "",
+      searchOwnerUserIds: null,
       selectedVdsId: null,
       awaitingSearch: false,
       awaitingTransferUserId: false,

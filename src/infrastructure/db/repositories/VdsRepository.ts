@@ -6,6 +6,7 @@
 
 import { Brackets, DataSource, LessThanOrEqual } from "typeorm";
 import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer";
+import User from "../../../entities/User.js";
 import { BaseRepository } from "./base";
 import { NotFoundError } from "../../../shared/errors/index";
 
@@ -48,24 +49,48 @@ export class VdsRepository extends BaseRepository<VirtualDedicatedServer> {
   }
 
   /**
-   * Admin list with optional search by id, IP, name, rate.
+   * Admin list with optional search by id, IP, name, rate, or owner (@username / user id).
    */
   async findPaginatedForAdmin(
     skip: number,
     take: number,
-    search?: string
+    search?: string,
+    ownerUserIds?: number[] | null
   ): Promise<[VirtualDedicatedServer[], number]> {
+    const ownerIds = (ownerUserIds ?? []).filter((id) => Number.isInteger(id) && id > 0);
+    if (ownerIds.length > 0) {
+      const allForOwners = await this.repository
+        .createQueryBuilder("v")
+        .where("v.targetUserId IN (:...ownerIds)", { ownerIds })
+        .orderBy("v.id", "DESC")
+        .getMany();
+      return [allForOwners, allForOwners.length];
+    }
+
     const qb = this.repository.createQueryBuilder("v");
     const trimmed = search?.trim();
     if (trimmed) {
       const q = `%${trimmed}%`;
+      const usernameNeedle = trimmed.replace(/^@+/, "").toLowerCase();
+      const userLike =
+        usernameNeedle.length >= 2 && /^[a-z0-9_]+$/i.test(usernameNeedle)
+          ? `%${usernameNeedle}%`
+          : null;
+
+      qb.leftJoin(User, "u", "u.id = v.targetUserId");
       qb.where(
         new Brackets((w) => {
           w.where("CAST(v.id AS TEXT) LIKE :q", { q })
             .orWhere("CAST(v.vdsId AS TEXT) LIKE :q", { q })
             .orWhere("v.ipv4Addr LIKE :q", { q })
             .orWhere("COALESCE(v.displayName, '') LIKE :q", { q })
-            .orWhere("v.rateName LIKE :q", { q });
+            .orWhere("v.rateName LIKE :q", { q })
+            .orWhere("CAST(v.targetUserId AS TEXT) LIKE :q", { q })
+            .orWhere("CAST(u.telegramId AS TEXT) LIKE :q", { q })
+            .orWhere("CAST(u.id AS TEXT) LIKE :q", { q });
+          if (userLike) {
+            w.orWhere("LOWER(COALESCE(u.telegramUsername, '')) LIKE :userLike", { userLike });
+          }
         })
       );
     }

@@ -166,6 +166,7 @@ export async function createBot(): Promise<{
           adminVds: {
             page: 0,
             searchQuery: "",
+            searchOwnerUserIds: null,
             selectedVdsId: null,
             awaitingSearch: false,
             awaitingTransferUserId: false,

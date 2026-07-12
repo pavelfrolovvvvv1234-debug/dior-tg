@@ -142,6 +142,7 @@ function vdsService(ctx: AppContext): VdsService {
 export function clearAdminVdsPanelState(other: SessionData["other"] | undefined): void {
   if (!other?.adminVds) return;
   other.adminVds.searchQuery = "";
+  other.adminVds.searchOwnerUserIds = null;
   other.adminVds.page = 0;
   other.adminVds.selectedVdsId = null;
   other.adminVds.awaitingSearch = false;
@@ -175,6 +176,7 @@ export async function openAdminVdsDetailById(ctx: AppContext, serviceId: number)
     session.other.adminVds = {
       page: 0,
       searchQuery: "",
+      searchOwnerUserIds: null,
       selectedVdsId: null,
       awaitingSearch: false,
       awaitingTransferUserId: false,
@@ -216,6 +218,7 @@ export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
     session.other.adminVds = {
       page: 0,
       searchQuery: "",
+      searchOwnerUserIds: null,
       selectedVdsId: null,
       awaitingSearch: false,
       awaitingTransferUserId: false,
@@ -232,30 +235,100 @@ export async function openAdminVdsPanel(ctx: AppContext): Promise<void> {
   }
 }
 
-async function buildListText(ctx: AppContext): Promise<string> {
-  const session = ensureFullSession(await ctx.session);
-  const ad = session.other.adminVds;
+async function loadAdminVdsList(
+  ctx: AppContext,
+  ad: SessionData["other"]["adminVds"]
+): Promise<{ list: VirtualDedicatedServer[]; total: number; totalPages: number }> {
   const vdsRepo = new VdsRepository(ctx.appDataSource);
+  if (ad.searchOwnerUserIds != null && ad.searchOwnerUserIds.length > 0) {
+    const [list, total] = await vdsRepo.findPaginatedForAdmin(0, 0, undefined, ad.searchOwnerUserIds);
+    return { list, total, totalPages: 1 };
+  }
   const [list, total] = await vdsRepo.findPaginatedForAdmin(
     ad.page * PAGE_SIZE,
     PAGE_SIZE,
     ad.searchQuery || undefined
   );
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const header = ctx.t("admin-vds-title", {
-    page: ad.page + 1,
-    totalPages,
+  return { list, total, totalPages };
+}
+
+/** Apply admin VDS search text: resolves @username / user id to show all owner VPS. */
+export async function applyAdminVdsSearchFromInput(
+  ctx: AppContext,
+  input: string
+): Promise<void> {
+  const session = ensureFullSession(await ctx.session);
+  if (!session.other.adminVds) {
+    session.other.adminVds = {
+      page: 0,
+      searchQuery: "",
+      searchOwnerUserIds: null,
+      selectedVdsId: null,
+      awaitingSearch: false,
+      awaitingTransferUserId: false,
+    };
+  }
+  const ad = session.other.adminVds;
+  ad.page = 0;
+  ad.searchOwnerUserIds = null;
+
+  const low = input.toLowerCase();
+  if (low === "очистить" || low === "clear") {
+    ad.searchQuery = "";
+    return;
+  }
+
+  ad.searchQuery = input;
+
+  const { resolveOwnerUserIdsForAdminVdsSearch, isTelegramUsernameLookupQuery, isNumericAdminLookupQuery, normalizeAdminUserLookupQuery } =
+    await import("../../shared/users/admin-user-lookup.js");
+  const normalized = normalizeAdminUserLookupQuery(input);
+  if (isTelegramUsernameLookupQuery(normalized) || isNumericAdminLookupQuery(normalized)) {
+    const ownerIds = await resolveOwnerUserIdsForAdminVdsSearch(ctx, input);
+    if (ownerIds.length > 0) {
+      ad.searchOwnerUserIds = ownerIds;
+    }
+  }
+}
+
+async function buildListText(ctx: AppContext): Promise<string> {
+  const session = ensureFullSession(await ctx.session);
+  const ad = session.other.adminVds;
+  const { list, total, totalPages } = await loadAdminVdsList(ctx, ad);
+  let header = ctx.t("admin-vds-title", {
+    page: ad.searchOwnerUserIds?.length ? 1 : ad.page + 1,
+    totalPages: ad.searchOwnerUserIds?.length ? 1 : totalPages,
   });
+  if (ad.searchOwnerUserIds?.length) {
+    const userRepo = new UserRepository(ctx.appDataSource);
+    const ownerLabels = await Promise.all(
+      ad.searchOwnerUserIds.map(async (uid) => {
+        const owner = await userRepo.findById(uid);
+        return resolveBuyerShort(ctx, owner?.telegramId ?? undefined);
+      })
+    );
+    const userLabel = ownerLabels.join(", ");
+    header += `\n${ctx.t("admin-vds-user-filter-line", { user: userLabel, count: total })}`;
+  } else if (ad.searchQuery.trim()) {
+    const isUserQuery = /^@?[a-z0-9_]{5,32}$/i.test(ad.searchQuery.trim().replace(/^@+/, ""));
+    if (isUserQuery) {
+      header += `\n${ctx.t("admin-vds-user-not-found", { query: ad.searchQuery.trim() })}`;
+    } else {
+      header += `\n${ctx.t("admin-vds-search-done", { query: ad.searchQuery.trim() })}`;
+    }
+  }
   if (list.length === 0) {
     return `${header}\n\n${ctx.t("admin-vds-empty")}`;
   }
   const userRepo = new UserRepository(ctx.appDataSource);
+  const rowOffset = ad.searchOwnerUserIds?.length ? 0 : ad.page * PAGE_SIZE;
   const lines = await Promise.all(
     list.map(async (v, idx) => {
       const owner = await userRepo.findById(v.targetUserId);
       const buyer = await resolveBuyerShort(ctx, owner?.telegramId ?? undefined);
 
-      const n = ad.page * PAGE_SIZE + idx + 1;
+      const n = rowOffset + idx + 1;
       return `${n}. ${escapeHtml(v.ipv4Addr || "—")} - ${buyer}`;
     })
   );
@@ -265,21 +338,16 @@ async function buildListText(ctx: AppContext): Promise<string> {
 async function buildListKeyboard(ctx: AppContext): Promise<InlineKeyboard> {
   const session = ensureFullSession(await ctx.session);
   const ad = session.other.adminVds;
-  const vdsRepo = new VdsRepository(ctx.appDataSource);
-  const [list, total] = await vdsRepo.findPaginatedForAdmin(
-    ad.page * PAGE_SIZE,
-    PAGE_SIZE,
-    ad.searchQuery || undefined
-  );
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const { list, totalPages } = await loadAdminVdsList(ctx, ad);
   const kb = new InlineKeyboard();
+  const rowOffset = ad.searchOwnerUserIds?.length ? 0 : ad.page * PAGE_SIZE;
   list.forEach((v, idx) => {
-    const n = ad.page * PAGE_SIZE + idx + 1;
+    const n = rowOffset + idx + 1;
     const ip = (v.ipv4Addr || "—").trim();
     const label = `${n}. ${ip}`.substring(0, 64);
     kb.text(label, `adv:sel:${v.id}`).row();
   });
-  if (totalPages > 1) {
+  if (!ad.searchOwnerUserIds?.length && totalPages > 1) {
     kb.text("◀", `adv:pg:${Math.max(0, ad.page - 1)}`)
       .text(`${ad.page + 1}/${totalPages}`, "adv:noop")
       .text("▶", `adv:pg:${Math.min(totalPages - 1, ad.page + 1)}`)
@@ -426,6 +494,7 @@ export async function handleAdminVdsCallback(ctx: AppContext): Promise<void> {
     session.other.adminVds = {
       page: 0,
       searchQuery: "",
+      searchOwnerUserIds: null,
       selectedVdsId: null,
       awaitingSearch: false,
       awaitingTransferUserId: false,
