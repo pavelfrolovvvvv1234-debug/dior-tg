@@ -1061,6 +1061,10 @@ vds-shop-standard-list-header = 🖥 Standard VPS/VDS
 vps-location-ru = 🇷🇺 Russia
 vps-location-by = 🇧🇾 Belarus
 vps-location-ab = 🇦🇧 Abkhazia
+vps-location-nl-amsterdam = 🇳🇱 Netherlands (Auto)
+vps-location-de-germany = 🇩🇪 Germany
+vps-location-usa = 🇺🇸 USA
+vps-location-tr-istanbul = 🇹🇷 Turkey
 vds-shop-tier-start = 🚀 Start
 vds-shop-tier-standard = ⚙️ Standard
 vds-shop-tier-performance = 🔥 Performance
@@ -1763,6 +1767,7 @@ dedicated-provisioning-ticket-created =
 
     <i>Manage your service under Main menu → My services.</i>
 dedicated-provisioning-staff-notification = <strong>🛠 New dedicated setup ticket</strong>\nTicket: <code>#{$ticketId}</code>\nOrder: <code>#{$orderId}</code>\nUser: {$userId}\nAmount: {$amount} $\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}
+provisioning-staff-notification = <strong>🛠 New server setup ticket</strong>\nTicket: <code>#{$ticketId}</code>\nOrder: <code>#{$orderId}</code>\nUser: {$userId}\nAmount: {$amount} $\nServer: {$serviceName}\nLocation: {$location}\nOS: {$os}
 
 ticket-status-pending_review = 🟡 Pending review
 ticket-status-awaiting_payment = 🟠 Awaiting payment

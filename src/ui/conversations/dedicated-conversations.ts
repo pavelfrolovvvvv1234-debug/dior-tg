@@ -12,8 +12,7 @@ import { TicketType } from "../../entities/Ticket.js";
 import { DedicatedServerStatus } from "../../entities/DedicatedServer.js";
 import User, { Role } from "../../entities/User.js";
 import { Logger } from "../../app/logger.js";
-import { getModeratorChatId } from "../../shared/moderator-chat.js";
-import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-recipients.js";
+import { notifyStaffChats } from "../../helpers/notifier.js";
 
 /**
  * Order dedicated server conversation.
@@ -89,29 +88,11 @@ export async function createDedicatedOperationTicket(
       amountLine: "",
       detailsLine: "",
     });
-    const staffIds = await resolveStaffNotifyTelegramIds(ctx.appDataSource);
-    for (const chatId of staffIds) {
-      try {
-        await ctx.api.sendMessage(chatId, staffNotifyText, {
-          reply_markup: staffKeyboard,
-          parse_mode: "HTML",
-        });
-      } catch (error) {
-        Logger.warn(`Failed to notify staff ${chatId} about ticket ${ticket.id}:`, error);
-      }
-    }
-
-    const moderatorChatId = getModeratorChatId();
-    if (moderatorChatId) {
-      try {
-        await ctx.api.sendMessage(moderatorChatId, staffNotifyText, {
-          reply_markup: staffKeyboard,
-          parse_mode: "HTML",
-        });
-      } catch (error) {
-        Logger.warn(`Failed to notify moderator chat about ticket ${ticket.id}:`, error);
-      }
-    }
+    await notifyStaffChats(ctx.api, ctx.appDataSource, {
+      text: staffNotifyText,
+      replyMarkup: staffKeyboard,
+      contextLabel: `dedicated op ticket #${ticket.id}`,
+    });
 
     const keyboard = new InlineKeyboard()
       .text(ctx.t("button-view-ticket"), `ticket_user_view_${ticket.id}`)
@@ -195,29 +176,11 @@ export async function createDedicatedOrderTicket(
         amountLine: "",
         detailsLine: "",
       });
-      const staffIds = await resolveStaffNotifyTelegramIds(ctx.appDataSource);
-      for (const chatId of staffIds) {
-        try {
-          await ctx.api.sendMessage(chatId, staffNotifyText, {
-            reply_markup: staffKeyboard,
-            parse_mode: "HTML",
-          });
-        } catch (error) {
-          Logger.warn(`Failed to notify staff ${chatId} about ticket ${ticket.id}:`, error);
-        }
-      }
-
-      const moderatorChatId = getModeratorChatId();
-      if (moderatorChatId) {
-        try {
-          await ctx.api.sendMessage(moderatorChatId, staffNotifyText, {
-            reply_markup: staffKeyboard,
-            parse_mode: "HTML",
-          });
-        } catch (error) {
-          Logger.warn(`Failed to notify moderator chat about ticket ${ticket.id}:`, error);
-        }
-      }
+      await notifyStaffChats(ctx.api, ctx.appDataSource, {
+        text: staffNotifyText,
+        replyMarkup: staffKeyboard,
+        contextLabel: `dedicated order ticket #${ticket.id}`,
+      });
     }
 
     const { InlineKeyboard } = await import("grammy");

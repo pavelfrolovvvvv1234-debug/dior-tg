@@ -7,6 +7,7 @@
 import type { DataSource } from "typeorm";
 import User, { Role } from "../../entities/User.js";
 import { getAdminTelegramIds } from "../../app/config.js";
+import { getModeratorChatId } from "../moderator-chat.js";
 
 export function uniquePositiveTelegramIds(ids: number[]): number[] {
   const set = new Set<number>();
@@ -55,4 +56,27 @@ export async function resolveStaffNotifyTelegramIds(dataSource: DataSource): Pro
     .filter((id) => Number.isFinite(id) && id > 0);
 
   return uniquePositiveTelegramIds([...fromEnv, ...fromDb]);
+}
+
+function uniqueTelegramChatIds(ids: number[]): number[] {
+  const set = new Set<number>();
+  for (const id of ids) {
+    const n = Number(id);
+    if (Number.isFinite(n) && Number.isInteger(n) && n !== 0) {
+      set.add(n);
+    }
+  }
+  return [...set];
+}
+
+/**
+ * All Telegram chat IDs for staff alerts: env admins, DB admins/mods, plus staff notify chat (group or DM).
+ */
+export async function resolveStaffNotifyChatIds(dataSource: DataSource): Promise<number[]> {
+  const chatIds = await resolveStaffNotifyTelegramIds(dataSource);
+  const moderatorChatId = getModeratorChatId();
+  if (moderatorChatId != null) {
+    chatIds.push(moderatorChatId);
+  }
+  return uniqueTelegramChatIds(chatIds);
 }

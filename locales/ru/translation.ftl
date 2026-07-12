@@ -1076,6 +1076,10 @@ vds-shop-standard-list-header = 🖥 Стандартные VPS/VDS
 vps-location-ru = 🇷🇺 Россия
 vps-location-by = 🇧🇾 Беларусь
 vps-location-ab = 🇦🇧 Абхазия
+vps-location-nl-amsterdam = 🇳🇱 Нидерланды (Авто)
+vps-location-de-germany = 🇩🇪 Германия
+vps-location-usa = 🇺🇸 США
+vps-location-tr-istanbul = 🇹🇷 Турция
 vds-shop-tier-start = 🚀 Старт (Lite)
 vds-shop-tier-standard = ⚙️ Стандарт (Lite+ / Elite)
 vds-shop-tier-performance = 🔥 Производительность (Elite+)
@@ -1776,6 +1780,7 @@ dedicated-provisioning-ticket-created =
 
     <i>Управление сервером — в «Главное меню → Мои услуги».</i>
 dedicated-provisioning-staff-notification = <strong>🛠 Новый тикет настройки dedicated</strong>\nТикет: <code>#{$ticketId}</code>\nЗаказ: <code>#{$orderId}</code>\nКлиент: {$userId}\nСумма: {$amount} $\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}
+provisioning-staff-notification = <strong>🛠 Новый тикет настройки сервера</strong>\nТикет: <code>#{$ticketId}</code>\nЗаказ: <code>#{$orderId}</code>\nКлиент: {$userId}\nСумма: {$amount} $\nСервер: {$serviceName}\nЛокация: {$location}\nОС: {$os}
 
 ticket-status-pending_review = 🟡 На проверке
 ticket-status-awaiting_payment = 🟠 Ожидает оплаты

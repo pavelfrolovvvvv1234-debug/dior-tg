@@ -1,10 +1,14 @@
 import type { AppContext } from "../shared/types/context";
 import User, { Role } from "../entities/User.js";
-import type { Api, Bot, RawApi } from "grammy";
+import type { Api, Bot, InlineKeyboard, RawApi } from "grammy";
 import type { ReferralRewardApplied } from "../domain/referral/ReferralService.js";
 import { getAppDataSource } from "../infrastructure/db/datasource.js";
-import { resolveAdminNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
+import {
+  resolveAdminNotifyTelegramIds,
+  resolveStaffNotifyChatIds,
+} from "../shared/auth/admin-notify-recipients.js";
 import { Logger } from "../app/logger.js";
+import type { DataSource } from "typeorm";
 
 let fluentCache: { translate: (locale: string, key: string, vars?: Record<string, string | number>) => string } | null = null;
 
@@ -108,6 +112,40 @@ const formatUsd = (n: number) =>
 
 /** API-like object for sending messages (bot.api or ctx.api). */
 type SendMessageApi = { sendMessage: (chatId: number, text: string, opts?: object) => Promise<unknown> };
+
+/**
+ * Send an operational alert to all staff chats (admins/mods + STAFF_NOTIFY_CHAT_ID).
+ * Logs failures and warns when no recipients are configured.
+ */
+export async function notifyStaffChats(
+  api: SendMessageApi,
+  dataSource: DataSource,
+  options: {
+    text: string;
+    replyMarkup?: InlineKeyboard;
+    contextLabel: string;
+  }
+): Promise<void> {
+  const chatIds = await resolveStaffNotifyChatIds(dataSource);
+  if (chatIds.length === 0) {
+    Logger.warn(
+      `[Notify] ${options.contextLabel}: no staff recipients — set ADMIN_TELEGRAM_IDS and/or STAFF_NOTIFY_CHAT_ID`
+    );
+    return;
+  }
+
+  for (const chatId of chatIds) {
+    try {
+      await api.sendMessage(chatId, options.text, {
+        parse_mode: "HTML",
+        reply_markup: options.replyMarkup,
+        link_preview_options: { is_disabled: true },
+      });
+    } catch (error) {
+      Logger.warn(`[Notify] ${options.contextLabel}: failed to send to chat ${chatId}:`, error);
+    }
+  }
+}
 
 /**
  * Notify referrer that a new user signed up via their referral link.

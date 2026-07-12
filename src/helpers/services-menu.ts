@@ -34,8 +34,7 @@ import {
   dedicatedLocationKeysForServer,
 } from "../domain/dedicated/dedicated-shop-config.js";
 import { DedicatedOrderPaymentStatus } from "../entities/DedicatedServerOrder.js";
-import { getModeratorChatId } from "../shared/moderator-chat.js";
-import { resolveStaffNotifyTelegramIds } from "../shared/auth/admin-notify-recipients.js";
+import { notifyStaffChats } from "./notifier.js";
 import {
   buildPremiumVpsReadyHtml,
   escapeHtml,
@@ -853,7 +852,7 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
     });
 
     if (!buyerIsStaff) {
-      const staffText = renderMultiline(ctx.t("dedicated-provisioning-staff-notification", {
+      const staffText = renderMultiline(ctx.t("provisioning-staff-notification", {
         ticketId: ticket.id,
         orderId: order.id,
         userId: user.id,
@@ -865,20 +864,11 @@ export async function handleDedicatedOsSelect(ctx: AppContext, osKey: string): P
       const staffKeyboard = new InlineKeyboard()
         .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
         .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-      const recipientChatIds = new Set(await resolveStaffNotifyTelegramIds(ctx.appDataSource));
-      const moderatorChatId = getModeratorChatId();
-      if (moderatorChatId) {
-        recipientChatIds.add(moderatorChatId);
-      }
-
-      for (const chatId of recipientChatIds) {
-        await ctx.api
-          .sendMessage(chatId, staffText, {
-            parse_mode: "HTML",
-            reply_markup: staffKeyboard,
-          })
-          .catch(() => {});
-      }
+      await notifyStaffChats(ctx.api, ctx.appDataSource, {
+        text: staffText,
+        replyMarkup: staffKeyboard,
+        contextLabel: `provisioning ticket #${ticket.id} (dedicated order #${order.id})`,
+      });
     }
   } catch (error: any) {
     if (deducted && user) {

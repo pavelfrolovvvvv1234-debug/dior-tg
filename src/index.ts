@@ -17,7 +17,7 @@ import { FileAdapter } from "@grammyjs/storage-file";
 import { Menu, MenuFlavor } from "@grammyjs/menu";
 import { DataSource, MoreThan, MoreThanOrEqual } from "typeorm";
 import { getAppDataSource } from "./infrastructure/db/datasource.js";
-import { getAdminTelegramIds, getPrimeChannelForCheck } from "./app/config";
+import { getAdminTelegramIds, getPrimeChannelForCheck, getStaffNotifyChatIdFromEnv } from "./app/config";
 import User, { Role, UserStatus } from "./entities/User";
 import { createLink } from "./entities/TempLink";
 import {
@@ -593,6 +593,21 @@ async function index() {
   const appDataSource = await getAppDataSource();
   const resellerAuth = await reloadResellerAuthRuntime(appDataSource);
   warnIfResellerApiUnconfigured(resellerAuth);
+
+  {
+    const { resolveStaffNotifyChatIds } = await import("./shared/auth/admin-notify-recipients.js");
+    const staffChats = await resolveStaffNotifyChatIds(appDataSource);
+    if (staffChats.length === 0) {
+      Logger.warn(
+        "[Notify] No staff alert recipients configured — provisioning tickets will not reach admins. Set ADMIN_TELEGRAM_IDS and/or STAFF_NOTIFY_CHAT_ID in .env"
+      );
+    } else {
+      Logger.info(`[Notify] Staff alert recipients: ${staffChats.length} chat(s)`);
+    }
+    if (getAdminTelegramIds().length === 0 && getStaffNotifyChatIdFromEnv() == null) {
+      Logger.warn("[Notify] ADMIN_TELEGRAM_IDS and STAFF_NOTIFY_CHAT_ID are both unset");
+    }
+  }
 
   const token = process.env.BOT_TOKEN;
   if (!token) throw new Error("BOT_TOKEN is required");

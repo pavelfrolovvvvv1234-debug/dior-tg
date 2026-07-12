@@ -22,8 +22,8 @@ import { showProgress } from "../../ui/utils/animations.js";
 import { buildVpsReadyCopyKeyboard } from "../../ui/utils/copy-keyboard.js";
 import { DedicatedProvisioningService } from "../dedicated/DedicatedProvisioningService.js";
 import { DedicatedOrderPaymentStatus } from "../../entities/DedicatedServerOrder.js";
-import { getModeratorChatId } from "../../shared/moderator-chat.js";
-import { resolveStaffNotifyTelegramIds } from "../../shared/auth/admin-notify-recipients.js";
+import { isMissingFluentTranslation } from "../../shared/i18n/fluent-missing.js";
+import { notifyStaffChats } from "../../helpers/notifier.js";
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
 import { getOrderPriceForUser } from "../../shared/pricing/order-discount.js";
 import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
@@ -74,13 +74,26 @@ function appendVpsShopBackOnly(kb: InlineKeyboard, ctx: AppContext, backData: st
 const renderMultiline = (text: string): string => text.replace(/\\n/g, "\n");
 const VPS_LOCATION_AUTO_ONLY_KEY = "nl-amsterdam";
 
+/** Users with an in-flight Proxmox provision (prevents double-charge). */
+const vpsProvisioningUserIds = new Set<number>();
+
+function resetVpsShopCheckoutSession(session: SessionData): void {
+  ensureVpsShopSession(session);
+  session.other.vdsRate.selectedRateId = -1;
+  session.other.vdsRate.selectedOs = -1;
+  if (session.other.dedicatedOrder) {
+    session.other.dedicatedOrder.step = "idle";
+    session.other.dedicatedOrder.selectedLocationKey = undefined;
+  }
+}
+
 function vpsLocationLabel(ctx: AppContext, locationKey: string): string {
   const vpsKey = `vps-location-${locationKey}`;
   const vpsLabel = ctx.t(vpsKey as "vps-location-ru");
-  if (vpsLabel !== vpsKey) return vpsLabel;
+  if (!isMissingFluentTranslation(vpsLabel, vpsKey)) return vpsLabel;
   const dedKey = `dedicated-location-${locationKey}`;
   const dedLabel = ctx.t(dedKey as "dedicated-location-nl-amsterdam");
-  if (dedLabel !== dedKey) return dedLabel;
+  if (!isMissingFluentTranslation(dedLabel, dedKey)) return dedLabel;
   return locationKey;
 }
 
@@ -191,10 +204,11 @@ async function createVpsOrderTicket(
       })
     );
     await ctx.reply(buyerText, { parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+    resetVpsShopCheckoutSession(session);
 
     if (!buyerIsStaff) {
       const staffText = renderMultiline(
-        ctx.t("dedicated-provisioning-staff-notification", {
+        ctx.t("provisioning-staff-notification", {
           ticketId: ticket.id,
           orderId: order.id,
           userId: user.id,
@@ -207,17 +221,11 @@ async function createVpsOrderTicket(
       const staffKeyboard = new InlineKeyboard()
         .text(ctx.t("button-open"), `prov_view_${ticket.id}`)
         .text(ctx.t("button-close"), `ticket_notify_close_${ticket.id}`);
-      const recipientChatIds = new Set(await resolveStaffNotifyTelegramIds(ctx.appDataSource));
-      const moderatorChatId = getModeratorChatId();
-      if (moderatorChatId) recipientChatIds.add(moderatorChatId);
-      for (const chatId of recipientChatIds) {
-        await ctx.api
-          .sendMessage(chatId, staffText, {
-            parse_mode: "HTML",
-            reply_markup: staffKeyboard,
-          })
-          .catch(() => {});
-      }
+      await notifyStaffChats(ctx.api, dataSource, {
+        text: staffText,
+        replyMarkup: staffKeyboard,
+        contextLabel: `provisioning ticket #${ticket.id} (VPS order #${order.id})`,
+      });
     }
   } catch (error: any) {
     if (deducted) {
@@ -242,58 +250,72 @@ async function createVpsOrderDirect(
 ): Promise<boolean> {
   const session = await ctx.session;
   ensureVpsShopSession(session);
-  const pricesList = await prices();
-  const rate = pricesList.virtual_vds?.[rateId];
-  if (!rate) {
-    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
-    return false;
-  }
-  if (!osKey) {
-    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
-    return false;
-  }
-
-  const templateMap = getProxmoxTemplateMap();
-  const osId = Number(templateMap[osKey] ?? 0);
-  if (!Number.isFinite(osId) || osId <= 0) {
-    await ctx.reply("Эта ОС пока не подключена для авто-развёртывания в Proxmox.", { parse_mode: "HTML" }).catch(() => {});
-    return false;
-  }
-
-  const dataSource = ctx.appDataSource ?? (await getAppDataSource());
-  const usersRepo = dataSource.getRepository(User);
-  const vdsRepo = dataSource.getRepository(VirtualDedicatedServer);
-  const user = await usersRepo.findOneBy({ id: session.main.user.id });
-  if (!user) {
-    await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
-    return false;
-  }
-
-  const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
-  const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
-  if (user.balance < price) {
-    await showTopupForMissingAmount(ctx, price - user.balance);
-    // Already handled for the user; do not fall back to ticket flow,
-    // otherwise the same top-up prompt can be sent twice.
-    return true;
-  }
-
-  let deducted = false;
-  const chatId = ctx.chat?.id;
-  const waitText = ctx.t("vds-provisioning-wait");
-  const waitMessage = chatId
-    ? await ctx.reply(waitText, {
+  const userId = session.main.user.id;
+  if (vpsProvisioningUserIds.has(userId)) {
+    await ctx
+      .reply("⏳ Уже идёт создание VPS — дождитесь завершения или отправьте /start.", {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
-      }).catch(() => undefined)
-    : undefined;
-
-  const touchProgress = async (progress: number): Promise<void> => {
-    if (!waitMessage || !chatId) return;
-    await showProgress(ctx, waitMessage.message_id, waitText, progress).catch(() => {});
-  };
-
+      })
+      .catch(() => {});
+    return true;
+  }
+  vpsProvisioningUserIds.add(userId);
   try {
+    const pricesList = await prices();
+    const rate = pricesList.virtual_vds?.[rateId];
+    if (!rate) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return false;
+    }
+    if (!osKey) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return false;
+    }
+
+    const templateMap = getProxmoxTemplateMap();
+    const osId = Number(templateMap[osKey] ?? 0);
+    if (!Number.isFinite(osId) || osId <= 0) {
+      await ctx
+        .reply("Эта ОС пока не подключена для авто-развёртывания в Proxmox.", { parse_mode: "HTML" })
+        .catch(() => {});
+      return false;
+    }
+
+    const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+    const usersRepo = dataSource.getRepository(User);
+    const vdsRepo = dataSource.getRepository(VirtualDedicatedServer);
+    const user = await usersRepo.findOneBy({ id: session.main.user.id });
+    if (!user) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return false;
+    }
+
+    const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
+    const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
+    if (user.balance < price) {
+      await showTopupForMissingAmount(ctx, price - user.balance);
+      return true;
+    }
+
+    let deducted = false;
+    const chatId = ctx.chat?.id;
+    const waitText = ctx.t("vds-provisioning-wait");
+    const waitMessage = chatId
+      ? await ctx
+          .reply(waitText, {
+            parse_mode: "HTML",
+            link_preview_options: { is_disabled: true },
+          })
+          .catch(() => undefined)
+      : undefined;
+
+    const touchProgress = async (progress: number): Promise<void> => {
+      if (!waitMessage || !chatId) return;
+      await showProgress(ctx, waitMessage.message_id, waitText, progress).catch(() => {});
+    };
+
+    try {
     await touchProgress(0.06);
     user.balance -= price;
     await usersRepo.save(user);
@@ -455,6 +477,7 @@ async function createVpsOrderDirect(
       });
     });
 
+    resetVpsShopCheckoutSession(session);
     return true;
   } catch (error: any) {
     if (waitMessage && chatId) {
@@ -480,6 +503,9 @@ async function createVpsOrderDirect(
     // Do not fall back to ticket flow after a failed auto-provision:
     // it can double-charge users and creates the illusion of "manual provisioning" for VPS.
     return true;
+    }
+  } finally {
+    vpsProvisioningUserIds.delete(userId);
   }
 }
 
@@ -806,7 +832,8 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       isProxmoxEnabled() &&
       canAutoProvisionVpsAtLocation(locationKey)
     ) {
-      await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
+      // Proxmox clone can take minutes — do not block the per-chat queue (freezes /start and menus).
+      void createVpsOrderDirect(ctx as AppContext, rateId, locationKey, osKey);
       return;
     }
     await createVpsOrderTicket(ctx, rateId, locationKey, osKey);

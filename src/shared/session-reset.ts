@@ -22,6 +22,11 @@ export function clearStuckUserSessionFlags(session: SessionData): void {
   o.dedicatedOrder = { step: "idle", requirements: undefined };
   o.domains.pendingZone = undefined;
 
+  if (o.vdsRate) {
+    o.vdsRate.selectedRateId = -1;
+    o.vdsRate.selectedOs = -1;
+  }
+
   o.manageVds.pendingRenameVdsId = null;
   o.manageVds.pendingManualPasswordVdsId = null;
   o.manageVds.pendingRenewMonths = null;

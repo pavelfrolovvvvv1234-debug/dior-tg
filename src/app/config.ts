@@ -73,6 +73,10 @@ const envSchema = z.object({
   // Optional: comma-separated Telegram user IDs that always have admin access (e.g. "7568177886" or "123,456")
   ADMIN_TELEGRAM_IDS: z.string().optional(),
 
+  // Staff ops chat: group ID (negative) or admin DM — persistent target for provisioning/ticket alerts
+  STAFF_NOTIFY_CHAT_ID: z.string().optional(),
+  MODERATOR_CHAT_ID: z.string().optional(),
+
   // Prime trial: channel for subscription check (bot must be admin). Use ID for private channels or username for public
   PRIME_CHANNEL_ID: z.string().optional(),
   PRIME_CHANNEL_USERNAME: z.string().optional(),
@@ -166,6 +170,27 @@ export const getAdminTelegramIds = (): number[] => {
     .map((s) => parseInt(s.trim(), 10))
     .filter((n) => !Number.isNaN(n));
   return _adminTelegramIds;
+};
+
+let _staffNotifyChatId: number | null | undefined;
+
+/** Persistent staff chat for ticket/provisioning alerts (group or DM). */
+export const getStaffNotifyChatIdFromEnv = (): number | null => {
+  if (_staffNotifyChatId !== undefined) return _staffNotifyChatId;
+  const raw = (
+    config.STAFF_NOTIFY_CHAT_ID ??
+    process.env.STAFF_NOTIFY_CHAT_ID ??
+    config.MODERATOR_CHAT_ID ??
+    process.env.MODERATOR_CHAT_ID ??
+    ""
+  ).trim();
+  if (!raw) {
+    _staffNotifyChatId = null;
+    return null;
+  }
+  const n = parseInt(raw, 10);
+  _staffNotifyChatId = Number.isInteger(n) && n !== 0 ? n : null;
+  return _staffNotifyChatId;
 };
 
 /**
