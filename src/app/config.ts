@@ -148,6 +148,17 @@ export const getWebhookPort = (): number => {
   return config.PORT_WEBHOOK ?? 3002;
 };
 
+/** HTTP port for health + admin billing API in long polling mode. */
+export const getAdminHttpPort = (): number | undefined => {
+  if (config.PORT_WEBHOOK) {
+    return config.PORT_WEBHOOK;
+  }
+  if (config.ADMIN_API_KEY?.trim()) {
+    return 8443;
+  }
+  return undefined;
+};
+
 /**
  * Helper to check if running in development mode.
  */

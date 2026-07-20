@@ -3716,8 +3716,10 @@ async function index() {
       }
 
       try {
-        const { createBillingNotifyRouter } = await import("./api/admin/billing-notify-routes.js");
-        app.use("/api/admin/billing", createBillingNotifyRouter({ getBot: () => bot }));
+        const { registerAdminBillingRoutes } = await import(
+          "./infrastructure/http/mount-admin-billing-api.js"
+        );
+        await registerAdminBillingRoutes(app, { getBot: () => bot });
       } catch (billingApiErr) {
         console.warn("[Bot] Admin billing notify API not mounted", billingApiErr);
       }
@@ -3761,12 +3763,15 @@ async function index() {
       // Delete webhook anyway in this way :)
       await bot.api.deleteWebhook();
 
-      const healthPort = process.env.PORT_WEBHOOK?.trim();
-      if (healthPort) {
+      const { getAdminHttpPort } = await import("./app/config.js");
+      const adminHttpPort = getAdminHttpPort();
+      if (adminHttpPort) {
         const { startHealthServer } = await import(
           "./infrastructure/http/start-health-server.js"
         );
-        stopHealthServer = startHealthServer(Number(healthPort));
+        stopHealthServer = await startHealthServer(adminHttpPort, {
+          getBot: () => bot,
+        });
       }
 
       bot.catch((err) => {
