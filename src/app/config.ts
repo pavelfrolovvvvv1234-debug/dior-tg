@@ -149,14 +149,13 @@ export const getWebhookPort = (): number => {
 };
 
 /** HTTP port for health + admin billing API in long polling mode. */
-export const getAdminHttpPort = (): number | undefined => {
-  if (config.PORT_WEBHOOK) {
-    return config.PORT_WEBHOOK;
-  }
-  if (config.ADMIN_API_KEY?.trim()) {
-    return 8443;
-  }
-  return undefined;
+export const getAdminHttpPort = (): number => {
+  return config.PORT_WEBHOOK ?? 8443;
+};
+
+/** Whether admin billing HTTP API can authenticate requests. */
+export const isAdminBillingApiEnabled = (): boolean => {
+  return Boolean(config.ADMIN_API_KEY?.trim());
 };
 
 /**

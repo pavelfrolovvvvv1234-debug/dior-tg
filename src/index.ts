@@ -3763,16 +3763,19 @@ async function index() {
       // Delete webhook anyway in this way :)
       await bot.api.deleteWebhook();
 
-      const { getAdminHttpPort } = await import("./app/config.js");
+      const { getAdminHttpPort, isAdminBillingApiEnabled } = await import("./app/config.js");
       const adminHttpPort = getAdminHttpPort();
-      if (adminHttpPort) {
-        const { startHealthServer } = await import(
-          "./infrastructure/http/start-health-server.js"
+      if (!isAdminBillingApiEnabled()) {
+        console.warn(
+          "[Dior Host Bot]: ADMIN_API_KEY not set — POST /api/admin/billing/notify will return 503 until configured"
         );
-        stopHealthServer = await startHealthServer(adminHttpPort, {
-          getBot: () => bot,
-        });
       }
+      const { startHealthServer } = await import(
+        "./infrastructure/http/start-health-server.js"
+      );
+      stopHealthServer = await startHealthServer(adminHttpPort, {
+        getBot: () => bot,
+      });
 
       bot.catch((err) => {
         if (isIgnoredTelegramBotNoise(err)) {
