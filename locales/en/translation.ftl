@@ -141,6 +141,18 @@ promoted-to-user = You have been demoted to user
 admin-notification-about-promotion = User <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} has been promoted to {$role}
 admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\n{$referralLine}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nPayment method: {$paymentMethod}
 
+admin-billing-title-credited = Balance credited
+admin-billing-field-amount = Amount
+admin-billing-field-customer = Customer
+admin-billing-field-provider = Provider
+admin-billing-field-reference = Reference
+admin-billing-field-referral = Referral
+admin-billing-field-source = Source
+admin-billing-source-bot = Telegram bot
+admin-billing-source-web = Web billing
+admin-billing-referral-none = none
+admin-billing-link-view-payment = View payment
+
 -users-list = Users list
 -users-list-empty = Users list is empty
 
@@ -1129,6 +1141,9 @@ vps-premium-ipv4-pending =
 vps-premium-rdp-body = Use <b>Remote Desktop</b> to connect to <code>{$ip}</code> with user <code>{$login}</code>
 
 vps-premium-console-hint = Power controls, reinstall, billing, and password changes are under Main menu → My services.
+
+start-cooldown =
+    ⏳ Please wait a few seconds — the menu is loading.
 
 bad-error =
     ⚠️ <strong>Temporary error</strong>

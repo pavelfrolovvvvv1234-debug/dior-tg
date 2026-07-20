@@ -1055,6 +1055,7 @@ async function index() {
     try {
       const tid = Number(ctx.chatId ?? ctx.from?.id ?? 0);
       if (tid > 0 && !checkStartCooldown(tid)) {
+        await ctx.reply(ctx.t("start-cooldown"), { parse_mode: "HTML" }).catch(() => {});
         return;
       }
       await ctx.conversation.exitAll().catch(() => {});
@@ -1440,8 +1441,18 @@ async function index() {
       const u = await ctx.appDataSource.getRepository(User).findOneBy({ id: session.main.user.id });
       if (u) session.main.user.balance = u.balance;
       await ctx.reply(ctx.t("vds-renew-success", { months }), { parse_mode: "HTML" });
-    } catch (e: any) {
-      await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
+    } catch (e: unknown) {
+      const { parseInsufficientBalanceShortfall } = await import(
+        "./shared/billing/insufficient-balance.js"
+      );
+      const shortfall = parseInsufficientBalanceShortfall(e);
+      if (shortfall !== null && shortfall > 0) {
+        const { showTopupForMissingAmount } = await import("./helpers/deposit-money.js");
+        await showTopupForMissingAmount(ctx as AppContext, shortfall);
+      } else {
+        const msg = e instanceof Error ? e.message : String(e);
+        await ctx.reply(ctx.t("error-unknown", { error: msg }), { parse_mode: "HTML" });
+      }
     }
     await ctx.deleteMessage().catch(() => {});
   });
@@ -3036,8 +3047,17 @@ async function index() {
       const { replyVdsManagePanel } = await import("./helpers/manage-services.js");
       await replyVdsManagePanel(ctx, vdsId, "main");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await ctx.reply(ctx.t("error-unknown", { error: msg }), { parse_mode: "HTML" });
+      const { parseInsufficientBalanceShortfall } = await import(
+        "./shared/billing/insufficient-balance.js"
+      );
+      const shortfall = parseInsufficientBalanceShortfall(e);
+      if (shortfall !== null && shortfall > 0) {
+        const { showTopupForMissingAmount } = await import("./helpers/deposit-money.js");
+        await showTopupForMissingAmount(ctx as AppContext, shortfall);
+      } else {
+        const msg = e instanceof Error ? e.message : String(e);
+        await ctx.reply(ctx.t("error-unknown", { error: msg }), { parse_mode: "HTML" });
+      }
     }
   });
 
@@ -3663,7 +3683,7 @@ async function index() {
       );
 
       const corsOrigin = process.env.CORS_ORIGIN ?? "*";
-      app.use("/api/admin/automations", (req: Request, res: Response, next: NextFunction) => {
+      app.use(["/api/admin/automations", "/api/admin/billing"], (req: Request, res: Response, next: NextFunction) => {
         res.setHeader("Access-Control-Allow-Origin", corsOrigin);
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-API-Key, Authorization");
@@ -3693,6 +3713,13 @@ async function index() {
         app.use("/api/admin/automations", createAutomationsRouter({ getBot: () => bot }));
       } catch (adminApiErr) {
         console.warn("[Bot] Admin automations API not mounted", adminApiErr);
+      }
+
+      try {
+        const { createBillingNotifyRouter } = await import("./api/admin/billing-notify-routes.js");
+        app.use("/api/admin/billing", createBillingNotifyRouter({ getBot: () => bot }));
+      } catch (billingApiErr) {
+        console.warn("[Bot] Admin billing notify API not mounted", billingApiErr);
       }
 
       const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();

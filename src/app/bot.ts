@@ -901,7 +901,7 @@ export async function startBot(bot: Bot<AppContext>): Promise<void> {
     );
 
     const corsOrigin = process.env.CORS_ORIGIN ?? "*";
-    app.use("/api/admin/automations", (req: Request, res: Response, next: NextFunction) => {
+    app.use(["/api/admin/automations", "/api/admin/billing"], (req: Request, res: Response, next: NextFunction) => {
       res.setHeader("Access-Control-Allow-Origin", corsOrigin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-API-Key, Authorization");
@@ -925,6 +925,9 @@ export async function startBot(bot: Bot<AppContext>): Promise<void> {
 
     const { createAutomationsRouter } = await import("../api/admin/automations-routes.js");
     app.use("/api/admin/automations", createAutomationsRouter({ getBot: () => bot }));
+
+    const { createBillingNotifyRouter } = await import("../api/admin/billing-notify-routes.js");
+    app.use("/api/admin/billing", createBillingNotifyRouter({ getBot: () => bot }));
 
     const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
     if (webhookSecret) {

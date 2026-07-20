@@ -459,7 +459,7 @@ async function runPostTopUpCreditSideEffects(
     Logger.error("[Payment] send balance notification failed", err);
   });
 
-  await notifyAdminsAboutTopUp(bot, user, topUp.amount, topUp.paymentSystem);
+  await notifyAdminsAboutTopUp(bot, user, topUp.amount, topUp.paymentSystem, topUp);
 
   // Emit automation event for deposit.completed
   try {

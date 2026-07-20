@@ -6,13 +6,23 @@
 
 import type { Middleware } from "grammy";
 import type { AppContext } from "../shared/types/context.js";
+import { isUserRecoveryCommand } from "../shared/session-reset.js";
 import { Logger } from "./logger.js";
+
+function isRecoveryUpdate(ctx: AppContext): boolean {
+  const text = ctx.message?.text;
+  return !!text && isUserRecoveryCommand(text);
+}
 
 const chatChains = new Map<string, Promise<unknown>>();
 
 /** One in-flight handler per chat (avoids overlapping SQLite transactions). */
 export function chatSequentializeMiddleware(): Middleware<AppContext> {
   return async (ctx, next) => {
+    // /start and other recovery commands must not wait behind long VPS provisioning flows.
+    if (isRecoveryUpdate(ctx)) {
+      return next();
+    }
     const chatKey = ctx.chat?.id != null ? String(ctx.chat.id) : undefined;
     if (!chatKey) {
       return next();
@@ -63,6 +73,9 @@ function pruneMap(map: Map<number, number | WindowState>, maxSize = 50_000): voi
 export function floodProtectionMiddleware(): Middleware<AppContext> {
   return async (ctx, next) => {
     if (!ctx.hasChatType("private")) {
+      return next();
+    }
+    if (isRecoveryUpdate(ctx)) {
       return next();
     }
     const userId = ctx.from?.id ?? ctx.chatId;

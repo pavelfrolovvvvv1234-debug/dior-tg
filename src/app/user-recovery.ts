@@ -11,7 +11,8 @@ import { clearStuckUserSessionFlags, isUserRecoveryCommand } from "../shared/ses
 import { ensureFullSession } from "../shared/session-initial.js";
 
 /**
- * Run right after `conversations()` so /start can exit active wizards before handlers run.
+ * Exit stuck conversations before `createConversation` middleware can swallow recovery commands.
+ * Must run immediately after `conversations()` (needs `ctx.conversation.exitAll`).
  */
 export function registerUserRecoveryHandlers(bot: Bot<AppContext>): void {
   bot.on("message:text").filter((ctx) => isUserRecoveryCommand(ctx.message.text), async (ctx, next) => {

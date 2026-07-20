@@ -143,6 +143,18 @@ promoted-to-user = Вы были понижены до пользователя
 admin-notification-about-promotion = Пользователь <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} повышен до роли {$role}
 admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\n{$referralLine}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nСпособ оплаты: {$paymentMethod}
 
+admin-billing-title-credited = Баланс пополнен
+admin-billing-field-amount = Сумма
+admin-billing-field-customer = Клиент
+admin-billing-field-provider = Провайдер
+admin-billing-field-reference = Референс
+admin-billing-field-referral = Реферал
+admin-billing-field-source = Источник
+admin-billing-source-bot = Telegram-бот
+admin-billing-source-web = Веб-биллинг
+admin-billing-referral-none = нет
+admin-billing-link-view-payment = Открыть платёж
+
 -users-list = Список пользователей
 -users-list-empty = Список пользователей пуст
 
@@ -1145,6 +1157,9 @@ vps-premium-rdp-body = Подключитесь по <b>RDP</b> к <code>{$ip}</
 
 vps-premium-console-hint = Питание, переустановка, оплата и смена пароля — в «Главное меню → Мои услуги».
 
+
+start-cooldown =
+    ⏳ Подождите пару секунд — меню уже открывается.
 
 bad-error =
     ⚠️ <strong>Временная ошибка</strong>
