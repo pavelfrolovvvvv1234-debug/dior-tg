@@ -149,6 +149,7 @@ export function resetVdsManageListView(session: { other?: { manageVds?: Record<s
   mv.expandedId = null;
   mv.showPassword = false;
   mv.lastPickedId = -1;
+  mv.page = 0;
   mv.panelMode = "main";
   mv.pendingRenameVdsId = null;
   mv.pendingManualPasswordVdsId = null;
@@ -742,6 +743,7 @@ export async function openManageServicesHub(ctx: AppContext): Promise<void> {
   session.other.manageDedicated.showPassword = false;
   if (session.other.domains) {
     session.other.domains.expandedId = null;
+    session.other.domains.page = 0;
   }
   await ctx.editMessageText(premiumScreen(ctx.t("manage-services-header")), {
     parse_mode: "HTML",
@@ -1662,15 +1664,8 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
       }
     }
 
-    const [vdsList, total] = await vdsRepo.findAndCount({
-      where: [
-        {
-          targetUserId: session.main.user.id,
-        },
-      ],
-      take: LIMIT_ON_PAGE,
-      skip: session.other.manageVds.page * LIMIT_ON_PAGE,
-    });
+    const where = { targetUserId: session.main.user.id };
+    const total = await vdsRepo.count({ where });
 
     if (total === 0) {
       range.text(ctx.t("list-empty"), async (ctx) => {
@@ -1680,6 +1675,19 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
     }
 
     const maxPages = Math.ceil(total / LIMIT_ON_PAGE) - 1;
+    if (session.other.manageVds.page > maxPages) {
+      session.other.manageVds.page = maxPages;
+    }
+    if (session.other.manageVds.page < 0) {
+      session.other.manageVds.page = 0;
+    }
+
+    const vdsList = await vdsRepo.find({
+      where,
+      take: LIMIT_ON_PAGE,
+      skip: session.other.manageVds.page * LIMIT_ON_PAGE,
+      order: { id: "ASC" },
+    });
 
     for (const vds of vdsList) {
       const rateName = (vds.rateName || "").trim() || `VDS #${vds.id}`;
@@ -1734,7 +1742,7 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
         .row();
     }
 
-    if (vdsList.length == LIMIT_ON_PAGE) {
+    if (maxPages > 0) {
       range.text(
         (ctx) => ctx.t("pagination-left"),
         async (ctx) => {
@@ -1968,7 +1976,7 @@ export const domainManageServicesMenu = new Menu<AppContext>(
         .row();
     }
 
-    if (domainRequests.length == LIMIT_ON_PAGE) {
+    if (maxPages > 0) {
       range.text(
         (ctx) => ctx.t("pagination-left"),
         async (ctx) => {
