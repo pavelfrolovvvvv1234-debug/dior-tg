@@ -139,7 +139,10 @@ promoted-to-admin = You have been promoted to administrator
 promoted-to-user = You have been demoted to user
 
 admin-notification-about-promotion = User <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} has been promoted to {$role}
-admin-notification-topup = 💳 <strong>Balance top-up</strong>\nBuyer: {$username}\n{$referralLine}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nPayment method: {$paymentMethod}
+admin-notification-topup = 💳 <b>Balance top-up</b>\nBuyer: {$username}\n{$referralLine}\nAmount: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nPayment method: {$paymentMethod}
+
+admin-topup-referral-line = Referral: {$referrer}
+admin-topup-referral-none-line = Referral: none (not via referral link)
 
 admin-billing-title-credited = Balance credited
 admin-billing-field-amount = Amount

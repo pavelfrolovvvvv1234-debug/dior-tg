@@ -13,6 +13,7 @@ import {
   formatAdminBillingUsd,
   paymentProviderLabel,
 } from "../shared/admin/admin-billing-notify-card.js";
+import { normalizeAdminTopUpHtml } from "../shared/admin/admin-bot-topup-notify.js";
 import { withPremiumOptions } from "../ui/design-system.js";
 import { Logger } from "../app/logger.js";
 import type { DataSource } from "typeorm";
@@ -49,25 +50,42 @@ async function formatUserLabelForAdminNotify(
   }
 }
 
-async function resolveReferralLabelForBilling(
+async function formatBuyerLabelForTopUpNotify(
+  bot: Bot<any, Api<RawApi>>,
+  dbId: number,
+  telegramId: number
+): Promise<string> {
+  try {
+    const chat = await bot.api.getChat(telegramId);
+    const un = (chat as { username?: string }).username?.trim();
+    if (un) {
+      return `<a href="tg://user?id=${telegramId}">@${un}</a>`;
+    }
+    return `<a href="tg://user?id=${telegramId}">ID ${dbId}</a>`;
+  } catch {
+    return `ID ${dbId} (TG: ${telegramId})`;
+  }
+}
+
+async function buildReferralLineForTopUpNotify(
   bot: Bot<any, Api<RawApi>>,
   referrerId: number | null | undefined,
-  referralNone: string
+  translate: (key: string, vars?: Record<string, string | number>) => string
 ): Promise<string> {
   const refId = referrerId;
   if (refId == null || refId <= 0) {
-    return referralNone;
+    return translate("admin-topup-referral-none-line");
   }
   try {
     const ds = await getAppDataSource();
     const referrer = await ds.getRepository(User).findOneBy({ id: refId });
     if (!referrer) {
-      return `referrerId ${refId}`;
+      return translate("admin-topup-referral-line", { referrer: `#${refId}` });
     }
-    const refLabel = await formatUserLabelForAdminNotify(bot, referrer.id, referrer.telegramId);
-    return `${refLabel} · #${referrer.id}`;
+    const refLabel = await formatBuyerLabelForTopUpNotify(bot, referrer.id, referrer.telegramId);
+    return translate("admin-topup-referral-line", { referrer: refLabel });
   } catch {
-    return `referrerId ${refId}`;
+    return translate("admin-topup-referral-line", { referrer: `#${refId}` });
   }
 }
 
@@ -114,7 +132,7 @@ export async function notifyAdminsAboutTopUp(
   user: { id: number; telegramId: number; referrerId?: number | null },
   amount: number,
   paymentMethod?: string | null,
-  topUp?: Pick<TopUp, "orderId" | "url"> | null
+  _topUp?: Pick<TopUp, "orderId" | "url"> | null
 ): Promise<void> {
   try {
     const ds = await getAppDataSource();
@@ -126,38 +144,30 @@ export async function notifyAdminsAboutTopUp(
       return;
     }
 
-    const labels = await billingNotifyLabels("en");
-    const buyerLabel = await formatUserLabelForAdminNotify(bot, user.id, user.telegramId);
-    const referralLabel = await resolveReferralLabelForBilling(
-      bot,
-      user.referrerId,
-      labels.referralNone
+    const fluent = await getFluentForNotify();
+    const loc = "ru";
+    const t = (key: string, vars?: Record<string, string | number>) =>
+      fluent.translate(loc, key, vars ?? {});
+    const buyerLabel = await formatBuyerLabelForTopUpNotify(bot, user.id, user.telegramId);
+    const referralLine = await buildReferralLineForTopUpNotify(bot, user.referrerId, t);
+    const text = normalizeAdminTopUpHtml(
+      t("admin-notification-topup", {
+        username: buyerLabel,
+        referralLine,
+        amount,
+        paymentMethod: paymentProviderLabel(paymentMethod),
+      })
     );
-    const reference = topUp?.orderId?.trim() || null;
-
-    const text = buildAdminBillingNotifyCard({
-      title: labels.titleCredited,
-      rows: [
-        { label: labels.fieldAmount, value: formatAdminBillingUsd(amount) },
-        { label: labels.fieldCustomer, value: `${buyerLabel} · #${user.id}` },
-        { label: labels.fieldProvider, value: paymentProviderLabel(paymentMethod) },
-        ...(reference ? [{ label: labels.fieldReference, value: reference }] : []),
-        { label: labels.fieldReferral, value: referralLabel },
-        { label: labels.fieldSource, value: labels.sourceBot },
-      ],
-      actionLink:
-        topUp?.url?.trim() ?
-          { label: labels.linkViewPayment, url: topUp.url.trim() }
-        : undefined,
-    });
 
     for (const adminTelegramId of adminIds) {
       await bot.api
         .sendMessage(adminTelegramId, text, withPremiumOptions({ parse_mode: "HTML" }))
-        .catch(() => {});
+        .catch((error) => {
+          Logger.warn(`[Notify] Top-up alert failed for chat ${adminTelegramId}`, error);
+        });
     }
-  } catch {
-    // Don't fail payment flow if admin notify fails
+  } catch (error) {
+    Logger.warn("[Notify] Top-up alert failed", error);
   }
 }
 

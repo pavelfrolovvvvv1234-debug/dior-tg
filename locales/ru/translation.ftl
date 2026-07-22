@@ -141,7 +141,10 @@ promoted-to-admin = Вы были повышенны до администрат
 promoted-to-user = Вы были понижены до пользователя
 
 admin-notification-about-promotion = Пользователь <a href="tg://user?id={$telegramId}">({$name})</a> - {$id} повышен до роли {$role}
-admin-notification-topup = 💳 <strong>Пополнение баланса</strong>\nПокупатель: {$username}\n{$referralLine}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nСпособ оплаты: {$paymentMethod}
+admin-notification-topup = 💳 <b>Пополнение баланса</b>\nПокупатель: {$username}\n{$referralLine}\nСумма: {NUMBER($amount, minimumFractionDigits: 0, maximumFractionDigits: 0)} $\nСпособ оплаты: {$paymentMethod}
+
+admin-topup-referral-line = Реферал: {$referrer}
+admin-topup-referral-none-line = Реферал: нет (не по реф. ссылке)
 
 admin-billing-title-credited = Баланс пополнен
 admin-billing-field-amount = Сумма
