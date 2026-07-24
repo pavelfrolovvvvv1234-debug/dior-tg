@@ -97,6 +97,8 @@ export interface VmProvider {
   getInfoVM(id: number): Promise<ListItem | undefined>;
   getIpv4AddrVM(id: number): Promise<{ list: Array<{ ip_addr: string }> } | undefined>;
   addIpv4ToHost(id: number): Promise<boolean>;
+  /** Remove secondary IPv4 (ipconfig1). Optional — Proxmox implements; others may omit. */
+  removeIpv4FromHost?(id: number): Promise<{ removedIp: string | null } | false>;
   startVM(id: number): Promise<unknown>;
   stopVM(id: number): Promise<unknown>;
   deleteVM(id: number): Promise<unknown>;

@@ -1538,6 +1538,8 @@ export function registerAdminServiceManagementCallbacks(bot: Bot<AppContext>): v
             plan: parsed.plan,
             price: parsed.price,
             expiresAt: parsed.expiresAt,
+            isBulletproof: parsed.isBulletproof,
+            group: parsed.group,
           });
           await repo.save(row);
         } else {

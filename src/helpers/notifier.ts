@@ -36,20 +36,6 @@ async function getFluentForNotify() {
   return fluentCache;
 }
 
-async function formatUserLabelForAdminNotify(
-  bot: Bot<any, Api<RawApi>>,
-  dbId: number,
-  telegramId: number
-): Promise<string> {
-  try {
-    const chat = await bot.api.getChat(telegramId);
-    const un = (chat as { username?: string }).username;
-    return un ? `@${un}` : `ID ${dbId} (TG: ${telegramId})`;
-  } catch {
-    return `ID ${dbId} (TG: ${telegramId})`;
-  }
-}
-
 async function formatBuyerLabelForTopUpNotify(
   bot: Bot<any, Api<RawApi>>,
   dbId: number,

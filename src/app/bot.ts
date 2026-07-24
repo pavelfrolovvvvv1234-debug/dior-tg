@@ -84,8 +84,14 @@ export async function createBot(): Promise<{
   const dataSource = await getAppDataSource();
   Logger.info("Database initialized");
 
-  // Initialize VM provider (VMManager/Proxmox)
-  const vmManager = await createVmProviderAsync();
+  // Initialize VM provider (VMManager/Proxmox + optional HostVDS routing)
+  const vmManager = await createVmProviderAsync(dataSource);
+  {
+    const { ensureVdslistHostVdsSchema } = await import(
+      "../infrastructure/db/ensure-vdslist-hostvds-schema.js"
+    );
+    await ensureVdslistHostVdsSchema(dataSource).catch(() => {});
+  }
   startOsListBackgroundRefresh(vmManager);
   Logger.info("VM provider initialized");
 
@@ -307,9 +313,13 @@ export async function createBot(): Promise<{
   const { domainUpdateNsConversation } = await import(
     "../ui/conversations/domain-update-ns-conversation.js"
   );
+  const { domainAddDnsConversation } = await import(
+    "../ui/conversations/domain-add-dns-conversation.js"
+  );
   const { createConversation } = await import("@grammyjs/conversations");
   bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
   bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
+  bot.use(createConversation(domainAddDnsConversation as any, "domainAddDnsConversation"));
   const { cdnAddProxyConversation } = await import("../ui/menus/cdn-menu.js");
   bot.use(createConversation(cdnAddProxyConversation as any, "cdnAddProxyConversation"));
 

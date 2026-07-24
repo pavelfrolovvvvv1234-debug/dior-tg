@@ -53,6 +53,10 @@ export interface OtherSessionData {
     shopTier?: "start" | "standard" | "performance" | "enterprise" | null;
     /** VPS shop: plan list pagination. */
     shopListPage?: number;
+    /** Pending OS key while choosing marketing CPU (bulletproof). */
+    pendingOsKey?: string | null;
+    /** Marketing CPU label key (bulletproof only). */
+    shopCpuKey?: "xeon-e5-2699v4" | "epyc-7551p" | null;
   };
   dedicatedType: {
     bulletproof: boolean;
@@ -69,6 +73,8 @@ export interface OtherSessionData {
     showPassword: boolean;
     pendingRenameVdsId?: number | null;
     pendingManualPasswordVdsId?: number | null;
+    /** Pending VPS ownership transfer — waiting for recipient id/@username. */
+    pendingTransferVdsId?: number | null;
     /** Pending renewal period until user confirms (callback). */
     pendingRenewMonths?: 1 | 3 | 6 | 12 | null;
   };
@@ -97,6 +103,12 @@ export interface OtherSessionData {
     shopAllPage?: number;
     /** Selected zone on confirm screen; used when returning from "My domains". */
     shopConfirmZone?: string;
+    /** Expanded domain manage panel tab. */
+    panelTab?: "info" | "ns" | "dns" | "ssl";
+    /** DNS record ids shown in panel (index → id for delete buttons). */
+    dnsRecordIds?: string[];
+    /** Pending DNS record type for add conversation. */
+    pendingDnsType?: "A" | "AAAA" | "CNAME" | "MX" | "TXT" | "SRV";
   };
   dedicatedOrder: {
     step: "idle" | "requirements" | "comment";

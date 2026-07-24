@@ -34,6 +34,8 @@ export function createInitialOtherSession(): SessionData["other"] {
       selectedOs: -1,
       shopTier: null,
       shopListPage: 0,
+      pendingOsKey: null,
+      shopCpuKey: null,
     },
     dedicatedType: {
       bulletproof: false,
@@ -48,6 +50,7 @@ export function createInitialOtherSession(): SessionData["other"] {
       showPassword: false,
       pendingRenameVdsId: null,
       pendingManualPasswordVdsId: null,
+      pendingTransferVdsId: null,
       pendingRenewMonths: null,
     },
     adminVds: {
@@ -67,6 +70,9 @@ export function createInitialOtherSession(): SessionData["other"] {
       shopCategory: undefined,
       shopAllPage: undefined,
       shopConfirmZone: undefined,
+      panelTab: "info",
+      dnsRecordIds: undefined,
+      pendingDnsType: undefined,
     },
     dedicatedOrder: { step: "idle", requirements: undefined },
     cdn: { step: "idle" },

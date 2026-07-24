@@ -1435,6 +1435,33 @@ export class ProxmoxProvider implements VmProvider {
     }
   }
 
+  async removeIpv4FromHost(id: number): Promise<{ removedIp: string | null } | false> {
+    try {
+      const node = await this.resolveQemuNodeForGuest(id);
+      const cfg = await this.apiGet<{ ipconfig0?: string; ipconfig1?: string }>(
+        `/nodes/${node}/qemu/${id}/config`
+      );
+      const secondaryRaw = typeof cfg.ipconfig1 === "string" ? cfg.ipconfig1.trim() : "";
+      if (!secondaryRaw) {
+        return { removedIp: null };
+      }
+      const removedIp = parseIpFromIpConfig(secondaryRaw);
+      await this.apiPost(`/nodes/${node}/qemu/${id}/config`, {
+        delete: "ipconfig1",
+      });
+      await this.apiPost(`/nodes/${node}/qemu/${id}/cloudinit`, {}).catch(() => {});
+      if (removedIp) {
+        await this.ipRegistry?.releaseByIp(removedIp).catch((err) => {
+          Logger.warn(`Proxmox removeIpv4FromHost: registry release failed ip=${removedIp}`, err);
+        });
+      }
+      return { removedIp: removedIp && isUsablePublicIpv4(removedIp) ? removedIp : null };
+    } catch (error) {
+      Logger.warn(`Proxmox removeIpv4FromHost failed guest=${id}`, error);
+      return false;
+    }
+  }
+
   async startVM(id: number): Promise<unknown> {
     const node = await this.resolveQemuNodeForGuest(id);
     const r = await this.apiPost<string | number | null>(`/nodes/${node}/qemu/${id}/status/start`);

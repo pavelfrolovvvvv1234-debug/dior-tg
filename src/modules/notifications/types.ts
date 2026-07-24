@@ -34,8 +34,11 @@ export type CampaignKey =
   | "vip_alert"
   | "reactivation";
 
-/** Generic bulk blasts — disabled (hurt conversion during checkout). */
+/** All growth/marketing blasts — disabled. Real ops alerts live in helpers/notifier + shop replies. */
 export const DISABLED_BULK_CAMPAIGN_KEYS: readonly CampaignKey[] = [
+  "onboarding",
+  "abandoned_deploy",
+  "infrastructure_feed",
   "weekly_digest",
   "market_intel",
   "tech_tip",

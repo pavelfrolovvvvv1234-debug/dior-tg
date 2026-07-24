@@ -75,6 +75,8 @@ export interface NameserverUpdateRequest {
   domainId: string;
   ns1: string;
   ns2: string;
+  /** Prefer full list when Amper expects `nameservers: string[]` (max 4). */
+  nameservers?: string[];
 }
 
 /**

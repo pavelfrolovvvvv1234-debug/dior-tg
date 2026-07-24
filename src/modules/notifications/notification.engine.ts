@@ -56,9 +56,9 @@ export function startNotificationEngine(
   queue
     .cancelPendingForCampaignKeys(DISABLED_BULK_CAMPAIGN_KEYS)
     .then((n) => {
-      if (n > 0) Logger.info(`[Notifications] Cancelled ${n} pending bulk marketing jobs`);
+      if (n > 0) Logger.info(`[Notifications] Cancelled ${n} pending marketing jobs`);
     })
-    .catch((e) => Logger.warn("[Notifications] Bulk campaign cancel failed", e));
+    .catch((e) => Logger.warn("[Notifications] Marketing campaign cancel failed", e));
 
   const engagementInterval = setInterval(() => {
     engagement.refreshAll(300).catch((e) => Logger.warn("[Notifications] Engagement refresh", e));
@@ -79,6 +79,7 @@ export function startNotificationEngine(
     }
   });
 
+  // Legacy onboarding buttons (Deploy VPS / …) — still open shop if old message is clicked.
   bot.callbackQuery(/^ntf:open:(vds|dedicated|domains|cdn)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const nav = ctx.match![1];
@@ -123,7 +124,7 @@ export function startNotificationEngine(
     await ctx.answerCallbackQuery().catch(() => {});
   });
 
-  Logger.info("[Notifications] Engine started");
+  Logger.info("[Notifications] Engine started (marketing campaigns disabled)");
 
   return {
     stop: () => {

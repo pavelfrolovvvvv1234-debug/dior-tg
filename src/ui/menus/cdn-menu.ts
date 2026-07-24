@@ -285,8 +285,9 @@ function safeT(ctx: AppContext, key: string, vars?: Record<string, string | numb
     "cdn-my-proxies-empty": "",
     "cdn-my-proxies-list": "Ваши прокси",
     "cdn-proxy-item": `${vars?.domain ?? ""} → ${vars?.target ?? ""} (${vars?.status ?? ""})`,
-    "manage-services-header": "💼 Услуги",
-    "menu-service-for-buy-choose": "🚀 Выберите услугу",
+    "manage-services-header": "💼 <strong>Услуги</strong>\n\nВаши активные услуги:",
+    "menu-service-for-buy-choose":
+      "🚀 <strong>Выберите услугу</strong>\n\n<b>VPS/VDS</b> — Виртуальные серверы на базе физических машин.\n<b>Дедики</b> — Физические серверы с полным доступом ко всем ресурсам\n<b>Домены</b> — Регистрация оффшорных доменов",
   };
   return ru[key] ?? key;
 }

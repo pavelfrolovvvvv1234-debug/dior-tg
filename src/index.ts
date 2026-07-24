@@ -688,7 +688,13 @@ async function index() {
     registerAdminCreateServiceWizardEarlyHandlers(bot);
   }
 
-  const vmmanager = await createVmProviderAsync();
+  const vmmanager = await createVmProviderAsync(appDataSource);
+  {
+    const { ensureVdslistHostVdsSchema } = await import(
+      "./infrastructure/db/ensure-vdslist-hostvds-schema.js"
+    );
+    await ensureVdslistHostVdsSchema(appDataSource).catch(() => {});
+  }
   startResellerApiServer({ dataSource: appDataSource, vmProvider: vmmanager, botApi: bot.api });
 
   const { createTelegramGrowthSender } = await import(
@@ -1175,6 +1181,10 @@ async function index() {
   registerAdminCreateServiceConversation(bot);
   bot.use(createConversation(domainRegisterConversation as any, "domainRegisterConversation"));
   bot.use(createConversation(domainUpdateNsConversation as any, "domainUpdateNsConversation"));
+  const { domainAddDnsConversation } = await import(
+    "./ui/conversations/domain-add-dns-conversation.js"
+  );
+  bot.use(createConversation(domainAddDnsConversation as any, "domainAddDnsConversation"));
   bot.use(createConversation(withdrawRequestConversation as any, "withdrawRequestConversation"));
   try {
     const { cdnAddProxyConversation } = await import("./ui/menus/cdn-menu.js");
@@ -1474,6 +1484,7 @@ async function index() {
     const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
     const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
     const { BillingService } = await import("./domain/billing/BillingService.js");
+    const { updateVdsManageView } = await import("./helpers/manage-services.js");
     const vdsRepo = new VdsRepository(ctx.appDataSource);
     const userRepo = new UserRepository(ctx.appDataSource);
     const topUpRepo = new TopUpRepository(ctx.appDataSource);
@@ -1490,6 +1501,7 @@ async function index() {
         }),
         { parse_mode: "HTML" }
       );
+      await updateVdsManageView(ctx as AppContext);
     } catch (e: any) {
       await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
     }
@@ -1498,6 +1510,65 @@ async function index() {
 
   bot.callbackQuery(/^vds-extra-ipv4-no:\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^vds-extra-ipv4-rm-yes:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    const vdsId = Number(ctx.match![1]);
+    if (!Number.isFinite(vdsId) || vdsId <= 0) return;
+    const { VdsService } = await import("./domain/services/VdsService.js");
+    const { VdsRepository } = await import("./infrastructure/db/repositories/VdsRepository.js");
+    const { UserRepository } = await import("./infrastructure/db/repositories/UserRepository.js");
+    const { TopUpRepository } = await import("./infrastructure/db/repositories/TopUpRepository.js");
+    const { BillingService } = await import("./domain/billing/BillingService.js");
+    const { updateVdsManageView } = await import("./helpers/manage-services.js");
+    const vdsRepo = new VdsRepository(ctx.appDataSource);
+    const userRepo = new UserRepository(ctx.appDataSource);
+    const topUpRepo = new TopUpRepository(ctx.appDataSource);
+    const billing = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
+    const vdsService = new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
+    try {
+      const result = await vdsService.removeExtraIpv4(vdsId, session.main.user.id);
+      await ctx.reply(
+        ctx.t("vds-extra-ipv4-remove-success", {
+          ip: result.removedIp || "—",
+          renewal: result.renewalPrice,
+        }),
+        { parse_mode: "HTML" }
+      );
+      await updateVdsManageView(ctx as AppContext);
+    } catch (e: any) {
+      await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
+    }
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^vds-extra-ipv4-rm-no:\d+$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^vds-transfer-yes:(\d+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const vdsId = Number(ctx.match![1]);
+    const toUserId = Number(ctx.match![2]);
+    if (!Number.isFinite(vdsId) || vdsId <= 0 || !Number.isFinite(toUserId) || toUserId <= 0) {
+      return;
+    }
+    const { executeVdsOwnershipTransfer } = await import("./helpers/manage-services.js");
+    await executeVdsOwnershipTransfer(ctx as AppContext, vdsId, toUserId);
+    await ctx.deleteMessage().catch(() => {});
+  });
+
+  bot.callbackQuery(/^vds-transfer-no:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const session = (await ctx.session) as SessionData;
+    if (session.other?.manageVds) {
+      session.other.manageVds.pendingTransferVdsId = null;
+    }
+    await ctx.reply(ctx.t("vds-transfer-cancelled"), { parse_mode: "HTML" }).catch(() => {});
     await ctx.deleteMessage().catch(() => {});
   });
 
@@ -2164,14 +2235,17 @@ async function index() {
         return next();
       }
       adminVds.awaitingTransferUserId = false;
-      const newUserId = parseInt(input.replace(/\D/g, ""), 10);
-      if (Number.isNaN(newUserId) || newUserId <= 0) {
-        await ctx.reply(ctx.t("bad-error"));
-        return;
-      }
       const vid = adminVds.selectedVdsId;
       if (!vid) {
         return next();
+      }
+      const { resolveUserFromAdminLookup } = await import("./shared/users/admin-user-lookup.js");
+      const targetUser = await resolveUserFromAdminLookup(ctx as AppContext, input, {
+        maxUsernameScan: 2500,
+      });
+      if (!targetUser) {
+        await ctx.reply(ctx.t("vds-transfer-user-not-found"), { parse_mode: "HTML" });
+        return;
       }
       const { VdsService } = await import("./domain/services/VdsService.js");
       const { VdsRepository } = await import("./infrastructure/db/repositories/VdsRepository.js");
@@ -2184,8 +2258,8 @@ async function index() {
       const billing = new BillingService(ctx.appDataSource, userRepo, topUpRepo);
       const vdsService = new VdsService(ctx.appDataSource, vdsRepo, billing, ctx.vmmanager);
       try {
-        await vdsService.adminTransferVds(vid, newUserId);
-        await ctx.reply(ctx.t("admin-vds-transferred", { userId: newUserId }), { parse_mode: "HTML" });
+        await vdsService.adminTransferVds(vid, targetUser.id);
+        await ctx.reply(ctx.t("admin-vds-transferred", { userId: targetUser.id }), { parse_mode: "HTML" });
       } catch (e: any) {
         await ctx.reply(ctx.t("error-unknown", { error: e?.message || "err" }), { parse_mode: "HTML" });
       }

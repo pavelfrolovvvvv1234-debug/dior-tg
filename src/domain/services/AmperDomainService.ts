@@ -11,16 +11,27 @@ import { DomainRepository } from "../../infrastructure/db/repositories/DomainRep
 import { BillingService } from "../billing/BillingService.js";
 import { AmperDomainsProvider } from "../../infrastructure/domains/AmperDomainsProvider.js";
 import type { DomainProvider } from "../../infrastructure/domains/DomainProvider.js";
+import type {
+  AmperDnsRecord,
+  AmperDnsRecordType,
+  AmperSslMode,
+  AmperSslStatus,
+} from "../../infrastructure/domains/amper-dns-types.js";
 import { NotFoundError, BusinessError, ExternalApiError } from "../../shared/errors/index.js";
 import { Logger } from "../../app/logger.js";
 import User from "../../entities/User.js";
 import { computeOrderPriceFromUser } from "../../shared/pricing/order-discount.js";
+import {
+  domainNsLookLikeAmperDns,
+  getAmperDnsNameservers,
+} from "../../shared/amper/amper-ns.js";
 
 /**
  * Domain service for managing domain registrations.
  */
 export class AmperDomainService {
   private domainProvider: DomainProvider;
+  private amperProvider: AmperDomainsProvider;
 
   constructor(
     private dataSource: DataSource,
@@ -29,6 +40,7 @@ export class AmperDomainService {
     provider: AmperDomainsProvider
   ) {
     this.domainProvider = provider;
+    this.amperProvider = provider;
   }
 
   /**
@@ -206,6 +218,10 @@ export class AmperDomainService {
 
         await domainRepo.save(savedDomain);
       } catch (error: any) {
+        // Failure / already-owned branches already refunded and saved status.
+        if (error instanceof BusinessError) {
+          throw error;
+        }
         Logger.error(`Failed to register domain with provider:`, error);
         savedDomain.status = DomainStatus.FAILED as any;
         await domainRepo.save(savedDomain);
@@ -317,8 +333,14 @@ export class AmperDomainService {
   /**
    * Update nameservers.
    * If providerDomainId is missing (stub domain), tries to resolve it from Amper list before updating.
+   * Optional `extraNs` are sent when Amper accepts a `nameservers` array (max 4 total).
    */
-  async updateNameservers(domainId: number, ns1: string, ns2: string): Promise<Domain> {
+  async updateNameservers(
+    domainId: number,
+    ns1: string,
+    ns2: string,
+    extraNs: string[] = []
+  ): Promise<Domain> {
     const domain = await this.getDomainById(domainId);
 
     if (domain.status !== "registered") {
@@ -340,6 +362,10 @@ export class AmperDomainService {
       }
     }
     const domainIdOrName = domain.providerDomainId ?? domain.domain;
+    const nameservers = [ns1, ns2, ...extraNs]
+      .map((s) => String(s ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 4);
 
     // Update in transaction
     return await this.dataSource.transaction(async (manager) => {
@@ -348,13 +374,14 @@ export class AmperDomainService {
 
       const result = await this.domainProvider.updateNameservers({
         domainId: String(domainIdOrName),
-        ns1,
-        ns2,
+        ns1: nameservers[0]!,
+        ns2: nameservers[1] ?? nameservers[0]!,
+        nameservers,
       });
 
       if (result.success) {
-        domain.ns1 = ns1;
-        domain.ns2 = ns2;
+        domain.ns1 = nameservers[0] ?? ns1;
+        domain.ns2 = nameservers[1] ?? ns2;
 
         // Create operation record if async
         if (result.operationId) {
@@ -374,6 +401,192 @@ export class AmperDomainService {
 
       return domain;
     });
+  }
+
+  /**
+   * Point domain NS to Amper-managed DNS (env AMPER_DNS_NS* / DEFAULT_NS*).
+   */
+  async bindAmperDns(domainId: number): Promise<Domain> {
+    const amperNs = getAmperDnsNameservers();
+    if (amperNs.length < 2) {
+      throw new BusinessError("Amper DNS nameservers are not configured");
+    }
+    return this.updateNameservers(domainId, amperNs[0]!, amperNs[1]!, amperNs.slice(2));
+  }
+
+  /** Prefer FQDN for DNS/SSL path params; fall back to provider id. */
+  private dnsApiKey(domain: Domain): string {
+    return domain.domain || domain.providerDomainId || "";
+  }
+
+  private async ensureProviderResolved(domain: Domain): Promise<Domain> {
+    if (domain.providerDomainId) return domain;
+    let list = await this.domainProvider.listDomains("");
+    if (list.length === 0 && "listDomainsByDomain" in this.domainProvider) {
+      list = await (this.domainProvider as any).listDomainsByDomain(domain.domain);
+    }
+    const amper = list.find((d: any) => d.domain?.toLowerCase() === domain.domain.toLowerCase());
+    if (amper?.domainId) {
+      domain.providerDomainId = amper.domainId;
+      domain.ns1 = amper.ns1 ?? domain.ns1;
+      domain.ns2 = amper.ns2 ?? domain.ns2;
+      await this.domainRepository.getRepository().save(domain);
+    }
+    return domain;
+  }
+
+  /**
+   * Whether Amper DNS zone is usable (NS look like Amper and/or GET /dns succeeds).
+   */
+  async getDnsZoneState(domainId: number): Promise<{
+    domain: Domain;
+    onAmperNs: boolean;
+    dnsActive: boolean;
+    records: AmperDnsRecord[];
+    proxyNotice?: string | null;
+    error?: string;
+  }> {
+    let domain = await this.getDomainById(domainId);
+    domain = await this.ensureProviderResolved(domain);
+    const onAmperNs = domainNsLookLikeAmperDns(domain.ns1, domain.ns2);
+    const key = this.dnsApiKey(domain);
+    if (!key) {
+      return { domain, onAmperNs, dnsActive: false, records: [], error: "Domain key missing" };
+    }
+    try {
+      const list = await this.amperProvider.getDnsRecords(key);
+      return {
+        domain,
+        onAmperNs,
+        dnsActive: true,
+        records: list.records,
+        proxyNotice: list.proxyNotice,
+      };
+    } catch (error: any) {
+      const status = error?.response?.status;
+      // Retry with provider id if FQDN failed
+      if (domain.providerDomainId && key !== domain.providerDomainId) {
+        try {
+          const list = await this.amperProvider.getDnsRecords(domain.providerDomainId);
+          return {
+            domain,
+            onAmperNs,
+            dnsActive: true,
+            records: list.records,
+            proxyNotice: list.proxyNotice,
+          };
+        } catch {
+          // fall through
+        }
+      }
+      if (status === 400 || status === 403 || status === 404 || status === 422) {
+        return {
+          domain,
+          onAmperNs,
+          dnsActive: false,
+          records: [],
+          error: String(error?.response?.data?.error?.message || error?.message || "DNS unavailable"),
+        };
+      }
+      Logger.warn(`getDnsZoneState failed for ${domain.domain}:`, error?.message || error);
+      return {
+        domain,
+        onAmperNs,
+        dnsActive: false,
+        records: [],
+        error: String(error?.message || error),
+      };
+    }
+  }
+
+  async addDnsRecord(
+    domainId: number,
+    input: {
+      type: AmperDnsRecordType;
+      value: string;
+      name?: string;
+      ttl?: number;
+      priority?: number;
+    }
+  ): Promise<AmperDnsRecord> {
+    let domain = await this.getDomainById(domainId);
+    domain = await this.ensureProviderResolved(domain);
+    const key = this.dnsApiKey(domain);
+    if (!key) throw new BusinessError("Domain provider ID not found");
+    try {
+      return await this.amperProvider.addDnsRecord(key, input);
+    } catch (error: any) {
+      if (domain.providerDomainId && key !== domain.providerDomainId) {
+        return await this.amperProvider.addDnsRecord(domain.providerDomainId, input);
+      }
+      const errMsg =
+        error?.response?.data?.error?.message ??
+        error?.response?.data?.message ??
+        error?.message ??
+        "DNS add failed";
+      throw new BusinessError(String(errMsg));
+    }
+  }
+
+  async deleteDnsRecord(domainId: number, recordId: string): Promise<void> {
+    let domain = await this.getDomainById(domainId);
+    domain = await this.ensureProviderResolved(domain);
+    const key = this.dnsApiKey(domain);
+    if (!key) throw new BusinessError("Domain provider ID not found");
+    try {
+      await this.amperProvider.deleteDnsRecord(key, recordId);
+    } catch (error: any) {
+      if (domain.providerDomainId && key !== domain.providerDomainId) {
+        await this.amperProvider.deleteDnsRecord(domain.providerDomainId, recordId);
+        return;
+      }
+      const errMsg =
+        error?.response?.data?.error?.message ??
+        error?.response?.data?.message ??
+        error?.message ??
+        "DNS delete failed";
+      throw new BusinessError(String(errMsg));
+    }
+  }
+
+  async getSsl(domainId: number): Promise<AmperSslStatus> {
+    let domain = await this.getDomainById(domainId);
+    domain = await this.ensureProviderResolved(domain);
+    const key = this.dnsApiKey(domain);
+    if (!key) throw new BusinessError("Domain provider ID not found");
+    try {
+      return await this.amperProvider.getSsl(key);
+    } catch (error: any) {
+      if (domain.providerDomainId && key !== domain.providerDomainId) {
+        return await this.amperProvider.getSsl(domain.providerDomainId);
+      }
+      const errMsg =
+        error?.response?.data?.error?.message ??
+        error?.response?.data?.message ??
+        error?.message ??
+        "SSL status failed";
+      throw new BusinessError(String(errMsg));
+    }
+  }
+
+  async setSslMode(domainId: number, mode: AmperSslMode): Promise<AmperSslStatus> {
+    let domain = await this.getDomainById(domainId);
+    domain = await this.ensureProviderResolved(domain);
+    const key = this.dnsApiKey(domain);
+    if (!key) throw new BusinessError("Domain provider ID not found");
+    try {
+      return await this.amperProvider.setSslMode(key, mode);
+    } catch (error: any) {
+      if (domain.providerDomainId && key !== domain.providerDomainId) {
+        return await this.amperProvider.setSslMode(domain.providerDomainId, mode);
+      }
+      const errMsg =
+        error?.response?.data?.error?.message ??
+        error?.response?.data?.message ??
+        error?.message ??
+        "SSL update failed";
+      throw new BusinessError(String(errMsg));
+    }
   }
 
   /**

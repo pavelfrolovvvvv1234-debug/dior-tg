@@ -20,6 +20,13 @@ import type {
 import axios, { AxiosInstance } from "axios";
 import { Logger } from "../../app/logger.js";
 import { checkAvailabilityWhois } from "./whoisAvailability.js";
+import type {
+  AmperDnsListResult,
+  AmperDnsRecord,
+  AmperDnsRecordType,
+  AmperSslMode,
+  AmperSslStatus,
+} from "./amper-dns-types.js";
 
 /**
  * AmperDomainsProvider configuration.
@@ -549,27 +556,54 @@ export class AmperDomainsProvider implements DomainProvider {
     const tryBody = (body: Record<string, unknown>) =>
       this.client.put(url, body).then((response) => {
         const d = response.data ?? {};
+        const error = this.getResp<string>(d, "error");
+        // Match register/renew: explicit true wins; bare 2xx OK only when no error field.
+        const success =
+          d.success === true ||
+          d.success === "true" ||
+          ((d.success === undefined || d.success === null) && !error);
         return {
-          success: d.success === true || d.success === "true",
+          success,
           operationId: this.getResp<string>(d, "operationId", "operation_id"),
-          error: this.getResp<string>(d, "error"),
+          error,
         };
       });
-    try {
-      return await tryBody({ ns1: request.ns1, ns2: request.ns2 });
-    } catch (err: any) {
-      const msg = (err.response?.data?.error?.message || err.message || "").toLowerCase();
-      if (err.response?.status === 400 && msg.includes("expected array")) {
-        Logger.info(`[Amper] updateNameservers: retry with nameservers array`);
+    const nsList =
+      (request.nameservers?.length
+        ? request.nameservers
+        : [request.ns1, request.ns2]
+      )
+        .map((s) => String(s ?? "").trim())
+        .filter(Boolean)
+        .slice(0, 4);
+
+    const attempt = async (): Promise<NameserverUpdateResult> => {
+      if (request.nameservers?.length) {
         try {
-          return await tryBody({
-            nameservers: [request.ns1, request.ns2].filter(Boolean),
-          });
-        } catch (e: any) {
-          const errMsg = e.response?.data?.error?.message ?? e.message ?? "Unknown error";
-          return { success: false, error: String(errMsg) };
+          return await tryBody({ nameservers: nsList });
+        } catch (err: any) {
+          const msg = (err.response?.data?.error?.message || err.message || "").toLowerCase();
+          if (err.response?.status === 400) {
+            return await tryBody({ ns1: nsList[0], ns2: nsList[1] ?? nsList[0] });
+          }
+          throw err;
         }
       }
+      try {
+        return await tryBody({ ns1: request.ns1, ns2: request.ns2 });
+      } catch (err: any) {
+        const msg = (err.response?.data?.error?.message || err.message || "").toLowerCase();
+        if (err.response?.status === 400 && msg.includes("expected array")) {
+          Logger.info(`[Amper] updateNameservers: retry with nameservers array`);
+          return await tryBody({ nameservers: nsList });
+        }
+        throw err;
+      }
+    };
+
+    try {
+      return await attempt();
+    } catch (err: any) {
       Logger.error(`Failed to update nameservers for domain ${request.domainId}:`, err);
       const errMsg =
         err.response?.data?.error?.message ??
@@ -603,5 +637,132 @@ export class AmperDomainsProvider implements DomainProvider {
         error.response?.data?.message ?? error.response?.data?.error ?? error.message ?? "Unknown error";
       return { status: "failed", error: String(errMsg) };
     }
+  }
+
+  /** Path key for DNS/SSL endpoints — prefer FQDN, fall back to provider id. */
+  private domainPathKey(domainOrId: string): string {
+    return encodeURIComponent(domainOrId.trim());
+  }
+
+  private mapDnsRecord(raw: any): AmperDnsRecord | null {
+    if (!raw || typeof raw !== "object") return null;
+    const type = String(this.getResp<string>(raw, "type") ?? "").toUpperCase();
+    const value = String(this.getResp<string>(raw, "value", "content", "data") ?? "").trim();
+    if (!type || !value) return null;
+    const name = String(this.getResp<string>(raw, "name", "host") ?? "@").trim() || "@";
+    const id = this.getResp<string>(raw, "id", "record_id", "recordId");
+    const ttl = this.getResp<number>(raw, "ttl");
+    const priority = this.getResp<number>(raw, "priority", "prio");
+    return {
+      id: id ? String(id) : undefined,
+      type: type as AmperDnsRecordType,
+      name,
+      value,
+      ttl: typeof ttl === "number" ? ttl : undefined,
+      priority: typeof priority === "number" ? priority : undefined,
+    };
+  }
+
+  async getNameservers(domainOrId: string): Promise<string[]> {
+    const response = await this.client.get(
+      `${this.apiPrefix}/domains/${this.domainPathKey(domainOrId)}/nameservers`
+    );
+    const d = response.data ?? {};
+    const list =
+      this.getResp<string[]>(d, "nameservers") ??
+      this.getResp<string[]>(d, "ns") ??
+      (Array.isArray(d) ? (d as string[]) : null);
+    if (Array.isArray(list)) {
+      return list.map(String).map((s) => s.trim()).filter(Boolean);
+    }
+    const ns1 = this.getResp<string>(d, "ns1");
+    const ns2 = this.getResp<string>(d, "ns2");
+    return [ns1, ns2].filter(Boolean).map(String);
+  }
+
+  async getDnsRecords(domainOrId: string): Promise<AmperDnsListResult> {
+    const response = await this.client.get(
+      `${this.apiPrefix}/domains/${this.domainPathKey(domainOrId)}/dns`
+    );
+    const d = response.data ?? {};
+    const rawList =
+      this.getResp<any[]>(d, "records") ??
+      this.getResp<any[]>(d, "dns") ??
+      (Array.isArray(d) ? d : []);
+    const records = (Array.isArray(rawList) ? rawList : [])
+      .map((row) => this.mapDnsRecord(row))
+      .filter((row): row is AmperDnsRecord => Boolean(row));
+    const proxyNotice =
+      this.getResp<string>(d, "proxy_notice", "proxyNotice") ?? null;
+    return { records, proxyNotice, raw: d };
+  }
+
+  async addDnsRecord(
+    domainOrId: string,
+    input: {
+      type: AmperDnsRecordType;
+      value: string;
+      name?: string;
+      ttl?: number;
+      priority?: number;
+    }
+  ): Promise<AmperDnsRecord> {
+    const body: Record<string, unknown> = {
+      type: input.type,
+      value: input.value,
+      name: input.name?.trim() || "@",
+    };
+    if (input.ttl != null) body.ttl = input.ttl;
+    if (input.priority != null) body.priority = input.priority;
+    const response = await this.client.post(
+      `${this.apiPrefix}/domains/${this.domainPathKey(domainOrId)}/dns/records`,
+      body
+    );
+    const d = response.data ?? {};
+    const mapped =
+      this.mapDnsRecord(d.record ?? d.data ?? d) ??
+      this.mapDnsRecord({
+        ...body,
+        id: this.getResp<string>(d, "id", "record_id", "recordId"),
+      });
+    if (!mapped) {
+      throw new Error("Amper DNS add returned unexpected payload");
+    }
+    return mapped;
+  }
+
+  async deleteDnsRecord(domainOrId: string, recordId: string): Promise<void> {
+    await this.client.delete(
+      `${this.apiPrefix}/domains/${this.domainPathKey(domainOrId)}/dns/records/${encodeURIComponent(recordId)}`
+    );
+  }
+
+  async getSsl(domainOrId: string): Promise<AmperSslStatus> {
+    const response = await this.client.get(
+      `${this.apiPrefix}/domains/${this.domainPathKey(domainOrId)}/ssl`
+    );
+    const d = response.data ?? {};
+    return {
+      mode: this.getResp<string>(d, "mode", "ssl_mode", "sslMode") ?? null,
+      status: this.getResp<string>(d, "status") ?? null,
+      certificateStatus:
+        this.getResp<string>(d, "certificate_status", "certificateStatus", "cert_status") ?? null,
+      raw: d,
+    };
+  }
+
+  async setSslMode(domainOrId: string, mode: AmperSslMode): Promise<AmperSslStatus> {
+    const response = await this.client.patch(
+      `${this.apiPrefix}/domains/${this.domainPathKey(domainOrId)}/ssl`,
+      { mode }
+    );
+    const d = response.data ?? {};
+    return {
+      mode: this.getResp<string>(d, "mode", "ssl_mode", "sslMode") ?? mode,
+      status: this.getResp<string>(d, "status") ?? null,
+      certificateStatus:
+        this.getResp<string>(d, "certificate_status", "certificateStatus", "cert_status") ?? null,
+      raw: d,
+    };
   }
 }

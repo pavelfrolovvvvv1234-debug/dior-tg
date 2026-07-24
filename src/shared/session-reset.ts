@@ -25,10 +25,13 @@ export function clearStuckUserSessionFlags(session: SessionData): void {
   if (o.vdsRate) {
     o.vdsRate.selectedRateId = -1;
     o.vdsRate.selectedOs = -1;
+    o.vdsRate.pendingOsKey = null;
+    o.vdsRate.shopCpuKey = null;
   }
 
   o.manageVds.pendingRenameVdsId = null;
   o.manageVds.pendingManualPasswordVdsId = null;
+  o.manageVds.pendingTransferVdsId = null;
   o.manageVds.pendingRenewMonths = null;
 
   o.balanceEdit = undefined;

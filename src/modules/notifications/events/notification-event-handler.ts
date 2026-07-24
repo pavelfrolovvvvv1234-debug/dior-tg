@@ -1,5 +1,6 @@
 /**
  * Event-driven notification triggers (automation event bus).
+ * Marketing campaigns are disabled — this handler no longer schedules spam.
  *
  * @module modules/notifications/events/notification-event-handler
  */
@@ -8,10 +9,7 @@ import type { DataSource } from "typeorm";
 import type { Bot } from "grammy";
 import { onEvent } from "../../automations/engine/event-bus.js";
 import type { AutomationEventPayload } from "../../automations/events/types.js";
-import User from "../../../entities/User.js";
-import VirtualDedicatedServer from "../../../entities/VirtualDedicatedServer.js";
 import { NotificationQueueService } from "../queue/notification-queue.service.js";
-import { scheduleOnboarding } from "../campaigns/onboarding.campaign.js";
 import { FunnelTrackerService } from "../funnel/funnel-tracker.service.js";
 import { Logger } from "../../../app/logger.js";
 
@@ -24,55 +22,14 @@ export function setupNotificationEventHandler(
 
   const handler = async (payload: AutomationEventPayload): Promise<void> => {
     try {
-      if (payload.event === "user.login") {
-        const user = await dataSource.getRepository(User).findOne({
-          where: { id: payload.userId },
-        });
-        if (!user) return;
-        const ageMs = Date.now() - new Date(user.createdAt).getTime();
-        if (ageMs < 120_000) {
-          const locale = user.lang === "en" ? "en" : "ru";
-          await scheduleOnboarding(queue, user.id, locale);
-        }
-        return;
-      }
-
+      // Stop abandoned-cart spam if user already bought something.
       if (payload.event === "service.created") {
-        const user = await dataSource.getRepository(User).findOne({
-          where: { id: payload.userId },
-        });
-        if (!user) return;
-        await funnel.completeFunnel(user.id, "vps_checkout");
-        await queue.cancelCampaignForUser(user.id, "onboarding");
-        await queue.cancelCampaignForUser(user.id, "post_purchase");
-        return;
+        await funnel.completeFunnel(payload.userId, "vps_checkout");
+        await queue.cancelCampaignForUser(payload.userId, "onboarding");
+        await queue.cancelCampaignForUser(payload.userId, "abandoned_deploy");
+        await queue.cancelCampaignForUser(payload.userId, "post_purchase");
       }
-
-      if (payload.event === "deposit.completed") {
-        const uid = payload.targetUserId ?? payload.userId;
-        const vdsCount = await dataSource.getRepository(VirtualDedicatedServer).count({
-          where: { targetUserId: uid },
-        });
-        if (vdsCount === 0) {
-          const user = await dataSource.getRepository(User).findOne({
-            where: { id: uid },
-          });
-          if (user) {
-            const locale = user.lang === "en" ? "en" : "ru";
-            const hasPending24h = await queue.enqueueDelayed(
-              {
-                userId: user.id,
-                campaignKey: "onboarding",
-                templateKey: "onboarding.nudge_24h",
-                locale,
-                dedupeKey: "onboarding:24h",
-              },
-              2 * 60 * 60 * 1000
-            );
-            void hasPending24h;
-          }
-        }
-      }
+      // user.login / deposit.completed marketing nudges — intentionally disabled.
     } catch (e) {
       Logger.error("[Notifications] Event handler error", e);
     }
@@ -83,18 +40,16 @@ export function setupNotificationEventHandler(
   });
 }
 
-/** Call when user reaches VPS checkout (OS picker). */
+/** No-op: abandoned-deploy marketing funnel is disabled. */
 export async function trackVpsCheckoutFunnel(
-  dataSource: DataSource,
-  userId: number,
-  configLabel: string
+  _dataSource: DataSource,
+  _userId: number,
+  _configLabel: string
 ): Promise<void> {
-  const queue = new NotificationQueueService(dataSource);
-  const funnel = new FunnelTrackerService(dataSource, queue);
-  await funnel.trackCheckout(userId, "vps_checkout", configLabel);
+  // marketing funnel disabled
 }
 
-/** Call after successful VPS purchase (stops abandoned-cart reminders). */
+/** Still clears any leftover abandoned jobs if something was queued before disable. */
 export async function completeVpsCheckoutFunnel(
   dataSource: DataSource,
   userId: number

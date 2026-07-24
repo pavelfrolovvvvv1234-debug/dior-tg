@@ -226,13 +226,15 @@ export async function openCdnPurchaseFromServicesMenu(ctx: AppContext): Promise<
 }
 
 function buildServicesMenu(): Menu<AppContext> {
-  let m = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false })
-    .submenu((ctx) => ctx.t("button-service-buy-domains"), "domains-menu", openDomainsPurchaseScreen)
-    .row();
+  let m = new Menu<AppContext>("services-menu", { autoAnswer: false, onMenuOutdated: false });
 
-  if (showCdnInUserMenus()) {
+  if (showVpsVdsInServiceMenus()) {
     m = m
-      .text((ctx) => ctx.t("button-service-buy-cdn"), openCdnPurchaseFromServicesMenu)
+      .text((ctx) => ctx.t("button-vds"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        const { showVpsShopStep1 } = await import("../domain/vds/vds-shop-flow.js");
+        await showVpsShopStep1(ctx);
+      })
       .row();
   }
 
@@ -242,15 +244,13 @@ function buildServicesMenu(): Menu<AppContext> {
       "dedicated-type-menu",
       openDedicatedCategoryScreen
     )
+    .row()
+    .submenu((ctx) => ctx.t("button-service-buy-domains"), "domains-menu", openDomainsPurchaseScreen)
     .row();
 
-  if (showVpsVdsInServiceMenus()) {
+  if (showCdnInUserMenus()) {
     m = m
-      .text((ctx) => ctx.t("button-vds"), async (ctx) => {
-        await ctx.answerCallbackQuery().catch(() => {});
-        const { showVpsShopStep1 } = await import("../domain/vds/vds-shop-flow.js");
-        await showVpsShopStep1(ctx);
-      })
+      .text((ctx) => ctx.t("button-service-buy-cdn"), openCdnPurchaseFromServicesMenu)
       .row();
   }
 

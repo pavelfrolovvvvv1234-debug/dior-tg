@@ -37,6 +37,42 @@ import {
 } from "./vps-onboarding-messages.js";
 import { resolveVdsLoginForOs } from "../../shared/vmm-os-display.js";
 import { canAutoProvisionVpsAtLocation } from "../../shared/proxmox/location-targets.js";
+import { Logger } from "../../app/logger.js";
+import {
+  canProvisionHostVdsNow,
+  getHostVdsLocationProvisionHints,
+  getHostVdsShopLocationKeys,
+  isPlanSelectable,
+  isLocationSelectable,
+  resolveLocationStatus,
+  resolvePlanAtLocationStatus,
+  resolvePlanGlobalStatus,
+  useHostVdsStockUi,
+  type HostVdsStockStatus,
+} from "../../infrastructure/hostvds/hostvds-catalog.js";
+import { HostVdsApiError } from "../../infrastructure/hostvds/openstack-client.js";
+import {
+  isVpsMarketingCpuKey,
+  resolveVpsMarketingCpuLabel,
+  defaultVpsMarketingCpuLabel,
+  VPS_MARKETING_CPU_DEFAULT,
+  VPS_MARKETING_CPU_OPTIONS,
+  type VpsMarketingCpuKey,
+} from "./vps-cpu-marketing.js";
+
+/** Prefer marketing CPU for bulletproof checkout; otherwise catalog model. */
+function resolveShopCpuModel(
+  session: SessionData,
+  rate: { cpuModel?: string }
+): string {
+  if (session.other.vdsRate?.bulletproof) {
+    return (
+      resolveVpsMarketingCpuLabel(session.other.vdsRate.shopCpuKey) ??
+      defaultVpsMarketingCpuLabel()
+    );
+  }
+  return getVpsCpuModel(rate);
+}
 
 const TIER_ORDER: VpsShopTier[] = ["start", "standard", "performance", "enterprise"];
 
@@ -76,11 +112,15 @@ const VPS_LOCATION_AUTO_ONLY_KEY = "nl-amsterdam";
 
 /** Users with an in-flight Proxmox provision (prevents double-charge). */
 const vpsProvisioningUserIds = new Set<number>();
+/** Sync lock by Telegram id — set before any await to block double-tap races. */
+const vpsProvisioningTelegramIds = new Set<number>();
 
 function resetVpsShopCheckoutSession(session: SessionData): void {
   ensureVpsShopSession(session);
   session.other.vdsRate.selectedRateId = -1;
   session.other.vdsRate.selectedOs = -1;
+  session.other.vdsRate.pendingOsKey = null;
+  session.other.vdsRate.shopCpuKey = null;
   if (session.other.dedicatedOrder) {
     session.other.dedicatedOrder.step = "idle";
     session.other.dedicatedOrder.selectedLocationKey = undefined;
@@ -101,13 +141,39 @@ function getAllowedVpsLocationKeys(
   rate: { cpu?: number; ram?: number; ssd?: number },
   bulletproof: boolean
 ): string[] {
-  if (!bulletproof) return [...STANDARD_VPS_LOCATION_KEYS];
+  if (!bulletproof) {
+    if (useHostVdsStockUi()) return getHostVdsShopLocationKeys();
+    return [...STANDARD_VPS_LOCATION_KEYS];
+  }
   const cpu = Number(rate.cpu ?? 0);
   const ram = Number(rate.ram ?? 0);
   const ssd = Number(rate.ssd ?? 0);
   const isGlobalGeoTier = cpu >= 4 && ram >= 8 && ssd >= 80;
   if (!isGlobalGeoTier) return [VPS_LOCATION_AUTO_ONLY_KEY];
   return [...DEDICATED_LOCATION_KEYS];
+}
+
+function stockStatusLabel(ctx: AppContext, status: HostVdsStockStatus): string {
+  if (status === "sold_out") return ctx.t("hostvds-status-sold-out");
+  if (status === "unavailable") return ctx.t("hostvds-status-unavailable");
+  return ctx.t("hostvds-status-available");
+}
+
+function hostVdsLocationButtonLabel(
+  ctx: AppContext,
+  locationKey: string,
+  rateId: number
+): { label: string; selectable: boolean } {
+  const base = vpsLocationLabel(ctx, locationKey);
+  if (!useHostVdsStockUi()) return { label: base, selectable: true };
+  const status = resolvePlanAtLocationStatus(locationKey, rateId);
+  if (status === "available") {
+    return { label: `✅ ${base}`, selectable: true };
+  }
+  return {
+    label: `🔒 ${base} · ${stockStatusLabel(ctx, status)}`,
+    selectable: false,
+  };
 }
 
 async function createVpsOrderTicket(
@@ -184,9 +250,10 @@ async function createVpsOrderTicket(
         locationLabel,
         osKey: osKey ?? null,
         osLabel,
+        cpuModel: resolveShopCpuModel(session, rate as { cpuModel?: string }),
         ddosProtection: session.other.vdsRate.bulletproof ? "enhanced" : "standard",
         deploymentNotes: session.other.vdsRate.bulletproof
-          ? "Bulletproof VPS — staff provisioning if auto-deploy unavailable."
+          ? `Bulletproof VPS — staff provisioning if auto-deploy unavailable. CPU label: ${resolveShopCpuModel(session, rate as { cpuModel?: string })} (marketing).`
           : "Standard VPS — manual ticket provisioning (RU/BY/AB only).",
       },
     });
@@ -248,6 +315,21 @@ async function createVpsOrderDirect(
   locationKey?: string,
   osKey?: string
 ): Promise<boolean> {
+  const telegramId = Number(ctx.from?.id ?? 0);
+  if (telegramId > 0) {
+    if (vpsProvisioningTelegramIds.has(telegramId)) {
+      await ctx
+        .reply("⏳ Уже идёт создание VPS — дождитесь завершения или отправьте /start.", {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(() => {});
+      return true;
+    }
+    vpsProvisioningTelegramIds.add(telegramId);
+  }
+
+  try {
   const session = await ctx.session;
   ensureVpsShopSession(session);
   const userId = session.main.user.id;
@@ -333,7 +415,8 @@ async function createVpsOrderDirect(
       await touchProgress(0.12 + (attempt - 1) * 0.08);
       const generatedPassword = generatePassword(12);
       const vmName = generateRandomName(13);
-      const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey},try:${attempt}`;
+      const cpuLabel = resolveShopCpuModel(session, rate as { cpuModel?: string });
+      const comment = `UserID:${user.id},${rate.name},loc:${locationKey ?? "n/a"},os:${osKey},cpu:${cpuLabel},try:${attempt}`;
       const createPromise = ctx.vmmanager.createVM(
         vmName,
         generatedPassword,
@@ -450,7 +533,7 @@ async function createVpsOrderDirect(
       ramGb: rate.ram,
       diskGb: rate.ssd,
       networkMbps: rate.network,
-      cpuModel: getVpsCpuModel(rate as { cpuModel?: string }),
+      cpuModel: resolveShopCpuModel(session, rate as { cpuModel?: string }),
       osLabel,
       osKey,
       ipv4: savedIp,
@@ -503,9 +586,14 @@ async function createVpsOrderDirect(
     // Do not fall back to ticket flow after a failed auto-provision:
     // it can double-charge users and creates the illusion of "manual provisioning" for VPS.
     return true;
-    }
+  }
   } finally {
     vpsProvisioningUserIds.delete(userId);
+  }
+  } finally {
+    if (telegramId > 0) {
+      vpsProvisioningTelegramIds.delete(telegramId);
+    }
   }
 }
 
@@ -522,11 +610,27 @@ async function showVpsLocationPicker(ctx: AppContext, rateId: number): Promise<v
   const bulletproof = session.other.vdsRate.bulletproof;
   const allowedLocationKeys = getAllowedVpsLocationKeys(rate, bulletproof);
   const kb = new InlineKeyboard();
+  const stockUi = !bulletproof && useHostVdsStockUi();
+
   for (const key of allowedLocationKeys) {
-    kb.text(vpsLocationLabel(ctx, key), `vsh:loc:${key}`).row();
+    if (stockUi) {
+      const { label, selectable } = hostVdsLocationButtonLabel(ctx, key, rateId);
+      if (selectable) {
+        kb.text(label, `vsh:loc:${key}`).row();
+      } else {
+        kb.text(label, `vsh:loc_na:${key}`).row();
+      }
+    } else {
+      kb.text(vpsLocationLabel(ctx, key), `vsh:loc:${key}`).row();
+    }
   }
   kb.text(ctx.t("button-back"), `vsh:card:${rateId}`).row();
-  await ctx.editMessageText(ctx.t("dedicated-location-select-title"), {
+
+  const title = stockUi
+    ? ctx.t("hostvds-location-select-title")
+    : ctx.t("dedicated-location-select-title");
+
+  await ctx.editMessageText(title, {
     parse_mode: "HTML",
     reply_markup: kb,
     link_preview_options: { is_disabled: true },
@@ -557,11 +661,348 @@ async function showVpsOsPicker(ctx: AppContext, rateId: number, locationKey: str
     kb.text(ctx.t(`dedicated-os-${key}` as any), `vsh:os:${key}`).row();
   }
   kb.text(ctx.t("button-back"), `vsh:loc_back:${rateId}`).row();
-  await ctx.editMessageText(ctx.t("dedicated-os-select-title"), {
+  const osTitle = session.other.vdsRate.bulletproof
+    ? ctx.t("vds-shop-os-select-bulletproof")
+    : ctx.t("dedicated-os-select-title");
+  await ctx.editMessageText(osTitle, {
     parse_mode: "HTML",
     reply_markup: kb,
     link_preview_options: { is_disabled: true },
   });
+}
+
+/** Bulletproof-only: marketing CPU label before charge (does not change real hardware). */
+async function showVpsCpuPicker(ctx: AppContext, rateId: number): Promise<void> {
+  const session = await ctx.session;
+  ensureVpsShopSession(session);
+  session.other.vdsRate.selectedRateId = rateId;
+  if (!session.other.vdsRate.shopCpuKey) {
+    session.other.vdsRate.shopCpuKey = VPS_MARKETING_CPU_DEFAULT;
+  }
+
+  const kb = new InlineKeyboard();
+  for (const opt of VPS_MARKETING_CPU_OPTIONS) {
+    const btn = opt.isDefault
+      ? ctx.t("vds-shop-cpu-btn-default", { label: opt.label })
+      : ctx.t("vds-shop-cpu-btn-alt", { label: opt.label });
+    kb.text(btn, `vsh:cpu:${opt.key}`).row();
+  }
+  kb.text(ctx.t("button-back"), `vsh:cpu_back:${rateId}`).row();
+
+  await ctx.editMessageText(ctx.t("vds-shop-cpu-select"), {
+    parse_mode: "HTML",
+    reply_markup: kb,
+    link_preview_options: { is_disabled: true },
+  });
+}
+
+/**
+ * Standard (non-bulletproof) auto-provision via HostVDS OpenStack.
+ * Does not touch Proxmox / createVpsOrderDirect.
+ */
+async function createStandardVpsOrderHostVds(
+  ctx: AppContext,
+  rateId: number,
+  locationKey: string,
+  osKey: string
+): Promise<boolean> {
+  const telegramId = Number(ctx.from?.id ?? 0);
+  if (telegramId > 0) {
+    if (vpsProvisioningTelegramIds.has(telegramId)) {
+      await ctx
+        .reply("⏳ Уже идёт создание VPS — дождитесь завершения или отправьте /start.", {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(() => {});
+      return true;
+    }
+    vpsProvisioningTelegramIds.add(telegramId);
+  }
+
+  let userId = 0;
+  try {
+    const session = await ctx.session;
+    ensureVpsShopSession(session);
+    userId = session.main.user.id;
+    if (vpsProvisioningUserIds.has(userId)) {
+      await ctx
+        .reply("⏳ Уже идёт создание VPS — дождитесь завершения или отправьте /start.", {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(() => {});
+      return true;
+    }
+    vpsProvisioningUserIds.add(userId);
+
+    try {
+      const {
+        allocateHostVdsLocalVmid,
+        provisionHostVdsServer,
+        rollbackHostVdsServer,
+      } = await import("../../infrastructure/hostvds/HostVdsProvisioner.js");
+      const { HYPERVISOR_HOSTVDS, HOSTVDS_LOCAL_VMID_BASE } = await import(
+        "../../infrastructure/hostvds/hostvds-config.js"
+      );
+
+      const pricesList = await prices();
+      const rate = pricesList.virtual_vds?.[rateId];
+      if (!rate || !osKey) {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+        return false;
+      }
+
+      const dataSource = ctx.appDataSource ?? (await getAppDataSource());
+      const usersRepo = dataSource.getRepository(User);
+      const vdsRepo = dataSource.getRepository(VirtualDedicatedServer);
+      const user = await usersRepo.findOneBy({ id: session.main.user.id });
+      if (!user) {
+        await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+        return false;
+      }
+
+      const basePrice = rate.price.default;
+      const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
+      if (user.balance < price) {
+        await showTopupForMissingAmount(ctx, price - user.balance);
+        return true;
+      }
+
+      let deducted = false;
+      const chatId = ctx.chat?.id;
+      const waitText = ctx.t("vds-provisioning-wait");
+      const waitMessage = chatId
+        ? await ctx
+            .reply(waitText, {
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: true },
+            })
+            .catch(() => undefined)
+        : undefined;
+
+      const touchProgress = async (progress: number): Promise<void> => {
+        if (!waitMessage || !chatId) return;
+        await showProgress(ctx, waitMessage.message_id, waitText, progress).catch(() => {});
+      };
+
+      try {
+        await touchProgress(0.08);
+        user.balance -= price;
+        await usersRepo.save(user);
+        deducted = true;
+        session.main.user.balance = user.balance;
+
+        const generatedPassword = generatePassword(12);
+        const vmName = generateRandomName(13);
+        await touchProgress(0.2);
+
+        const hints = getHostVdsLocationProvisionHints(locationKey);
+        const provisioned = await provisionHostVdsServer({
+          hostname: vmName,
+          password: generatedPassword,
+          osKey,
+          rateId,
+          cpu: rate.cpu,
+          ramGb: rate.ram,
+          diskGb: rate.ssd,
+          locationKey,
+          userId: user.id,
+          availabilityZone: hints.availabilityZone,
+          networkId: hints.networkId,
+        });
+
+        await touchProgress(0.85);
+
+        let savedVds: VirtualDedicatedServer | null = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const maxRow = await vdsRepo
+            .createQueryBuilder("v")
+            .select("MAX(v.vdsId)", "max")
+            .where("v.vdsId >= :base", { base: HOSTVDS_LOCAL_VMID_BASE })
+            .getRawOne();
+          const localVdsId = allocateHostVdsLocalVmid(
+            maxRow?.max != null ? Number(maxRow.max) : null
+          );
+
+          const vds = new VirtualDedicatedServer();
+          vds.vdsId = localVdsId;
+          vds.login = resolveVdsLoginForOs({ osKey });
+          vds.password = provisioned.adminPassword || generatedPassword;
+          vds.ipv4Addr = provisioned.ipv4;
+          vds.cpuCount = rate.cpu;
+          vds.networkSpeed = rate.network;
+          vds.isBulletproof = false;
+          vds.payDayAt = null;
+          vds.ramSize = rate.ram;
+          vds.diskSize = rate.ssd;
+          vds.lastOsId = 0;
+          vds.rateName = rate.name;
+          vds.expireAt = new Date(Date.now() + ms("30d"));
+          vds.targetUserId = user.id;
+          vds.renewalPrice = price;
+          vds.autoRenewEnabled = true;
+          vds.adminBlocked = false;
+          vds.managementLocked = false;
+          vds.extraIpv4Count = 0;
+          vds.hypervisor = HYPERVISOR_HOSTVDS;
+          vds.providerServerId = provisioned.providerServerId;
+          vds.displayName = provisioned.hostname || vmName;
+
+          try {
+            savedVds = await vdsRepo.save(vds);
+            break;
+          } catch (saveErr: unknown) {
+            const msg = String((saveErr as { message?: string })?.message ?? saveErr);
+            const uniqueConflict =
+              msg.includes("UNIQUE") ||
+              msg.includes("duplicate") ||
+              msg.includes("vdslist_vdsid");
+            if (uniqueConflict && attempt < 3) {
+              Logger.warn("[HostVDS] local vdsId conflict, retrying allocate", {
+                attempt,
+                localVdsId,
+              });
+              continue;
+            }
+            Logger.error(
+              "[HostVDS] DB save failed after OpenStack create — rolling back server",
+              { providerServerId: provisioned.providerServerId, error: msg }
+            );
+            await rollbackHostVdsServer(provisioned.providerServerId);
+            throw saveErr;
+          }
+        }
+
+        if (!savedVds) {
+          await rollbackHostVdsServer(provisioned.providerServerId);
+          throw new Error("Failed to persist HostVDS row after retries");
+        }
+
+        const regionLabel = ctx.t(`vps-location-${locationKey}` as any);
+        const osLabel = ctx.t(`dedicated-os-${osKey}` as any);
+        const payload: PremiumVpsReadyPayload = {
+          vmName: savedVds.displayName || vmName,
+          vdsId: savedVds.vdsId,
+          regionLabel: isMissingFluentTranslation(regionLabel, `vps-location-${locationKey}`)
+            ? locationKey
+            : regionLabel,
+          planName: rate.name ?? `VPS #${rateId}`,
+          cpu: rate.cpu,
+          ramGb: rate.ram,
+          diskGb: rate.ssd,
+          networkMbps: rate.network,
+          cpuModel: getVpsCpuModel(rate as { cpuModel?: string }),
+          osLabel,
+          osKey,
+          ipv4: savedVds.ipv4Addr,
+          login: savedVds.login,
+          password: savedVds.password,
+        };
+
+        if (waitMessage && chatId) {
+          await ctx.api.deleteMessage(chatId, waitMessage.message_id).catch(() => {});
+        }
+        await ctx
+          .reply(buildPremiumVpsReadyHtml(ctx, payload), {
+            parse_mode: "HTML",
+            link_preview_options: { is_disabled: true },
+            reply_markup: buildVpsReadyCopyKeyboard(ctx, payload),
+          })
+          .catch(() => {});
+
+        void import("../../modules/automations/engine/event-bus.js").then(({ emit }) => {
+          emit({
+            event: "service.created",
+            userId: user.id,
+            serviceType: "vds",
+            serviceId: savedVds.id,
+            timestamp: new Date(),
+          });
+        });
+
+        resetVpsShopCheckoutSession(session);
+        return true;
+      } catch (error: unknown) {
+        const detail =
+          error instanceof HostVdsApiError
+            ? `${error.code}: ${error.message}`
+            : error instanceof Error
+              ? error.message
+              : "Unknown error";
+        Logger.error("[HostVDS] standard VPS provision failed", new Error(detail));
+        if (waitMessage && chatId) {
+          await ctx.api
+            .editMessageText(chatId, waitMessage.message_id, ctx.t("vps-provisioning-failed"), {
+              parse_mode: "HTML",
+              link_preview_options: { is_disabled: true },
+            })
+            .catch(() => {});
+        }
+        if (deducted) {
+          try {
+            user.balance += price;
+            await usersRepo.save(user);
+            session.main.user.balance = user.balance;
+            Logger.info("[HostVDS] balance refunded after failed provision", {
+              userId: user.id,
+              amount: price,
+            });
+          } catch (refundErr: unknown) {
+            Logger.error(
+              "[HostVDS] CRITICAL: refund failed after provision error — manual balance fix required",
+              refundErr instanceof Error
+                ? refundErr
+                : new Error(String(refundErr)),
+              { userId: user.id, amount: price }
+            );
+          }
+        }
+        await ctx
+          .reply(ctx.t("error-unknown", { error: String(detail).slice(0, 300) }), {
+            parse_mode: "HTML",
+          })
+          .catch(() => {});
+        return true;
+      }
+    } finally {
+      vpsProvisioningUserIds.delete(userId);
+    }
+  } finally {
+    if (telegramId > 0) {
+      vpsProvisioningTelegramIds.delete(telegramId);
+    }
+  }
+}
+
+async function finalizeVpsOrderAfterOs(
+  ctx: AppContext,
+  rateId: number,
+  locationKey: string,
+  osKey: string
+): Promise<void> {
+  const session = await ctx.session;
+  ensureVpsShopSession(session);
+
+  // Abuse-resistant: existing Proxmox auto-provision — unchanged.
+  if (
+    session.other.vdsRate.bulletproof &&
+    isProxmoxEnabled() &&
+    canAutoProvisionVpsAtLocation(locationKey)
+  ) {
+    await createVpsOrderDirect(ctx, rateId, locationKey, osKey);
+    return;
+  }
+
+  // Standard VPS: HostVDS OpenStack when configured and in stock for this plan+location.
+  if (!session.other.vdsRate.bulletproof) {
+    if (canProvisionHostVdsNow(locationKey, rateId)) {
+      await createStandardVpsOrderHostVds(ctx, rateId, locationKey, osKey);
+      return;
+    }
+  }
+
+  await createVpsOrderTicket(ctx, rateId, locationKey, osKey);
 }
 
 function ensureVpsShopSession(session: SessionData): void {
@@ -572,9 +1013,13 @@ function ensureVpsShopSession(session: SessionData): void {
       selectedOs: -1,
       shopTier: null,
       shopListPage: 0,
+      pendingOsKey: null,
+      shopCpuKey: null,
     };
   }
   if (session.other.vdsRate.shopListPage == null) session.other.vdsRate.shopListPage = 0;
+  if (session.other.vdsRate.pendingOsKey === undefined) session.other.vdsRate.pendingOsKey = null;
+  if (session.other.vdsRate.shopCpuKey === undefined) session.other.vdsRate.shopCpuKey = null;
 }
 
 export function getVdsIndicesForTier(list: unknown[], tier: VpsShopTier): number[] {
@@ -610,6 +1055,8 @@ export async function showVpsShopStep1(ctx: AppContext): Promise<void> {
   session.other.vdsRate.shopListPage = 0;
   session.other.vdsRate.selectedRateId = -1;
   session.other.vdsRate.selectedOs = -1;
+  session.other.vdsRate.pendingOsKey = null;
+  session.other.vdsRate.shopCpuKey = null;
 
   const { vdsTypeMenu } = await import("../../helpers/services-menu.js");
   await ctx.editMessageText(ctx.t("vds-shop-step1-text"), {
@@ -654,6 +1101,10 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
     : `<b>${ctx.t("vds-shop-standard-list-header")}</b>`;
 
   let body = `${header}\n\n${ctx.t("vds-shop-step3-prompt")}`;
+  const stockUi = !vr.bulletproof && useHostVdsStockUi();
+  if (stockUi) {
+    body += `\n\n${ctx.t("hostvds-plan-stock-hint")}`;
+  }
   if (ids.length > VDS_SHOP_PAGE_SIZE) {
     body += `\n\n${ctx.t("vds-shop-list-page", { current: safePage + 1, total: totalPages })}`;
   }
@@ -662,8 +1113,17 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
   for (const id of slice) {
     const rate = list[id]!;
     const base = vr.bulletproof ? rate.price.bulletproof : rate.price.default;
-    const label = await compactPlanButtonLabel(ctx, rate, base);
-    kb.text(label, `vsh:sel:${id}`).row();
+    let label = await compactPlanButtonLabel(ctx, rate, base);
+    if (stockUi) {
+      const st = resolvePlanGlobalStatus(id);
+      if (st !== "available") {
+        label = `🔒 ${label} · ${stockStatusLabel(ctx, st)}`;
+        kb.text(label.slice(0, 64), `vsh:sel_na:${id}`).row();
+        continue;
+      }
+      label = `✅ ${label}`;
+    }
+    kb.text(label.slice(0, 64), `vsh:sel:${id}`).row();
   }
 
   if (totalPages > 1) {
@@ -709,9 +1169,18 @@ export async function showVpsShopStep4Card(ctx: AppContext, rateId: number): Pro
     price,
   });
 
-  const kb = new InlineKeyboard()
-    .text(ctx.t("vds-shop-order"), `vsh:ord:${rateId}`)
-    .row()
+  const kb = new InlineKeyboard();
+  const stockUi = !vr.bulletproof && useHostVdsStockUi();
+  if (stockUi && !isPlanSelectable(rateId)) {
+    const st = resolvePlanGlobalStatus(rateId);
+    kb.text(
+      `🔒 ${ctx.t("vds-shop-order")} · ${stockStatusLabel(ctx, st)}`,
+      `vsh:sel_na:${rateId}`
+    ).row();
+  } else {
+    kb.text(ctx.t("vds-shop-order"), `vsh:ord:${rateId}`).row();
+  }
+  kb
     .text(ctx.t("vds-shop-details"), `vsh:det:${rateId}`)
     .row();
   appendVpsShopBackOnly(kb, ctx, `vsh:back:list`);
@@ -778,13 +1247,71 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
   bot.callbackQuery(/^vsh:sel:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const id = Number.parseInt(ctx.match![1]!, 10);
+    const session = await ctx.session;
+    if (!session.other.vdsRate.bulletproof && useHostVdsStockUi() && !isPlanSelectable(id)) {
+      const st = resolvePlanGlobalStatus(id);
+      await ctx
+        .answerCallbackQuery({
+          text: ctx.t("hostvds-toast-plan-unavailable", {
+            status: stockStatusLabel(ctx, st),
+          }).slice(0, 200),
+          show_alert: true,
+        })
+        .catch(() => {});
+      return;
+    }
     await showVpsShopStep4Card(ctx, id);
   });
 
   bot.callbackQuery(/^vsh:ord:(\d+)$/, async (ctx) => {
     const id = Number.parseInt(ctx.match![1]!, 10);
+    const session = await ctx.session;
+    ensureVpsShopSession(session);
+    if (!session.other.vdsRate.bulletproof && useHostVdsStockUi() && !isPlanSelectable(id)) {
+      const st = resolvePlanGlobalStatus(id);
+      await ctx
+        .answerCallbackQuery({
+          text: ctx.t("hostvds-toast-plan-unavailable", {
+            status: stockStatusLabel(ctx, st),
+          }).slice(0, 200),
+          show_alert: true,
+        })
+        .catch(() => {});
+      return;
+    }
     await ctx.answerCallbackQuery().catch(() => {});
     await showVpsLocationPicker(ctx, id);
+  });
+
+  bot.callbackQuery(/^vsh:sel_na:(\d+)$/, async (ctx) => {
+    const id = Number.parseInt(ctx.match![1]!, 10);
+    const st = resolvePlanGlobalStatus(id);
+    await ctx
+      .answerCallbackQuery({
+        text: ctx.t("hostvds-toast-plan-unavailable", {
+          status: stockStatusLabel(ctx, st),
+        }).slice(0, 200),
+        show_alert: true,
+      })
+      .catch(() => {});
+  });
+
+  bot.callbackQuery(/^vsh:loc_na:([a-z0-9-]+)$/, async (ctx) => {
+    const locationKey = ctx.match![1]!;
+    const session = await ctx.session;
+    const rateId = session.other.vdsRate.selectedRateId;
+    const st =
+      rateId >= 0
+        ? resolvePlanAtLocationStatus(locationKey, rateId)
+        : resolveLocationStatus(locationKey);
+    await ctx
+      .answerCallbackQuery({
+        text: ctx.t("hostvds-toast-location-unavailable", {
+          status: stockStatusLabel(ctx, st),
+        }).slice(0, 200),
+        show_alert: true,
+      })
+      .catch(() => {});
   });
 
   bot.callbackQuery(/^vsh:loc:([a-z0-9-]+)$/, async (ctx) => {
@@ -807,6 +1334,20 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
+    if (!session.other.vdsRate.bulletproof && useHostVdsStockUi()) {
+      if (!isLocationSelectable(locationKey, rateId)) {
+        const st = resolvePlanAtLocationStatus(locationKey, rateId);
+        await ctx
+          .answerCallbackQuery({
+            text: ctx.t("hostvds-toast-location-unavailable", {
+              status: stockStatusLabel(ctx, st),
+            }).slice(0, 200),
+            show_alert: true,
+          })
+          .catch(() => {});
+        return;
+      }
+    }
     await showVpsOsPicker(ctx, rateId, locationKey);
   });
 
@@ -820,23 +1361,61 @@ export function registerVpsShopHandlers(bot: Bot<AppContext>): void {
     await ctx.answerCallbackQuery().catch(() => {});
     const osKey = ctx.match![1]!;
     const session = await ctx.session;
+    ensureVpsShopSession(session);
     const rateId = session.other.vdsRate.selectedRateId;
     const locationKey = session.other.dedicatedOrder?.selectedLocationKey;
     if (rateId < 0 || !locationKey) {
       await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
       return;
     }
-    await deleteVpsOsPickerMessage(ctx as AppContext);
-    if (
-      session.other.vdsRate.bulletproof &&
-      isProxmoxEnabled() &&
-      canAutoProvisionVpsAtLocation(locationKey)
-    ) {
-      // Proxmox clone can take minutes — do not block the per-chat queue (freezes /start and menus).
-      void createVpsOrderDirect(ctx as AppContext, rateId, locationKey, osKey);
+
+    // Abuse-resistant: last marketing step — CPU label (hardware unchanged).
+    if (session.other.vdsRate.bulletproof) {
+      session.other.vdsRate.pendingOsKey = osKey;
+      session.other.vdsRate.shopCpuKey = VPS_MARKETING_CPU_DEFAULT;
+      await showVpsCpuPicker(ctx as AppContext, rateId);
       return;
     }
-    await createVpsOrderTicket(ctx, rateId, locationKey, osKey);
+
+    await deleteVpsOsPickerMessage(ctx as AppContext);
+    session.other.vdsRate.shopCpuKey = null;
+    await finalizeVpsOrderAfterOs(ctx as AppContext, rateId, locationKey, osKey);
+  });
+
+  bot.callbackQuery(/^vsh:cpu:(xeon-e5-2699v4|epyc-7551p)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const cpuKey = ctx.match![1]!;
+    if (!isVpsMarketingCpuKey(cpuKey)) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    const session = await ctx.session;
+    ensureVpsShopSession(session);
+    const rateId = session.other.vdsRate.selectedRateId;
+    const locationKey = session.other.dedicatedOrder?.selectedLocationKey;
+    const osKey = session.other.vdsRate.pendingOsKey;
+    if (rateId < 0 || !locationKey || !osKey) {
+      await ctx.reply(ctx.t("bad-error"), { parse_mode: "HTML" }).catch(() => {});
+      return;
+    }
+    session.other.vdsRate.shopCpuKey = cpuKey as VpsMarketingCpuKey;
+    await deleteVpsOsPickerMessage(ctx as AppContext);
+    await finalizeVpsOrderAfterOs(ctx as AppContext, rateId, locationKey, osKey);
+  });
+
+  bot.callbackQuery(/^vsh:cpu_back:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const rateId = Number.parseInt(ctx.match![1]!, 10);
+    const session = await ctx.session;
+    ensureVpsShopSession(session);
+    const locationKey = session.other.dedicatedOrder?.selectedLocationKey;
+    session.other.vdsRate.pendingOsKey = null;
+    session.other.vdsRate.shopCpuKey = null;
+    if (!locationKey) {
+      await showVpsLocationPicker(ctx as AppContext, rateId);
+      return;
+    }
+    await showVpsOsPicker(ctx as AppContext, rateId, locationKey);
   });
 
   bot.callbackQuery(/^vsh:det:(\d+)$/, async (ctx) => {

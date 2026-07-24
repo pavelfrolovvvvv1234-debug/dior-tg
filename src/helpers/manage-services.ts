@@ -33,6 +33,14 @@ import { menuCopyTextButton } from "../ui/utils/copy-keyboard.js";
 import { Logger } from "../app/logger.js";
 import { getExtraIpv4MonthlyPriceUsd, MAX_EXTRA_IPV4_PER_VDS } from "../domain/vds/extra-ipv4.js";
 import { providerHas } from "../api/reseller-api-vm-ops.js";
+import { resolveUserFromAdminLookup } from "../shared/users/admin-user-lookup.js";
+import {
+  denyVdsUserTransfer,
+  vdsTransferDenialFluentKey,
+} from "../shared/vds/vds-transfer-rules.js";
+import { formatAdminVpsExpireToken } from "../shared/admin/vds-plan-catalog.js";
+import { BusinessError, NotFoundError } from "../shared/errors/index.js";
+import User from "@/entities/User";
 
 const isDemoVds = (vds: VirtualDedicatedServer): boolean => {
   const rateName = (vds.rateName || "").toLowerCase();
@@ -91,14 +99,21 @@ const isVdsManagementBlocked = (vds: VirtualDedicatedServer): boolean =>
   vds.managementLocked === true || vds.adminBlocked === true;
 
 export function hasPendingVdsManageText(session: {
-  other?: { manageVds?: { pendingRenameVdsId?: number | null; pendingManualPasswordVdsId?: number | null } };
+  other?: {
+    manageVds?: {
+      pendingRenameVdsId?: number | null;
+      pendingManualPasswordVdsId?: number | null;
+      pendingTransferVdsId?: number | null;
+    };
+  };
 }): boolean {
   if (!session.other?.manageVds) return false;
   ensureManageVdsSession(session);
   const mv = session.other.manageVds;
   return (
     (mv.pendingRenameVdsId != null && mv.pendingRenameVdsId > 0) ||
-    (mv.pendingManualPasswordVdsId != null && mv.pendingManualPasswordVdsId > 0)
+    (mv.pendingManualPasswordVdsId != null && mv.pendingManualPasswordVdsId > 0) ||
+    (mv.pendingTransferVdsId != null && mv.pendingTransferVdsId > 0)
   );
 }
 
@@ -122,6 +137,12 @@ const canOfferExtraIpv4Purchase = (ctx: AppContext, vds: VirtualDedicatedServer)
   (vds.extraIpv4Count ?? 0) < MAX_EXTRA_IPV4_PER_VDS &&
   providerHas(ctx.vmmanager, "addIpv4ToHost");
 
+const canOfferExtraIpv4Removal = (ctx: AppContext, vds: VirtualDedicatedServer): boolean =>
+  !isDemoVds(vds) &&
+  !isVdsManagementBlocked(vds) &&
+  (vds.extraIpv4Count ?? 0) > 0 &&
+  providerHas(ctx.vmmanager, "removeIpv4FromHost");
+
 /** Grammy Menu may pass payload as string or number depending on plugin/version. */
 const parseMenuNumericPayload = (match: unknown): number => {
   if (typeof match === "string" && /^\d+$/.test(match)) {
@@ -143,6 +164,7 @@ export function resetVdsManageListView(session: { other?: { manageVds?: Record<s
     showPassword: boolean;
     pendingRenameVdsId?: number | null;
     pendingManualPasswordVdsId?: number | null;
+    pendingTransferVdsId?: number | null;
     pendingRenewMonths?: unknown;
     panelMode?: string;
   };
@@ -153,6 +175,7 @@ export function resetVdsManageListView(session: { other?: { manageVds?: Record<s
   mv.panelMode = "main";
   mv.pendingRenameVdsId = null;
   mv.pendingManualPasswordVdsId = null;
+  mv.pendingTransferVdsId = null;
   mv.pendingRenewMonths = null;
   (mv as { renameReturnPanelMode?: string }).renameReturnPanelMode = undefined;
 }
@@ -187,6 +210,14 @@ const ensureManageVdsSession = (session: any): void => {
     state.pendingManualPasswordVdsId = null;
   }
   if (state.pendingManualPasswordVdsId === undefined) state.pendingManualPasswordVdsId = null;
+  if (
+    state.pendingTransferVdsId !== null &&
+    state.pendingTransferVdsId !== undefined &&
+    typeof state.pendingTransferVdsId !== "number"
+  ) {
+    state.pendingTransferVdsId = null;
+  }
+  if (state.pendingTransferVdsId === undefined) state.pendingTransferVdsId = null;
   if (!Object.prototype.hasOwnProperty.call(state, "pendingRenewMonths")) {
     state.pendingRenewMonths = null;
   }
@@ -274,6 +305,7 @@ const startRenamePrompt = async (ctx: AppContext, vdsId: number): Promise<void> 
   if (!vds) return;
   ensureManageVdsSession(session);
   session.other.manageVds.pendingManualPasswordVdsId = null;
+  session.other.manageVds.pendingTransferVdsId = null;
   const panelMode = (session.other.manageVds as { panelMode?: string }).panelMode || "main";
   (session.other.manageVds as { renameReturnPanelMode?: string }).renameReturnPanelMode = panelMode;
   session.other.manageVds.pendingRenameVdsId = vds.id;
@@ -293,6 +325,7 @@ const startManualPasswordPrompt = async (ctx: AppContext, vdsId: number): Promis
   if (!vds) return;
   ensureManageVdsSession(session);
   session.other.manageVds.pendingRenameVdsId = null;
+  session.other.manageVds.pendingTransferVdsId = null;
   session.other.manageVds.pendingManualPasswordVdsId = vds.id;
   const os = ctx.osList?.list.find((entry) => entry.id == vds.lastOsId);
   const login = resolveVdsLoginForOs({
@@ -302,6 +335,134 @@ const startManualPasswordPrompt = async (ctx: AppContext, vdsId: number): Promis
   });
   await ctx.reply(ctx.t("vds-password-manual-prompt", { login }), { parse_mode: "HTML" });
 };
+
+const formatTransferRecipientLabel = (user: User): string => {
+  const un = user.telegramUsername?.trim();
+  if (un) return `@${un.replace(/^@+/, "")}`;
+  return `ID ${user.id}`;
+};
+
+const startTransferPrompt = async (ctx: AppContext, vdsId: number): Promise<void> => {
+  const session = await ctx.session;
+  const vds = await prepareVdsInlineAction(ctx, vdsId);
+  if (!vds) return;
+  if (isDemoVds(vds)) {
+    await replyDemoOperation(ctx);
+    return;
+  }
+  if (isVdsManagementBlocked(vds)) {
+    await ctx.reply(
+      vds.adminBlocked ? ctx.t("vds-transfer-denied-blocked") : ctx.t("vds-transfer-denied-locked"),
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+  if (vds.resellerId != null && String(vds.resellerId).trim() !== "") {
+    await ctx.reply(ctx.t("vds-transfer-denied-reseller"), { parse_mode: "HTML" });
+    return;
+  }
+  ensureManageVdsSession(session);
+  session.other.manageVds.pendingRenameVdsId = null;
+  session.other.manageVds.pendingManualPasswordVdsId = null;
+  session.other.manageVds.pendingTransferVdsId = vds.id;
+  await ctx.reply(ctx.t("vds-transfer-prompt"), { parse_mode: "HTML" });
+};
+
+function createVdsService(ctx: AppContext): VdsService {
+  const vdsRepository = new VdsRepository(ctx.appDataSource);
+  const userRepository = new UserRepository(ctx.appDataSource);
+  const topUpRepository = new TopUpRepository(ctx.appDataSource);
+  const billingService = new BillingService(ctx.appDataSource, userRepository, topUpRepository);
+  return new VdsService(ctx.appDataSource, vdsRepository, billingService, ctx.vmmanager);
+}
+
+/** Confirm / execute ownership transfer (callback handlers). */
+export async function executeVdsOwnershipTransfer(
+  ctx: AppContext,
+  vdsId: number,
+  toUserId: number
+): Promise<boolean> {
+  const session = await ctx.session;
+  const fromUserId = session.main.user.id;
+  try {
+    const vdsService = createVdsService(ctx);
+    const vds = await vdsService.transferVdsToUser(vdsId, fromUserId, toUserId);
+    ensureManageVdsSession(session);
+    session.other.manageVds.pendingTransferVdsId = null;
+    session.other.manageVds.expandedId = null;
+    (session.other.manageVds as { panelMode?: string }).panelMode = "main";
+
+    const target = await ctx.appDataSource.getRepository(User).findOneBy({ id: toUserId });
+    const recipientLabel = target ? formatTransferRecipientLabel(target) : `ID ${toUserId}`;
+    await ctx.reply(
+      ctx.t("vds-transfer-success", {
+        recipient: recipientLabel,
+        ip: vds.ipv4Addr || "—",
+        expire: formatAdminVpsExpireToken(vds.expireAt),
+        price: vds.renewalPrice,
+      }),
+      { parse_mode: "HTML" }
+    );
+
+    if (target?.telegramId) {
+      try {
+        const sender = await ctx.appDataSource.getRepository(User).findOneBy({ id: fromUserId });
+        const senderLabel = sender?.telegramUsername
+          ? `@${String(sender.telegramUsername).replace(/^@+/, "")}`
+          : `ID ${fromUserId}`;
+        await ctx.api.sendMessage(
+          target.telegramId,
+          ctx.t("vds-transfer-received-notify", {
+            sender: senderLabel,
+            ip: vds.ipv4Addr || "—",
+            plan: vds.rateName || "VPS",
+            expire: formatAdminVpsExpireToken(vds.expireAt),
+            price: vds.renewalPrice,
+          }),
+          { parse_mode: "HTML" }
+        );
+      } catch (error) {
+        Logger.warn("Failed to notify VPS transfer recipient", error);
+      }
+    }
+
+    await updateVdsManageView(ctx);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof NotFoundError) {
+      await ctx.reply(ctx.t("vds-transfer-user-not-found"), { parse_mode: "HTML" });
+      return false;
+    }
+    if (error instanceof BusinessError) {
+      const code = error.code.replace(/^VDS_TRANSFER_/, "").toLowerCase() as
+        | "not_owner"
+        | "self"
+        | "locked"
+        | "blocked"
+        | "demo"
+        | "reseller"
+        | "target_banned";
+      const mapped = [
+        "not_owner",
+        "self",
+        "locked",
+        "blocked",
+        "demo",
+        "reseller",
+        "target_banned",
+      ].includes(code)
+        ? vdsTransferDenialFluentKey(code)
+        : null;
+      if (mapped) {
+        await ctx.reply(ctx.t(mapped), { parse_mode: "HTML" });
+        return false;
+      }
+    }
+    const msg = error instanceof Error ? error.message : String(error);
+    await ctx.reply(ctx.t("error-unknown", { error: msg }), { parse_mode: "HTML" });
+    return false;
+  }
+}
 
 async function buildVdsPasswordChangeOptions(
   ctx: AppContext,
@@ -378,9 +539,64 @@ export const handlePendingVdsManageInput = async (ctx: AppContext): Promise<bool
 
   const renameId = session.other.manageVds.pendingRenameVdsId;
   const manualPassId = session.other.manageVds.pendingManualPasswordVdsId;
-  if (!renameId && !manualPassId) return false;
+  const transferId = session.other.manageVds.pendingTransferVdsId;
+  if (!renameId && !manualPassId && !transferId) return false;
 
   const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+
+  if (transferId) {
+    const vds = await vdsRepo.findOneBy({ id: transferId });
+    if (!vds || Number(vds.targetUserId) !== Number(session.main.user.id)) {
+      session.other.manageVds.pendingTransferVdsId = null;
+      await ctx.reply(ctx.t("error-access-denied"));
+      return true;
+    }
+
+    const target = await resolveUserFromAdminLookup(ctx, text, { maxUsernameScan: 2500 });
+    if (!target) {
+      await ctx.reply(ctx.t("vds-transfer-user-not-found"), { parse_mode: "HTML" });
+      return true;
+    }
+
+    const denial = denyVdsUserTransfer({
+      vds,
+      fromUserId: session.main.user.id,
+      toUserId: target.id,
+      targetBanned: target.isBanned === true,
+    });
+    if (denial) {
+      await ctx.reply(ctx.t(vdsTransferDenialFluentKey(denial)), { parse_mode: "HTML" });
+      if (denial === "self" || denial === "locked" || denial === "blocked" || denial === "demo" || denial === "reseller") {
+        // keep prompt open for self so user can retry another recipient; clear for hard blocks
+        if (denial !== "self") {
+          session.other.manageVds.pendingTransferVdsId = null;
+        }
+      }
+      return true;
+    }
+
+    // Clear text pending — confirm/cancel continues via callback
+    session.other.manageVds.pendingTransferVdsId = null;
+    const recipientLabel = formatTransferRecipientLabel(target);
+    const plan = vds.displayName?.trim() || vds.rateName || `VPS #${vds.id}`;
+    await ctx.reply(
+      ctx.t("vds-transfer-confirm", {
+        recipient: recipientLabel,
+        recipientId: target.id,
+        plan,
+        ip: vds.ipv4Addr || "—",
+        expire: formatAdminVpsExpireToken(vds.expireAt),
+        price: vds.renewalPrice,
+      }),
+      {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard()
+          .text(ctx.t("button-confirm"), `vds-transfer-yes:${vds.id}:${target.id}`)
+          .text(ctx.t("button-cancel"), `vds-transfer-no:${vds.id}`),
+      }
+    );
+    return true;
+  }
 
   if (renameId) {
     const newName = text;
@@ -489,7 +705,7 @@ const buildVdsManageText = (
   });
 };
 
-const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
+export const updateVdsManageView = async (ctx: AppContext): Promise<void> => {
   const session = await ctx.session;
   ensureManageVdsSession(session);
   const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
@@ -587,7 +803,7 @@ const buildDomainManageTextFromEntity = (ctx: AppContext, domain: Domain): strin
 const updateDomainManageView = async (ctx: AppContext): Promise<void> => {
   const session = await ctx.session;
   if (!session.other.domains) {
-    session.other.domains = { lastPickDomain: "", page: 0, expandedId: null };
+    session.other.domains = { lastPickDomain: "", page: 0, expandedId: null, panelTab: "info" };
   }
   const expandedId = session.other.domains.expandedId ?? null;
   if (!expandedId) {
@@ -606,7 +822,19 @@ const updateDomainManageView = async (ctx: AppContext): Promise<void> => {
     return;
   }
 
-  await ctx.editMessageText(buildDomainManageTextFromEntity(ctx, domain), {
+  const {
+    buildDomainPanelView,
+    ensureDomainPanelSession,
+    getDomainPanelTab,
+  } = await import("./domain-manage-panel.js");
+  ensureDomainPanelSession(session as any);
+  const tab = getDomainPanelTab(session as any);
+  const view = await buildDomainPanelView(ctx, domain, tab);
+  session.other.domains.dnsRecordIds = view.dnsRecords
+    .map((r) => r.id)
+    .filter((id): id is string => Boolean(id));
+
+  await ctx.editMessageText(view.text, {
     parse_mode: "HTML",
     reply_markup: domainManageServicesMenu,
   });
@@ -654,7 +882,35 @@ function buildManageServicesMenu(): Menu<AppContext> {
   let m = new Menu<AppContext>("manage-services-menu", {
     autoAnswer: false,
     onMenuOutdated: false,
-  })
+  });
+
+  if (showVpsVdsInServiceMenus()) {
+    m = m
+      .text((ctx) => ctx.t("button-my-vds"), async (ctx) => {
+        await ctx.answerCallbackQuery().catch(() => {});
+        try {
+          await openVdsManageList(ctx);
+        } catch (error) {
+          Logger.error("openVdsManageList failed:", error);
+          await ctx.reply(ctx.t("error-unknown", { error: "Failed to open VPS list" }), {
+            parse_mode: "HTML",
+          });
+        }
+      })
+      .row();
+  }
+
+  m = m
+    .submenu(
+      (ctx) => ctx.t("button-manage-dedicated"),
+      "dedicated-menu",
+      async (ctx) => {
+        await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
+          parse_mode: "HTML",
+        });
+      }
+    )
+    .row()
     .submenu(
       (ctx) => ctx.t("button-manage-domains"),
       "domain-manage-services-menu",
@@ -688,34 +944,6 @@ function buildManageServicesMenu(): Menu<AppContext> {
           }
         }
       )
-      .row();
-  }
-
-  m = m
-    .submenu(
-      (ctx) => ctx.t("button-manage-dedicated"),
-      "dedicated-menu",
-      async (ctx) => {
-        await ctx.editMessageText(ctx.t("dedicated-menu-header"), {
-          parse_mode: "HTML",
-        });
-      }
-    )
-    .row();
-
-  if (showVpsVdsInServiceMenus()) {
-    m = m
-      .text((ctx) => ctx.t("button-my-vds"), async (ctx) => {
-        await ctx.answerCallbackQuery().catch(() => {});
-        try {
-          await openVdsManageList(ctx);
-        } catch (error) {
-          Logger.error("openVdsManageList failed:", error);
-          await ctx.reply(ctx.t("error-unknown", { error: "Failed to open VPS list" }), {
-            parse_mode: "HTML",
-          });
-        }
-      })
       .row();
   }
 
@@ -1526,6 +1754,12 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
             await startRenamePrompt(ctx, expandedId);
           });
 
+          range.text(ctx.t("vds-button-transfer"), async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
+            await startTransferPrompt(ctx, expandedId);
+          });
+          range.row();
+
           if (canOfferExtraIpv4Purchase(ctx, expanded)) {
             const price = getExtraIpv4MonthlyPriceUsd();
             range.text(ctx.t("vds-button-extra-ipv4", { price }), async (ctx) => {
@@ -1540,6 +1774,39 @@ export const vdsManageServiceMenu = new Menu<AppContext>("vds-manage-services-li
                   reply_markup: new InlineKeyboard()
                     .text(ctx.t("button-confirm"), `vds-extra-ipv4-yes:${expandedId}`)
                     .text(ctx.t("button-cancel"), `vds-extra-ipv4-no:${expandedId}`),
+                }
+              );
+            });
+          } else if (canOfferExtraIpv4Removal(ctx, expanded)) {
+            const price = getExtraIpv4MonthlyPriceUsd();
+            range.text(ctx.t("vds-button-remove-extra-ipv4"), async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
+              const vdsRepo = ctx.appDataSource.getRepository(VirtualDedicatedServer);
+              const current = await vdsRepo.findOneBy({ id: expandedId });
+              if (!current || Number(current.targetUserId) !== Number(session.main.user.id)) {
+                await ctx.reply(ctx.t("error-access-denied"));
+                return;
+              }
+              if ((current.extraIpv4Count ?? 0) < 1) {
+                await ctx.reply(ctx.t("vds-extra-ipv4-remove-missing"), { parse_mode: "HTML" });
+                await updateVdsManageView(ctx);
+                return;
+              }
+              const freshSecondary = (await resolveSecondaryIpv4(ctx, current)) ?? "—";
+              await ctx.reply(
+                ctx.t("vds-extra-ipv4-remove-confirm-ask", {
+                  ip: freshSecondary,
+                  price,
+                  renewal: Math.max(
+                    0,
+                    Math.round((Number(current.renewalPrice) - price) * 100) / 100
+                  ),
+                }),
+                {
+                  parse_mode: "HTML",
+                  reply_markup: new InlineKeyboard()
+                    .text(ctx.t("button-confirm"), `vds-extra-ipv4-rm-yes:${expandedId}`)
+                    .text(ctx.t("button-cancel"), `vds-extra-ipv4-rm-no:${expandedId}`),
                 }
               );
             });
@@ -1823,34 +2090,190 @@ export const domainManageServicesMenu = new Menu<AppContext>(
       if (!expanded) {
         session.other.domains.expandedId = null;
       } else {
-        const ns1 = expanded.ns1?.trim() ?? "";
-        const ns2 = expanded.ns2?.trim() ?? "";
-        if (ns1) {
-          range.add(menuCopyTextButton(ctx.t("button-copy-ns1"), ns1) as never);
+        const {
+          DOMAIN_PANEL_TABS,
+          ensureDomainPanelSession,
+          getDomainPanelTab,
+          tabButtonLabel,
+          buildDomainPanelView,
+        } = await import("./domain-manage-panel.js");
+        const {
+          createAmperDomainService,
+          isAmperApiConfigured,
+        } = await import("./create-amper-domain-service.js");
+        const { AMPER_DNS_RECORD_TYPES } = await import(
+          "../infrastructure/domains/amper-dns-types.js"
+        );
+
+        ensureDomainPanelSession(session as any);
+        const tab = getDomainPanelTab(session as any);
+        const view = await buildDomainPanelView(ctx, expanded, tab);
+        session.other.domains.dnsRecordIds = view.dnsRecords
+          .map((r) => r.id)
+          .filter((id): id is string => Boolean(id));
+
+        for (const t of DOMAIN_PANEL_TABS) {
+          range.text(tabButtonLabel(ctx, t, tab), async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
+            const sess = await ctx.session;
+            ensureDomainPanelSession(sess as any);
+            sess.other.domains!.panelTab = t;
+            await updateDomainManageView(ctx);
+          });
         }
-        if (ns2) {
-          range.add(menuCopyTextButton(ctx.t("button-copy-ns2"), ns2) as never);
-        }
-        if (ns1 || ns2) {
+        range.row();
+
+        if (tab === "ns") {
+          const ns1 = expanded.ns1?.trim() ?? "";
+          const ns2 = expanded.ns2?.trim() ?? "";
+          if (ns1) {
+            range.add(menuCopyTextButton(ctx.t("button-copy-ns1"), ns1) as never);
+          }
+          if (ns2) {
+            range.add(menuCopyTextButton(ctx.t("button-copy-ns2"), ns2) as never);
+          }
+          if (ns1 || ns2) {
+            range.row();
+          }
+          range.text(ctx.t("button-domain-update-ns"), async (ctx) => {
+            await ctx.answerCallbackQuery().catch(() => {});
+            const { setPendingDomainNsUpdate } = await import(
+              "../ui/conversations/domain-update-ns-conversation.js"
+            );
+            const sess = await ctx.session;
+            if (!sess.other) {
+              (sess as any).other = createInitialOtherSession();
+            }
+            (sess.other as any).currentDomainId = expandedId;
+            const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+            if (telegramId > 0) {
+              setPendingDomainNsUpdate(telegramId, expandedId);
+            }
+            await ctx.conversation.enter("domainUpdateNsConversation");
+          });
           range.row();
         }
-        range.text(ctx.t("button-domain-update-ns"), async (ctx) => {
-          await ctx.answerCallbackQuery().catch(() => {});
-          const { setPendingDomainNsUpdate } = await import(
-            "../ui/conversations/domain-update-ns-conversation.js"
-          );
-          const sess = await ctx.session;
-          if (!sess.other) {
-            (sess as any).other = createInitialOtherSession();
+
+        if (tab === "dns") {
+          if (!view.dnsActive) {
+            range.text(ctx.t("button-domain-bind-amper-dns"), async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
+              if (!isAmperApiConfigured()) {
+                await ctx.reply(ctx.t("domain-api-not-configured"));
+                return;
+              }
+              try {
+                const service = createAmperDomainService(ctx.appDataSource);
+                await service.bindAmperDns(expandedId);
+                const sess = await ctx.session;
+                ensureDomainPanelSession(sess as any);
+                sess.other.domains!.panelTab = "dns";
+                await ctx.reply(ctx.t("domain-dns-bound-success"), { parse_mode: "HTML" });
+                await updateDomainManageView(ctx);
+              } catch (error: any) {
+                Logger.error(`bindAmperDns failed for ${expandedId}:`, error);
+                await ctx.reply(
+                  ctx.t("domain-dns-bound-failed", {
+                    error: String(error?.message || error).slice(0, 200),
+                  }),
+                  { parse_mode: "HTML" }
+                );
+              }
+            });
+            range.row();
+          } else {
+            for (const dnsType of AMPER_DNS_RECORD_TYPES) {
+              range.text(`＋ ${dnsType}`, async (ctx) => {
+                await ctx.answerCallbackQuery().catch(() => {});
+                const { setPendingDomainDnsAdd } = await import(
+                  "../ui/conversations/domain-add-dns-conversation.js"
+                );
+                const sess = await ctx.session;
+                ensureDomainPanelSession(sess as any);
+                sess.other.domains!.pendingDnsType = dnsType;
+                (sess.other as any).currentDomainId = expandedId;
+                const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
+                if (telegramId > 0) {
+                  setPendingDomainDnsAdd(telegramId, expandedId);
+                }
+                await ctx.conversation.enter("domainAddDnsConversation");
+              });
+            }
+            range.row();
+
+            const deletable = view.dnsRecords
+              .filter((r) => r.id)
+              .slice(0, 8);
+            for (const r of deletable) {
+              const label = `🗑 ${r.type} ${r.name}`.slice(0, 40);
+              range.text(label, async (ctx) => {
+                if (!isAmperApiConfigured() || !r.id) {
+                  await ctx.answerCallbackQuery().catch(() => {});
+                  return;
+                }
+                try {
+                  const service = createAmperDomainService(ctx.appDataSource);
+                  await service.deleteDnsRecord(expandedId, r.id);
+                  await ctx.answerCallbackQuery(ctx.t("domain-dns-deleted")).catch(() => {});
+                  await updateDomainManageView(ctx);
+                } catch (error: any) {
+                  Logger.error(`deleteDnsRecord failed:`, error);
+                  await ctx.answerCallbackQuery().catch(() => {});
+                  await ctx.reply(
+                    ctx.t("domain-dns-delete-failed", {
+                      error: String(error?.message || error).slice(0, 200),
+                    })
+                  );
+                }
+              });
+            }
+            if (deletable.length) range.row();
           }
-          (sess.other as any).currentDomainId = expandedId;
-          const telegramId = Number(ctx.from?.id ?? ctx.chatId ?? 0);
-          if (telegramId > 0) {
-            setPendingDomainNsUpdate(telegramId, expandedId);
+        }
+
+        if (tab === "ssl") {
+          if (!view.dnsActive) {
+            range.text(ctx.t("button-domain-go-dns-tab"), async (ctx) => {
+              await ctx.answerCallbackQuery().catch(() => {});
+              const sess = await ctx.session;
+              ensureDomainPanelSession(sess as any);
+              sess.other.domains!.panelTab = "dns";
+              await updateDomainManageView(ctx);
+            });
+            range.row();
+          } else {
+            for (const mode of ["FLEXIBLE", "FULL"] as const) {
+              const current = String(view.ssl?.mode || "").toUpperCase();
+              const label =
+                current === mode
+                  ? `• SSL ${mode}`
+                  : `SSL ${mode}`;
+              range.text(label, async (ctx) => {
+                if (!isAmperApiConfigured()) {
+                  await ctx.answerCallbackQuery().catch(() => {});
+                  await ctx.reply(ctx.t("domain-api-not-configured"));
+                  return;
+                }
+                try {
+                  const service = createAmperDomainService(ctx.appDataSource);
+                  await service.setSslMode(expandedId, mode);
+                  await ctx.answerCallbackQuery(ctx.t("domain-ssl-updated")).catch(() => {});
+                  await updateDomainManageView(ctx);
+                } catch (error: any) {
+                  Logger.error(`setSslMode failed:`, error);
+                  await ctx.answerCallbackQuery().catch(() => {});
+                  await ctx.reply(
+                    ctx.t("domain-ssl-update-failed", {
+                      error: String(error?.message || error).slice(0, 200),
+                    })
+                  );
+                }
+              });
+            }
+            range.row();
           }
-          await ctx.conversation.enter("domainUpdateNsConversation");
-        });
-        range.row();
+        }
+
         return;
       }
     }
@@ -1916,6 +2339,7 @@ export const domainManageServicesMenu = new Menu<AppContext>(
             sess.other.domains.expandedId = null;
           } else {
             sess.other.domains.expandedId = domain.id;
+            sess.other.domains.panelTab = "info";
           }
           await updateDomainManageView(ctx);
         }
@@ -1954,6 +2378,7 @@ export const domainManageServicesMenu = new Menu<AppContext>(
               return;
             }
 
+            await ctx.answerCallbackQuery().catch(() => {});
             await ctx.reply(
               await ctx.t("domain-information", {
                 domain: `${domain.domainName}${domain.zone}`,

@@ -48,6 +48,19 @@ export const domainServiceSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+const vdsGroup = z
+  .string()
+  .trim()
+  .optional()
+  .transform((raw) => {
+    if (!raw) return "Abuse" as const;
+    const v = raw.toLowerCase().replace(/\s+/g, " ");
+    if (/^(abuse|bulletproof|bp|абьюз)$/.test(v)) return "Abuse" as const;
+    if (/^(regular|standard|default|обычный|регуляр)$/.test(v)) return "Regular" as const;
+    return raw;
+  })
+  .pipe(z.enum(["Abuse", "Regular"]));
+
 export const vdsServiceSchema = z.object({
   ipv4: z.string().trim().regex(ipv4Re, "Invalid IPv4"),
   login: z.string().trim().min(1).max(64),
@@ -57,6 +70,7 @@ export const vdsServiceSchema = z.object({
   sshPort: z.coerce.number().int().min(1).max(65535).optional(),
   vmid: z.coerce.number().int().min(100).max(999_999_999).optional(),
   rateName: z.string().trim().min(1).max(64),
+  group: vdsGroup,
   expireAt: dateFlexible,
   cpuCount: z.coerce.number().int().min(1).max(256),
   ramGb: z.coerce.number().int().min(1).max(2048),

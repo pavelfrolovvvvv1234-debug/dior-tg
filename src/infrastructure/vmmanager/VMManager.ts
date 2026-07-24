@@ -348,6 +348,39 @@ export class VMManager {
     }, "addIpv4ToHost").catch(() => false);
   }
 
+  async removeIpv4FromHost(id: number): Promise<{ removedIp: string | null } | false> {
+    const variants: Array<{ method: "delete" | "post"; url: string; body?: Record<string, number> }> = [
+      { method: "delete", url: `${this.baseUrl}vm/v3/host/${id}/ipv4` },
+      { method: "post", url: `${this.baseUrl}vm/v3/host/${id}/ipv4/delete`, body: { count: 1 } },
+      { method: "post", url: `${this.baseUrl}vm/v3/host/${id}/ipv4`, body: { remove: 1 } },
+    ];
+
+    try {
+      for (const variant of variants) {
+        try {
+          const { status } =
+            variant.method === "delete"
+              ? await axios.delete(variant.url, {
+                  headers: this.getHeaders(),
+                  timeout: 20000,
+                })
+              : await axios.post(variant.url, variant.body, {
+                  headers: this.getHeaders(),
+                  timeout: 20000,
+                });
+          if (status === 200 || status === 201 || status === 202 || status === 204) {
+            return { removedIp: null };
+          }
+        } catch {
+          // Try next variant.
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Start VM.
    */

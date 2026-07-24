@@ -99,7 +99,7 @@ export class AdminManualServiceService {
     entity.ipv4Addr = parsed.ipv4;
     entity.cpuCount = parsed.cpuCount;
     entity.networkSpeed = 1000;
-    entity.isBulletproof = true;
+    entity.isBulletproof = parsed.group !== "Regular";
     entity.payDayAt = null;
     entity.ramSize = parsed.ramGb;
     entity.diskSize = parsed.diskGb;

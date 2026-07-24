@@ -27,6 +27,8 @@ export interface VdsServiceDraft extends AdminManualServiceDraftBase {
   sshPort?: number;
   vmid?: number;
   rateName: string;
+  /** Abuse (bulletproof) or Regular. Default Abuse. */
+  group?: string;
   expireAt: string;
   cpuCount: number;
   ramGb: number;

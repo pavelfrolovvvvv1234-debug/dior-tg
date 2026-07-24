@@ -144,6 +144,9 @@ function parsePriceToken(token: string): number {
   return n;
 }
 
+/** Abuse = bulletproof network; Regular = standard. */
+export type AdminVpsGroup = "Abuse" | "Regular";
+
 export type AdminVpsServiceBlock = {
   username?: string;
   vmid: number;
@@ -151,6 +154,8 @@ export type AdminVpsServiceBlock = {
   ip: string;
   price?: number;
   expiresAt?: Date;
+  /** Defaults to Abuse (bulletproof) when omitted in paste. */
+  group?: AdminVpsGroup;
 };
 
 function extractVmidToken(raw: string): number | null {
@@ -160,7 +165,29 @@ function extractVmidToken(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** Multi-line admin paste, e.g. @user / ID vm: 230 / Tarif: Mega 1 / Ip: ... */
+/** Parse Group: Abuse | Regular (also bulletproof / standard). */
+export function parseAdminVpsGroup(raw: string): AdminVpsGroup | null {
+  const v = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  if (/^(abuse|bulletproof|bp|абьюз)$/.test(v)) return "Abuse";
+  if (/^(regular|standard|default|обычный|регуляр)$/.test(v)) return "Regular";
+  return null;
+}
+
+export function isBulletproofFromGroup(group: AdminVpsGroup | undefined): boolean {
+  return group !== "Regular";
+}
+
+function defaultPriceForPlan(
+  planSpec: ReturnType<typeof resolveVdsPlanSpec>,
+  group: AdminVpsGroup | undefined
+): number {
+  if (!planSpec) return 0;
+  return isBulletproofFromGroup(group)
+    ? planSpec.priceBulletproof
+    : planSpec.priceStandard;
+}
+
+/** Multi-line admin paste, e.g. @user / ID vm: 230 / Group / Tarif / Price / Data / Ip */
 export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock | null {
   const text = raw.trim();
   if (!text) return null;
@@ -168,7 +195,7 @@ export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock 
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const looksLikeBlock =
     lines.length >= 2 ||
-    /(?:^|\n)\s*(?:id\s*vm|vm\s*id|vmid|tarif|tariff|тариф)\s*:/i.test(text);
+    /(?:^|\n)\s*(?:id\s*vm|vm\s*id|vmid|tarif|tariff|тариф|group|группа)\s*:/i.test(text);
   if (!looksLikeBlock) return null;
 
   let username: string | undefined;
@@ -177,6 +204,7 @@ export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock 
   let ip: string | undefined;
   let price: number | undefined;
   let expiresAt: Date | undefined;
+  let group: AdminVpsGroup | undefined;
 
   for (const line of lines) {
     const atOnly = line.match(/^@([a-zA-Z0-9_]{5,32})$/i);
@@ -200,6 +228,11 @@ export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock 
       if (n) vmid = n;
       continue;
     }
+    if (/^(group|группа|type|сеть)$/.test(key)) {
+      const g = parseAdminVpsGroup(val);
+      if (g) group = g;
+      continue;
+    }
     if (/^(tarif|tariff|plan|тариф|rate)$/.test(key)) {
       plan = normalizeAdminPlanName(val);
       continue;
@@ -216,7 +249,7 @@ export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock 
       }
       continue;
     }
-    if (/^(date|expires|expiry|до|срок|expire)$/.test(key)) {
+    if (/^(date|data|дата|expires|expiry|до|срок|expire)$/.test(key)) {
       try {
         expiresAt = parseFlexibleDate(val);
       } catch {
@@ -227,7 +260,7 @@ export function tryParseAdminVpsServiceBlock(raw: string): AdminVpsServiceBlock 
 
   if (!vmid || !plan || !ip || !ipv4Re.test(ip)) return null;
 
-  return { username, vmid, plan, ip, price, expiresAt };
+  return { username, vmid, plan, ip, price, expiresAt, group };
 }
 
 /** VPS / Dedicated transfer: one-line, block paste, or | -separated. */
@@ -238,24 +271,29 @@ export function parseAdminHostTransferInput(raw: string): {
   price: number;
   expiresAt: Date;
   username?: string;
+  group: AdminVpsGroup;
+  isBulletproof: boolean;
 } {
   const block = tryParseAdminVpsServiceBlock(raw);
   if (block) {
     const planSpec = resolveVdsPlanSpec(block.plan);
+    const group: AdminVpsGroup = block.group ?? "Abuse";
     return {
       ip: block.ip,
       hostId: String(block.vmid),
       plan: planSpec?.name ?? block.plan,
-      price: block.price ?? planSpec?.priceBulletproof ?? 0,
+      price: block.price ?? defaultPriceForPlan(planSpec, group),
       expiresAt: block.expiresAt ?? defaultAdminVpsExpireDate(30),
       username: block.username,
+      group,
+      isBulletproof: isBulletproofFromGroup(group),
     };
   }
 
   const parts = tokenizeLine(raw);
   if (parts.length < 5) {
     throw new AdminServiceInputError(
-      "Нужно 5 полей: IP, VMID, тариф, цена, дата — или блоком:\n@user\nID vm: 230\nTarif: Mega 1\nIp: 45.74.7.131",
+      "Нужно 5 полей: IP, VMID, тариф, цена, дата — или блоком:\n@user\nID vm: 230\nGroup: Abuse\nTarif: Mega 1\nPrice: 120\nData: 24.07.26\nIp: 45.74.7.131",
       "invalid_format"
     );
   }
@@ -296,8 +334,17 @@ export function parseAdminHostTransferInput(raw: string): {
   }
 
   const plan = normalizeAdminPlanName(parts.slice(2, -2).join(" "));
+  const group: AdminVpsGroup = "Abuse";
 
-  return { ip, hostId, plan, price, expiresAt };
+  return {
+    ip,
+    hostId,
+    plan,
+    price,
+    expiresAt,
+    group,
+    isBulletproof: true,
+  };
 }
 
 /** CDN: domain/project, plan, expiry. */

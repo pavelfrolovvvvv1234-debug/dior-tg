@@ -32,6 +32,12 @@ const vdsFields: WizardFieldDef[] = [
   { key: "sshPort", promptKey: "admin-cs-field-ssh-port", optional: true },
   { key: "vmid", promptKey: "admin-cs-field-vmid", optional: true, hintKey: "admin-cs-hint-vmid" },
   { key: "rateName", promptKey: "admin-cs-field-rate" },
+  {
+    key: "group",
+    promptKey: "admin-cs-field-group",
+    optional: true,
+    hintKey: "admin-cs-hint-group",
+  },
   { key: "expireAt", promptKey: "admin-cs-field-expires", hintKey: "admin-cs-hint-date" },
   { key: "cpuCount", promptKey: "admin-cs-field-cpu" },
   { key: "ramGb", promptKey: "admin-cs-field-ram" },

@@ -1,0 +1,51 @@
+{
+  "updatedAt": "2026-07-24",
+  "note": "Manual stock map for HostVDS Horizon locations. Override via HOSTVDS_CATALOG_JSON. status: available | sold_out | unavailable",
+  "locations": [
+    {
+      "key": "lv-riga-2",
+      "availabilityZone": "riga-2",
+      "status": "available"
+    },
+    {
+      "key": "lv-riga-1",
+      "availabilityZone": "riga-1",
+      "status": "available"
+    },
+    {
+      "key": "nl-amsterdam-2",
+      "availabilityZone": "amsterdam-2",
+      "status": "available"
+    },
+    {
+      "key": "nl-amsterdam-1",
+      "availabilityZone": "amsterdam-1",
+      "status": "unavailable"
+    },
+    {
+      "key": "us-kansas-city",
+      "availabilityZone": "kansas-city",
+      "status": "available"
+    },
+    {
+      "key": "us-silicon-valley",
+      "availabilityZone": "silicon-valley",
+      "status": "sold_out"
+    },
+    {
+      "key": "us-dallas",
+      "availabilityZone": "dallas",
+      "status": "unavailable"
+    },
+    {
+      "key": "fr-paris",
+      "availabilityZone": "paris",
+      "status": "available"
+    },
+    {
+      "key": "hk-hongkong",
+      "availabilityZone": "hongkong",
+      "status": "unavailable"
+    }
+  ]
+}

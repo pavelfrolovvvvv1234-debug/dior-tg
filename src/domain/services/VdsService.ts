@@ -23,6 +23,7 @@ import {
   getExtraIpv4MonthlyPriceUsd,
   MAX_EXTRA_IPV4_PER_VDS,
 } from "../vds/extra-ipv4.js";
+import { denyVdsUserTransfer } from "../../shared/vds/vds-transfer-rules.js";
 
 /**
  * VDS rate structure from prices.json.
@@ -524,7 +525,44 @@ export class VdsService {
     return vds;
   }
 
-  /** Admin: transfer VDS to another user (DB only). */
+  /**
+   * Owner transfer: move VDS to another bot user.
+   * Preserves expireAt, renewalPrice, credentials, specs, locks — only targetUserId changes.
+   */
+  async transferVdsToUser(
+    vdsId: number,
+    fromUserId: number,
+    toUserId: number
+  ): Promise<VirtualDedicatedServer> {
+    const vds = await this.getVdsById(vdsId);
+    const userRepo = this.dataSource.getRepository(User);
+    const target = await userRepo.findOne({ where: { id: toUserId } });
+    if (!target) {
+      throw new NotFoundError("User", toUserId);
+    }
+
+    const denial = denyVdsUserTransfer({
+      vds,
+      fromUserId,
+      toUserId,
+      targetBanned: target.isBanned === true,
+    });
+    if (denial) {
+      throw new BusinessError(`VDS transfer denied: ${denial}`, `VDS_TRANSFER_${denial.toUpperCase()}`);
+    }
+
+    const previousOwnerId = vds.targetUserId;
+    vds.targetUserId = toUserId;
+    await this.vdsRepository.save(vds);
+
+    Logger.info(
+      `Transferred VDS ${vdsId} (vmid ${vds.vdsId}) from user ${previousOwnerId} → ${toUserId}; expire=${vds.expireAt.toISOString()} price=${vds.renewalPrice}`
+    );
+
+    return vds;
+  }
+
+  /** Admin: transfer VDS to another user (DB only). Preserves billing/specs. */
   async adminTransferVds(vdsId: number, newUserId: number): Promise<VirtualDedicatedServer> {
     const vds = await this.getVdsById(vdsId);
     const userRepo = this.dataSource.getRepository(User);
@@ -532,8 +570,18 @@ export class VdsService {
     if (!target) {
       throw new NotFoundError("User", newUserId);
     }
+    if (Number(vds.targetUserId) === Number(newUserId)) {
+      throw new BusinessError("VDS already belongs to this user", "VDS_TRANSFER_SELF");
+    }
+    if (target.isBanned === true) {
+      throw new BusinessError("Target user is banned", "VDS_TRANSFER_TARGET_BANNED");
+    }
+    const previousOwnerId = vds.targetUserId;
     vds.targetUserId = newUserId;
     await this.vdsRepository.save(vds);
+    Logger.info(
+      `Admin transferred VDS ${vdsId} (vmid ${vds.vdsId}) from user ${previousOwnerId} → ${newUserId}`
+    );
     return vds;
   }
 
@@ -605,28 +653,116 @@ export class VdsService {
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
 
-    await this.dataSource.transaction(async (manager) => {
-      const vdsRepo = manager.getRepository(VirtualDedicatedServer);
-      const userRepo = manager.getRepository(User);
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const vdsRepo = manager.getRepository(VirtualDedicatedServer);
+        const userRepo = manager.getRepository(User);
 
-      const user = await userRepo.findOne({ where: { id: userId } });
-      if (!user) {
-        throw new NotFoundError("User", userId);
+        const user = await userRepo.findOne({ where: { id: userId } });
+        if (!user) {
+          throw new NotFoundError("User", userId);
+        }
+        if (user.balance < monthlyPrice) {
+          throw new BusinessError("Insufficient balance");
+        }
+
+        user.balance -= monthlyPrice;
+        await userRepo.save(user);
+
+        vds.extraIpv4Count = (vds.extraIpv4Count ?? 0) + 1;
+        vds.renewalPrice = Math.round((Number(vds.renewalPrice) + monthlyPrice) * 100) / 100;
+        await vdsRepo.save(vds);
+      });
+    } catch (error) {
+      // Billing failed after hypervisor assign — release orphan IP when possible.
+      if (typeof this.vmManager.removeIpv4FromHost === "function") {
+        await this.vmManager.removeIpv4FromHost(vds.vdsId).catch((releaseErr) => {
+          Logger.error(
+            `Failed to roll back extra IPv4 after billing error for VDS ${vdsId}:`,
+            releaseErr
+          );
+        });
       }
-      if (user.balance < monthlyPrice) {
-        throw new BusinessError("Insufficient balance");
-      }
-
-      user.balance -= monthlyPrice;
-      await userRepo.save(user);
-
-      vds.extraIpv4Count = (vds.extraIpv4Count ?? 0) + 1;
-      vds.renewalPrice = Math.round((Number(vds.renewalPrice) + monthlyPrice) * 100) / 100;
-      await vdsRepo.save(vds);
-    });
+      throw error;
+    }
 
     Logger.info(`Extra IPv4 purchased for VDS ${vdsId} (vmid ${vds.vdsId}), ip=${extraIp || "pending"}`);
 
     return { extraIp: extraIp || "pending", monthlyPrice };
+  }
+
+  /**
+   * Remove the extra IPv4 add-on from a VDS.
+   * Drops ipconfig1 on hypervisor, releases IP in registry, lowers renewal price.
+   * Does not refund the already billed month.
+   */
+  async removeExtraIpv4(
+    vdsId: number,
+    userId: number
+  ): Promise<{ removedIp: string | null; monthlyPrice: number; renewalPrice: number }> {
+    const vds = await this.getVdsById(vdsId);
+
+    if (vds.targetUserId !== userId) {
+      throw new BusinessError("You don't own this VDS");
+    }
+    if (vds.managementLocked) {
+      throw new BusinessError("VDS management is locked (subscription expired). Renew first.");
+    }
+    if (vds.adminBlocked) {
+      throw new BusinessError("VDS is blocked by administrator.");
+    }
+    if ((vds.extraIpv4Count ?? 0) < 1) {
+      throw new BusinessError("No extra IPv4 on this VDS", "VDS_EXTRA_IPV4_MISSING");
+    }
+    if (typeof this.vmManager.removeIpv4FromHost !== "function") {
+      throw new ExternalApiError("Removing extra IPv4 is not supported on this infrastructure", "VmProvider");
+    }
+
+    const monthlyPrice = getExtraIpv4MonthlyPriceUsd();
+
+    let resolvedIp: string | null = null;
+    const beforeIps = await this.vmManager.getIpv4AddrVM(vds.vdsId).catch(() => undefined);
+    const beforeList =
+      beforeIps?.list?.map((row) => row.ip_addr).filter((ip) => ip && ip !== "0.0.0.0") ?? [];
+    resolvedIp = beforeList.find((ip) => ip !== vds.ipv4Addr) ?? beforeList[1] ?? null;
+
+    const removed = await this.vmManager.removeIpv4FromHost(vds.vdsId);
+    if (removed === false) {
+      throw new ExternalApiError("Failed to remove extra IPv4 on hypervisor", "VmProvider");
+    }
+    if (removed.removedIp) {
+      resolvedIp = removed.removedIp;
+    }
+
+    let renewalPrice = Number(vds.renewalPrice);
+    await this.dataSource.transaction(async (manager) => {
+      const vdsRepo = manager.getRepository(VirtualDedicatedServer);
+      const row = await vdsRepo.findOne({ where: { id: vdsId } });
+      if (!row) {
+        throw new NotFoundError("VDS", vdsId);
+      }
+      if (Number(row.targetUserId) !== Number(userId)) {
+        throw new BusinessError("You don't own this VDS");
+      }
+      if ((row.extraIpv4Count ?? 0) < 1) {
+        throw new BusinessError("No extra IPv4 on this VDS", "VDS_EXTRA_IPV4_MISSING");
+      }
+
+      row.extraIpv4Count = Math.max(0, (row.extraIpv4Count ?? 0) - 1);
+      renewalPrice = Math.max(
+        0,
+        Math.round((Number(row.renewalPrice) - monthlyPrice) * 100) / 100
+      );
+      row.renewalPrice = renewalPrice;
+      await vdsRepo.save(row);
+      vds.extraIpv4Count = row.extraIpv4Count;
+      vds.renewalPrice = row.renewalPrice;
+    });
+
+    Logger.info(
+      `Extra IPv4 removed for VDS ${vdsId} (vmid ${vds.vdsId}), ip=${resolvedIp || "unknown"}, renewal=${renewalPrice}`
+    );
+
+    return { removedIp: resolvedIp, monthlyPrice, renewalPrice };
   }
 }

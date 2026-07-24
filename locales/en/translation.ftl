@@ -838,6 +838,57 @@ domain-price-short = {NUMBER($price, style: "currency", currency: "USD", minimum
 domain-ns-not-set = No nameservers set — tap «Update NS»
 button-copy-ns1 = 📋 NS1
 button-copy-ns2 = 📋 NS2
+domain-tab-info = Info
+domain-tab-ns = NS
+domain-tab-dns = DNS
+domain-tab-ssl = SSL
+domain-info-status = Status
+domain-info-period = Period (years)
+domain-info-price = Price
+domain-info-dns-active = Amper DNS is active — you can manage records and SSL.
+domain-info-dns-inactive = Amper DNS is not active. Open the DNS tab and tap «Switch to our DNS».
+domain-amper-ns-title = Our DNS nameservers
+domain-dns-moved-notice = DNS record management has moved to our DNS service.
+domain-dns-activate-hint =
+    <blockquote>When you add or change a record, DNS activates automatically — this may take a few minutes.</blockquote>
+button-domain-bind-amper-dns = 📄 Switch to our DNS
+domain-dns-bound-success =
+    <strong>Domain linked to our DNS</strong>
+
+    Nameservers updated. Activation may take a few minutes — then you can add records and enable SSL.
+domain-dns-bound-failed = Failed to link DNS: {$error}
+domain-dns-empty = No DNS records
+domain-dns-propagate-hint = <i>Changes apply automatically — usually within a few minutes.</i>
+domain-dns-add-enter-type = Choose a record type with a button or send a type (A, AAAA, CNAME, MX, TXT).
+domain-dns-add-enter =
+    <strong>Add DNS record {$type}</strong>
+
+    Domain: <code>{$domain}</code>
+
+    Send: <code>name value</code>
+    For MX: <code>name priority value</code>
+
+    Examples:
+    <code>@ 192.0.2.1</code>
+    <code>www 192.0.2.1</code>
+    <code>@ 10 mail.example.com</code>
+domain-dns-invalid-type = Invalid record type. Allowed: A, AAAA, CNAME, MX, TXT.
+domain-dns-invalid-format = Invalid format. Example: <code>@ 192.0.2.1</code>
+domain-dns-added =
+    <strong>DNS record added</strong>
+
+    {$type} {$name} → {$value}
+    Domain: <code>{$domain}</code>
+domain-dns-deleted = Record deleted
+domain-dns-delete-failed = Failed to delete record: {$error}
+domain-ssl-need-dns = SSL is available after activating DNS on our service. Add a DNS record in the DNS tab.
+domain-ssl-load-failed = Failed to load SSL status. Try again later.
+domain-ssl-section = SSL
+domain-ssl-mode-label = Mode
+domain-ssl-status-label = Status
+button-domain-go-dns-tab = Open DNS
+domain-ssl-updated = SSL updated
+domain-ssl-update-failed = Failed to update SSL: {$error}
 domain-already-pending-registration = Domain already in pending await
 domain-request-notification = New request /domainrequests (In progress: {$count})
 
@@ -846,15 +897,16 @@ domain-cannot-manage-while-in-progress = Domain is pending registration wait unt
 deposit-money-enter-sum = Enter payment amount
 deposit-money-incorrect-sum = The entered amount is incorrect
 
-topup-select-method = 💳 Add Balance
+topup-select-method =
+    💳 <strong>Top up balance</strong>
 
- Select a payment method:
+    Choose a payment method:
 
 topup-select-amount = Select top-up amount
 topup-method-cryptobot = 💳 CryptoBot
-topup-method-crystalpay = 💎 CrystalPay
-topup-method-heleket = 🪙 Heleket
-topup-method-bank = 🏦 Bank Transfer
+topup-method-crystalpay = 💎 CrystalPay · SBP / cards, LZT, crypto
+topup-method-heleket = 🪙 Heleket · USDT, BTC, LTC, ETH, XMR…
+topup-method-bank = 🏦 Manual transfer · request details
 topup-heleket-not-configured = Heleket is not configured. Set PAYMENT_HELEKET_MERCHANT and PAYMENT_HELEKET_API_KEY in .env
 topup-method-back = ⬅️ Back
 topup-amounts-title = 💳 <b>Top up balance</b>
@@ -951,9 +1003,17 @@ promocode-used =
     ├ Promo discount: <b>−{$percent}%</b>
     └ Total on orders (Prime + promos): <b>−{$totalPercent}%</b>
 
-menu-service-for-buy-choose = 🚀 <strong>Select a service</strong>
+menu-service-for-buy-choose =
+    🚀 <strong>Select a service</strong>
 
-manage-services-header = 💼 Services
+    <b>VPS/VDS</b> — Virtual servers based on physical machines.
+    <b>Dedicated</b> — Physical servers with full access to all resources
+    <b>Domains</b> — Offshore domain registration
+
+manage-services-header =
+    💼 <strong>Services</strong>
+
+    Your active services:
 
 # Manage services menu
 button-manage-domains = 🌐 Domains
@@ -988,8 +1048,15 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 # Dedicated server shop (multi-step)
 dedicated-shop-step1-text =
     <b>🔒 Dedicated</b>
+    Ideal for projects with high performance requirements.
 
-    Choose infrastructure type:
+    🚀 Network speed: from 1000 Mbps
+    🔒 No logs. Anonymous
+
+    <b>Standard</b> — regular dedicated servers with a risk of suspension on abuse reports.
+    <b>Bulletproof</b> — dedicated servers protected from blocks due to complaints and abuse.
+
+    <b>Choose type:</b>
 dedicated-shop-btn-standard = ⚙️ Standard
 dedicated-shop-btn-bulletproof = 🛡 Bulletproof
 dedicated-shop-step2-title = Choose configuration:
@@ -1053,12 +1120,13 @@ vds-purchase-paused-reply =
 # VPS shop (multi-step)
 vds-shop-step1-text =
     <b>🖥 VPS / VDS</b>
-
-    Full system control.
     Ideal for websites, apps and services.
 
-    🚀 Up to 150 Mbps
-    🔒 No logs
+    🚀 Network speed: 150 Mbps
+    🔒 No logs. Anonymous
+
+    <b>Standard</b> — regular virtual servers with a risk of suspension on abuse reports.
+    <b>Bulletproof</b> — virtual servers protected from blocks due to complaints and abuse.
 
     <b>Choose type:</b>
 vds-shop-btn-standard = ⚙️ Standard
@@ -1080,6 +1148,28 @@ vps-location-nl-amsterdam = 🇳🇱 Netherlands (Auto)
 vps-location-de-germany = 🇩🇪 Germany
 vps-location-usa = 🇺🇸 USA
 vps-location-tr-istanbul = 🇹🇷 Turkey
+vps-location-lv-riga-1 = 🇱🇻 Latvia · Riga 1
+vps-location-lv-riga-2 = 🇱🇻 Latvia · Riga 2
+vps-location-nl-amsterdam-1 = 🇳🇱 Netherlands · Amsterdam 1
+vps-location-nl-amsterdam-2 = 🇳🇱 Netherlands · Amsterdam 2
+vps-location-us-kansas-city = 🇺🇸 USA · Kansas City
+vps-location-us-silicon-valley = 🇺🇸 USA · Silicon Valley
+vps-location-us-dallas = 🇺🇸 USA · Dallas
+vps-location-fr-paris = 🇫🇷 France · Paris
+vps-location-hk-hongkong = 🇭🇰 Hong Kong
+hostvds-location-select-title =
+    <b>📍 Location</b>
+
+    ✅ — in stock, can order
+    🔒 — temporarily unavailable (sold out / offline)
+
+    Unavailable locations do not continue — no need to tap around.
+hostvds-plan-stock-hint = 🔒 on a plan = no free locations for this config.
+hostvds-status-available = in stock
+hostvds-status-sold-out = sold out
+hostvds-status-unavailable = unavailable
+hostvds-toast-plan-unavailable = This plan is currently {$status}. Pick another.
+hostvds-toast-location-unavailable = This location is currently {$status}. Pick another.
 vds-shop-tier-start = 🚀 Start
 vds-shop-tier-standard = ⚙️ Standard
 vds-shop-tier-performance = 🔥 Performance
@@ -1104,6 +1194,14 @@ vds-shop-card =
     💳 <b>Price:</b> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / month
 vds-shop-order = 🛒 Order
 vds-shop-details = 📋 Details
+vds-shop-os-select-bulletproof =
+    Choose an operating system.
+vds-shop-cpu-select =
+    <b>⚙️ Processor</b>
+
+    Choose a processor:
+vds-shop-cpu-btn-default = ⚡ {$label}
+vds-shop-cpu-btn-alt = 🔥 {$label}
 
 vds-os-select = <strong>Select the OS to be installed</strong>
 vds-provisioning-wait =
@@ -1190,16 +1288,28 @@ vds-autorenew-disable = ⏸ Disable auto-renewal
 vds-button-renew = 📅 Renew
 vds-button-more = ⚙️ More
 vds-button-extra-ipv4 = ➕ Extra IPv4 (${ $price }/mo)
+vds-button-remove-extra-ipv4 = 🗑 Remove extra IP
 vds-extra-ipv4-confirm-ask =
     Add <b>1 additional IPv4</b> for <b>${ $price }</b>/mo?
 
     Charge now: <b>${ $price }</b>
     Renewal price will become: <b>${ $renewal }</b>/mo (includes extra IP)
+vds-extra-ipv4-remove-confirm-ask =
+    Remove extra IPv4 <code>{$ip}</code>?
+
+    Renewal will become: <b>${ $renewal }</b>/mo (−${ $price }/mo).
+    The current billed month is not refunded.
 vds-extra-ipv4-success =
     ✅ Extra IPv4 added.
 
     IP: <code>{ $ip }</code>
     +${ $price }/mo added to plan (included in renewal)
+vds-extra-ipv4-remove-success =
+    ✅ Extra IPv4 removed.
+
+    IP: <code>{$ip}</code>
+    Renewal is now: <b>${ $renewal }</b>/mo
+vds-extra-ipv4-remove-missing = This server has no extra IPv4.
 vds-extra-ipv4-active = Extra IPv4 is active (see second address above or in Proxmox)
 service-label-extra-ipv4 = Extra IPv4
 vds-button-power-off = 🔴 Shut down
@@ -1222,6 +1332,48 @@ vds-password-change-applied-with-password =
     New password: <tg-spoiler>{ $password }</tg-spoiler>
 
 vds-button-rename = ✏️ Rename
+vds-button-transfer = 🔀 Transfer
+vds-transfer-prompt =
+    🔀 <strong>Transfer VPS</strong>
+
+    Send the recipient’s <b>internal ID</b> or <b>@username</b>.
+
+    Paid-until date, price, IP and credentials stay the same. Only ownership changes.
+vds-transfer-confirm =
+    Transfer VPS <b>{$plan}</b>?
+
+    ├ Recipient: <b>{$recipient}</b> (ID {$recipientId})
+    ├ IP: <code>{$ip}</code>
+    ├ Paid until: <b>{$expire}</b>
+    └ Renewal: <b>{$price} $</b>/mo
+
+    Confirm the transfer.
+vds-transfer-success =
+    ✅ <strong>VPS transferred</strong>
+
+    Recipient: <b>{$recipient}</b>
+    IP: <code>{$ip}</code>
+    Paid until: <b>{$expire}</b> · {$price} $/mo
+vds-transfer-received-notify =
+    🖥 A VPS was transferred to you
+
+    From: <b>{$sender}</b>
+    Plan: <b>{$plan}</b>
+    IP: <code>{$ip}</code>
+    Paid until: <b>{$expire}</b> · {$price} $/mo
+
+    Manage it under «My services».
+vds-transfer-self = You cannot transfer a server to yourself.
+vds-transfer-user-not-found =
+    User not found. Use the bot’s internal ID or an @username of someone who has already started the bot.
+vds-transfer-denied-locked =
+    Transfer unavailable: subscription expired. Renew the server first.
+vds-transfer-denied-blocked =
+    Transfer unavailable: the server is blocked by an administrator.
+vds-transfer-denied-demo = Demo servers cannot be transferred.
+vds-transfer-denied-reseller = This server cannot be transferred (reseller).
+vds-transfer-denied-banned = The recipient is banned — transfer is not possible.
+vds-transfer-cancelled = Transfer cancelled.
 vds-button-plan-change = 📈 Change plan / upgrade
 vds-plan-change-support-body =
     To change configuration or upgrade your plan (e.g. Lite tier), contact support and include:
@@ -1265,7 +1417,7 @@ admin-vds-extended = Extended by {$days} days.
 admin-vds-transferred = Owner changed to user id {$userId}
 admin-vds-deleted = VDS removed
 admin-vds-delete-confirm = <b>Delete this VDS and VM permanently?</b>
-admin-vds-transfer-prompt = Send the new owner’s <b>internal user id</b> (DB id, number):
+admin-vds-transfer-prompt = Send the new owner’s <b>internal user id</b> or <b>@username</b>:
 admin-vds-ip-synced = ✅ IP synchronized.
 admin-vds-ip-not-available = ⚠️ IP is not available yet (guest agent/network still initializing).
 admin-vds-vm-started = ✅ VM started.
@@ -1290,17 +1442,25 @@ admin-cs-type-prompt =
     For VPS you can paste a block:
     <code>@username
     ID vm: 230
+    Group: Abuse
     Tarif: Mega 1
+    Price: 120
+    Data: 24.07.26
     Ip: 45.74.7.131</code>
 admin-cs-vds-block-hint =
     You can paste a <b>single block</b>:
 
     <code>@username
     ID vm: 230
+    Group: Abuse
     Tarif: Mega 1
+    Price: 120
+    Data: 24.07.26
     Ip: 45.74.7.131</code>
 
-    Price and expiry default from the plan (30 days) when omitted.
+    <b>Group</b> — Abuse or Regular.
+    <b>Data</b> — paid until (DD.MM.YY).
+    If Price / Data / Group omitted: plan price, +30 days, Abuse.
 admin-cs-vds-block-applied = ✅ Block parsed. Review on the confirmation step.
 admin-cs-type-domain = 🌐 Domains
 admin-cs-type-vds = ☁ VPS / VDS
@@ -1372,8 +1532,13 @@ admin-manual-vps-prompt =
     <b>Block</b> (recommended):
     <code>@username
     ID vm: 230
+    Group: Abuse
     Tarif: Mega 1
+    Price: 120
+    Data: 24.07.26
     Ip: 45.74.7.131</code>
+
+    <b>Group</b>: Abuse or Regular · <b>Data</b>: paid until (DD.MM.YY)
 
     Or one line: <b>IP</b> · <b>VMID</b> · <b>plan</b> · <b>price $</b> · <b>date</b>
     Example: <code>45.74.7.154 162 Lite 1 24 22.05.26</code>
@@ -1406,6 +1571,9 @@ admin-cs-field-os = OS label
 admin-cs-field-ssh-port = SSH port (optional)
 admin-cs-field-vmid = VMID (optional)
 admin-cs-field-rate = Plan name
+admin-cs-field-group = Group (Abuse / Regular)
+admin-cs-hint-group = Abuse = bulletproof, Regular = standard. Skip → Abuse.
+admin-cs-error-group = Enter Abuse or Regular
 admin-cs-field-cpu = CPU (count)
 admin-cs-field-ram = RAM, GB
 admin-cs-field-disk = Disk, GB

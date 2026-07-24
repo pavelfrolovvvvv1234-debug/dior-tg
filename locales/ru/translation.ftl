@@ -805,6 +805,57 @@ domain-price-short = {NUMBER($price, style: "currency", currency: "USD", minimum
 domain-ns-not-set = NS не заданы — нажмите «Изменить NS»
 button-copy-ns1 = 📋 NS1
 button-copy-ns2 = 📋 NS2
+domain-tab-info = Инфо
+domain-tab-ns = NS
+domain-tab-dns = DNS
+domain-tab-ssl = SSL
+domain-info-status = Статус
+domain-info-period = Период (лет)
+domain-info-price = Цена
+domain-info-dns-active = DNS на сервисе Amper активен — можно управлять записями и SSL.
+domain-info-dns-inactive = DNS Amper не активирован. Откройте вкладку DNS и нажмите «Перейти на наш DNS».
+domain-amper-ns-title = NS нашего DNS
+domain-dns-moved-notice = Управление DNS-записями переехало на наш DNS-сервис.
+domain-dns-activate-hint =
+    <blockquote>При добавлении или изменении записи DNS активируется автоматически — это может занять несколько минут.</blockquote>
+button-domain-bind-amper-dns = 📄 Перейти на наш DNS
+domain-dns-bound-success =
+    <strong>Домен привязан к нашему DNS</strong>
+
+    NS обновлены. Активация может занять несколько минут — затем можно добавлять записи и включать SSL.
+domain-dns-bound-failed = Не удалось привязать DNS: {$error}
+domain-dns-empty = Нет DNS записей
+domain-dns-propagate-hint = <i>Изменения применяются автоматически — обычно в течение нескольких минут.</i>
+domain-dns-add-enter-type = Выберите тип записи кнопкой или отправьте тип (A, AAAA, CNAME, MX, TXT).
+domain-dns-add-enter =
+    <strong>Добавление DNS-записи {$type}</strong>
+
+    Домен: <code>{$domain}</code>
+
+    Отправьте: <code>имя значение</code>
+    Для MX: <code>имя приоритет значение</code>
+
+    Примеры:
+    <code>@ 192.0.2.1</code>
+    <code>www 192.0.2.1</code>
+    <code>@ 10 mail.example.com</code>
+domain-dns-invalid-type = Неверный тип записи. Допустимо: A, AAAA, CNAME, MX, TXT.
+domain-dns-invalid-format = Неверный формат. Пример: <code>@ 192.0.2.1</code>
+domain-dns-added =
+    <strong>DNS-запись добавлена</strong>
+
+    {$type} {$name} → {$value}
+    Домен: <code>{$domain}</code>
+domain-dns-deleted = Запись удалена
+domain-dns-delete-failed = Не удалось удалить запись: {$error}
+domain-ssl-need-dns = SSL доступен после активации DNS на нашем сервисе. Добавьте DNS-запись во вкладке DNS.
+domain-ssl-load-failed = Не удалось загрузить статус SSL. Попробуйте позже.
+domain-ssl-section = SSL
+domain-ssl-mode-label = Режим
+domain-ssl-status-label = Статус
+button-domain-go-dns-tab = Открыть DNS
+domain-ssl-updated = SSL обновлён
+domain-ssl-update-failed = Не удалось обновить SSL: {$error}
 
 empty = Пусто
 list-empty = Список пуст
@@ -878,15 +929,16 @@ domain-registration-complete-fail-message-length =
 deposit-money-enter-sum = Введите сумму пополнения
 deposit-money-incorrect-sum = Введенная сумма некорректна
 
-topup-select-method = 💳 Пополнение баланса
+topup-select-method =
+    💳 <strong>Пополнение баланса</strong>
 
- Выберите способ оплаты:
+    Выберите способ оплаты:
 
 topup-select-amount = Выберите сумму пополнения
 topup-method-cryptobot = 💳 CryptoBot
-topup-method-crystalpay = 💎 CrystalPay
-topup-method-heleket = 🪙 Heleket
-topup-method-bank = 🏦 Ручной перевод
+topup-method-crystalpay = 💎 CrystalPay · СБП / карты, LZT, крипта
+topup-method-heleket = 🪙 Heleket · USDT, BTC, LTC, ETH, XMR…
+topup-method-bank = 🏦 Ручной перевод · реквизиты
 topup-heleket-not-configured = Heleket не настроен. Укажите PAYMENT_HELEKET_MERCHANT и PAYMENT_HELEKET_API_KEY в .env
 topup-method-back = ⬅️ Назад
 topup-amounts-title = 💳 <b>Пополнение баланса</b>
@@ -966,9 +1018,17 @@ promocode-used =
     ├ Скидка по промо: <b>−{$percent}%</b>
     └ Итого на заказы (Prime + промо): <b>−{$totalPercent}%</b>
 
-menu-service-for-buy-choose = 🚀 <strong>Выберите услугу</strong>
+menu-service-for-buy-choose =
+    🚀 <strong>Выберите услугу</strong>
 
-manage-services-header = 💼 Услуги
+    <b>VPS/VDS</b> — Виртуальные серверы на базе физических машин.
+    <b>Дедики</b> — Физические серверы с полным доступом ко всем ресурсам
+    <b>Домены</b> — Регистрация оффшорных доменов
+
+manage-services-header =
+    💼 <strong>Услуги</strong>
+
+    Ваши активные услуги:
 
 # Меню «Управление услугами»
 button-manage-domains = 🌐 Домены
@@ -1002,8 +1062,15 @@ dedicated-rate-full-view = <strong>«{$rateName}»</strong>
 # Магазин дедиков (пошагово)
 dedicated-shop-step1-text =
     <b>🔒 Дедики</b>
+    Подходит для проектов с высокими требованиями к производительности.
 
-    Выберите тип инфраструктуры:
+    🚀 Скорость сети: от 1000 Мбит/с
+    🔒 Без логов. Анонимно
+
+    <b>Стандартные</b> — обычные выделенные сервера с риском блокировки по жалобам.
+    <b>Абузоустойчивые</b> — выделенные сервера с защитой от блокировок из-за жалоб и злоупотреблений.
+
+    <b>Выберите тип:</b>
 dedicated-shop-btn-standard = ⚙️ Стандартные
 dedicated-shop-btn-bulletproof = 🛡 Абузоустойчивые
 dedicated-shop-step2-title = Выберите конфигурацию:
@@ -1068,12 +1135,13 @@ vds-purchase-paused-reply =
 # Магазин VPS (пошагово)
 vds-shop-step1-text =
     <b>🖥 VPS / VDS</b>
-
-    Полный контроль над системой.
     Подходит для сайтов, приложений и сервисов.
 
-    🚀 До 150 Мбит/с
-    🔒 Без логов
+    🚀 Скорость сети: 150 Мбит/с
+    🔒 Без логов. Анонимно
+
+    <b>Стандартные</b> — обычные виртуальные сервера с риском блокировки по жалобам.
+    <b>Абузоустойчивые</b> — виртуальные сервера с защитой от блокировок из-за жалоб и злоупотреблений.
 
     <b>Выберите тип:</b>
 vds-shop-btn-standard = ⚙️ Стандартные
@@ -1095,6 +1163,28 @@ vps-location-nl-amsterdam = 🇳🇱 Нидерланды (Авто)
 vps-location-de-germany = 🇩🇪 Германия
 vps-location-usa = 🇺🇸 США
 vps-location-tr-istanbul = 🇹🇷 Турция
+vps-location-lv-riga-1 = 🇱🇻 Латвия · Рига 1
+vps-location-lv-riga-2 = 🇱🇻 Латвия · Рига 2
+vps-location-nl-amsterdam-1 = 🇳🇱 Нидерланды · Амстердам 1
+vps-location-nl-amsterdam-2 = 🇳🇱 Нидерланды · Амстердам 2
+vps-location-us-kansas-city = 🇺🇸 США · Канзас-Сити
+vps-location-us-silicon-valley = 🇺🇸 США · Кремниевая долина
+vps-location-us-dallas = 🇺🇸 США · Даллас
+vps-location-fr-paris = 🇫🇷 Франция · Париж
+vps-location-hk-hongkong = 🇭🇰 Гонконг
+hostvds-location-select-title =
+    <b>📍 Локация</b>
+
+    ✅ — в наличии, можно заказать
+    🔒 — временно нет (распродано / недоступно)
+
+    Недоступные локации не ведут дальше — не нужно тыкать наугад.
+hostvds-plan-stock-hint = 🔒 у тарифа = нет свободных локаций под этот конфиг.
+hostvds-status-available = в наличии
+hostvds-status-sold-out = распродано
+hostvds-status-unavailable = недоступно
+hostvds-toast-plan-unavailable = Этот тариф сейчас {$status}. Выберите другой.
+hostvds-toast-location-unavailable = Локация сейчас {$status}. Выберите другую.
 vds-shop-tier-start = 🚀 Старт (Lite)
 vds-shop-tier-standard = ⚙️ Стандарт (Lite+ / Elite)
 vds-shop-tier-performance = 🔥 Производительность (Elite+)
@@ -1119,6 +1209,14 @@ vds-shop-card =
     💳 <b>Цена:</b> {NUMBER($price, style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2)} $ / мес
 vds-shop-order = 🛒 Купить
 vds-shop-details = 📋 Подробнее
+vds-shop-os-select-bulletproof =
+    Выберите операционную систему.
+vds-shop-cpu-select =
+    <b>⚙️ Процессор</b>
+
+    Выберите процессор:
+vds-shop-cpu-btn-default = ⚡ {$label}
+vds-shop-cpu-btn-alt = 🔥 {$label}
 
 vds-os-select = <strong>Выберете ОС которая будет установлена</strong>
 vds-provisioning-wait =
@@ -1205,16 +1303,28 @@ vds-autorenew-disable = ⏸ Отключить автопродление
 vds-button-renew = 📅 Продлить
 vds-button-more = ⚙️ Еще
 vds-button-extra-ipv4 = ➕ Доп. IPv4 (${ $price }/мес)
+vds-button-remove-extra-ipv4 = 🗑 Удалить доп. IP
 vds-extra-ipv4-confirm-ask =
     Добавить <b>1 дополнительный IPv4</b> за <b>${ $price }</b>/мес?
 
     Списание сейчас: <b>${ $price }</b>
     Цена продления станет: <b>${ $renewal }</b>/мес (включая доп. IP)
+vds-extra-ipv4-remove-confirm-ask =
+    Удалить дополнительный IPv4 <code>{$ip}</code>?
+
+    Цена продления станет: <b>${ $renewal }</b>/мес (−${ $price }/мес).
+    Уже оплаченный месяц не возвращается.
 vds-extra-ipv4-success =
     ✅ Дополнительный IPv4 добавлен.
 
     IP: <code>{ $ip }</code>
     +${ $price }/мес к тарифу (учтено в продлении)
+vds-extra-ipv4-remove-success =
+    ✅ Дополнительный IPv4 удалён.
+
+    IP: <code>{$ip}</code>
+    Продление теперь: <b>${ $renewal }</b>/мес
+vds-extra-ipv4-remove-missing = На этом сервере нет дополнительного IPv4.
 vds-extra-ipv4-active = Дополнительный IPv4 активен (см. второй адрес выше или в Proxmox)
 service-label-extra-ipv4 = Доп. IPv4
 vds-button-power-off = 🔴 Выключить
@@ -1237,6 +1347,48 @@ vds-password-change-applied-with-password =
     Новый пароль: <tg-spoiler>{ $password }</tg-spoiler>
 
 vds-button-rename = ✏️ Переименовать
+vds-button-transfer = 🔀 Transfer
+vds-transfer-prompt =
+    🔀 <strong>Передача VPS</strong>
+
+    Отправьте <b>внутренний ID</b> или <b>@username</b> получателя.
+
+    Срок оплаты, цена, IP и доступы сохранятся. Изменится только владелец.
+vds-transfer-confirm =
+    Передать VPS <b>{$plan}</b>?
+
+    ├ Получатель: <b>{$recipient}</b> (ID {$recipientId})
+    ├ IP: <code>{$ip}</code>
+    ├ Оплачено до: <b>{$expire}</b>
+    └ Цена продления: <b>{$price} $</b>/мес
+
+    Подтвердите передачу.
+vds-transfer-success =
+    ✅ <strong>VPS передан</strong>
+
+    Получатель: <b>{$recipient}</b>
+    IP: <code>{$ip}</code>
+    Оплачено до: <b>{$expire}</b> · {$price} $/мес
+vds-transfer-received-notify =
+    🖥 Вам передали VPS
+
+    От: <b>{$sender}</b>
+    Тариф: <b>{$plan}</b>
+    IP: <code>{$ip}</code>
+    Оплачено до: <b>{$expire}</b> · {$price} $/мес
+
+    Управляйте в «Мои услуги».
+vds-transfer-self = Нельзя передать сервер самому себе.
+vds-transfer-user-not-found =
+    Пользователь не найден. Укажите внутренний ID из бота или @username того, кто уже запускал бота.
+vds-transfer-denied-locked =
+    Передача недоступна: подписка истекла. Сначала продлите сервер.
+vds-transfer-denied-blocked =
+    Передача недоступна: сервер заблокирован администратором.
+vds-transfer-denied-demo = Демо-сервер нельзя передать.
+vds-transfer-denied-reseller = Этот сервер нельзя передать (reseller).
+vds-transfer-denied-banned = Получатель заблокирован в боте — передача невозможна.
+vds-transfer-cancelled = Передача отменена.
 vds-button-plan-change = 📈 Смена конфигурации
 vds-plan-change-support-body =
     Чтобы сменить конфигурацию или тариф (например, апгрейд Lite), напишите в поддержку и приложите:
@@ -1280,7 +1432,7 @@ admin-vds-extended = Срок продлён на {$days} дн.
 admin-vds-transferred = Владелец изменён на user id {$userId}
 admin-vds-deleted = VDS удалена
 admin-vds-delete-confirm = <b>Удалить эту VDS и ВМ безвозвратно?</b>
-admin-vds-transfer-prompt = Введите <b>внутренний user id</b> нового владельца (число из БД):
+admin-vds-transfer-prompt = Введите <b>внутренний user id</b> или <b>@username</b> нового владельца:
 admin-vds-ip-synced = ✅ IP синхронизирован.
 admin-vds-ip-not-available = ⚠️ IP пока недоступен (guest agent/сеть еще не готовы).
 admin-vds-vm-started = ✅ VM запущена.
@@ -1305,17 +1457,25 @@ admin-cs-type-prompt =
     Для VPS можно сразу вставить блоком:
     <code>@username
     ID vm: 230
+    Group: Abuse
     Tarif: Mega 1
+    Price: 120
+    Data: 24.07.26
     Ip: 45.74.7.131</code>
 admin-cs-vds-block-hint =
     Можно вставить <b>одним сообщением</b> (блоком):
 
     <code>@username
     ID vm: 230
+    Group: Abuse
     Tarif: Mega 1
+    Price: 120
+    Data: 24.07.26
     Ip: 45.74.7.131</code>
 
-    Цена и срок подтянутся из тарифа (30 дней), если не указаны.
+    <b>Group</b> — Abuse или Regular.
+    <b>Data</b> — до какого числа сервер оплачен (DD.MM.YY).
+    Если Price / Data / Group не указаны: цена из тарифа, срок +30 дней, группа Abuse.
 admin-cs-vds-block-applied = ✅ Данные из блока подставлены. Проверьте на шаге подтверждения.
 admin-cs-type-domain = 🌐 Домены
 admin-cs-type-vds = ☁ VPS / VDS
@@ -1387,8 +1547,13 @@ admin-manual-vps-prompt =
     <b>Блоком</b> (рекомендуется):
     <code>@username
     ID vm: 230
+    Group: Abuse
     Tarif: Mega 1
+    Price: 120
+    Data: 24.07.26
     Ip: 45.74.7.131</code>
+
+    <b>Group</b>: Abuse или Regular · <b>Data</b>: оплачено до (DD.MM.YY)
 
     Или одной строкой: <b>IP</b> · <b>VMID</b> · <b>тариф</b> · <b>цена $</b> · <b>дата</b>
     Пример: <code>45.74.7.154 162 Lite 1 24 22.05.26</code>
@@ -1421,6 +1586,9 @@ admin-cs-field-os = ОС (метка)
 admin-cs-field-ssh-port = SSH порт (необязательно)
 admin-cs-field-vmid = VMID (необязательно)
 admin-cs-field-rate = Имя тарифа
+admin-cs-field-group = Группа (Abuse / Regular)
+admin-cs-hint-group = Abuse = bulletproof, Regular = обычный. Можно пропустить → Abuse.
+admin-cs-error-group = Укажите Abuse или Regular
 admin-cs-field-cpu = CPU (число)
 admin-cs-field-ram = RAM, GB
 admin-cs-field-disk = Диск, GB

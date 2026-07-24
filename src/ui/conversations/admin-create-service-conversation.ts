@@ -562,6 +562,12 @@ function validateField(
     const n = Number.parseFloat(v.replace(",", "."));
     if (!Number.isFinite(n) || n < 0) return "admin-cs-error-amount";
   }
+  if (key === "group") {
+    const n = v.toLowerCase().replace(/\s+/g, " ");
+    if (!/^(abuse|bulletproof|bp|абьюз|regular|standard|default|обычный|регуляр)$/.test(n)) {
+      return "admin-cs-error-group";
+    }
+  }
   if (DATE_FIELD_KEYS.has(key)) {
     if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) {
       return null;
@@ -581,6 +587,11 @@ function normalizedFieldText(key: string, raw: string): string {
   if (key === "domain") {
     const norm = normalizeAdminDomainFqdn(trimmed);
     if (!("error" in norm)) return norm.fqdn;
+  }
+  if (key === "group") {
+    const n = trimmed.toLowerCase().replace(/\s+/g, " ");
+    if (/^(abuse|bulletproof|bp|абьюз)$/.test(n)) return "Abuse";
+    if (/^(regular|standard|default|обычный|регуляр)$/.test(n)) return "Regular";
   }
   return trimmed;
 }

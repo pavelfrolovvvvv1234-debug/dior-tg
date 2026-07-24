@@ -95,6 +95,17 @@ export default class VirtualDedicatedServer {
   @Column({ default: 0, type: "integer" })
   extraIpv4Count!: number;
 
+  /**
+   * Hypervisor backend for this row: `proxmox` | `hostvds` | null (legacy → primary provider).
+   * Used by RoutingVmProvider — do not route HostVDS UUIDs to Proxmox.
+   */
+  @Column({ nullable: true, type: "varchar" })
+  hypervisor!: string | null;
+
+  /** External server id (OpenStack UUID for HostVDS). */
+  @Column({ nullable: true, type: "varchar" })
+  providerServerId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
