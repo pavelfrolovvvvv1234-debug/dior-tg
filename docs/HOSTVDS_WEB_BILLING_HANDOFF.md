@@ -223,20 +223,20 @@ Bulletproof цены **не** из этой формулы.
 
 ## 7. Shop catalog (пример тарифов бота)
 
-| rateId | Name | Spec (marketing) | Flavor |
-|--------|------|------------------|--------|
-| 0 | Lite 1 | 1C/1G/10G | hostvds-1 |
-| 1 | Lite 2 | 2C/2G/40G | hostvds-4 |
-| 2 | Lite 3 | 2C/4G/50G | hostvds-4 |
-| 3 | Elite 1 | 4C/8G/80G | highload-4 |
-| 4 | Elite 2 | 8C/16G/150G | highload-8 |
-| 5 | Elite 3 | 8C/24G/200G | highload-8 |
-| 6 | Mega 1 | 12C/32G/250G | highload-8 |
-| 7 | Mega 2 | 16C/64G/300G | highload-16 |
-| 8 | Mega 3 | 24C/96G/500G | highload-24 |
-| 9 | Mega 4 | 24C/128G/700G | highload-24 |
+| rateId | Name | Spec (marketing) | Flavor | Cost EUR | Sell $ |
+|--------|------|------------------|--------|----------|--------|
+| 0 | Lite 1 | 1C/1G/10G | hostvds-1 | 0.99 | 2 |
+| 1 | Lite 2 | 2C/2G/40G | hostvds-2 | 1.99 | 4 |
+| 2 | Lite 3 | 2C/4G/50G | hostvds-4 | 3.99 | 8 |
+| 3 | Elite 1 | 4C/8G/80G | hostvds-8 | 7.99 | 14 |
+| 4 | Elite 2 | 8C/16G/150G | hostvds-16 | 15.99 | 24 |
+| 5 | Elite 3 | 8C/24G/200G | highload-4 | 19.99 | 30 |
+| 6 | Mega 1 | 12C/32G/250G | highload-8 | 39.99 | 60 |
+| 7 | Mega 2 | 16C/64G/300G | highload-16 | 79.99 | 120 |
+| 8 | Mega 3 | 24C/96G/500G | highload-24 | 119.99 | 180 |
+| 9 | Mega 4 | 24C/128G/700G | highload-24 | 159.99 | 240 |
 
-Замечание: marketing-спеки и реальные flavor не всегда 1:1 (например Elite1 → highload-4 = 4C/16G). В вебе либо выровнять каталог под реальные flavor, либо явно писать «до N GB».
+Замечание: marketing-спеки и реальные flavor не всегда 1:1. Mega4 = max flavor как Mega3, но выше cost для уникальной цены.
 
 Login для Linux: `root`. Windows в HostVDS public images обычно нет.
 
@@ -368,7 +368,7 @@ ON DB save fail after success:
 - Region: eu-west2
 - Network name: Internet-03
 - Security group: allow_all
-- Flavors by plan id: 0→hostvds-1, 1–2→hostvds-4, 3→highload-4, 4–6→highload-8, 7→highload-16, 8–9→highload-24
+- Flavors by plan id: 0→hostvds-1, 1→hostvds-2, 2→hostvds-4, 3→hostvds-8, 4→hostvds-16, 5→highload-4, 6→highload-8, 7→highload-16, 8–9→highload-24 (Mega4 premium cost)
 - Images by osKey: ubuntu2404→Ubuntu-24.04-amd64, ubuntu2204→Ubuntu-22.04-amd64, debian13→Debian-13-amd64, debian12→Debian-12-amd64, debian11→Debian-11-amd64, alma8→AlmaLinux-8-amd64, alma9→AlmaLinux-9-amd64, rockylinux→RockyLinux-9-amd64, centos9→CentOS-9-amd64
 - Pricing EUR cost map: {0:0.99,1:3.99,2:3.99,3:19.99,4:39.99,5:39.99,6:39.99,7:79.99,8:119.99,9:119.99}
 - Markup: cost<2 → +120%; <4 → +100%; <10 → +70%; else +50%. sell=round(cost*(1+markup)*EUR_USD), EUR_USD default 1.
