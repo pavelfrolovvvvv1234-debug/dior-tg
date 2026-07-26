@@ -15,18 +15,21 @@
 
 import bundledCosts from "../../config/hostvds-standard-costs.json";
 
-/** Default EUR monthly cost per shop rateId — unique ladder (see FLAVOR_MAP). */
+/**
+ * EUR purchase base per rateId (unique ladder).
+ * Sell = base × (1 + markup tier). Bulletproof never uses this.
+ */
 export const DEFAULT_HOSTVDS_COST_EUR: Record<number, number> = {
-  0: 0.99, // hostvds-1
-  1: 1.99, // hostvds-2
-  2: 3.99, // hostvds-4
-  3: 7.99, // hostvds-8
-  4: 15.99, // hostvds-16
-  5: 19.99, // highload-4
-  6: 39.99, // highload-8
-  7: 79.99, // highload-16
-  8: 119.99, // highload-24
-  9: 159.99, // highload-24 premium (no larger HostVDS flavor)
+  0: 2,
+  1: 4,
+  2: 8,
+  3: 14,
+  4: 24,
+  5: 30,
+  6: 60,
+  7: 120,
+  8: 180,
+  9: 240,
 };
 
 function parseJsonMap(raw: string | undefined | object): Record<string, number> {

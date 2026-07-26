@@ -8,7 +8,7 @@
       "network": 150,
       "price": {
         "bulletproof": 25,
-        "default": 2
+        "default": 4
       }
     },
     {
@@ -19,7 +19,7 @@
       "network": 150,
       "price": {
         "bulletproof": 27,
-        "default": 4
+        "default": 7
       }
     },
     {
@@ -30,7 +30,7 @@
       "network": 150,
       "price": {
         "bulletproof": 39,
-        "default": 8
+        "default": 14
       }
     },
     {
@@ -41,7 +41,7 @@
       "network": 150,
       "price": {
         "bulletproof": 65,
-        "default": 14
+        "default": 21
       }
     },
     {
@@ -52,7 +52,7 @@
       "network": 150,
       "price": {
         "bulletproof": 99,
-        "default": 24
+        "default": 36
       }
     },
     {
@@ -63,7 +63,7 @@
       "network": 150,
       "price": {
         "bulletproof": 115,
-        "default": 30
+        "default": 45
       }
     },
     {
@@ -74,7 +74,7 @@
       "network": 150,
       "price": {
         "bulletproof": 159,
-        "default": 60
+        "default": 90
       }
     },
     {
@@ -85,7 +85,7 @@
       "network": 150,
       "price": {
         "bulletproof": 199,
-        "default": 120
+        "default": 180
       }
     },
     {
@@ -96,7 +96,7 @@
       "network": 150,
       "price": {
         "bulletproof": 285,
-        "default": 180
+        "default": 270
       }
     },
     {
@@ -107,7 +107,7 @@
       "network": 150,
       "price": {
         "bulletproof": 340,
-        "default": 240
+        "default": 360
       }
     }
   ],

@@ -1,13 +1,13 @@
 {
-  "0": 0.99,
-  "1": 1.99,
-  "2": 3.99,
-  "3": 7.99,
-  "4": 15.99,
-  "5": 19.99,
-  "6": 39.99,
-  "7": 79.99,
-  "8": 119.99,
-  "9": 159.99,
-  "_comment": "EUR cost per rateId — unique ladder (matches distinct FLAVOR_MAP). Mega4 uses premium cost on highload-24 (no larger flavor). Override via HOSTVDS_COST_EUR_MAP."
+  "0": 2,
+  "1": 4,
+  "2": 8,
+  "3": 14,
+  "4": 24,
+  "5": 30,
+  "6": 60,
+  "7": 120,
+  "8": 180,
+  "9": 240,
+  "_comment": "EUR base (purchase) per rateId — markup tiers applied on top for standard VPS only. Override via HOSTVDS_COST_EUR_MAP."
 }
