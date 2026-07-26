@@ -379,13 +379,16 @@ export class OpenStackClient {
 
   async resolveImageRef(imageIdOrName: string): Promise<string> {
     const raw = imageIdOrName.trim();
-    if (/^[0-9a-f-]{36}$/i.test(raw)) return raw;
+    // Always resolve against images in the active region (UUIDs differ per HostVDS region).
     const images = await this.listImages();
-    const hit = images.find((i) => i.name === raw || i.id === raw);
-    if (!hit) {
-      throw new HostVdsApiError(`Image not found: ${raw}`, "not_found");
-    }
-    return hit.id;
+    const byId = images.find((i) => i.id === raw);
+    if (byId) return byId.id;
+    const byName = images.find((i) => i.name === raw);
+    if (byName) return byName.id;
+    throw new HostVdsApiError(
+      `Image not found in region ${this.config.regionName}: ${raw}`,
+      "not_found"
+    );
   }
 
   async resolveFlavorRef(flavorIdOrName: string): Promise<string> {
