@@ -368,13 +368,16 @@ export class OpenStackClient {
 
   async resolveNetworkId(networkIdOrName: string): Promise<string> {
     const raw = networkIdOrName.trim();
-    if (/^[0-9a-f-]{36}$/i.test(raw)) return raw;
+    // Always resolve against networks in the active region (UUIDs differ per HostVDS region).
     const nets = await this.listNetworks();
-    const hit = nets.find((n) => n.name === raw || n.id === raw);
-    if (!hit) {
-      throw new HostVdsApiError(`Network not found: ${raw}`, "not_found");
-    }
-    return hit.id;
+    const byId = nets.find((n) => n.id === raw);
+    if (byId) return byId.id;
+    const byName = nets.find((n) => n.name === raw);
+    if (byName) return byName.id;
+    throw new HostVdsApiError(
+      `Network not found in region ${this.config.regionName}: ${raw}`,
+      "not_found"
+    );
   }
 
   async resolveImageRef(imageIdOrName: string): Promise<string> {
