@@ -390,13 +390,16 @@ export class OpenStackClient {
 
   async resolveFlavorRef(flavorIdOrName: string): Promise<string> {
     const raw = flavorIdOrName.trim();
-    if (/^[0-9a-f-]{36}$/i.test(raw) || /^\d+$/.test(raw)) return raw;
+    // Always resolve against flavors in the active region (UUIDs differ per HostVDS region).
     const flavors = await this.listFlavors();
-    const hit = flavors.find((f) => f.name === raw || f.id === raw);
-    if (!hit) {
-      throw new HostVdsApiError(`Flavor not found: ${raw}`, "not_found");
-    }
-    return hit.id;
+    const byId = flavors.find((f) => f.id === raw);
+    if (byId) return byId.id;
+    const byName = flavors.find((f) => f.name === raw);
+    if (byName) return byName.id;
+    throw new HostVdsApiError(
+      `Flavor not found in region ${this.config.regionName}: ${raw}`,
+      "not_found"
+    );
   }
 
   /**

@@ -163,16 +163,26 @@ function hostVdsLocationButtonLabel(
   ctx: AppContext,
   locationKey: string,
   rateId: number
-): { label: string; selectable: boolean } {
+): { label: string; selectable: boolean; status: HostVdsStockStatus } {
   const base = vpsLocationLabel(ctx, locationKey);
-  if (!useHostVdsStockUi()) return { label: base, selectable: true };
+  if (!useHostVdsStockUi()) {
+    return { label: `✅ ${base}`, selectable: true, status: "available" };
+  }
   const status = resolvePlanAtLocationStatus(locationKey, rateId);
   if (status === "available") {
-    return { label: `✅ ${base}`, selectable: true };
+    return { label: `✅ ${base}`, selectable: true, status };
+  }
+  if (status === "sold_out") {
+    return {
+      label: `🔒 ${base} · ${ctx.t("hostvds-status-sold-out")}`,
+      selectable: false,
+      status,
+    };
   }
   return {
-    label: `🔒 ${base} · ${stockStatusLabel(ctx, status)}`,
+    label: `🔒 ${base} · ${ctx.t("hostvds-status-unavailable")}`,
     selectable: false,
+    status,
   };
 }
 
@@ -612,7 +622,15 @@ async function showVpsLocationPicker(ctx: AppContext, rateId: number): Promise<v
   const kb = new InlineKeyboard();
   const stockUi = !bulletproof && useHostVdsStockUi();
 
-  for (const key of allowedLocationKeys) {
+  const locationKeys = stockUi
+    ? [...allowedLocationKeys].sort((a, b) => {
+        const aOk = resolvePlanAtLocationStatus(a, rateId) === "available" ? 0 : 1;
+        const bOk = resolvePlanAtLocationStatus(b, rateId) === "available" ? 0 : 1;
+        return aOk - bOk;
+      })
+    : allowedLocationKeys;
+
+  for (const key of locationKeys) {
     if (stockUi) {
       const { label, selectable } = hostVdsLocationButtonLabel(ctx, key, rateId);
       if (selectable) {
