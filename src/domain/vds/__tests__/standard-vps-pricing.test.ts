@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   getStandardVpsSellPriceUsd,
+  getVpsCatalogBasePrice,
   hostvdsMarkupFraction,
 } from "../standard-vps-pricing.js";
 
 describe("standard-vps-pricing", () => {
-  it("markup tiers", () => {
+  it("markup tiers on HostVDS EUR cost only", () => {
+    // 0–2€ → +120%, 2–4€ → +100%, 4–10€ → +70%, 10+€ → +50%
     assert.equal(hostvdsMarkupFraction(0.99), 1.2);
     assert.equal(hostvdsMarkupFraction(1.99), 1.2);
     assert.equal(hostvdsMarkupFraction(2), 1.0);
@@ -27,5 +29,15 @@ describe("standard-vps-pricing", () => {
     for (let i = 1; i < sells.length; i++) {
       assert.ok(sells[i]! > sells[i - 1]!, `rate ${i} must cost more than ${i - 1}`);
     }
+  });
+
+  it("markup applies ONLY to standard VPS — bulletproof uses prices.json as-is", () => {
+    const rate = { price: { default: 999, bulletproof: 65 } };
+    assert.equal(getVpsCatalogBasePrice(rate, { bulletproof: true, rateId: 3 }), 65);
+    assert.equal(getVpsCatalogBasePrice(rate, { bulletproof: false, rateId: 3 }), 14);
+    assert.notEqual(
+      getVpsCatalogBasePrice(rate, { bulletproof: true, rateId: 3 }),
+      getVpsCatalogBasePrice(rate, { bulletproof: false, rateId: 3 })
+    );
   });
 });
