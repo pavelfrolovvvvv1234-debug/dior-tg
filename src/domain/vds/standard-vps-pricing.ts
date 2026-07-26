@@ -15,18 +15,18 @@
 
 import bundledCosts from "../../config/hostvds-standard-costs.json";
 
-/** Default EUR monthly cost per shop rateId — matches current HOSTVDS_FLAVOR_MAP. */
+/** Default EUR monthly cost per shop rateId — unique ladder (see FLAVOR_MAP). */
 export const DEFAULT_HOSTVDS_COST_EUR: Record<number, number> = {
-  0: 0.99,
-  1: 3.99,
-  2: 3.99,
-  3: 19.99,
-  4: 39.99,
-  5: 39.99,
-  6: 39.99,
-  7: 79.99,
-  8: 119.99,
-  9: 119.99,
+  0: 0.99, // hostvds-1
+  1: 1.99, // hostvds-2
+  2: 3.99, // hostvds-4
+  3: 7.99, // hostvds-8
+  4: 15.99, // hostvds-16
+  5: 19.99, // highload-4
+  6: 39.99, // highload-8
+  7: 79.99, // highload-16
+  8: 119.99, // highload-24
+  9: 159.99, // highload-24 premium (no larger HostVDS flavor)
 };
 
 function parseJsonMap(raw: string | undefined | object): Record<string, number> {

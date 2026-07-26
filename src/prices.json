@@ -19,7 +19,7 @@
       "network": 150,
       "price": {
         "bulletproof": 27,
-        "default": 8
+        "default": 4
       }
     },
     {
@@ -41,7 +41,7 @@
       "network": 150,
       "price": {
         "bulletproof": 65,
-        "default": 30
+        "default": 14
       }
     },
     {
@@ -52,7 +52,7 @@
       "network": 150,
       "price": {
         "bulletproof": 99,
-        "default": 60
+        "default": 24
       }
     },
     {
@@ -63,7 +63,7 @@
       "network": 150,
       "price": {
         "bulletproof": 115,
-        "default": 60
+        "default": 30
       }
     },
     {
@@ -107,7 +107,7 @@
       "network": 150,
       "price": {
         "bulletproof": 340,
-        "default": 180
+        "default": 240
       }
     }
   ],

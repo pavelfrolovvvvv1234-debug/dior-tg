@@ -181,7 +181,7 @@ HOSTVDS_SECURITY_GROUPS=allow_all
 
 HOSTVDS_IMAGE_MAP={"ubuntu2404":"Ubuntu-24.04-amd64","ubuntu2204":"Ubuntu-22.04-amd64","debian13":"Debian-13-amd64","debian12":"Debian-12-amd64","debian11":"Debian-11-amd64","alma8":"AlmaLinux-8-amd64","alma9":"AlmaLinux-9-amd64","rockylinux":"RockyLinux-9-amd64","centos9":"CentOS-9-amd64"}
 
-HOSTVDS_FLAVOR_MAP={"0":"hostvds-1","1":"hostvds-4","2":"hostvds-4","3":"highload-4","4":"highload-8","5":"highload-8","6":"highload-8","7":"highload-16","8":"highload-24","9":"highload-24"}
+HOSTVDS_FLAVOR_MAP={"0":"hostvds-1","1":"hostvds-2","2":"hostvds-4","3":"hostvds-8","4":"hostvds-16","5":"highload-4","6":"highload-8","7":"highload-16","8":"highload-24","9":"highload-24"}
 
 HOSTVDS_POLL_INTERVAL_MS=5000
 HOSTVDS_POLL_TIMEOUT_MS=600000
@@ -189,11 +189,13 @@ HOSTVDS_SSH_READY_TIMEOUT_MS=180000
 HOSTVDS_INSECURE_TLS=0
 
 # Pricing (EUR cost → sell)
-HOSTVDS_COST_EUR_MAP={"0":0.99,"1":3.99,"2":3.99,"3":19.99,"4":39.99,"5":39.99,"6":39.99,"7":79.99,"8":119.99,"9":119.99}
+HOSTVDS_COST_EUR_MAP={"0":0.99,"1":1.99,"2":3.99,"3":7.99,"4":15.99,"5":19.99,"6":39.99,"7":79.99,"8":119.99,"9":159.99}
 HOSTVDS_EUR_USD=1
 ```
 
 Aliases `OS_*` из openrc тоже ок, если маппишь их в код.
+
+**Важно:** у каждого `rateId` своя себестоимость (и по возможности свой flavor), иначе в каталоге дублируются цены (Lite2=Lite3 и т.д.).
 
 ---
 
@@ -212,7 +214,8 @@ Aliases `OS_*` из openrc тоже ок, если маппишь их в код
 sell = round(costEur * (1 + markup) * EUR_USD)
 ```
 
-Пример при rate=1 и costs выше: Lite1→$2, Lite2/3→$8, Elite1→$30, Elite2–Mega1→$60, Mega2→$120, Mega3/4→$180.
+Уникальная лестница (EUR_USD=1):  
+Lite1→$2, Lite2→$4, Lite3→$8, Elite1→$14, Elite2→$24, Elite3→$30, Mega1→$60, Mega2→$120, Mega3→$180, Mega4→$240.
 
 Bulletproof цены **не** из этой формулы.
 

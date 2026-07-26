@@ -17,14 +17,15 @@ describe("standard-vps-pricing", () => {
     assert.equal(hostvdsMarkupFraction(119.99), 0.5);
   });
 
-  it("sell prices from default HostVDS costs (EUR→USD rate 1)", () => {
-    assert.equal(getStandardVpsSellPriceUsd(0, 4), 2); // 0.99 * 2.2
-    assert.equal(getStandardVpsSellPriceUsd(1, 8), 8); // 3.99 * 2
-    assert.equal(getStandardVpsSellPriceUsd(2, 10), 8);
-    assert.equal(getStandardVpsSellPriceUsd(3, 18), 30); // 19.99 * 1.5
-    assert.equal(getStandardVpsSellPriceUsd(4, 35), 60);
-    assert.equal(getStandardVpsSellPriceUsd(7, 95), 120);
-    assert.equal(getStandardVpsSellPriceUsd(8, 139), 180);
-    assert.equal(getStandardVpsSellPriceUsd(9, 179), 180);
+  it("sell prices are unique ascending ladder (EUR→USD rate 1)", () => {
+    const sells = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((id) =>
+      getStandardVpsSellPriceUsd(id, 0)
+    );
+    assert.deepEqual(sells, [2, 4, 8, 14, 24, 30, 60, 120, 180, 240]);
+    const unique = new Set(sells);
+    assert.equal(unique.size, sells.length, "no duplicate sell prices");
+    for (let i = 1; i < sells.length; i++) {
+      assert.ok(sells[i]! > sells[i - 1]!, `rate ${i} must cost more than ${i - 1}`);
+    }
   });
 });
