@@ -41,6 +41,7 @@ import {
   getVpsCpuModelForRate,
 } from "../domain/vds/vps-onboarding-messages.js";
 import { getOrderPriceForUser } from "../shared/pricing/order-discount.js";
+import { getVpsCatalogBasePrice } from "../domain/vds/standard-vps-pricing.js";
 import { joinScreenSections, premiumScreen } from "../ui/design-system.js";
 import { buildVpsReadyCopyKeyboard } from "../ui/utils/copy-keyboard.js";
 
@@ -304,7 +305,7 @@ async function createAndBuyVDS(
     return "user-not-found" as const;
   }
 
-  const basePrice = bulletproof ? rate.price.bulletproof : rate.price.default;
+  const basePrice = getVpsCatalogBasePrice(rate, { bulletproof, rateId });
   const price = await getOrderPriceForUser(appDataSource, userId, basePrice);
 
   // Remember this thing
@@ -586,9 +587,10 @@ export const vdsRateChoose = new Menu<AppContext>("vds-selected-rate", {
 
         if (rate) {
           const dataSource = await getAppDataSource();
-          const basePrice = session.other.vdsRate.bulletproof
-            ? rate.price.bulletproof
-            : rate.price.default;
+          const basePrice = getVpsCatalogBasePrice(rate, {
+            bulletproof: Boolean(session.other.vdsRate.bulletproof),
+            rateId: Number(ctx.match),
+          });
           const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
           const usersRepo = dataSource.getRepository(User);
           const user = await usersRepo.findOneBy({ id: session.main.user.id });

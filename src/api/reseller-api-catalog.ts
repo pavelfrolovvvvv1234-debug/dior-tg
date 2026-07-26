@@ -11,6 +11,7 @@ import { getBundledProxmoxTemplateCatalog } from "../app/proxmox-templates.js";
 import { normalizeVmmOsSlug, resolveVdsLoginForOs } from "../shared/vmm-os-display.js";
 import type { GuestMetrics, VmProvider } from "../infrastructure/vmmanager/provider.js";
 import { isPlaceholderIpv4, mergeServiceIpv4Addresses } from "./reseller-api-vm-ops.js";
+import { getStandardVpsSellPriceUsd } from "../domain/vds/standard-vps-pricing.js";
 
 export type ResellerServiceStatus =
   | "online"
@@ -113,9 +114,9 @@ export function listResellerPlans(): Array<{
 }> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const prices = require("../prices.json") as { virtual_vds: PricePlan[] };
-  return prices.virtual_vds.map((p) => {
+  return prices.virtual_vds.map((p, idx) => {
     const bulletproof = Number(p.price.bulletproof || 0);
-    const standard = Number(p.price.default || 0);
+    const standard = getStandardVpsSellPriceUsd(idx, Number(p.price.default || 0));
     return {
       name: p.name,
       cpu: p.cpu,

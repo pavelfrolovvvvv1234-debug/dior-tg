@@ -24,6 +24,7 @@ import {
   MAX_EXTRA_IPV4_PER_VDS,
 } from "../vds/extra-ipv4.js";
 import { denyVdsUserTransfer } from "../../shared/vds/vds-transfer-rules.js";
+import { getVpsCatalogBasePrice } from "../vds/standard-vps-pricing.js";
 
 /**
  * VDS rate structure from prices.json.
@@ -61,9 +62,10 @@ export class VdsService {
 
   /**
    * Calculate VDS price based on rate and bulletproof mode.
+   * Standard uses HostVDS EUR cost + markup; bulletproof uses prices.json.
    */
-  calculatePrice(rate: VdsRate, bulletproof: boolean): number {
-    return bulletproof ? rate.price.bulletproof : rate.price.default;
+  calculatePrice(rate: VdsRate, bulletproof: boolean, rateId = -1): number {
+    return getVpsCatalogBasePrice(rate, { bulletproof, rateId });
   }
 
   /**
@@ -72,9 +74,10 @@ export class VdsService {
   async canAffordVds(
     userId: number,
     rate: VdsRate,
-    bulletproof: boolean
+    bulletproof: boolean,
+    rateId = -1
   ): Promise<boolean> {
-    const price = this.calculatePrice(rate, bulletproof);
+    const price = this.calculatePrice(rate, bulletproof, rateId);
     return await this.billingService.hasSufficientBalance(userId, price);
   }
 
@@ -98,9 +101,9 @@ export class VdsService {
     osId: number,
     bulletproof: boolean
   ): Promise<CreateVdsResult> {
-    const price = this.calculatePrice(rate, bulletproof);
+    const price = this.calculatePrice(rate, bulletproof, rateId);
 
-    if (!(await this.canAffordVds(userId, rate, bulletproof))) {
+    if (!(await this.canAffordVds(userId, rate, bulletproof, rateId))) {
       const balance = await this.billingService.getBalance(userId);
       throw new BusinessError(
         `Insufficient balance. Required: ${price}, Available: ${balance}`

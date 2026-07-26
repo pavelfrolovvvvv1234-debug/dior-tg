@@ -177,7 +177,11 @@ export async function calculateBundlePrice(
   if (config.vpsRateId != null) {
     const vpsRate = pricesList.virtual_vds[config.vpsRateId];
     if (vpsRate) {
-      const vpsMonthlyPrice = config.vpsBulletproof ? vpsRate.price.bulletproof : vpsRate.price.default;
+      const { getVpsCatalogBasePrice } = await import("../vds/standard-vps-pricing.js");
+      const vpsMonthlyPrice = getVpsCatalogBasePrice(vpsRate, {
+        bulletproof: Boolean(config.vpsBulletproof),
+        rateId: config.vpsRateId,
+      });
       basePrice += vpsMonthlyPrice * config.periodMonths;
     }
   }

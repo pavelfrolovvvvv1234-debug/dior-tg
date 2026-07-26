@@ -5,6 +5,7 @@
  */
 
 import { normalizeAdminPlanName } from "./parse-managed-service-input.js";
+import { getStandardVpsSellPriceUsd } from "../../domain/vds/standard-vps-pricing.js";
 
 export type VdsPlanSpec = {
   name: string;
@@ -33,8 +34,10 @@ function loadPlans(): PricePlan[] {
 
 export function resolveVdsPlanSpec(planName: string): VdsPlanSpec | null {
   const normalized = normalizeAdminPlanName(planName).toLowerCase();
-  const plan = loadPlans().find((p) => p.name.toLowerCase() === normalized);
-  if (!plan) return null;
+  const plans = loadPlans();
+  const idx = plans.findIndex((p) => p.name.toLowerCase() === normalized);
+  if (idx < 0) return null;
+  const plan = plans[idx]!;
   return {
     name: plan.name,
     cpu: plan.cpu,
@@ -42,7 +45,7 @@ export function resolveVdsPlanSpec(planName: string): VdsPlanSpec | null {
     ssd: plan.ssd,
     network: plan.network,
     priceBulletproof: Number(plan.price.bulletproof || 0),
-    priceStandard: Number(plan.price.default || 0),
+    priceStandard: getStandardVpsSellPriceUsd(idx, Number(plan.price.default || 0)),
   };
 }
 

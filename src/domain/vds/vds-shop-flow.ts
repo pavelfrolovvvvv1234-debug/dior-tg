@@ -26,6 +26,7 @@ import { isMissingFluentTranslation } from "../../shared/i18n/fluent-missing.js"
 import { notifyStaffChats } from "../../helpers/notifier.js";
 import { DEDICATED_LOCATION_KEYS, DEDICATED_OS_KEYS } from "../dedicated/dedicated-shop-config.js";
 import { getOrderPriceForUser } from "../../shared/pricing/order-discount.js";
+import { getVpsCatalogBasePrice } from "./standard-vps-pricing.js";
 import { getProxmoxTemplateMap, isProxmoxEnabled } from "../../app/config.js";
 import { ProxmoxProvider } from "../../infrastructure/vmmanager/ProxmoxProvider.js";
 import ms from "../../lib/multims.js";
@@ -209,7 +210,10 @@ async function createVpsOrderTicket(
     return;
   }
 
-  const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
+  const basePrice = getVpsCatalogBasePrice(rate, {
+    bulletproof: Boolean(session.other.vdsRate.bulletproof),
+    rateId,
+  });
   const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
   if (user.balance < price) {
     await showTopupForMissingAmount(ctx, price - user.balance);
@@ -383,7 +387,10 @@ async function createVpsOrderDirect(
       return false;
     }
 
-    const basePrice = session.other.vdsRate.bulletproof ? rate.price.bulletproof : rate.price.default;
+    const basePrice = getVpsCatalogBasePrice(rate, {
+      bulletproof: Boolean(session.other.vdsRate.bulletproof),
+      rateId,
+    });
     const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
     if (user.balance < price) {
       await showTopupForMissingAmount(ctx, price - user.balance);
@@ -780,7 +787,7 @@ async function createStandardVpsOrderHostVds(
         return false;
       }
 
-      const basePrice = rate.price.default;
+      const basePrice = getVpsCatalogBasePrice(rate, { bulletproof: false, rateId });
       const price = await getOrderPriceForUser(dataSource, user.id, basePrice);
       if (user.balance < price) {
         await showTopupForMissingAmount(ctx, price - user.balance);
@@ -1166,7 +1173,10 @@ export async function showVpsShopStep3List(ctx: AppContext, page?: number): Prom
   const kb = new InlineKeyboard();
   for (const id of slice) {
     const rate = list[id]!;
-    const base = vr.bulletproof ? rate.price.bulletproof : rate.price.default;
+    const base = getVpsCatalogBasePrice(rate, {
+      bulletproof: Boolean(vr.bulletproof),
+      rateId: id,
+    });
     let label = await compactPlanButtonLabel(ctx, rate, base);
     if (stockUi) {
       const st = resolvePlanGlobalStatus(id);
@@ -1210,7 +1220,10 @@ export async function showVpsShopStep4Card(ctx: AppContext, rateId: number): Pro
 
   const vr = session.other.vdsRate;
   vr.selectedRateId = rateId;
-  const basePrice = vr.bulletproof ? rate.price.bulletproof : rate.price.default;
+  const basePrice = getVpsCatalogBasePrice(rate, {
+    bulletproof: Boolean(vr.bulletproof),
+    rateId,
+  });
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
   const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
 
@@ -1253,7 +1266,10 @@ export async function showVpsShopFullDetails(ctx: AppContext, rateId: number): P
   if (!rate) return;
 
   const vr = session.other.vdsRate;
-  const basePrice = vr.bulletproof ? rate.price.bulletproof : rate.price.default;
+  const basePrice = getVpsCatalogBasePrice(rate, {
+    bulletproof: Boolean(vr.bulletproof),
+    rateId,
+  });
   const dataSource = ctx.appDataSource ?? (await getAppDataSource());
   const price = await getOrderPriceForUser(dataSource, session.main.user.id, basePrice);
 
