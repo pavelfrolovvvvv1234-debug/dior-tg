@@ -994,12 +994,35 @@ async function finalizeVpsOrderAfterOs(
     return;
   }
 
-  // Standard VPS: HostVDS OpenStack when configured and in stock for this plan+location.
+  // Standard VPS: only when HostVDS is configured; otherwise refuse (no ticket fallback).
   if (!session.other.vdsRate.bulletproof) {
+    const { isHostVdsEnabled } = await import("../../infrastructure/hostvds/hostvds-config.js");
+    if (!isHostVdsEnabled()) {
+      await ctx
+        .answerCallbackQuery({
+          text: ctx.t("vds-standard-temporarily-unavailable"),
+          show_alert: true,
+        })
+        .catch(() => {});
+      await ctx
+        .reply(ctx.t("vds-standard-temporarily-unavailable"), {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(() => {});
+      return;
+    }
     if (canProvisionHostVdsNow(locationKey, rateId)) {
       await createStandardVpsOrderHostVds(ctx, rateId, locationKey, osKey);
       return;
     }
+    await ctx
+      .answerCallbackQuery({
+        text: ctx.t("vds-standard-temporarily-unavailable"),
+        show_alert: true,
+      })
+      .catch(() => {});
+    return;
   }
 
   await createVpsOrderTicket(ctx, rateId, locationKey, osKey);
@@ -1079,6 +1102,19 @@ export async function showVpsShopStep2Tier(ctx: AppContext): Promise<void> {
 export async function showVpsShopStep3List(ctx: AppContext, page?: number): Promise<void> {
   const session = await ctx.session;
   ensureVpsShopSession(session);
+  if (!session.other.vdsRate.bulletproof) {
+    const { isHostVdsEnabled } = await import("../../infrastructure/hostvds/hostvds-config.js");
+    if (!isHostVdsEnabled()) {
+      await ctx
+        .answerCallbackQuery({
+          text: ctx.t("vds-standard-temporarily-unavailable"),
+          show_alert: true,
+        })
+        .catch(() => {});
+      await showVpsShopStep1(ctx);
+      return;
+    }
+  }
   const vr = session.other.vdsRate;
   const tier = vr.shopTier;
   const p = page ?? vr.shopListPage ?? 0;

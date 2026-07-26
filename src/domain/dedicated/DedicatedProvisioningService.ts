@@ -207,11 +207,16 @@ export class DedicatedProvisioningService {
     });
   }
 
-  async listTicketsByStatus(status: ProvisioningTicketStatus, limit = 20): Promise<ProvisioningTicket[]> {
+  async listTicketsByStatus(
+    status: ProvisioningTicketStatus,
+    limit = 20,
+    offset = 0
+  ): Promise<ProvisioningTicket[]> {
     return this.dataSource.getRepository(ProvisioningTicket).find({
       where: { status },
       order: { createdAt: "ASC" },
       take: limit,
+      skip: Math.max(0, offset),
     });
   }
 

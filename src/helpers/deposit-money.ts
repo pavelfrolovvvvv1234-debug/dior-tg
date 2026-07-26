@@ -145,11 +145,9 @@ export async function handleTopupByMethod(
     return;
   }
 
-  const cryptopayToken =
-    process.env["PAYMENT_CRYPTOBOT_TOKEN"]?.trim() ||
-    process.env["PAYMENT_CRYPTO_PAY_TOKEN"]?.trim();
-  if (method === "cryptobot" && !cryptopayToken) {
-    await topupSend(ctx, ctx.t("topup-cryptobot-not-configured"), {
+  if (method === "cryptobot") {
+    session.main.topupMethod = null;
+    await topupSend(ctx, ctx.t("topup-method-unavailable"), {
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "topup_manual_back"),
     });
@@ -176,9 +174,7 @@ export async function handleTopupByMethod(
     const result =
       method === "crystalpay"
         ? await builder.createCrystalPayment()
-        : method === "cryptobot"
-          ? await builder.createCryptoBotPayment()
-          : await builder.createHeleketPayment();
+        : await builder.createHeleketPayment();
 
     await topupSetMarkup(
       ctx,
@@ -230,18 +226,6 @@ export const topupMethodMenu = new Menu<AppContext>("topup-method-menu", {
     if (shouldAutoProceedWithPrefilledAmount(session)) {
       session.other.deposit.prefilledAmount = false;
       await handleTopupByMethod(ctx, "heleket", session.main.lastSumDepositsEntered);
-      return;
-    }
-    await openAmountPicker(ctx);
-  })
-  .row()
-  .text((ctx) => ctx.t("topup-method-cryptobot"), async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
-    session.main.topupMethod = "cryptobot";
-    if (shouldAutoProceedWithPrefilledAmount(session)) {
-      session.other.deposit.prefilledAmount = false;
-      await handleTopupByMethod(ctx, "cryptobot", session.main.lastSumDepositsEntered);
       return;
     }
     await openAmountPicker(ctx);

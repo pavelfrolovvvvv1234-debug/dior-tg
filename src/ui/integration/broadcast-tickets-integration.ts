@@ -22,7 +22,8 @@ import { DomainStatus } from "../../entities/Domain";
 import { TicketService } from "../../domain/tickets/TicketService";
 import { TicketType, TicketStatus } from "../../entities/Ticket";
 import { InlineKeyboard } from "grammy";
-import { Role } from "../../entities/User";
+import User, { Role } from "../../entities/User";
+import { In } from "typeorm";
 import Promo from "../../entities/Promo";
 import { Logger } from "../../app/logger";
 import { adminPromosMenu } from "../menus/admin-promocodes-menu.js";
@@ -135,6 +136,105 @@ const formatProvisioningStatus = (ctx: AppContext, status: ProvisioningTicketSta
   const key = `ticket-status-${status}`;
   const translated = ctx.t(key as any);
   return translated === key ? status : translated;
+};
+
+const PROV_LIST_PAGE_SIZE = 10;
+
+const formatBuyerLabel = (
+  user: User | null | undefined,
+  userId: number | string | null | undefined
+): string => {
+  const id = userId == null || userId === "" ? null : Number(userId);
+  const uname = user?.telegramUsername?.trim().replace(/^@/, "");
+  if (uname) return `@${uname}`;
+  if (id != null && Number.isFinite(id)) return `U${id}`;
+  return "—";
+};
+
+const renderProvisioningTicketList = async (
+  ctx: AppContext,
+  status: ProvisioningTicketStatus,
+  page: number
+): Promise<void> => {
+  const service = new DedicatedProvisioningService(ctx.appDataSource);
+  const total = await service.countTicketsByStatus(status);
+  if (total === 0) {
+    await ctx.editMessageText(
+      renderMultiline(
+        ctx.t("provisioning-list-empty", { status: formatProvisioningStatus(ctx, status) })
+      ),
+      {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "prov_tickets"),
+      }
+    );
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PROV_LIST_PAGE_SIZE));
+  const safePage = Math.min(Math.max(0, page), totalPages - 1);
+  const tickets = await service.listTicketsByStatus(
+    status,
+    PROV_LIST_PAGE_SIZE,
+    safePage * PROV_LIST_PAGE_SIZE
+  );
+
+  const userIds = new Set<number>();
+  const ordersByTicketId = new Map<
+    number,
+    Awaited<ReturnType<DedicatedProvisioningService["getOrderById"]>>
+  >();
+  for (const t of tickets) {
+    const order = await service.getOrderById(t.orderId);
+    ordersByTicketId.set(t.id, order);
+    if (order?.userId != null) userIds.add(Number(order.userId));
+  }
+
+  const users =
+    userIds.size > 0
+      ? await ctx.appDataSource.getRepository(User).find({
+          where: { id: In([...userIds]) },
+        })
+      : [];
+  const userById = new Map(users.map((u) => [u.id, u]));
+
+  const kb = new InlineKeyboard();
+  for (const t of tickets) {
+    const order = ordersByTicketId.get(t.id);
+    const server = (order?.productName || "server").slice(0, 16);
+    const buyer = formatBuyerLabel(
+      order?.userId != null ? userById.get(Number(order.userId)) : null,
+      order?.userId
+    );
+    const label = `#${t.id} • ${buyer} • ${server}`;
+    kb.text(label.slice(0, 64), `prov_view_${t.id}`).row();
+  }
+
+  if (totalPages > 1) {
+    const statusKey = String(status);
+    if (safePage > 0) {
+      kb.text(ctx.t("pagination-left"), `prov_list_${statusKey}_p${safePage - 1}`);
+    }
+    kb.text(`${safePage + 1}/${totalPages}`, "prov_list_noop");
+    if (safePage < totalPages - 1) {
+      kb.text(ctx.t("pagination-right"), `prov_list_${statusKey}_p${safePage + 1}`);
+    }
+    kb.row();
+  }
+  kb.text(ctx.t("button-back"), "prov_tickets");
+
+  await ctx.editMessageText(
+    renderMultiline(
+      ctx.t("provisioning-list-title", {
+        status: formatProvisioningStatus(ctx, status),
+        count: total,
+      })
+    ),
+    {
+      parse_mode: "HTML",
+      reply_markup: kb,
+    }
+  );
 };
 
 const formatProvisioningQueueSummary = (
@@ -1843,7 +1943,7 @@ Are you sure you want to proceed?`,
     });
   });
 
-  bot.callbackQuery(/^prov_list_(.+)$/, async (ctx) => {
+  bot.callbackQuery(/^prov_list_(open|in_progress|waiting|done)(?:_p(\d+))?$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     if (session.main.user.role !== Role.Moderator && session.main.user.role !== Role.Admin) {
@@ -1852,28 +1952,12 @@ Are you sure you want to proceed?`,
     }
     const status = toProvisioningStatus(ctx.match[1]);
     if (!status) return;
-    const service = new DedicatedProvisioningService(ctx.appDataSource);
-    const tickets = await service.listTicketsByStatus(status, 20);
-    if (tickets.length === 0) {
-      await ctx.editMessageText(renderMultiline(ctx.t("provisioning-list-empty", { status: formatProvisioningStatus(ctx, status) })), {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().text(ctx.t("button-back"), "prov_tickets"),
-      });
-      return;
-    }
-    const kb = new InlineKeyboard();
-    for (const t of tickets.slice(0, 10)) {
-      const order = await service.getOrderById(t.orderId);
-      const server = (order?.productName || "server").slice(0, 18);
-      const userId = order?.userId ?? "—";
-      const label = `#${t.id} • U${userId} • ${server}`;
-      kb.text(label.slice(0, 62), `prov_view_${t.id}`).row();
-    }
-    kb.text(ctx.t("button-back"), "prov_tickets");
-    await ctx.editMessageText(renderMultiline(ctx.t("provisioning-list-title", { status: formatProvisioningStatus(ctx, status), count: tickets.length })), {
-      parse_mode: "HTML",
-      reply_markup: kb,
-    });
+    const page = Math.max(0, Number(ctx.match[2] ?? 0) || 0);
+    await renderProvisioningTicketList(ctx, status, page);
+  });
+
+  bot.callbackQuery("prov_list_noop", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
   });
 
   bot.callbackQuery(/^prov_view_(\d+)$/, async (ctx) => {
@@ -1889,6 +1973,15 @@ Are you sure you want to proceed?`,
     if (!ticket) return;
     const order = await service.getOrderById(ticket.orderId);
     if (!order) return;
+    const buyerUser =
+      order.userId != null
+        ? await ctx.appDataSource.getRepository(User).findOne({ where: { id: Number(order.userId) } })
+        : null;
+    const buyerLabel = formatBuyerLabel(buyerUser, order.userId);
+    const clientDisplay =
+      buyerLabel.startsWith("@") && order.userId != null
+        ? `${buyerLabel} · #${order.userId}`
+        : buyerLabel;
     const checklist = await service.getChecklist(ticket.id);
     const notes = await service.listRecentNotes(ticket.id, 3);
     const checked = checklist.filter((x) => x.isChecked).length;
@@ -1902,7 +1995,7 @@ Are you sure you want to proceed?`,
       orderNumber: order.orderNumber,
       status: formatProvisioningStatus(ctx, ticket.status),
       assignee: formatTicketAssigneeDisplay(ctx, ticket.assigneeUserId),
-      userId: order.userId,
+      userId: clientDisplay,
       amount: order.paymentAmount,
       currency: order.currency,
       serviceName: order.productName,

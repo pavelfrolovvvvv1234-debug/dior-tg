@@ -936,6 +936,7 @@ topup-select-method =
 
 topup-select-amount = Выберите сумму пополнения
 topup-method-cryptobot = 💳 CryptoBot
+topup-method-unavailable = Этот способ оплаты временно недоступен. Выберите другой.
 topup-method-crystalpay = 💎 CrystalPay · СБП / карты, LZT, крипта
 topup-method-heleket = 🪙 Heleket · USDT, BTC, LTC, ETH, XMR…
 topup-method-bank = 🏦 Ручной перевод · реквизиты
@@ -1146,6 +1147,7 @@ vds-shop-step1-text =
     <b>Выберите тип:</b>
 vds-shop-btn-standard = ⚙️ Стандартные
 vds-shop-btn-bulletproof = 🛡 Абузоустойчивые
+vds-standard-temporarily-unavailable = Стандартные VPS временно недоступны. Выберите абузоустойчивые.
 vds-shop-step2-title = <b>Выберите уровень:</b>
 vds-shop-bulletproof-blurb =
     <b>🛡 Абузоустойчивый VDS</b>

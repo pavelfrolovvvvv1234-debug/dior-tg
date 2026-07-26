@@ -107,22 +107,28 @@ export const dedicatedTypeMenu = new Menu<AppContext>("dedicated-type-menu", { a
   });
 
 /**
- * VPS step 1: standard vs bulletproof → inline shop step 2 (vsh:*).
+ * VPS step 1: standard (only when HostVDS env is on) vs bulletproof → inline shop.
  */
-export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: false, onMenuOutdated: false })
-  .text((ctx) => ctx.t("vds-shop-btn-standard"), async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
-    const session = await ctx.session;
-    if (!session.other) (session as any).other = createInitialOtherSession();
-    session.other.vdsRate.bulletproof = false;
-    session.other.vdsRate.shopTier = null;
-    session.other.vdsRate.shopListPage = 0;
-    session.other.vdsRate.selectedRateId = -1;
-    session.other.vdsRate.selectedOs = -1;
-    const { showVpsShopStep3List } = await import("../domain/vds/vds-shop-flow.js");
-    await showVpsShopStep3List(ctx, 0);
-  })
-  .text((ctx) => ctx.t("vds-shop-btn-bulletproof"), async (ctx) => {
+export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", {
+  autoAnswer: false,
+  onMenuOutdated: false,
+}).dynamic(async (ctx, range) => {
+  const { isHostVdsEnabled } = await import("../infrastructure/hostvds/hostvds-config.js");
+  if (isHostVdsEnabled()) {
+    range.text(ctx.t("vds-shop-btn-standard"), async (ctx) => {
+      await ctx.answerCallbackQuery().catch(() => {});
+      const session = await ctx.session;
+      if (!session.other) (session as any).other = createInitialOtherSession();
+      session.other.vdsRate.bulletproof = false;
+      session.other.vdsRate.shopTier = null;
+      session.other.vdsRate.shopListPage = 0;
+      session.other.vdsRate.selectedRateId = -1;
+      session.other.vdsRate.selectedOs = -1;
+      const { showVpsShopStep3List } = await import("../domain/vds/vds-shop-flow.js");
+      await showVpsShopStep3List(ctx, 0);
+    });
+  }
+  range.text(ctx.t("vds-shop-btn-bulletproof"), async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const session = await ctx.session;
     if (!session.other) (session as any).other = createInitialOtherSession();
@@ -133,14 +139,15 @@ export const vdsTypeMenu = new Menu<AppContext>("vds-type-menu", { autoAnswer: f
     session.other.vdsRate.selectedOs = -1;
     const { showVpsShopStep3List } = await import("../domain/vds/vds-shop-flow.js");
     await showVpsShopStep3List(ctx, 0);
-  })
-  .row()
-  .text((ctx) => ctx.t("button-back"), async (ctx) => {
+  });
+  range.row();
+  range.text(ctx.t("button-back"), async (ctx) => {
     await ctx.editMessageText(ctx.t("menu-service-for-buy-choose"), {
       parse_mode: "HTML",
       reply_markup: servicesMenu,
     });
   });
+});
 
 export const domainsMenu = new Menu<AppContext>("domains-menu", { autoAnswer: false, onMenuOutdated: false })
   .text((ctx) => ctx.t("domain-shop-cat-popular"), async (ctx) => {
