@@ -421,6 +421,7 @@ export class OpenStackClient {
     metadata?: Record<string, string>;
     keyName?: string;
     availabilityZone?: string;
+    securityGroups?: string[];
   }): Promise<OpenStackServer> {
     const serverBody: Record<string, unknown> = {
       name: input.name,
@@ -435,6 +436,10 @@ export class OpenStackClient {
     if (input.metadata) serverBody.metadata = input.metadata;
     if (input.keyName) serverBody.key_name = input.keyName;
     if (input.availabilityZone) serverBody.availability_zone = input.availabilityZone;
+    const sgs = (input.securityGroups ?? []).map((n) => n.trim()).filter(Boolean);
+    if (sgs.length) {
+      serverBody.security_groups = sgs.map((name) => ({ name }));
+    }
 
     Logger.info("[HostVDS] POST /servers", {
       name: input.name,
@@ -442,6 +447,7 @@ export class OpenStackClient {
       flavorRef: input.flavorRef,
       networkId: input.networkId,
       availabilityZone: input.availabilityZone ?? null,
+      securityGroups: sgs,
       hasAdminPass: Boolean(input.adminPass),
       hasUserData: Boolean(input.userData),
     });
@@ -457,6 +463,54 @@ export class OpenStackClient {
       status: data.server.status,
     });
     return data.server;
+  }
+
+  async addSecurityGroup(serverId: string, groupName: string): Promise<void> {
+    Logger.info("[HostVDS] addSecurityGroup", { serverId, groupName });
+    await this.request("post", "compute", `/servers/${encodeURIComponent(serverId)}/action`, {
+      addSecurityGroup: { name: groupName },
+    });
+  }
+
+  /**
+   * Wait until TCP port is accepting connections (cloud-init / sshd up).
+   * Best-effort — does not fail provisioning if timeout elapses.
+   */
+  async waitForTcpOpen(
+    host: string,
+    port: number,
+    opts?: { timeoutMs?: number; intervalMs?: number }
+  ): Promise<boolean> {
+    const timeoutMs = opts?.timeoutMs ?? 180_000;
+    const intervalMs = opts?.intervalMs ?? 5_000;
+    if (timeoutMs <= 0) return true;
+    const deadline = Date.now() + timeoutMs;
+    const net = await import("node:net");
+    Logger.info("[HostVDS] waiting for TCP open", { host, port, timeoutMs });
+    while (Date.now() < deadline) {
+      const open = await new Promise<boolean>((resolve) => {
+        const socket = net.createConnection({ host, port }, () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.setTimeout(4_000);
+        socket.on("timeout", () => {
+          socket.destroy();
+          resolve(false);
+        });
+        socket.on("error", () => {
+          socket.destroy();
+          resolve(false);
+        });
+      });
+      if (open) {
+        Logger.info("[HostVDS] TCP open", { host, port });
+        return true;
+      }
+      await sleep(intervalMs);
+    }
+    Logger.warn("[HostVDS] TCP wait timed out — returning anyway", { host, port, timeoutMs });
+    return false;
   }
 
   async getServer(serverId: string): Promise<OpenStackServer> {

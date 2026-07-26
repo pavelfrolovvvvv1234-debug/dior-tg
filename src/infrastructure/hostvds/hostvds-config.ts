@@ -22,6 +22,10 @@ export type HostVdsConfig = {
   locationKeys: string[];
   pollIntervalMs: number;
   pollTimeoutMs: number;
+  /** Nova security group names attached on create (default: allow_all). */
+  securityGroups: string[];
+  /** Seconds to wait for TCP/22 after ACTIVE before returning (0 = skip). */
+  sshReadyTimeoutMs: number;
   computeApiVersion: string;
   insecureTls: boolean;
 };
@@ -45,6 +49,14 @@ function parseCsv(raw: string | undefined): string[] {
   return (raw ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** CSV that preserves case (security group names). */
+function parseCsvPreserveCase(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
     .filter(Boolean);
 }
 
@@ -113,11 +125,51 @@ export function readHostVdsConfig(): HostVdsConfig | null {
     locationKeys: locationKeys.length ? locationKeys : ["ru", "by", "ab"],
     pollIntervalMs,
     pollTimeoutMs,
+    securityGroups: (() => {
+      const fromEnv = parseCsvPreserveCase(process.env.HOSTVDS_SECURITY_GROUPS);
+      return fromEnv.length ? fromEnv : ["allow_all"];
+    })(),
+    sshReadyTimeoutMs: Math.max(
+      0,
+      parseInt(process.env.HOSTVDS_SSH_READY_TIMEOUT_MS || "180000", 10) || 180_000
+    ),
     computeApiVersion: (process.env.HOSTVDS_COMPUTE_API_VERSION || "2.1").trim(),
     insecureTls: ["1", "true", "yes"].includes(
       (process.env.HOSTVDS_INSECURE_TLS ?? "").trim().toLowerCase()
     ),
   };
+}
+
+/**
+ * cloud-init that sets root password and enables SSH password login.
+ * Nova adminPass alone is ignored on HostVDS Ubuntu/Debian cloud images.
+ */
+export function buildHostVdsCloudInit(password: string): string {
+  const pw = String(password ?? "").replace(/'/g, "''");
+  return `#cloud-config
+ssh_pwauth: true
+disable_root: false
+chpasswd:
+  expire: false
+  users:
+    - name: root
+      password: '${pw}'
+      type: text
+users:
+  - name: root
+    lock_passwd: false
+    ssh_pwauth: true
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-diorhost.conf
+    permissions: '0644'
+    content: |
+      PermitRootLogin yes
+      PasswordAuthentication yes
+      KbdInteractiveAuthentication yes
+runcmd:
+  - bash -lc "echo 'root:${pw}' | chpasswd"
+  - bash -lc "systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null || true"
+`;
 }
 
 export function canAutoProvisionStandardOnHostVds(locationKey: string): boolean {

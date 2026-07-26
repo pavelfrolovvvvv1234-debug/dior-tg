@@ -10,6 +10,7 @@
 import { Logger } from "../../app/logger.js";
 import {
   HOSTVDS_LOCAL_VMID_BASE,
+  buildHostVdsCloudInit,
   readHostVdsConfig,
   type HostVdsConfig,
 } from "./hostvds-config.js";
@@ -133,9 +134,12 @@ export async function provisionHostVdsServer(
     networkId,
     availabilityZone: input.availabilityZone ?? null,
     locationKey: input.locationKey ?? null,
+    securityGroups: config.securityGroups,
     rateId: input.rateId,
     userId: input.userId ?? null,
   });
+
+  const userData = input.userData?.trim() || buildHostVdsCloudInit(input.password);
 
   let serverId: string | null = null;
   try {
@@ -146,12 +150,26 @@ export async function provisionHostVdsServer(
       flavorRef,
       networkId,
       adminPass: input.password,
-      userData: input.userData,
+      userData,
       metadata,
       keyName: input.keyName,
       availabilityZone: input.availabilityZone,
+      securityGroups: config.securityGroups,
     });
     serverId = created.id;
+
+    // Ensure allow_all (or configured groups) even if create ignored security_groups.
+    for (const sg of config.securityGroups) {
+      try {
+        await client.addSecurityGroup(created.id, sg);
+      } catch (e) {
+        Logger.warn("[HostVDS] addSecurityGroup failed (may already be attached)", {
+          serverId: created.id,
+          sg,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
 
     const active = await client.waitForActive(created.id);
     let ipv4 = client.extractIpv4(active);
@@ -175,6 +193,16 @@ export async function provisionHostVdsServer(
         `Server ${created.id} ACTIVE but no IPv4 after wait`,
         "timeout"
       );
+    }
+
+    // Give cloud-init time to set password + start sshd before telling the user.
+    await client.waitForTcpOpen(ipv4, 22, {
+      timeoutMs: config.sshReadyTimeoutMs,
+      intervalMs: Math.max(3000, config.pollIntervalMs),
+    });
+    // Extra settle so chpasswd/sshd restart finish after port opens.
+    if (config.sshReadyTimeoutMs > 0) {
+      await new Promise((r) => setTimeout(r, 15_000));
     }
 
     Logger.info("[HostVDS] provisioning success", {
